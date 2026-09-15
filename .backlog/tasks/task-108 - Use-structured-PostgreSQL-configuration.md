@@ -5,7 +5,7 @@ status: Done
 assignee:
   - '@codex'
 created_date: '2026-09-15 23:20'
-updated_date: '2026-09-15 23:37'
+updated_date: '2026-09-15 23:38'
 labels: []
 dependencies: []
 ordinal: 116000
@@ -22,9 +22,10 @@ Backend database configuration should expose host, port, user, password, and dat
 - [x] #1 Default and local configuration use discrete PostgreSQL host, port, user, password, and name fields
 - [x] #2 MAHFEL_DATABASE nested environment overrides configure each field and Compose no longer passes a database URL
 - [x] #3 API migration and serve modes connect through typed settings without logging credentials
-- [x] #4 Database unit/integration tests, Compose configuration, and relevant documentation pass
-- [ ] #5 Affected Rust format, check, strict Clippy, nextest, doctests, Compose configuration, and documentation pass; the disposable live-database harness is adapted to the new type
+- [x] #4 Affected Rust format, check, strict Clippy, nextest, doctests, Compose configuration, and documentation pass; the disposable live-database harness is adapted to the new type
 <!-- AC:END -->
+
+
 
 ## Implementation Plan
 

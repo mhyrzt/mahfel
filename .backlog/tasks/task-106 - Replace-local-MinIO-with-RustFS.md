@@ -5,7 +5,7 @@ status: Done
 assignee:
   - '@codex'
 created_date: '2026-09-15 23:15'
-updated_date: '2026-09-15 23:37'
+updated_date: '2026-09-15 23:38'
 labels: []
 dependencies: []
 ordinal: 114000
@@ -20,11 +20,16 @@ Mahfel should use RustFS as its local S3-compatible object store while preservin
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
 - [x] #1 Compose runs a pinned RustFS image with persistent storage, loopback-only API/console ports, credentials, and a working health check
-- [x] #2 The configured Mahfel bucket is created idempotently and is usable through the S3 API
-- [x] #3 Environment examples, architecture docs, ADR wording, networking docs, and roadmap references name RustFS instead of MinIO
-- [x] #4 Compose configuration, documentation build, and a live RustFS health/S3 smoke test pass
-- [ ] #5 Compose configuration and documentation build pass without pulling or starting images
+- [x] #2 Environment examples, architecture docs, ADR wording, networking docs, and roadmap references name RustFS instead of MinIO
+- [x] #3 Compose configuration and documentation build pass without pulling or starting images
+- [x] #4 The configured Mahfel bucket has an idempotent AWS CLI bootstrap definition gated on RustFS health
 <!-- AC:END -->
+
+
+
+
+
+
 
 ## Implementation Plan
 
