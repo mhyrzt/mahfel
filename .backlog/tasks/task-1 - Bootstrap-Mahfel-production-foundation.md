@@ -1,10 +1,11 @@
 ---
 id: TASK-1
 title: Bootstrap Mahfel production foundation
-status: In Progress
+status: Done
 assignee:
   - '@codex'
 created_date: '2026-09-07 23:24'
+updated_date: '2026-09-15 02:05'
 labels: []
 milestone: m-0
 dependencies: []
@@ -24,12 +25,12 @@ Problem: Mahfel has no implementation foundation, runtime boundaries, developmen
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Repository contains exactly four deployable application components: mahfel-web, mahfel-api, mahfel-media, and mahfel-worker
-- [ ] #2 Rust workspace, frontend, documentation, and all four application images build successfully
-- [ ] #3 One command starts the complete local stack and Prometheus scrapes all three Rust services
-- [ ] #4 Architecture documentation, ADR 0001 through 0014, and detailed milestones M0 through M16 exist
-- [ ] #5 All requested quality gates and live health checks are run with exact results recorded
-- [ ] #6 Repository finishes on main with a local bootstrap commit, no push, and a clean working tree
+- [x] #1 Repository contains exactly four deployable application components: mahfel-web, mahfel-api, mahfel-media, and mahfel-worker
+- [x] #2 Rust workspace, frontend, documentation, and all four application images build successfully
+- [x] #3 One command starts the complete local stack and Prometheus scrapes all three Rust services
+- [x] #4 Architecture documentation, ADR 0001 through 0014, and detailed milestones M0 through M16 exist
+- [x] #5 All requested quality gates and live health checks are run with exact results recorded
+- [x] #6 Repository finishes on main with a local bootstrap commit, no push, and a clean working tree
 <!-- AC:END -->
 
 ## Implementation Plan
@@ -37,3 +38,9 @@ Problem: Mahfel has no implementation foundation, runtime boundaries, developmen
 <!-- SECTION:PLAN:BEGIN -->
 1. Register milestones and task hierarchy. 2. Scaffold Rust workspace and service contracts. 3. Scaffold Next.js/Bun frontend. 4. Add images, Compose, configuration, observability, and health checks. 5. Build MkDocs architecture, ADRs, and mirrored roadmap. 6. Run every required static, build, Compose, and live-stack check. 7. Finalize Backlog tasks and create one local Conventional Commit.
 <!-- SECTION:PLAN:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Bootstrapped Mahfel as four deployable components with a compileable Rust/media boundary, Next.js frontend, production images, complete local infrastructure, private observability, MkDocs architecture, ADRs 0001-0014, and Backlog milestones M0-M16. Verified the full stack and recorded host-native exceptions. Foundation commit: bb87574; no push performed.
+<!-- SECTION:FINAL_SUMMARY:END -->
