@@ -95,6 +95,8 @@ services:
         condition: service_healthy
       rustfs:
         condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://127.0.0.1:2019/config/"]
       interval: 10s

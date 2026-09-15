@@ -24,3 +24,8 @@ https://storage.mahfel.localhost {
 	encode zstd gzip
 	reverse_proxy rustfs:9001
 }
+
+https://rabbitmq.mahfel.localhost {
+	tls internal
+	reverse_proxy rabbitmq:15672
+}

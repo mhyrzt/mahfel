@@ -35,13 +35,16 @@ curl http://localhost:9103/health/ready
 ```
 
 Prometheus is at `http://127.0.0.1:9090`; Grafana is at `http://127.0.0.1:3300`. RabbitMQ management
-is at `http://127.0.0.1:15672`; RustFS console is at `http://127.0.0.1:9001`. All are local/admin
-interfaces and must not be copied into public ingress configuration.
+is available through Caddy at `https://rabbitmq.mahfel.localhost` and directly at
+`http://127.0.0.1:15672`; RustFS console is at `http://127.0.0.1:9001`. RabbitMQ authentication uses
+`MAHFEL_RABBITMQ_USER` and `MAHFEL_RABBITMQ_PASSWORD`. The Caddy route is local development
+convenience only; RabbitMQ management, its AMQP endpoint, and all other admin interfaces must not be
+copied into public ingress configuration.
 
-The canonical browser endpoints are `https://mahfel.localhost` and
-`https://api.mahfel.localhost`. Direct loopback ports `3000` and `8080` remain available for
-low-level debugging, but normal development must use Caddy HTTPS so secure-context and CORS
-behavior match deployment assumptions.
+The canonical browser endpoints are `https://mahfel.localhost`, `https://api.mahfel.localhost`, and
+the local-only RabbitMQ management route `https://rabbitmq.mahfel.localhost`. Direct loopback ports
+`3000`, `8080`, and `15672` remain available for low-level debugging, but normal browser development
+must use Caddy HTTPS so secure-context and CORS behavior match deployment assumptions.
 
 RustFS provides the browser-facing S3-compatible endpoint at `https://s3.mahfel.localhost` and its
 console at `https://storage.mahfel.localhost`. Containers use the internal
