@@ -11,7 +11,7 @@ filesystems or relational byte columns.
 
 ## Decision
 
-Use the AWS S3 API with configurable compatible endpoints; use MinIO locally. Browsers normally
+Use the AWS S3 API with configurable compatible endpoints; use RustFS locally. Browsers normally
 upload/download using short-lived presigned operations authorized by `mahfel-api`.
 
 ## Consequences

@@ -7,6 +7,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates clang cmake curl g++ make pkg-config python3 python3-pip && \
     rm -rf /var/lib/apt/lists/*
 RUN rustup component add rustfmt --toolchain "$RUSTUP_TOOLCHAIN" && rustfmt --version
+RUN cargo install cargo-nextest --version 0.9.144 --locked && cargo nextest --version
 WORKDIR /source
 COPY backend/ ./backend/
 COPY proto/ ./proto/
@@ -25,7 +26,8 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry \
     cargo fmt --all -- --check && \
     cargo check --workspace && \
     cargo clippy --workspace --all-targets --all-features -- -D warnings && \
-    cargo test --workspace
+    cargo nextest run --workspace --all-features && \
+    cargo test --workspace --all-features --doc
 
 FROM debian:bookworm-slim AS runtime
 RUN apt-get update && apt-get install -y --no-install-recommends \

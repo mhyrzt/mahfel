@@ -44,7 +44,7 @@ listener.
 - PostgreSQL is durable truth and hosts SQLx migrations.
 - Redis provides ephemeral state and coordination; losing it must not destroy business data.
 - RabbitMQ provides confirms, acknowledgements, redelivery, retry/DLQ, and competing consumers.
-- S3-compatible storage holds files and media artifacts; MinIO implements the local interface.
+- S3-compatible storage holds files and media artifacts; RustFS implements the local interface.
 - coturn supplies STUN/TURN traversal.
 - Prometheus scrapes private operations ports and Grafana visualizes the data.
 - Alertmanager provides the initial alert-routing boundary.

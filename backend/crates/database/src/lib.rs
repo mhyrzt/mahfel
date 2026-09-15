@@ -1,7 +1,7 @@
 use prometheus::{IntCounter, IntGauge, Opts, Registry};
 use sqlx::{
     migrate::Migrator,
-    postgres::{PgPool, PgPoolOptions},
+    postgres::{PgConnectOptions, PgPool, PgPoolOptions},
 };
 use std::time::Duration;
 use thiserror::Error;
@@ -19,6 +19,15 @@ pub struct PoolSettings {
     pub acquire_timeout: Duration,
     pub idle_timeout: Duration,
     pub max_lifetime: Duration,
+}
+
+#[derive(Clone)]
+pub struct ConnectionSettings {
+    pub host: String,
+    pub port: u16,
+    pub user: String,
+    pub password: String,
+    pub name: String,
 }
 
 #[derive(Clone)]
@@ -98,15 +107,24 @@ impl PoolMetrics {
     }
 }
 
-pub async fn connect(database_url: &str, settings: PoolSettings) -> Result<PgPool, DatabaseError> {
+pub async fn connect(
+    connection: &ConnectionSettings,
+    settings: PoolSettings,
+) -> Result<PgPool, DatabaseError> {
     let settings = settings.validate()?;
+    let options = PgConnectOptions::new()
+        .host(&connection.host)
+        .port(connection.port)
+        .username(&connection.user)
+        .password(&connection.password)
+        .database(&connection.name);
     PgPoolOptions::new()
         .min_connections(settings.min_connections)
         .max_connections(settings.max_connections)
         .acquire_timeout(settings.acquire_timeout)
         .idle_timeout(Some(settings.idle_timeout))
         .max_lifetime(Some(settings.max_lifetime))
-        .connect(database_url)
+        .connect_with(options)
         .await
         .map_err(DatabaseError::from)
 }

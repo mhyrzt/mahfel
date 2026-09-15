@@ -1,5 +1,6 @@
 use mahfel_database::{
-    ClassroomSessionRepository, PoolSettings, RoomRepository, UserRepository, connect, migrate,
+    ClassroomSessionRepository, ConnectionSettings, PoolSettings, RoomRepository, UserRepository,
+    connect, migrate,
 };
 use sqlx::PgPool;
 use std::{error::Error, time::Duration};
@@ -33,8 +34,9 @@ async fn migrations_provision_a_disposable_database() -> Result<(), Box<dyn Erro
 
     let mut test_url = Url::parse(&admin_url)?;
     test_url.set_path(&format!("/{database_name}"));
-    let test_pool = connect(test_url.as_str(), test_pool_settings()).await?;
-    let verification = verify_migrations_and_repositories(&test_pool, test_url.as_str()).await;
+    let connection = connection_settings(&test_url)?;
+    let test_pool = connect(&connection, test_pool_settings()).await?;
+    let verification = verify_migrations_and_repositories(&test_pool, &connection).await;
     if !test_pool.is_closed() {
         test_pool.close().await;
     }
@@ -52,7 +54,7 @@ async fn migrations_provision_a_disposable_database() -> Result<(), Box<dyn Erro
 
 async fn verify_migrations_and_repositories(
     pool: &PgPool,
-    database_url: &str,
+    connection: &ConnectionSettings,
 ) -> Result<(), Box<dyn Error>> {
     migrate(pool).await?;
 
@@ -79,7 +81,7 @@ async fn verify_migrations_and_repositories(
     let session = sessions.create(room.id, None).await?;
 
     pool.close().await;
-    let restarted_pool = connect(database_url, test_pool_settings()).await?;
+    let restarted_pool = connect(connection, test_pool_settings()).await?;
     let restarted_users = UserRepository::new(restarted_pool.clone());
     let restarted_rooms = RoomRepository::new(restarted_pool.clone());
     let restarted_sessions = ClassroomSessionRepository::new(restarted_pool.clone());
@@ -89,4 +91,17 @@ async fn verify_migrations_and_repositories(
     assert_eq!(restarted_sessions.get(session.id).await?, Some(session));
     restarted_pool.close().await;
     Ok(())
+}
+
+fn connection_settings(url: &Url) -> Result<ConnectionSettings, Box<dyn Error>> {
+    Ok(ConnectionSettings {
+        host: url
+            .host_str()
+            .ok_or("test database URL is missing a host")?
+            .to_owned(),
+        port: url.port().unwrap_or(5432),
+        user: url.username().to_owned(),
+        password: url.password().unwrap_or_default().to_owned(),
+        name: url.path().trim_start_matches('/').to_owned(),
+    })
 }

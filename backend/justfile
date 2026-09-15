@@ -1,0 +1,39 @@
+set dotenv-path := "../.env"
+set dotenv-load
+
+default:
+    @just --list
+
+dev-api:
+    cargo run --bin mahfel-api
+
+migrate:
+    cargo run --bin mahfel-api -- migrate
+
+dev-media:
+    cargo run --bin mahfel-media
+
+dev-worker:
+    cargo run --bin mahfel-worker
+
+fmt:
+    cargo fmt --all -- --check
+
+lint:
+    cargo clippy --workspace --all-targets --all-features -- -D warnings
+
+test:
+    cargo nextest run --workspace --all-features
+    cargo test --workspace --all-features --doc
+
+test-database:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    docker compose --project-directory .. -f ../docker-compose.yml up -d postgres
+    database_url="postgres://${MAHFEL_POSTGRES_USER:-mahfel}:${MAHFEL_POSTGRES_PASSWORD:-mahfel-local-only}"
+    database_url+="@127.0.0.1:${MAHFEL_POSTGRES_HOST_PORT:-5432}/postgres"
+    MAHFEL_TEST_DATABASE_URL="${database_url}" \
+        cargo nextest run -p mahfel-database --test migrations --no-capture
+
+build:
+    cargo build --workspace

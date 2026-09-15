@@ -6,7 +6,7 @@ RUN bun install --frozen-lockfile
 FROM dependencies AS builder
 WORKDIR /app
 COPY frontend/ ./
-ARG NEXT_PUBLIC_MAHFEL_API_URL=http://localhost:8080
+ARG NEXT_PUBLIC_MAHFEL_API_URL=https://api.mahfel.localhost
 ENV NEXT_PUBLIC_MAHFEL_API_URL=$NEXT_PUBLIC_MAHFEL_API_URL
 RUN bun run build
 

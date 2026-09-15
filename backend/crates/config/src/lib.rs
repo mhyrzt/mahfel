@@ -22,7 +22,11 @@ pub struct ApiSettings {
 
 #[derive(Clone, Debug, Deserialize)]
 pub struct DatabaseSettings {
-    pub url: String,
+    pub host: String,
+    pub port: u16,
+    pub user: String,
+    pub password: String,
+    pub name: String,
     pub min_connections: u32,
     pub max_connections: u32,
     pub acquire_timeout_seconds: u64,

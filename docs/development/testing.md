@@ -18,7 +18,8 @@ cd backend
 cargo fmt --check
 cargo check --workspace
 cargo clippy --workspace --all-targets --all-features
-cargo test --workspace
+cargo nextest run --workspace --all-features
+cargo test --workspace --all-features --doc
 
 cd ../frontend
 bun install
@@ -36,4 +37,6 @@ RTC load and resilience testing is a dedicated M14 deliverable, not a unit-test 
 Database integration tests use `MAHFEL_TEST_DATABASE_URL` as an administrative connection. The
 harness creates a random disposable database, applies embedded migrations twice to verify
 idempotent ledger behavior, asserts the expected schema, and removes the database. Use
-`just test-database`; do not point the variable at a shared or production PostgreSQL cluster.
+`just test-database`; do not point the variable at a shared or production PostgreSQL cluster. Rust
+test binaries run through `cargo-nextest`; doctests remain a separate `cargo test --doc` step because
+nextest does not execute them.

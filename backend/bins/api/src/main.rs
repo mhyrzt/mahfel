@@ -5,7 +5,7 @@ use axum::{
     routing::get,
 };
 use mahfel_config::Settings;
-use mahfel_database::{PoolMetrics, PoolSettings, connect, migrate, ping};
+use mahfel_database::{ConnectionSettings, PoolMetrics, PoolSettings, connect, migrate, ping};
 use mahfel_domain::NodeId;
 use mahfel_media_client::lazy as lazy_media_client;
 use mahfel_telemetry::{HealthState, init_tracing, operations, shutdown_signal};
@@ -39,8 +39,9 @@ async fn main() -> Result<()> {
     init_tracing(&settings.telemetry.log_filter).context("initialize tracing")?;
     let command = command().context("parse command")?;
     let pool_settings = pool_settings(&settings);
+    let connection_settings = connection_settings(&settings);
     if command == Command::Migrate {
-        let pool = connect(&settings.database.url, pool_settings)
+        let pool = connect(&connection_settings, pool_settings)
             .await
             .context("connect to PostgreSQL for migration")?;
         migrate(&pool).await.context("run PostgreSQL migrations")?;
@@ -52,7 +53,7 @@ async fn main() -> Result<()> {
     let node_id = NodeId::new();
     let (operations_router, health) = operations(SERVICE, env!("CARGO_PKG_VERSION"))?;
     let pool_metrics = PoolMetrics::register(&health.registry())?;
-    let pool = connect(&settings.database.url, pool_settings)
+    let pool = connect(&connection_settings, pool_settings)
         .await
         .context("connect to PostgreSQL")?;
     if settings.database.migrate_on_start {
@@ -139,6 +140,16 @@ fn pool_settings(settings: &Settings) -> PoolSettings {
         acquire_timeout: Duration::from_secs(settings.database.acquire_timeout_seconds),
         idle_timeout: Duration::from_secs(settings.database.idle_timeout_seconds),
         max_lifetime: Duration::from_secs(settings.database.max_lifetime_seconds),
+    }
+}
+
+fn connection_settings(settings: &Settings) -> ConnectionSettings {
+    ConnectionSettings {
+        host: settings.database.host.clone(),
+        port: settings.database.port,
+        user: settings.database.user.clone(),
+        password: settings.database.password.clone(),
+        name: settings.database.name.clone(),
     }
 }
 

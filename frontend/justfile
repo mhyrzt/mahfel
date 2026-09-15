@@ -1,0 +1,29 @@
+set dotenv-path := "../.env"
+set dotenv-load
+
+default:
+    @just --list
+
+install:
+    bun install --frozen-lockfile
+
+dev:
+    bun run dev
+
+fmt:
+    bun run format
+
+fmt-write:
+    bun run format:write
+
+lint:
+    bun run lint
+
+typecheck:
+    bun run typecheck
+
+test:
+    bun run test
+
+build:
+    bun run build

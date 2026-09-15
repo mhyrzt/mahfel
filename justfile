@@ -1,45 +1,51 @@
-set dotenv-load := true
+set dotenv-load
 
 default:
     @just --list
 
 bootstrap:
-    cd frontend && bun install --frozen-lockfile
+    just --justfile frontend/justfile install
 
 dev-api:
-    cd backend && cargo run --bin mahfel-api
+    just --justfile backend/justfile dev-api
 
 migrate:
-    cd backend && cargo run --bin mahfel-api -- migrate
+    just --justfile backend/justfile migrate
 
 dev-media:
-    cd backend && cargo run --bin mahfel-media
+    just --justfile backend/justfile dev-media
 
 dev-worker:
-    cd backend && cargo run --bin mahfel-worker
+    just --justfile backend/justfile dev-worker
 
 dev-web:
-    cd frontend && bun run dev
+    just --justfile frontend/justfile dev
 
 fmt:
-    cd backend && cargo fmt --all -- --check
+    just --justfile backend/justfile fmt
+    just --justfile frontend/justfile fmt
 
 lint:
-    cd backend && cargo clippy --workspace --all-targets --all-features -- -D warnings
-    cd frontend && bun run lint
-    cd frontend && bun run typecheck
+    just --justfile backend/justfile lint
+    just --justfile frontend/justfile lint
+    just --justfile frontend/justfile typecheck
 
 test:
-    cd backend && cargo test --workspace
-    cd frontend && bun run test
+    just --justfile backend/justfile test
+    just --justfile frontend/justfile test
 
 test-database:
-    docker compose up -d postgres
-    cd backend && MAHFEL_TEST_DATABASE_URL="postgres://${MAHFEL_POSTGRES_USER:-mahfel}:${MAHFEL_POSTGRES_PASSWORD:-mahfel-local-only}@127.0.0.1:${MAHFEL_POSTGRES_HOST_PORT:-5432}/postgres" cargo test -p mahfel-database --test migrations -- --nocapture
+    just --justfile backend/justfile test-database
 
 build:
-    cd backend && cargo build --workspace
-    cd frontend && bun run build
+    just --justfile backend/justfile build
+    just --justfile frontend/justfile build
+
+backend *args:
+    just --justfile backend/justfile {{args}}
+
+frontend *args:
+    just --justfile frontend/justfile {{args}}
 
 docs:
     mkdocs build --strict
@@ -49,9 +55,50 @@ docs-serve:
 
 compose-up:
     docker compose up --build -d
+    just trust-local-ca
 
 compose-down:
     docker compose down
 
 compose-logs:
     docker compose logs -f
+
+trust-local-ca:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    certificate_dir=".local/caddy"
+    certificate_path="${certificate_dir}/root.crt"
+    mkdir -p "${certificate_dir}"
+    for attempt in {1..30}; do
+        if docker compose cp caddy:/data/caddy/pki/authorities/local/root.crt "${certificate_path}"; then
+            break
+        fi
+        if [[ "${attempt}" == 30 ]]; then
+            echo "Caddy local root CA was not ready after 30 seconds" >&2
+            exit 1
+        fi
+        sleep 1
+    done
+    case "$(uname -s)" in
+        Linux)
+            if command -v update-ca-trust >/dev/null 2>&1; then
+                sudo install -m 0644 "${certificate_path}" /etc/pki/ca-trust/source/anchors/mahfel-caddy-root.crt
+                sudo update-ca-trust
+            elif command -v update-ca-certificates >/dev/null 2>&1; then
+                sudo install -m 0644 "${certificate_path}" /usr/local/share/ca-certificates/mahfel-caddy-root.crt
+                sudo update-ca-certificates
+            else
+                echo "Unsupported Linux trust store; install ${certificate_path} manually" >&2
+                exit 1
+            fi
+            ;;
+        Darwin)
+            sudo security add-trusted-cert -d -r trustRoot \
+                -k /Library/Keychains/System.keychain "${certificate_path}"
+            ;;
+        *)
+            echo "Unsupported host OS; install ${certificate_path} manually" >&2
+            exit 1
+            ;;
+    esac
+    echo "Trusted Mahfel local CA. Restart open browsers before using https://mahfel.localhost"

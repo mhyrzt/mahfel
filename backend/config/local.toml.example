@@ -1,9 +1,13 @@
 # Copy this file to local.toml for host-only overrides. Environment variables
 # use MAHFEL_ plus double underscores for nesting, for example:
-# MAHFEL_DATABASE__URL=postgres://mahfel:mahfel-local@127.0.0.1:5432/mahfel
+# MAHFEL_DATABASE__HOST=127.0.0.1
 
 [database]
-url = "postgres://mahfel:mahfel-local@127.0.0.1:5432/mahfel"
+host = "127.0.0.1"
+port = 5432
+user = "mahfel"
+password = "mahfel-local"
+name = "mahfel"
 migrate_on_start = true
 
 [api]
