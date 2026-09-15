@@ -6,6 +6,10 @@ use sqlx::{
 use std::time::Duration;
 use thiserror::Error;
 
+mod repositories;
+
+pub use repositories::{ClassroomSessionRepository, RoomRepository, UserRepository};
+
 static MIGRATOR: Migrator = sqlx::migrate!("../../migrations");
 
 #[derive(Clone, Copy, Debug)]
@@ -34,6 +38,8 @@ pub enum DatabaseError {
     Migration(#[from] sqlx::migrate::MigrateError),
     #[error("PostgreSQL metrics registration failed: {0}")]
     Metrics(#[from] prometheus::Error),
+    #[error("stored domain value is invalid: {0}")]
+    InvalidDomainValue(#[from] mahfel_domain::InvalidStatus),
 }
 
 impl PoolSettings {

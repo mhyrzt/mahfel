@@ -6,9 +6,12 @@ rust-version.workspace = true
 license.workspace = true
 
 [dependencies]
+mahfel-domain = { path = "../domain" }
 prometheus.workspace = true
 sqlx.workspace = true
 thiserror.workspace = true
+time.workspace = true
+uuid.workspace = true
 
 [dev-dependencies]
 tokio.workspace = true

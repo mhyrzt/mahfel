@@ -904,6 +904,9 @@ name = "deranged"
 version = "0.5.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7cd812cc2bc1d69d4764bd80df88b4317eaef9e773c75226407d9bc0876b211c"
+dependencies = [
+ "serde_core",
+]
 
 [[package]]
 name = "derive_more"
@@ -2116,9 +2119,11 @@ dependencies = [
 name = "mahfel-database"
 version = "0.1.0"
 dependencies = [
+ "mahfel-domain",
  "prometheus",
  "sqlx",
  "thiserror 2.0.20",
+ "time",
  "tokio",
  "url",
  "uuid",
@@ -2129,6 +2134,8 @@ name = "mahfel-domain"
 version = "0.1.0"
 dependencies = [
  "serde",
+ "thiserror 2.0.20",
+ "time",
  "uuid",
 ]
 

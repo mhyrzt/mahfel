@@ -16,6 +16,12 @@ persistence, Redis coordination, RabbitMQ publishing, and the gRPC media client.
 The service currently exposes only a status endpoint and infrastructure health. Product routes are
 deliberately deferred.
 
+The first control-plane persistence boundary is intentionally small: users, rooms, and classroom
+sessions have UUID identifiers, explicit lifecycle statuses, and UTC timestamps in PostgreSQL.
+Domain types remain independent of SQLx; repository adapters in `mahfel-database` own SQL mapping.
+Authentication identities, memberships, permissions, and attendance are separate later
+milestones and are not implied by these foundational records.
+
 ## `mahfel-media`
 
 The Rust media plane hosts Tokio, the mediasoup Rust bindings, native mediasoup workers, routers,

@@ -1,4 +1,6 @@
-use mahfel_database::{PoolSettings, connect, migrate};
+use mahfel_database::{
+    ClassroomSessionRepository, PoolSettings, RoomRepository, UserRepository, connect, migrate,
+};
 use sqlx::PgPool;
 use std::{error::Error, time::Duration};
 use url::Url;
@@ -23,7 +25,7 @@ async fn migrations_provision_a_disposable_database() -> Result<(), Box<dyn Erro
 
     let admin_pool = PgPool::connect(&admin_url).await?;
     let database_name = format!("mahfel_test_{}", Uuid::new_v4().simple());
-    let create_database = format!("CREATE DATABASE \"{database_name}\"");
+    let create_database = format!("CREATE DATABASE \"{database_name}\" TEMPLATE template0");
     // The interpolated identifier is generated exclusively from a UUID.
     sqlx::raw_sql(sqlx::AssertSqlSafe(create_database))
         .execute(&admin_pool)
@@ -32,8 +34,10 @@ async fn migrations_provision_a_disposable_database() -> Result<(), Box<dyn Erro
     let mut test_url = Url::parse(&admin_url)?;
     test_url.set_path(&format!("/{database_name}"));
     let test_pool = connect(test_url.as_str(), test_pool_settings()).await?;
-    let verification = verify_migrations(&test_pool).await;
-    test_pool.close().await;
+    let verification = verify_migrations_and_repositories(&test_pool, test_url.as_str()).await;
+    if !test_pool.is_closed() {
+        test_pool.close().await;
+    }
 
     let drop_database = format!("DROP DATABASE \"{database_name}\" WITH (FORCE)");
     let cleanup = sqlx::raw_sql(sqlx::AssertSqlSafe(drop_database))
@@ -46,14 +50,16 @@ async fn migrations_provision_a_disposable_database() -> Result<(), Box<dyn Erro
     Ok(())
 }
 
-async fn verify_migrations(pool: &PgPool) -> Result<(), Box<dyn Error>> {
-    migrate(pool).await?;
+async fn verify_migrations_and_repositories(
+    pool: &PgPool,
+    database_url: &str,
+) -> Result<(), Box<dyn Error>> {
     migrate(pool).await?;
 
     let migration_count = sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM _sqlx_migrations")
         .fetch_one(pool)
         .await?;
-    assert_eq!(migration_count, 1, "migration must be recorded once");
+    assert_eq!(migration_count, 2, "each migration must be recorded once");
 
     let namespace_exists = sqlx::query_scalar::<_, bool>(
         "SELECT EXISTS (SELECT 1 FROM pg_namespace WHERE nspname = 'mahfel')",
@@ -64,5 +70,23 @@ async fn verify_migrations(pool: &PgPool) -> Result<(), Box<dyn Error>> {
         namespace_exists,
         "migration must provision the Mahfel schema"
     );
+
+    let users = UserRepository::new(pool.clone());
+    let rooms = RoomRepository::new(pool.clone());
+    let sessions = ClassroomSessionRepository::new(pool.clone());
+    let user = users.create("Ada Lovelace").await?;
+    let room = rooms.create("Analytical Engines", user.id).await?;
+    let session = sessions.create(room.id, None).await?;
+
+    pool.close().await;
+    let restarted_pool = connect(database_url, test_pool_settings()).await?;
+    let restarted_users = UserRepository::new(restarted_pool.clone());
+    let restarted_rooms = RoomRepository::new(restarted_pool.clone());
+    let restarted_sessions = ClassroomSessionRepository::new(restarted_pool.clone());
+
+    assert_eq!(restarted_users.get(user.id).await?, Some(user));
+    assert_eq!(restarted_rooms.get(room.id).await?, Some(room));
+    assert_eq!(restarted_sessions.get(session.id).await?, Some(session));
+    restarted_pool.close().await;
     Ok(())
 }
