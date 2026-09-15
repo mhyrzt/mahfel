@@ -1,0 +1,16 @@
+.env
+.venv/
+site/
+
+backend/target/
+backend/config/local.toml
+
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+frontend/coverage/
+frontend/.env.local
+frontend/*.tsbuildinfo
+
+*.log
+.DS_Store

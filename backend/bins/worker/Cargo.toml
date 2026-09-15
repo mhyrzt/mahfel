@@ -1,0 +1,19 @@
+[package]
+name = "mahfel-worker"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+axum.workspace = true
+lapin.workspace = true
+mahfel-config = { path = "../../crates/config" }
+mahfel-messaging = { path = "../../crates/messaging" }
+mahfel-telemetry = { path = "../../crates/telemetry" }
+tokio.workspace = true
+tracing.workspace = true
+
+[lints]
+workspace = true

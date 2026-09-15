@@ -1,0 +1,23 @@
+[package]
+name = "mahfel-api"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+axum.workspace = true
+mahfel-config = { path = "../../crates/config" }
+mahfel-database = { path = "../../crates/database" }
+mahfel-domain = { path = "../../crates/domain" }
+mahfel-media-client = { path = "../../crates/media-client" }
+mahfel-telemetry = { path = "../../crates/telemetry" }
+serde.workspace = true
+sqlx.workspace = true
+tokio.workspace = true
+tower-http.workspace = true
+tracing.workspace = true
+
+[lints]
+workspace = true

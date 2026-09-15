@@ -1,0 +1,10 @@
+.git
+.backlog
+.env
+.venv
+site
+**/target
+**/node_modules
+**/.next
+**/coverage
+**/*.log

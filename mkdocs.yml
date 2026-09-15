@@ -1,0 +1,57 @@
+site_name: Mahfel Engineering
+site_description: Architecture, operations, and engineering roadmap for Mahfel
+repo_name: mahfel
+docs_dir: docs
+strict: true
+theme:
+  name: material
+  features:
+    - navigation.sections
+    - navigation.indexes
+    - content.code.copy
+markdown_extensions:
+  - admonition
+  - attr_list
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.details
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+nav:
+  - Home: index.md
+  - Architecture:
+      - Overview: architecture/overview.md
+      - Components: architecture/components.md
+      - Networking: architecture/networking.md
+      - Data flow: architecture/data-flow.md
+      - Observability: architecture/observability.md
+      - Scaling: architecture/scaling.md
+  - Decisions:
+      - ADR index: adr/index.md
+      - 0001 Record decisions: adr/0001-record-architecture-decisions.md
+      - 0002 Separate frontend: adr/0002-separate-frontend-and-backend.md
+      - 0003 Three Rust services: adr/0003-three-rust-runtime-services.md
+      - 0004 mediasoup: adr/0004-use-mediasoup.md
+      - 0005 PostgreSQL: adr/0005-postgresql-source-of-truth.md
+      - 0006 Redis: adr/0006-redis-ephemeral-state.md
+      - 0007 RabbitMQ: adr/0007-rabbitmq-for-jobs.md
+      - 0008 S3: adr/0008-s3-object-storage.md
+      - 0009 coturn: adr/0009-coturn.md
+      - 0010 gRPC: adr/0010-grpc-api-media.md
+      - 0011 Private operations ports: adr/0011-private-operations-ports.md
+      - 0012 Yrs and Yjs: adr/0012-yrs-yjs-crdt.md
+      - 0013 Stateless PaaS: adr/0013-stateless-paas.md
+      - 0014 Frontend stack: adr/0014-frontend-stack.md
+  - Deployment:
+      - Local: deployment/local.md
+      - Darkube: deployment/darkube.md
+  - Development:
+      - Getting started: development/getting-started.md
+      - Repository structure: development/repository-structure.md
+      - Conventions: development/conventions.md
+      - Testing: development/testing.md
+  - Backlog: backlog/roadmap.md

@@ -1,0 +1,10 @@
+groups:
+  - name: mahfel-foundation
+    rules:
+      - alert: MahfelServiceDown
+        expr: up{job=~"mahfel-(api|media|worker)"} == 0
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "{{ $labels.job }} cannot be scraped"

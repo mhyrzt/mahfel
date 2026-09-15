@@ -1,0 +1,22 @@
+[package]
+name = "mahfel-media"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+axum.workspace = true
+mahfel-config = { path = "../../crates/config" }
+mahfel-domain = { path = "../../crates/domain" }
+mahfel-rtc = { path = "../../crates/rtc" }
+mahfel-rtc-protocol = { path = "../../crates/rtc-protocol" }
+mahfel-telemetry = { path = "../../crates/telemetry" }
+tokio.workspace = true
+tokio-stream.workspace = true
+tonic.workspace = true
+tracing.workspace = true
+
+[lints]
+workspace = true

@@ -1,0 +1,23 @@
+[api]
+http_bind = "0.0.0.0:8080"
+operations_bind = "0.0.0.0:9101"
+database_url = "postgres://mahfel:mahfel-local-only@postgres:5432/mahfel"
+media_grpc_url = "http://mahfel-media:50051"
+allowed_origin = "http://localhost:3000"
+
+[media]
+grpc_bind = "0.0.0.0:50051"
+operations_bind = "0.0.0.0:9102"
+worker_count = 4
+rtc_port_min = 40000
+rtc_port_max = 40003
+listen_ip = "0.0.0.0"
+announced_address = "127.0.0.1"
+
+[worker]
+operations_bind = "0.0.0.0:9103"
+amqp_url = "amqp://mahfel:mahfel-local-only@rabbitmq:5672/%2f"
+
+[telemetry]
+log_filter = "info,tower_http=info"
+otlp_endpoint = ""
