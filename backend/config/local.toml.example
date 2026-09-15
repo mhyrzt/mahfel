@@ -1,9 +1,12 @@
 # Copy this file to local.toml for host-only overrides. Environment variables
 # use MAHFEL_ plus double underscores for nesting, for example:
-# MAHFEL_API__DATABASE_URL=postgres://mahfel:mahfel-local@127.0.0.1:5432/mahfel
+# MAHFEL_DATABASE__URL=postgres://mahfel:mahfel-local@127.0.0.1:5432/mahfel
+
+[database]
+url = "postgres://mahfel:mahfel-local@127.0.0.1:5432/mahfel"
+migrate_on_start = true
 
 [api]
-database_url = "postgres://mahfel:mahfel-local@127.0.0.1:5432/mahfel"
 media_grpc_url = "http://127.0.0.1:50051"
 
 [worker]

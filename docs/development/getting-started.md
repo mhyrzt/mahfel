@@ -10,7 +10,24 @@ For host development, infrastructure may be started separately and each applicat
 `just dev-web`, `just dev-api`, `just dev-media`, or `just dev-worker`. Host Rust processes load
 `backend/config/default.toml`, optional `backend/config/local.toml`, then `MAHFEL_` environment
 overrides. Nested keys use double underscores, for example
-`MAHFEL_API__DATABASE_URL=postgres://...`.
+`MAHFEL_DATABASE__URL=postgres://...`.
+
+## Database lifecycle
+
+Pool bounds and timeouts live under `[database]` and can be overridden with variables such as
+`MAHFEL_DATABASE__MAX_CONNECTIONS`. Production deployments should run the forward-only migration
+command once before rolling application replicas:
+
+```bash
+just migrate
+# or, using the built image:
+docker compose run --rm mahfel-api migrate
+```
+
+`migrate_on_start` defaults to false to avoid coupling every production replica startup to schema
+changes. Local Compose enables it for convenience; SQLx migration locking and its migration ledger
+make repeated startup safe. `just test-database` starts PostgreSQL and verifies the embedded
+migration twice against a uniquely named disposable database, then drops it.
 
 Common gates are `just fmt`, `just lint`, `just test`, `just build`, and `just docs`. The frontend
 uses Bun exclusively. Rust uses edition 2024 and the pinned toolchain in
@@ -18,5 +35,6 @@ uses Bun exclusively. Rust uses edition 2024 and the pinned toolchain in
 
 On Fedora-like hosts, the mediasoup crate requires the static libstdc++ development package because
 it links the native worker library statically. The container builder includes the corresponding
-Debian development package. Generic backend work can be checked in the production builder when the
-host library is unavailable.
+Debian development package. Run the exact full-workspace validation in that supported environment
+with `docker build --target validation -f deploy/docker/media.Dockerfile .` when the host library is
+unavailable.

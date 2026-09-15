@@ -9,6 +9,9 @@ bootstrap:
 dev-api:
     cd backend && cargo run --bin mahfel-api
 
+migrate:
+    cd backend && cargo run --bin mahfel-api -- migrate
+
 dev-media:
     cd backend && cargo run --bin mahfel-media
 
@@ -29,6 +32,10 @@ lint:
 test:
     cd backend && cargo test --workspace
     cd frontend && bun run test
+
+test-database:
+    docker compose up -d postgres
+    cd backend && MAHFEL_TEST_DATABASE_URL="postgres://${MAHFEL_POSTGRES_USER:-mahfel}:${MAHFEL_POSTGRES_PASSWORD:-mahfel-local-only}@127.0.0.1:${MAHFEL_POSTGRES_HOST_PORT:-5432}/postgres" cargo test -p mahfel-database --test migrations -- --nocapture
 
 build:
     cd backend && cargo build --workspace

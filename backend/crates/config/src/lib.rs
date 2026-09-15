@@ -6,6 +6,7 @@ use thiserror::Error;
 #[derive(Clone, Debug, Deserialize)]
 pub struct Settings {
     pub api: ApiSettings,
+    pub database: DatabaseSettings,
     pub media: MediaSettings,
     pub worker: WorkerSettings,
     pub telemetry: TelemetrySettings,
@@ -15,9 +16,19 @@ pub struct Settings {
 pub struct ApiSettings {
     pub http_bind: String,
     pub operations_bind: String,
-    pub database_url: String,
     pub media_grpc_url: String,
     pub allowed_origin: String,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+pub struct DatabaseSettings {
+    pub url: String,
+    pub min_connections: u32,
+    pub max_connections: u32,
+    pub acquire_timeout_seconds: u64,
+    pub idle_timeout_seconds: u64,
+    pub max_lifetime_seconds: u64,
+    pub migrate_on_start: bool,
 }
 
 #[derive(Clone, Debug, Deserialize)]

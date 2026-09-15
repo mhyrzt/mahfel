@@ -26,6 +26,7 @@ struct HealthInner {
     initialized: RwLock<bool>,
     checks: RwLock<BTreeMap<String, bool>>,
     ready_gauge: IntGauge,
+    registry: Registry,
 }
 
 #[derive(Clone)]
@@ -63,8 +64,13 @@ impl HealthState {
                 initialized: RwLock::new(false),
                 checks: RwLock::new(BTreeMap::new()),
                 ready_gauge,
+                registry: registry.clone(),
             }),
         })
+    }
+
+    pub fn registry(&self) -> Registry {
+        self.inner.registry.clone()
     }
 
     pub async fn set_initialized(&self, initialized: bool) {

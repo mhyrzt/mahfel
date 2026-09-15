@@ -32,3 +32,8 @@ docker compose config
 ```
 
 RTC load and resilience testing is a dedicated M14 deliverable, not a unit-test substitute.
+
+Database integration tests use `MAHFEL_TEST_DATABASE_URL` as an administrative connection. The
+harness creates a random disposable database, applies embedded migrations twice to verify
+idempotent ledger behavior, asserts the expected schema, and removes the database. Use
+`just test-database`; do not point the variable at a shared or production PostgreSQL cluster.

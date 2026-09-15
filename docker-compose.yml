@@ -23,7 +23,8 @@ services:
       dockerfile: deploy/docker/api.Dockerfile
     restart: unless-stopped
     environment:
-      MAHFEL_API__DATABASE_URL: ${MAHFEL_DATABASE_URL:-postgres://mahfel:mahfel-local-only@postgres:5432/mahfel}
+      MAHFEL_DATABASE__URL: ${MAHFEL_DATABASE_URL:-postgres://mahfel:mahfel-local-only@postgres:5432/mahfel}
+      MAHFEL_DATABASE__MIGRATE_ON_START: "true"
       MAHFEL_API__MEDIA_GRPC_URL: http://mahfel-media:50051
       MAHFEL_API__ALLOWED_ORIGIN: http://localhost:3000
       MAHFEL_TELEMETRY__LOG_FILTER: ${MAHFEL_LOG_FILTER:-info,mahfel=debug,tower_http=info}
