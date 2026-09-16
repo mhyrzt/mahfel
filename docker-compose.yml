@@ -2,10 +2,11 @@ name: mahfel
 
 services:
   mahfel-web:
+    profiles: [mahfel]
     image: mahfel-web:local
     build:
       context: .
-      dockerfile: deploy/docker/web.Dockerfile
+      dockerfile: frontend/Dockerfile
       args:
         NEXT_PUBLIC_MAHFEL_API_URL: ${NEXT_PUBLIC_MAHFEL_API_URL:-https://api.mahfel.localhost}
     restart: unless-stopped
@@ -17,10 +18,11 @@ services:
     networks: [edge, internal]
 
   mahfel-api:
+    profiles: [mahfel]
     image: mahfel-api:local
     build:
       context: .
-      dockerfile: deploy/docker/api.Dockerfile
+      dockerfile: backend/bins/api/Dockerfile
     restart: unless-stopped
     environment:
       MAHFEL_DATABASE__HOST: postgres
@@ -43,10 +45,11 @@ services:
     networks: [edge, internal]
 
   mahfel-media:
+    profiles: [mahfel]
     image: mahfel-media:local
     build:
       context: .
-      dockerfile: deploy/docker/media.Dockerfile
+      dockerfile: backend/bins/media/Dockerfile
     restart: unless-stopped
     environment:
       MAHFEL_MEDIA__ANNOUNCED_ADDRESS: ${MAHFEL_MEDIA_ANNOUNCED_ADDRESS:-127.0.0.1}
@@ -63,10 +66,11 @@ services:
     networks: [edge, internal]
 
   mahfel-worker:
+    profiles: [mahfel]
     image: mahfel-worker:local
     build:
       context: .
-      dockerfile: deploy/docker/worker.Dockerfile
+      dockerfile: backend/bins/worker/Dockerfile
     restart: unless-stopped
     environment:
       MAHFEL_WORKER__AMQP_URL: ${MAHFEL_AMQP_URL:-amqp://mahfel:mahfel-local-only@rabbitmq:5672/%2f}
@@ -79,6 +83,7 @@ services:
     networks: [internal, admin]
 
   caddy:
+    profiles: [mahfel]
     image: docker.arvancloud.ir/caddy:2.11.4-alpine
     restart: unless-stopped
     ports:
@@ -105,7 +110,8 @@ services:
     networks: [edge, internal]
 
   postgres:
-    image: postgres:16-bookworm
+    profiles: [infrastructure]
+    image: docker.arvancloud.ir/postgres:16-bookworm
     restart: unless-stopped
     environment:
       POSTGRES_DB: ${MAHFEL_POSTGRES_DB:-mahfel}
@@ -123,7 +129,8 @@ services:
     networks: [internal, admin]
 
   redis:
-    image: redis:7.4-alpine
+    profiles: [infrastructure]
+    image: docker.arvancloud.ir/redis:7.4-alpine
     restart: unless-stopped
     command: ["redis-server", "--appendonly", "no", "--save", ""]
     ports:
@@ -136,18 +143,24 @@ services:
     networks: [internal, admin]
 
   rabbitmq:
-    image: rabbitmq:4.2-management-alpine
+    profiles: [infrastructure]
+    image: docker.arvancloud.ir/rabbitmq:4.2-management-alpine
     restart: unless-stopped
     environment:
       RABBITMQ_DEFAULT_USER: ${MAHFEL_RABBITMQ_USER:-mahfel}
       RABBITMQ_DEFAULT_PASS: ${MAHFEL_RABBITMQ_PASSWORD:-mahfel-local-only}
+    command:
+      - sh
+      - -c
+      - >-
+        rabbitmq-plugins enable --offline rabbitmq_management rabbitmq_prometheus &&
+        exec rabbitmq-server
     ports:
       - "127.0.0.1:${MAHFEL_RABBITMQ_AMQP_HOST_PORT:-5672}:5672"
       - "127.0.0.1:${MAHFEL_RABBITMQ_MANAGEMENT_HOST_PORT:-15672}:15672"
       - "127.0.0.1:${MAHFEL_RABBITMQ_METRICS_HOST_PORT:-15692}:15692"
     volumes:
       - rabbitmq-data:/var/lib/rabbitmq
-      - ./deploy/rabbitmq/enabled_plugins:/etc/rabbitmq/enabled_plugins:ro
     healthcheck:
       test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
       interval: 10s
@@ -156,6 +169,7 @@ services:
     networks: [internal, admin]
 
   rustfs:
+    profiles: [infrastructure]
     image: docker.arvancloud.ir/rustfs/rustfs:1.0.0-rc.6
     restart: unless-stopped
     security_opt:
@@ -182,6 +196,7 @@ services:
     networks: [internal, admin]
 
   rustfs-init:
+    profiles: [infrastructure]
     image: docker.arvancloud.ir/amazon/aws-cli:2.36.46
     restart: "no"
     entrypoint: ["/bin/sh", "-c"]
@@ -201,7 +216,8 @@ services:
     networks: [internal]
 
   coturn:
-    image: coturn/coturn:4.7.0-r0
+    profiles: [infrastructure]
+    image: docker.arvancloud.ir/coturn/coturn:4.7.0-r0
     restart: unless-stopped
     command:
       - --log-file=stdout
@@ -221,7 +237,8 @@ services:
     networks: [edge]
 
   prometheus:
-    image: prom/prometheus:v3.5.0
+    profiles: [observability]
+    image: docker.arvancloud.ir/prom/prometheus:v3.5.0
     restart: unless-stopped
     command:
       - --config.file=/etc/prometheus/prometheus.yml
@@ -242,7 +259,8 @@ services:
     networks: [internal, admin]
 
   alertmanager:
-    image: prom/alertmanager:v0.28.1
+    profiles: [observability]
+    image: docker.arvancloud.ir/prom/alertmanager:v0.28.1
     restart: unless-stopped
     command: ["--config.file=/etc/alertmanager/alertmanager.yml"]
     ports:
@@ -252,7 +270,8 @@ services:
     networks: [internal, admin]
 
   grafana:
-    image: grafana/grafana:12.1.1
+    profiles: [observability]
+    image: docker.arvancloud.ir/grafana/grafana:12.1.1
     restart: unless-stopped
     environment:
       GF_SECURITY_ADMIN_USER: ${MAHFEL_GRAFANA_ADMIN_USER:-admin}

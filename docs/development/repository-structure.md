@@ -3,8 +3,11 @@
 | Path | Purpose |
 |---|---|
 | `backend/bins/api` | Control-plane executable |
+| `backend/bins/api/Dockerfile` | API production image definition |
 | `backend/bins/media` | Media-plane executable |
+| `backend/bins/media/Dockerfile` | Media production image and native validation definition |
 | `backend/bins/worker` | Background worker executable |
+| `backend/bins/worker/Dockerfile` | Worker production image definition |
 | `backend/crates/config` | Layered typed configuration |
 | `backend/crates/telemetry` | Logs, metrics, health, shutdown foundation |
 | `backend/crates/domain` | Shared durable domain types when genuinely cross-capability |
@@ -17,6 +20,7 @@
 | `frontend/components` | Shared shadcn/ui components |
 | `frontend/features` | Feature-oriented product modules as they arrive |
 | `frontend/lib` | API, WebSocket, RTC, and collaboration adapters |
+| `frontend/Dockerfile` | Next.js production image definition |
 | `proto` | Source protobuf contracts |
 | `deploy` | Container, Prometheus, Grafana, and future platform assets |
 | `docs` | MkDocs architecture, decisions, deployment, development, roadmap |

@@ -28,8 +28,8 @@ docker compose run --rm mahfel-api migrate
 
 `migrate_on_start` defaults to false to avoid coupling every production replica startup to schema
 changes. Local Compose enables it for convenience; SQLx migration locking and its migration ledger
-make repeated startup safe. `just test-database` starts PostgreSQL and verifies the embedded
-migrations against a uniquely named disposable database, then drops it.
+make repeated startup safe. `just test-database` starts a disposable PostgreSQL Testcontainer and
+verifies the embedded migrations against a uniquely named database, then removes the container.
 
 Common gates are `just fmt`, `just lint`, `just test`, `just build`, and `just docs`. The root
 `justfile` delegates component work to `backend/justfile` and `frontend/justfile`. Use
@@ -40,5 +40,5 @@ and the pinned toolchain in `backend/rust-toolchain.toml`.
 On Fedora-like hosts, the mediasoup crate requires the static libstdc++ development package because
 it links the native worker library statically. The container builder includes the corresponding
 Debian development package. Run the exact full-workspace validation in that supported environment
-with `docker build --target validation -f deploy/docker/media.Dockerfile .` when the host library is
+with `docker build --target validation -f backend/bins/media/Dockerfile .` when the host library is
 unavailable.

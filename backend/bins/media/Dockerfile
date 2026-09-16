@@ -1,4 +1,4 @@
-FROM rust:1.95.0-bookworm AS builder
+FROM docker.arvancloud.ir/rust:1.95.0-bookworm AS builder
 ENV RUSTUP_TOOLCHAIN=1.95.0-x86_64-unknown-linux-gnu \
     CARGO_HTTP_TIMEOUT=600 \
     CARGO_HTTP_LOW_SPEED_LIMIT=1 \
@@ -29,7 +29,7 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry \
     cargo nextest run --workspace --all-features && \
     cargo test --workspace --all-features --doc
 
-FROM debian:bookworm-slim AS runtime
+FROM docker.arvancloud.ir/debian:bookworm-slim AS runtime
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates curl libgcc-s1 libstdc++6 && \
     rm -rf /var/lib/apt/lists/* && \

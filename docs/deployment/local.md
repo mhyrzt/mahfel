@@ -20,6 +20,12 @@ macOS system trust. This is mandatory: do not bypass browser certificate warning
 browsers after the first trust operation. Caddy keeps its CA in the persistent `caddy-data` volume,
 so subsequent runs retain the same trusted root unless that volume is intentionally deleted.
 
+Compose services are grouped into three profiles: `mahfel` (the four application services and
+Caddy), `infrastructure` (PostgreSQL, Redis, RabbitMQ, RustFS, and coturn), and `observability`
+(Prometheus, Grafana, and Alertmanager). `just compose-up` enables all three profiles. To start a
+subset explicitly, use for example `docker compose --profile infrastructure up -d`; the `mahfel`
+and `observability` profiles require their dependency profiles as well.
+
 The first media build is slow because `mediasoup-sys` builds the native worker. It also downloads
 Python build tooling and Meson wrap dependencies; CI/build networks must permit those downloads or
 provide a prewarmed cache/mirror.

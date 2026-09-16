@@ -63,14 +63,14 @@ docs-serve:
     mkdocs serve
 
 compose-up:
-    docker compose up --build -d
+    docker compose --profile mahfel --profile infrastructure --profile observability up --build -d
     just trust-local-ca
 
 compose-down:
     docker compose down
 
 compose-logs:
-    docker compose logs -f
+    docker compose --profile mahfel --profile infrastructure --profile observability logs -f
 
 trust-local-ca:
     #!/usr/bin/env bash

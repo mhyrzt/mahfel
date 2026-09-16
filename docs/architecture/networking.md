@@ -15,7 +15,7 @@
 | PostgreSQL | 5432/TCP | 127.0.0.1:5432 | Private |
 | Redis | 6379/TCP | 127.0.0.1:6379 | Private |
 | RabbitMQ AMQP | 5672/TCP | 127.0.0.1:5672 | Private |
-| RabbitMQ management | 15672/TCP | 127.0.0.1:15672 | Local/admin only |
+| RabbitMQ management | 15672/TCP | 127.0.0.1:15672; `rabbitmq.mahfel.localhost` through Caddy | Local/admin only |
 | RabbitMQ metrics | 15692/TCP | 127.0.0.1:15692 | Private |
 | RustFS API/console | 9000/9001 TCP | loopback same; HTTPS through Caddy | Local/admin only |
 | coturn | 3478 UDP/TCP | same | Public traversal |
@@ -32,10 +32,11 @@ Local browser traffic terminates at Caddy using its internal CA. The CA certific
 from Caddy's persistent data volume and installed with `just trust-local-ca`; ignoring certificate
 errors is not a supported development mode.
 
-Caddy routes `s3.mahfel.localhost` to the RustFS S3 API and `storage.mahfel.localhost` to its
-console. This is necessary for future browser-to-S3 uploads from the HTTPS web application. Media
-UDP/TCP, internal gRPC, operations endpoints, databases, messaging, and observability interfaces do
-not pass through Caddy.
+Caddy routes `s3.mahfel.localhost` to the RustFS S3 API, `storage.mahfel.localhost` to its console,
+and `rabbitmq.mahfel.localhost` to the local RabbitMQ management UI. The latter is an operator
+convenience only. The RustFS route is necessary for future browser-to-S3 uploads from the HTTPS web
+application. Media UDP/TCP, internal gRPC, operations endpoints, databases, AMQP, and Prometheus,
+Grafana, and Alertmanager do not pass through Caddy.
 
 Ports 50051 and 9101–9103, databases, caches, AMQP, management, and observability endpoints are not
 public Internet endpoints. A dedicated operations port is an isolation boundary only when the

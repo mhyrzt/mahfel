@@ -1,4 +1,4 @@
-FROM oven/bun:1.4.2-alpine AS dependencies
+FROM docker.arvancloud.ir/oven/bun:1.4.2-alpine AS dependencies
 WORKDIR /app
 COPY frontend/package.json frontend/bun.lock ./
 RUN bun install --frozen-lockfile
@@ -10,7 +10,7 @@ ARG NEXT_PUBLIC_MAHFEL_API_URL=https://api.mahfel.localhost
 ENV NEXT_PUBLIC_MAHFEL_API_URL=$NEXT_PUBLIC_MAHFEL_API_URL
 RUN bun run build
 
-FROM oven/bun:1.4.2-alpine AS runtime
+FROM docker.arvancloud.ir/oven/bun:1.4.2-alpine AS runtime
 WORKDIR /app
 ENV NODE_ENV=production \
     HOSTNAME=0.0.0.0 \
