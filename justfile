@@ -34,6 +34,9 @@ test:
     just --justfile backend/justfile test
     just --justfile frontend/justfile test
 
+test-doc:
+    just --justfile backend/justfile test-doc
+
 test-database:
     just --justfile backend/justfile test-database
 

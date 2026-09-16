@@ -24,6 +24,9 @@ lint:
 
 test:
     cargo nextest run --workspace --all-features
+    just --justfile backend/justfile test-doc
+
+test-doc:
     cargo test --workspace --all-features --doc
 
 test-database:
