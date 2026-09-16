@@ -3,77 +3,17 @@ set dotenv-load
 default:
     @just --list
 
-# Install frontend dependencies using the pinned Bun lockfile.
-bootstrap:
-    just --justfile frontend/justfile install
-
-# Run the Rust services directly from the host for focused development.
-dev-api:
-    just --justfile backend/justfile dev-api
-
-# Apply pending SQLx migrations to the configured database.
-migrate:
-    just --justfile backend/justfile migrate
-
-dev-media:
-    just --justfile backend/justfile dev-media
-
-dev-worker:
-    just --justfile backend/justfile dev-worker
-
-dev-web:
-    just --justfile frontend/justfile dev
-
-# Check Rust and frontend formatting.
-fmt:
-    just --justfile backend/justfile fmt
-    just --justfile frontend/justfile fmt
-
-lint:
-    just --justfile backend/justfile lint
-    just --justfile frontend/justfile lint
-    just --justfile frontend/justfile typecheck
-
-# Run the complete application test suites.
-test:
-    just --justfile backend/justfile test
-    just --justfile frontend/justfile test
-
-# Run Rust documentation tests separately from Nextest.
-test-doc:
-    just --justfile backend/justfile test-doc
-
-# Run Rust unit tests only.
-test-unit:
-    just --justfile backend/justfile test-unit
-
-# Run Rust integration tests only.
-test-integration:
-    just --justfile backend/justfile test-integration
-
-# Format SQL migrations through the backend Justfile.
-sql-fmt:
-    just --justfile backend/justfile sql-fmt
-
-sql-lint:
-    just --justfile backend/justfile sql-lint
-
-# Start the disposable PostgreSQL integration test environment.
-test-database:
-    just --justfile backend/justfile test-database
-
-# Compile the Rust workspace and frontend without quality checks.
-build:
-    just --justfile backend/justfile build
-    just --justfile frontend/justfile build
-
-# Delegate a focused backend recipe.
+# Forward arbitrary recipes and arguments to the backend Justfile.
 backend *args:
     just --justfile backend/justfile {{args}}
 
-# Delegate a focused frontend recipe.
+# Forward arbitrary recipes and arguments to the frontend Justfile.
 frontend *args:
     just --justfile frontend/justfile {{args}}
+
+# Forward arbitrary recipes and arguments to the protobuf Justfile.
+proto *args:
+    just --justfile proto/justfile {{args}}
 
 # Build the strict MkDocs site.
 docs:
@@ -83,18 +23,30 @@ docs:
 docs-serve:
     mkdocs serve
 
-# Start all local application, infrastructure, and observability profiles.
-compose-up:
-    docker compose --profile mahfel --profile infrastructure --profile observability up --build -d
-    just trust-local-ca
+# Start selected Compose profiles; no arguments starts all profiles.
+compose-up *profiles:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    selected=("{{profiles}}")
+    if [[ -z "${selected[*]}" ]]; then selected=(mahfel infrastructure observability); fi
+    flags=()
+    for profile in "${selected[@]}"; do flags+=(--profile "$profile"); done
+    docker compose "${flags[@]}" up --build -d
+    if printf '%s\n' "${selected[@]}" | grep -qx mahfel; then just trust-local-ca; fi
 
 # Stop the local Compose stack. Named volumes are retained.
 compose-down:
     docker compose down
 
-# Follow logs from all local Compose profiles.
-compose-logs:
-    docker compose --profile mahfel --profile infrastructure --profile observability logs -f
+# Follow logs from selected Compose profiles; no arguments means all profiles.
+compose-logs *profiles:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    selected=("{{profiles}}")
+    if [[ -z "${selected[*]}" ]]; then selected=(mahfel infrastructure observability); fi
+    flags=()
+    for profile in "${selected[@]}"; do flags+=(--profile "$profile"); done
+    docker compose "${flags[@]}" logs -f
 
 # Install and trust Caddy's generated local HTTPS root certificate.
 trust-local-ca:

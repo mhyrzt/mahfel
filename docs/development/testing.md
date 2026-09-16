@@ -36,7 +36,7 @@ docker compose config
 
 RTC load and resilience testing is a dedicated M14 deliverable, not a unit-test substitute.
 
-Database integration tests use Testcontainers by default through `just test-database`. The harness
+Database integration tests use Testcontainers by default through `just backend test-database`. The harness
 starts a disposable PostgreSQL container, creates a random disposable database, applies embedded
 migrations twice to verify idempotent ledger behavior, asserts the expected schema, and removes the
 container when the test exits. Docker must be available for this recipe. For an already-running
@@ -48,3 +48,5 @@ nextest does not execute them.
 SQL migrations use SQLFluff with the PostgreSQL dialect. `just backend sql-lint` checks migration
 files and `just backend sql-fmt` applies SQLFluff formatting. The backend `lint` recipe includes the
 SQL lint check. SQLFluff is expected to be available in the developer environment or CI image.
+Protobuf contracts use Buf; run `just proto fmt-check` and `just proto lint` before changing the
+generated tonic boundary.

@@ -1,0 +1,14 @@
+default:
+    @just --list
+
+# Check canonical protobuf formatting without modifying files.
+fmt-check:
+    buf format --diff --exit-code .
+
+# Apply canonical protobuf formatting.
+fmt:
+    buf format --write .
+
+# Lint protobuf contracts with Buf's standard rules.
+lint:
+    buf lint .

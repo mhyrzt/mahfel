@@ -6,7 +6,7 @@ default:
 
 # Run the API binary with host configuration.
 dev-api:
-    cargo run --bin mahfel-api
+    MAHFEL_CONFIG_PROFILE=local cargo run --bin mahfel-api
 
 # Run the migration command against the configured database.
 migrate:
@@ -14,11 +14,11 @@ migrate:
 
 # Run the media-plane binary with host configuration.
 dev-media:
-    cargo run --bin mahfel-media
+    MAHFEL_CONFIG_PROFILE=local cargo run --bin mahfel-media
 
 # Run the background worker binary with host configuration.
 dev-worker:
-    cargo run --bin mahfel-worker
+    MAHFEL_CONFIG_PROFILE=local cargo run --bin mahfel-worker
 
 # Check Rust formatting without modifying files.
 fmt:

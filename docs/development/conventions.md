@@ -20,6 +20,8 @@
   `just frontend fmt-write` applies formatting.
 - Frontend source comments are rejected. Only targeted `eslint-disable`, `eslint-disable-line`, or
   `eslint-disable-next-line` directives are permitted, and unused directives fail linting.
+- Protobuf contracts are formatted and linted with Buf. Use `just proto fmt-check` for a check,
+  `just proto fmt` to apply formatting, and `just proto lint` for schema linting.
 - Bun is the package manager, script runner, and compatible local runtime.
 - Product code is organized by feature. Shared components use shadcn/ui primitives; do not add a
   second component system without an ADR-level reason.
