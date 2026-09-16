@@ -34,9 +34,15 @@ docker compose config
 
 RTC load and resilience testing is a dedicated M14 deliverable, not a unit-test substitute.
 
-Database integration tests use `MAHFEL_TEST_DATABASE_URL` as an administrative connection. The
-harness creates a random disposable database, applies embedded migrations twice to verify
-idempotent ledger behavior, asserts the expected schema, and removes the database. Use
-`just test-database`; do not point the variable at a shared or production PostgreSQL cluster. Rust
-test binaries run through `cargo-nextest`; doctests remain a separate `cargo test --doc` step because
+Database integration tests use Testcontainers by default through `just test-database`. The harness
+starts a disposable PostgreSQL container, creates a random disposable database, applies embedded
+migrations twice to verify idempotent ledger behavior, asserts the expected schema, and removes the
+container when the test exits. Docker must be available for this recipe. For an already-running
+isolated PostgreSQL instance, set `MAHFEL_TEST_DATABASE_URL`; without either setting, the database
+integration test is skipped. Never point it at a shared or production PostgreSQL cluster. Rust test
+binaries run through `cargo-nextest`; doctests remain a separate `cargo test --doc` step because
 nextest does not execute them.
+
+SQL migrations use SQLFluff with the PostgreSQL dialect. `just backend sql-lint` checks migration
+files and `just backend sql-fmt` applies SQLFluff formatting. The backend `lint` recipe includes the
+SQL lint check. SQLFluff is expected to be available in the developer environment or CI image.

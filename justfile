@@ -37,6 +37,12 @@ test:
 test-doc:
     just --justfile backend/justfile test-doc
 
+sql-fmt:
+    just --justfile backend/justfile sql-fmt
+
+sql-lint:
+    just --justfile backend/justfile sql-lint
+
 test-database:
     just --justfile backend/justfile test-database
 

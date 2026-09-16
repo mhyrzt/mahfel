@@ -1,0 +1,13 @@
+[sqlfluff]
+dialect = postgres
+templater = raw
+max_line_length = 100
+
+[sqlfluff:rules:capitalisation.keywords]
+capitalisation_policy = upper
+
+[sqlfluff:rules:capitalisation.identifiers]
+extended_capitalisation_policy = snake
+
+[sqlfluff:rules:layout.long_lines]
+max_line_length = 100

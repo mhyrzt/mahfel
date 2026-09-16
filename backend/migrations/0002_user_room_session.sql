@@ -10,7 +10,7 @@ CREATE TABLE mahfel.users (
 CREATE TABLE mahfel.rooms (
     id UUID PRIMARY KEY,
     title TEXT NOT NULL CHECK (char_length(title) BETWEEN 1 AND 300),
-    created_by UUID NOT NULL REFERENCES mahfel.users(id),
+    created_by UUID NOT NULL REFERENCES mahfel.users (id),
     status TEXT NOT NULL CHECK (status IN ('active', 'archived')),
     created_at TIMESTAMPTZ NOT NULL,
     updated_at TIMESTAMPTZ NOT NULL,
@@ -21,7 +21,7 @@ CREATE INDEX rooms_created_by_idx ON mahfel.rooms (created_by);
 
 CREATE TABLE mahfel.classroom_sessions (
     id UUID PRIMARY KEY,
-    room_id UUID NOT NULL REFERENCES mahfel.rooms(id),
+    room_id UUID NOT NULL REFERENCES mahfel.rooms (id),
     status TEXT NOT NULL CHECK (status IN ('scheduled', 'live', 'ended', 'cancelled')),
     scheduled_start_at TIMESTAMPTZ,
     started_at TIMESTAMPTZ,
@@ -34,6 +34,6 @@ CREATE TABLE mahfel.classroom_sessions (
 );
 
 CREATE INDEX classroom_sessions_room_id_idx
-    ON mahfel.classroom_sessions (room_id);
+ON mahfel.classroom_sessions (room_id);
 CREATE INDEX classroom_sessions_status_idx
-    ON mahfel.classroom_sessions (status);
+ON mahfel.classroom_sessions (status);

@@ -15,6 +15,7 @@ uuid.workspace = true
 
 [dev-dependencies]
 tokio.workspace = true
+testcontainers = "0.28.0"
 url.workspace = true
 uuid.workspace = true
 

@@ -21,6 +21,7 @@ fmt:
 
 lint:
     cargo clippy --workspace --all-targets --all-features -- -D warnings
+    sqlfluff lint migrations
 
 test:
     cargo nextest run --workspace --all-features
@@ -29,13 +30,14 @@ test:
 test-doc:
     cargo test --workspace --all-features --doc
 
+sql-fmt:
+    sqlfluff format migrations
+
+sql-lint:
+    sqlfluff lint migrations
+
 test-database:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    docker compose --project-directory .. -f ../docker-compose.yml up -d postgres
-    database_url="postgres://${MAHFEL_POSTGRES_USER:-mahfel}:${MAHFEL_POSTGRES_PASSWORD:-mahfel-local-only}"
-    database_url+="@127.0.0.1:${MAHFEL_POSTGRES_HOST_PORT:-5432}/postgres"
-    MAHFEL_TEST_DATABASE_URL="${database_url}" \
+    MAHFEL_TESTCONTAINERS=1 \
         cargo nextest run -p mahfel-database --test migrations --no-capture
 
 build:

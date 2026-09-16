@@ -4,6 +4,11 @@ use mahfel_database::{
 };
 use sqlx::PgPool;
 use std::{error::Error, time::Duration};
+use testcontainers::{
+    GenericImage, ImageExt,
+    core::{IntoContainerPort, WaitFor},
+    runners::AsyncRunner,
+};
 use url::Url;
 use uuid::Uuid;
 
@@ -19,12 +24,34 @@ fn test_pool_settings() -> PoolSettings {
 
 #[tokio::test]
 async fn migrations_provision_a_disposable_database() -> Result<(), Box<dyn Error>> {
-    let Ok(admin_url) = std::env::var("MAHFEL_TEST_DATABASE_URL") else {
-        eprintln!("MAHFEL_TEST_DATABASE_URL is unset; skipping PostgreSQL integration test");
-        return Ok(());
-    };
+    if let Ok(admin_url) = std::env::var("MAHFEL_TEST_DATABASE_URL") {
+        return verify_disposable_database(&admin_url).await;
+    }
 
-    let admin_pool = PgPool::connect(&admin_url).await?;
+    if std::env::var("MAHFEL_TESTCONTAINERS").as_deref() != Ok("1") {
+        eprintln!(
+            "MAHFEL_TESTCONTAINERS is unset and MAHFEL_TEST_DATABASE_URL is unset; skipping PostgreSQL integration test"
+        );
+        return Ok(());
+    }
+
+    let postgres = GenericImage::new("postgres", "16-bookworm")
+        .with_exposed_port(5432.tcp())
+        .with_wait_for(WaitFor::message_on_stdout(
+            "database system is ready to accept connections",
+        ))
+        .with_env_var("POSTGRES_DB", "postgres")
+        .with_env_var("POSTGRES_USER", "mahfel")
+        .with_env_var("POSTGRES_PASSWORD", "mahfel-test")
+        .start()
+        .await?;
+    let port = postgres.get_host_port_ipv4(5432).await?;
+    let admin_url = format!("postgres://mahfel:mahfel-test@127.0.0.1:{port}/postgres");
+    verify_disposable_database(&admin_url).await
+}
+
+async fn verify_disposable_database(admin_url: &str) -> Result<(), Box<dyn Error>> {
+    let admin_pool = PgPool::connect(admin_url).await?;
     let database_name = format!("mahfel_test_{}", Uuid::new_v4().simple());
     let create_database = format!("CREATE DATABASE \"{database_name}\" TEMPLATE template0");
     // The interpolated identifier is generated exclusively from a UUID.
@@ -32,7 +59,7 @@ async fn migrations_provision_a_disposable_database() -> Result<(), Box<dyn Erro
         .execute(&admin_pool)
         .await?;
 
-    let mut test_url = Url::parse(&admin_url)?;
+    let mut test_url = Url::parse(admin_url)?;
     test_url.set_path(&format!("/{database_name}"));
     let connection = connection_settings(&test_url)?;
     let test_pool = connect(&connection, test_pool_settings()).await?;
