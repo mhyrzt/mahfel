@@ -19,7 +19,7 @@ and the implementation roadmap.
 
 ```bash
 cp .env.example .env
-just bootstrap
+just frontend install
 just compose-up
 ```
 

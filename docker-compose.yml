@@ -32,6 +32,7 @@ services:
       MAHFEL_DATABASE__PASSWORD: ${MAHFEL_POSTGRES_PASSWORD:-mahfel-local-only}
       MAHFEL_DATABASE__NAME: ${MAHFEL_POSTGRES_DB:-mahfel}
       MAHFEL_DATABASE__MIGRATE_ON_START: "true"
+      MAHFEL_CONFIG_PROFILE: docker
       MAHFEL_API__MEDIA_GRPC_URL: http://mahfel-media:50051
       MAHFEL_API__ALLOWED_ORIGIN: https://mahfel.localhost
       MAHFEL_TELEMETRY__LOG_FILTER: ${MAHFEL_LOG_FILTER:-info,mahfel=debug,tower_http=info}
@@ -62,6 +63,7 @@ services:
     expose:
       - "50051"
     ports:
+      - "127.0.0.1:${MAHFEL_MEDIA_GRPC_HOST_PORT:-50051}:50051"
       - "127.0.0.1:9102:9102"
       - "${MAHFEL_MEDIA_RTC_PORT_MIN:-40000}-${MAHFEL_MEDIA_RTC_PORT_MAX:-40003}:${MAHFEL_MEDIA_RTC_PORT_MIN:-40000}-${MAHFEL_MEDIA_RTC_PORT_MAX:-40003}/udp"
       - "${MAHFEL_MEDIA_RTC_PORT_MIN:-40000}-${MAHFEL_MEDIA_RTC_PORT_MAX:-40003}:${MAHFEL_MEDIA_RTC_PORT_MIN:-40000}-${MAHFEL_MEDIA_RTC_PORT_MAX:-40003}/tcp"
@@ -96,6 +98,11 @@ services:
       - ./deploy/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy-data:/data
       - caddy-config:/config
+    environment:
+      MAHFEL_CADDY_WEB_UPSTREAM: ${MAHFEL_CADDY_WEB_UPSTREAM:-mahfel-web:3000}
+      MAHFEL_CADDY_API_UPSTREAM: ${MAHFEL_CADDY_API_UPSTREAM:-mahfel-api:8080}
+    extra_hosts:
+      - host.docker.internal:host-gateway
     depends_on:
       mahfel-web:
         condition: service_healthy

@@ -52,6 +52,13 @@ the local-only RabbitMQ management route `https://rabbitmq.mahfel.localhost`. Di
 `3000`, `8080`, and `15672` remain available for low-level debugging, but normal browser development
 must use Caddy HTTPS so secure-context and CORS behavior match deployment assumptions.
 
+The media control gRPC port `50051` is published on loopback for host-run API development only;
+it remains a private internal port and must not be exposed through public ingress.
+
+When running web or API directly on the host, set `MAHFEL_CADDY_WEB_UPSTREAM` or
+`MAHFEL_CADDY_API_UPSTREAM` to `host.docker.internal:<port>` in `.env`. Caddy then keeps the same
+trusted HTTPS domains while proxying to host processes. Ports 80/443 remain owned by Caddy.
+
 RustFS provides the browser-facing S3-compatible endpoint at `https://s3.mahfel.localhost` and its
 console at `https://storage.mahfel.localhost`. Containers use the internal
 `http://rustfs:9000` endpoint. Keeping separate internal and public endpoint settings prevents

@@ -4,8 +4,6 @@
 site/
 
 backend/target/
-backend/config/local.toml
-
 frontend/node_modules/
 frontend/.next/
 frontend/out/

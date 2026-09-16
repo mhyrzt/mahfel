@@ -1,0 +1,18 @@
+# Host-development profile used by `just backend dev-*` recipes.
+[api]
+media_grpc_url = "http://127.0.0.1:50051"
+allowed_origin = "https://mahfel.localhost"
+
+[database]
+host = "127.0.0.1"
+port = 5432
+user = "mahfel"
+password = "mahfel-local-only"
+name = "mahfel"
+migrate_on_start = true
+
+[media]
+announced_address = "127.0.0.1"
+
+[worker]
+amqp_url = "amqp://mahfel:mahfel-local-only@127.0.0.1:5672/%2f"

@@ -5,13 +5,13 @@
 https://mahfel.localhost {
 	tls internal
 	encode zstd gzip
-	reverse_proxy mahfel-web:3000
+	reverse_proxy {$MAHFEL_CADDY_WEB_UPSTREAM}
 }
 
 https://api.mahfel.localhost {
 	tls internal
 	encode zstd gzip
-	reverse_proxy mahfel-api:8080
+	reverse_proxy {$MAHFEL_CADDY_API_UPSTREAM}
 }
 
 https://s3.mahfel.localhost {

@@ -14,6 +14,11 @@ WebRTC depends on address/port reachability rather than HTTP routing alone.
 - coturn owns a stable public address, 3478 UDP/TCP, a production-sized UDP relay range, and valid
   TLS configuration for 5349 and optionally 443.
 - No application container depends on a persistent filesystem volume.
+- The image includes non-secret `default.toml` and `docker.toml` baselines. Darkube deployment
+  configuration must override credentials, issuer URLs, announced addresses, and other environment
+  specific values through environment variables/secrets; do not depend on an arbitrary file mount
+  for a Docker-image app. Confirm the linked Darkube custom-config behavior with platform support
+  before introducing mounted configuration files.
 
 ## Platform validation gates
 

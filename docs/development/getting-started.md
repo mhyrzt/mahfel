@@ -2,14 +2,15 @@
 
 ```bash
 cp .env.example .env
-just bootstrap
+just frontend install
 just compose-up
 ```
 
 For host development, infrastructure may be started separately and each application launched with
-`just dev-web`, `just dev-api`, `just dev-media`, or `just dev-worker`. Host Rust processes load
-`backend/config/default.toml`, optional `backend/config/local.toml`, then `MAHFEL_` environment
-overrides. Nested keys use double underscores, for example
+`just frontend dev`, `just backend dev-api`, `just backend dev-media`, or `just backend dev-worker`. Host Rust processes load
+`backend/config/default.toml`, the selected `backend/config/{profile}.toml` profile, optional
+`backend/config/local.toml` overrides, then `MAHFEL_` environment overrides. Docker uses the
+`docker` profile; host `just backend dev-*` recipes use `local`. Nested keys use double underscores, for example
 `MAHFEL_DATABASE__HOST=127.0.0.1` and `MAHFEL_DATABASE__PORT=5432`. PostgreSQL connection settings
 are separate `host`, `port`, `user`, `password`, and `name` values; application configuration does
 not require a constructed connection URL.
@@ -21,7 +22,7 @@ Pool bounds and timeouts live under `[database]` and can be overridden with vari
 command once before rolling application replicas:
 
 ```bash
-just migrate
+just backend migrate
 # or, using the built image:
 docker compose run --rm mahfel-api migrate
 ```
@@ -31,8 +32,8 @@ changes. Local Compose enables it for convenience; SQLx migration locking and it
 make repeated startup safe. `just test-database` starts a disposable PostgreSQL Testcontainer and
 verifies the embedded migrations against a uniquely named database, then removes the container.
 
-Common gates are `just fmt`, `just lint`, `just test`, `just build`, and `just docs`. The root
-`justfile` delegates component work to `backend/justfile` and `frontend/justfile`. Use
+Common component gates are recipes under `just backend <recipe>` and `just frontend <recipe>`;
+`just docs` builds documentation. The root `justfile` keeps only these component proxies. Use
 `just backend <recipe>` or `just frontend <recipe>` for a focused workflow; running `just` inside
 either component lists its local recipes. The frontend uses Bun exclusively. Rust uses edition 2024
 and the pinned toolchain in `backend/rust-toolchain.toml`.

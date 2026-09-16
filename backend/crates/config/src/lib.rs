@@ -69,9 +69,11 @@ impl Settings {
         let config_dir = std::env::var_os("MAHFEL_CONFIG_DIR")
             .map(PathBuf::from)
             .unwrap_or_else(|| PathBuf::from("config"));
+        let profile = std::env::var("MAHFEL_CONFIG_PROFILE").unwrap_or_else(|_| "docker".into());
 
         Config::builder()
             .add_source(File::from(config_dir.join("default.toml")))
+            .add_source(File::from(config_dir.join(format!("{profile}.toml"))).required(false))
             .add_source(File::from(config_dir.join("local.toml")).required(false))
             .add_source(
                 Environment::with_prefix("MAHFEL")

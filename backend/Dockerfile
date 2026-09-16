@@ -55,6 +55,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates
 WORKDIR /app
 COPY --from=api-builder /tmp/mahfel-api /usr/local/bin/mahfel-api
 COPY --chown=mahfel:mahfel backend/config/default.toml /app/config/default.toml
+COPY --chown=mahfel:mahfel backend/config/docker.toml /app/config/docker.toml
 ENV MAHFEL_CONFIG_DIR=/app/config
 USER mahfel
 EXPOSE 8080 9101
@@ -71,6 +72,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 WORKDIR /app
 COPY --from=media-builder /tmp/mahfel-media /usr/local/bin/mahfel-media
 COPY --chown=mahfel:mahfel backend/config/default.toml /app/config/default.toml
+COPY --chown=mahfel:mahfel backend/config/docker.toml /app/config/docker.toml
 ENV MAHFEL_CONFIG_DIR=/app/config
 USER mahfel
 EXPOSE 50051 9102 40000/udp 40000/tcp 40001/udp 40001/tcp 40002/udp 40002/tcp 40003/udp 40003/tcp
@@ -86,6 +88,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates
 WORKDIR /app
 COPY --from=worker-builder /tmp/mahfel-worker /usr/local/bin/mahfel-worker
 COPY --chown=mahfel:mahfel backend/config/default.toml /app/config/default.toml
+COPY --chown=mahfel:mahfel backend/config/docker.toml /app/config/docker.toml
 ENV MAHFEL_CONFIG_DIR=/app/config
 USER mahfel
 EXPOSE 9103
