@@ -61,6 +61,12 @@ presigned browser URLs from containing an unresolvable Compose service name. The
 RustFS's default storage format must not be assumed to be compatible; migrate any valuable local
 objects through the S3 API before removing that old volume.
 
+TinyAuth provides local OIDC login at `https://auth.mahfel.localhost`. The seeded development
+accounts are `admin`, `manager-1`, `manager-2`, and `user-1` through `user-5`; all use
+the local-only password `password`. Replace the entries in `deploy/tinyauth/users` when sharing the
+environment. Its SQLite state is persisted in the `tinyauth-data` volume. Production can point
+the same Mahfel OIDC configuration at Keycloak.
+
 Infrastructure host ports can be changed with the `*_HOST_PORT` values in `.env`. Their defaults
 match the port map. For example, use `MAHFEL_REDIS_HOST_PORT=26379` when another local project owns
 `6379`; container-to-container URLs continue to use the standard ports.

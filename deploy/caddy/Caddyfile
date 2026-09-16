@@ -29,3 +29,9 @@ https://rabbitmq.mahfel.localhost {
 	tls internal
 	reverse_proxy rabbitmq:15672
 }
+
+https://auth.mahfel.localhost {
+	tls internal
+	encode zstd gzip
+	reverse_proxy tinyauth:3000
+}

@@ -7,9 +7,11 @@ RabbitMQ delivery semantics, and generated protocol compatibility. API tests exe
 without a network where possible and use disposable infrastructure for database behavior. Media
 protocol tests verify serialization and explicit `Unimplemented` behavior before full RTC tests.
 
-Frontend gates are strict TypeScript, ESLint, and production build. Add focused component tests when
-interactive behavior warrants them. Browser E2E arrives with usable cross-service flows; it should
-cover real WebSocket and WebRTC behavior rather than mocking away the critical boundary.
+Frontend gates are strict TypeScript, ESLint, and production build. Next.js production builds are
+configured to package the application only; TypeScript validation is intentionally performed by the
+separate `typecheck` recipe. Add focused component tests when interactive behavior warrants them.
+Browser E2E arrives with usable cross-service flows; it should cover real WebSocket and WebRTC
+behavior rather than mocking away the critical boundary.
 
 Required commands:
 

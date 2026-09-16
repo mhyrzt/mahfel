@@ -15,6 +15,7 @@
 ## TypeScript
 
 - Strict TypeScript, ESLint, App Router, React Server Components by default.
+- `next build` is packaging-only; `just frontend typecheck` remains mandatory for TypeScript errors.
 - Prettier is the canonical frontend formatter; `just frontend fmt` checks and
   `just frontend fmt-write` applies formatting.
 - Frontend source comments are rejected. Only targeted `eslint-disable`, `eslint-disable-line`, or

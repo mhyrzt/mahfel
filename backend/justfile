@@ -4,41 +4,91 @@ set dotenv-load
 default:
     @just --list
 
+# Run the API binary with host configuration.
 dev-api:
     cargo run --bin mahfel-api
 
+# Run the migration command against the configured database.
 migrate:
     cargo run --bin mahfel-api -- migrate
 
+# Run the media-plane binary with host configuration.
 dev-media:
     cargo run --bin mahfel-media
 
+# Run the background worker binary with host configuration.
 dev-worker:
     cargo run --bin mahfel-worker
 
+# Check Rust formatting without modifying files.
 fmt:
     cargo fmt --all -- --check
 
+# Run Rust and SQLFluff static analysis with warnings denied for Rust.
 lint:
     cargo clippy --workspace --all-targets --all-features -- -D warnings
     sqlfluff lint migrations
 
+# Run unit tests, integration tests, and Rust doctests.
 test:
-    cargo nextest run --workspace --all-features
+    just --justfile backend/justfile test-unit
+    just --justfile backend/justfile test-integration
     just --justfile backend/justfile test-doc
 
+# Run library and binary unit-test targets only.
+test-unit:
+    cargo nextest run --workspace --all-features --lib --bins
+
+# Run integration-test targets with disposable Testcontainers enabled.
+test-integration:
+    MAHFEL_TESTCONTAINERS=1 \
+        cargo nextest run --workspace --all-features --tests --no-capture
+
+# Run only Rust documentation tests.
 test-doc:
     cargo test --workspace --all-features --doc
 
+# Apply SQLFluff formatting to all backend migrations.
 sql-fmt:
     sqlfluff format migrations
 
+# Lint all backend migrations with the PostgreSQL dialect.
 sql-lint:
     sqlfluff lint migrations
 
+# Run the PostgreSQL integration test with a disposable Testcontainer.
 test-database:
     MAHFEL_TESTCONTAINERS=1 \
         cargo nextest run -p mahfel-database --test migrations --no-capture
 
+# Compile every Rust workspace package without quality checks.
 build:
     cargo build --workspace
+
+# Build api, media, worker, or all Rust image targets.
+docker target="all":
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    build_target() {
+        local image_target="$1"
+        docker build \
+            --target "${image_target}" \
+            --tag "mahfel-${image_target}:local" \
+            --file Dockerfile ..
+    }
+
+    case "{{target}}" in
+        api|media|worker)
+            build_target "{{target}}"
+            ;;
+        all)
+            for image_target in api media worker; do
+                build_target "${image_target}"
+            done
+            ;;
+        *)
+            echo "invalid Docker target '{{target}}'; expected api, media, worker, or all" >&2
+            exit 2
+            ;;
+    esac

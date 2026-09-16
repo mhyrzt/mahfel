@@ -4,26 +4,34 @@ set dotenv-load
 default:
     @just --list
 
+# Install frontend dependencies from the frozen Bun lockfile.
 install:
     bun install --frozen-lockfile
 
+# Start the Next.js development server.
 dev:
     bun run dev
 
+# Check formatting without modifying files.
 fmt:
     bun run format
 
+# Apply Prettier formatting to frontend files.
 fmt-write:
     bun run format:write
 
+# Run the strict ESLint configuration.
 lint:
     bun run lint
 
+# Run the TypeScript compiler without emitting files.
 typecheck:
     bun run typecheck
 
+# Run frontend unit tests.
 test:
     bun run test
 
+# Create the production Next.js build.
 build:
     bun run build
