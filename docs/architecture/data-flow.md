@@ -69,8 +69,9 @@ sequenceDiagram
   W->>S: Process/read/write artifact
   W->>P: Persist result
   W->>Q: Manual acknowledgement
-  Note over Q,W: Retry transient failures; poison jobs reach DLQ
 ```
+
+Transient failures are retried; poison jobs are routed to a dead-letter queue (DLQ).
 
 ## File transfer
 

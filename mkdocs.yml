@@ -23,6 +23,14 @@ markdown_extensions:
           format: !!python/name:pymdownx.superfences.fence_code_format
 nav:
   - Home: index.md
+  - Development:
+      - Getting started: development/getting-started.md
+      - Repository structure: development/repository-structure.md
+      - Conventions: development/conventions.md
+      - Testing: development/testing.md
+  - Deployment:
+      - Local: deployment/local.md
+      - Darkube: deployment/darkube.md
   - Architecture:
       - Overview: architecture/overview.md
       - Components: architecture/components.md
@@ -46,12 +54,4 @@ nav:
       - 0012 Yrs and Yjs: adr/0012-yrs-yjs-crdt.md
       - 0013 Stateless PaaS: adr/0013-stateless-paas.md
       - 0014 Frontend stack: adr/0014-frontend-stack.md
-  - Deployment:
-      - Local: deployment/local.md
-      - Darkube: deployment/darkube.md
-  - Development:
-      - Getting started: development/getting-started.md
-      - Repository structure: development/repository-structure.md
-      - Conventions: development/conventions.md
-      - Testing: development/testing.md
   - Backlog: backlog/roadmap.md
