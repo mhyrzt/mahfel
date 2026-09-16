@@ -3,11 +3,9 @@
 | Path | Purpose |
 |---|---|
 | `backend/bins/api` | Control-plane executable |
-| `backend/bins/api/Dockerfile` | API production image definition |
+| `backend/Dockerfile` | Cargo-chef based API, media, and worker production image targets |
 | `backend/bins/media` | Media-plane executable |
-| `backend/bins/media/Dockerfile` | Media production image and native validation definition |
 | `backend/bins/worker` | Background worker executable |
-| `backend/bins/worker/Dockerfile` | Worker production image definition |
 | `backend/crates/config` | Layered typed configuration |
 | `backend/crates/telemetry` | Logs, metrics, health, shutdown foundation |
 | `backend/crates/domain` | Shared durable domain types when genuinely cross-capability |

@@ -22,7 +22,8 @@ services:
     image: mahfel-api:local
     build:
       context: .
-      dockerfile: backend/bins/api/Dockerfile
+      dockerfile: backend/Dockerfile
+      target: api
     restart: unless-stopped
     environment:
       MAHFEL_DATABASE__HOST: postgres
@@ -49,7 +50,8 @@ services:
     image: mahfel-media:local
     build:
       context: .
-      dockerfile: backend/bins/media/Dockerfile
+      dockerfile: backend/Dockerfile
+      target: media
     restart: unless-stopped
     environment:
       MAHFEL_MEDIA__ANNOUNCED_ADDRESS: ${MAHFEL_MEDIA_ANNOUNCED_ADDRESS:-127.0.0.1}
@@ -70,7 +72,8 @@ services:
     image: mahfel-worker:local
     build:
       context: .
-      dockerfile: backend/bins/worker/Dockerfile
+      dockerfile: backend/Dockerfile
+      target: worker
     restart: unless-stopped
     environment:
       MAHFEL_WORKER__AMQP_URL: ${MAHFEL_AMQP_URL:-amqp://mahfel:mahfel-local-only@rabbitmq:5672/%2f}

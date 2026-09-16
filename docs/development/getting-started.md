@@ -39,6 +39,5 @@ and the pinned toolchain in `backend/rust-toolchain.toml`.
 
 On Fedora-like hosts, the mediasoup crate requires the static libstdc++ development package because
 it links the native worker library statically. The container builder includes the corresponding
-Debian development package. Run the exact full-workspace validation in that supported environment
-with `docker build --target validation -f backend/bins/media/Dockerfile .` when the host library is
-unavailable.
+Debian development package. The backend image has `api`, `media`, and `worker` build targets; use
+`docker build --target media -f backend/Dockerfile .` when the host library is unavailable.
