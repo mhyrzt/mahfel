@@ -24,9 +24,9 @@ bootstrap:
     copy_if_missing frontend/.env.local.example frontend/.env.local
     just caddy-init
 
-# Start Caddy and its application/infrastructure dependencies once, then trust its generated CA.
+# Start infrastructure, including Caddy, without building application images.
 caddy-init:
-    docker compose --profile mahfel --profile infrastructure up --build -d caddy
+    docker compose --profile infrastructure up -d
     just trust-local-ca
 
 # Forward arbitrary recipes and arguments to the backend Justfile.

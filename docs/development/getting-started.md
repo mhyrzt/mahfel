@@ -84,8 +84,8 @@ just compose-up
 ```
 
 `just bootstrap` creates `.env` and `frontend/.env.local` only when they do not already exist,
-starts Caddy with its required application/infrastructure dependencies, and installs/trusts Caddy's
-local CA. `just compose-up` then starts all three Compose profiles (`mahfel`, `infrastructure`, and
+starts the infrastructure profile (including Caddy) without building application images, and
+installs/trusts Caddy's local CA. `just compose-up` then starts all three Compose profiles (`mahfel`, `infrastructure`, and
 `observability`) and builds application images. Local OIDC is available at
 `https://auth.mahfel.localhost/dex`; production remains configured for Keycloak. Browse through
 `https://mahfel.localhost`; do not bypass certificate warnings.

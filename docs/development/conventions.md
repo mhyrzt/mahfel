@@ -23,6 +23,8 @@
 - Protobuf contracts are formatted and linted with Buf. Use `just proto fmt-check` for a check,
   `just proto fmt` to apply formatting, and `just proto lint` for schema linting.
 - Bun is the package manager, script runner, and compatible local runtime.
+- Vitest is the frontend unit-test runner with React Testing Library and jsdom. Storybook uses the
+  Next.js framework integration for isolated component development and visual review.
 - Product code is organized by feature. Shared components use shadcn/ui primitives; do not add a
   second component system without an ADR-level reason.
 - Avoid `any`; document the external boundary if an unavoidable untyped value exists.

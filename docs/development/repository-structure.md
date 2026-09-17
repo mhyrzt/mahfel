@@ -17,6 +17,8 @@
 | `backend/crates/rtc` | mediasoup-specific runtime code |
 | `frontend/app` | Next.js routes and layouts |
 | `frontend/components` | Shared shadcn/ui components |
+| `frontend/.storybook` | Storybook framework and preview configuration |
+| `frontend/vitest.config.ts` | Vitest/jsdom unit-test configuration |
 | `frontend/features` | Feature-oriented product modules as they arrive |
 | `frontend/lib` | API, WebSocket, RTC, and collaboration adapters |
 | `frontend/Dockerfile` | Next.js production image definition |

@@ -88,7 +88,7 @@ services:
     networks: [internal, admin]
 
   caddy:
-    profiles: [mahfel]
+    profiles: [infrastructure]
     image: docker.arvancloud.ir/caddy:2.11.4-alpine
     restart: unless-stopped
     ports:
@@ -104,10 +104,6 @@ services:
     extra_hosts:
       - host.docker.internal:host-gateway
     depends_on:
-      mahfel-web:
-        condition: service_healthy
-      mahfel-api:
-        condition: service_healthy
       rustfs:
         condition: service_healthy
       rabbitmq:

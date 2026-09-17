@@ -15,7 +15,8 @@ just bootstrap
 ```
 
 `just bootstrap` creates `.env` and `frontend/.env.local` without overwriting existing files, starts
-Caddy with its required application/infrastructure dependencies, and runs `just trust-local-ca`.
+the complete infrastructure profile (including Caddy) without building application images, and runs
+`just trust-local-ca`.
 The trust step uses `sudo` to install the generated root certificate into Fedora/RHEL,
 Debian/Ubuntu, or macOS system trust. This is mandatory: do not bypass browser certificate
 warnings. Restart open browsers after the first trust operation. Caddy keeps its CA in the
@@ -28,8 +29,8 @@ After initialization, start the complete local stack with:
 just compose-up
 ```
 
-Compose services are grouped into three profiles: `mahfel` (the four application services and
-Caddy), `infrastructure` (PostgreSQL, Redis, RabbitMQ, RustFS, Dex, and coturn), and `observability`
+Compose services are grouped into three profiles: `mahfel` (the four buildable application services),
+`infrastructure` (Caddy, PostgreSQL, Redis, RabbitMQ, RustFS, Dex, and coturn), and `observability`
 (Prometheus, Grafana, and Alertmanager). `just compose-up` enables all three profiles. To start a
 subset explicitly, use for example `docker compose --profile infrastructure up -d`; the `mahfel`
 and `observability` profiles require their dependency profiles as well.

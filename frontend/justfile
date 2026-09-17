@@ -32,6 +32,18 @@ typecheck:
 test:
     bun run test
 
+# Run Vitest in watch mode during local development.
+test-watch:
+    bun run test:watch
+
+# Start the Storybook component development server.
+storybook:
+    bun run storybook
+
+# Build the static Storybook artifact.
+storybook-build:
+    bun run storybook:build
+
 # Create the production Next.js build.
 build:
     bun run build
