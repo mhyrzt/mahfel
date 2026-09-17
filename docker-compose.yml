@@ -112,8 +112,8 @@ services:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
-      tinyauth:
-        condition: service_healthy
+      dex:
+        condition: service_started
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://127.0.0.1:2019/config/"]
       interval: 10s
@@ -227,30 +227,16 @@ services:
         condition: service_healthy
     networks: [internal]
 
-  tinyauth:
+  dex:
     profiles: [infrastructure]
-    image: docker.arvancloud.ir/tinyauthapp/tinyauth:v5.1.3
+    image: ghcr.io/dexidp/dex:v2.41.1
     restart: unless-stopped
-    environment:
-      TINYAUTH_APPURL: https://auth.mahfel.localhost
-      TINYAUTH_DATABASE_DRIVER: sqlite
-      TINYAUTH_DATABASE_PATH: /data/tinyauth.db
-      TINYAUTH_AUTH_USERSFILE: /config/users
-      TINYAUTH_AUTH_SUBDOMAINSENABLED: "false"
-      TINYAUTH_OIDC_PRIVATEKEYPATH: /data/oidc-private.pem
-      TINYAUTH_OIDC_PUBLICKEYPATH: /data/oidc-public.pem
-      TINYAUTH_UI_TITLE: Mahfel Local Identity
-      TINYAUTH_ANALYTICS_ENABLED: "false"
+    command: ["dex", "serve", "/etc/dex/config.yaml"]
     ports:
-      - "127.0.0.1:${MAHFEL_TINYAUTH_HOST_PORT:-8081}:3000"
+      - "127.0.0.1:${MAHFEL_DEX_HOST_PORT:-5556}:5556"
     volumes:
-      - tinyauth-data:/data
-      - ./deploy/tinyauth/users:/config/users:ro
-    healthcheck:
-      test: ["CMD", "tinyauth", "healthcheck"]
-      interval: 10s
-      timeout: 3s
-      retries: 12
+      - ./deploy/dex/config.yaml:/etc/dex/config.yaml:ro
+      - dex-data:/var/dex
     networks: [edge, internal]
 
   coturn:
@@ -337,4 +323,4 @@ volumes:
   rabbitmq-data:
   rustfs-data:
   grafana-data:
-  tinyauth-data:
+  dex-data:

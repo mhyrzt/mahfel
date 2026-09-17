@@ -4,6 +4,13 @@ operations_bind = "0.0.0.0:9101"
 media_grpc_url = "http://mahfel-media:50051"
 allowed_origin = "https://mahfel.localhost"
 
+[oidc]
+issuer_url = "https://auth.mahfel.localhost/dex"
+client_id = "mahfel"
+client_secret = "mahfel-dev-secret"
+redirect_uri = "https://api.mahfel.localhost/api/v1/auth/oidc/callback"
+scopes = ["openid", "profile", "email", "groups"]
+
 [database]
 host = "postgres"
 port = 5432

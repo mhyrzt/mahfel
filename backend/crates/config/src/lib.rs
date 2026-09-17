@@ -6,10 +6,20 @@ use thiserror::Error;
 #[derive(Clone, Debug, Deserialize)]
 pub struct Settings {
     pub api: ApiSettings,
+    pub oidc: OidcSettings,
     pub database: DatabaseSettings,
     pub media: MediaSettings,
     pub worker: WorkerSettings,
     pub telemetry: TelemetrySettings,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+pub struct OidcSettings {
+    pub issuer_url: String,
+    pub client_id: String,
+    pub client_secret: String,
+    pub redirect_uri: String,
+    pub scopes: Vec<String>,
 }
 
 #[derive(Clone, Debug, Deserialize)]

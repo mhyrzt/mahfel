@@ -33,5 +33,5 @@ https://rabbitmq.mahfel.localhost {
 https://auth.mahfel.localhost {
 	tls internal
 	encode zstd gzip
-	reverse_proxy tinyauth:3000
+	reverse_proxy dex:5556
 }
