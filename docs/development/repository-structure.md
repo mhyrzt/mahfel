@@ -7,6 +7,7 @@
 | `backend/bins/media` | Media-plane executable |
 | `backend/bins/worker` | Background worker executable |
 | `backend/crates/config` | Layered typed configuration |
+| `backend/crates/auth` | Provider-neutral OIDC identity normalization and Dex test harness |
 | `backend/crates/telemetry` | Logs, metrics, health, shutdown foundation |
 | `backend/crates/domain` | Shared durable domain types when genuinely cross-capability |
 | `backend/crates/database` | SQLx pool and migrations boundary |
@@ -23,5 +24,7 @@
 | `deploy` | Container, Prometheus, Grafana, and future platform assets |
 | `docs` | MkDocs architecture, decisions, deployment, development, roadmap |
 
-Crates are added when a meaningful boundary has implementation and tests. Auth, chat, files,
-collaboration, storage, and AI are planned module boundaries but are not empty bootstrap crates.
+Crates are added when a meaningful boundary has implementation and tests. Chat, files,
+collaboration, storage, and AI remain planned module boundaries; authentication now owns the
+provider-neutral identity boundary and its local Dex discovery test, while the login/callback flow
+remains an M2 implementation task.

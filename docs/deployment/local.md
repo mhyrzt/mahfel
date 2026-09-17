@@ -8,20 +8,28 @@
 - `just`, `cargo-nextest`, and MkDocs Material for convenience, tests, and documentation
 - C++ toolchain, Python/pip, CMake, and pkg-config for native mediasoup builds
 
-Copy `.env.example` to `.env`; values are explicitly local-only. Then run:
+Initialize the local environment once with:
+
+```bash
+just bootstrap
+```
+
+`just bootstrap` creates `.env` and `frontend/.env.local` without overwriting existing files, starts
+Caddy with its required application/infrastructure dependencies, and runs `just trust-local-ca`.
+The trust step uses `sudo` to install the generated root certificate into Fedora/RHEL,
+Debian/Ubuntu, or macOS system trust. This is mandatory: do not bypass browser certificate
+warnings. Restart open browsers after the first trust operation. Caddy keeps its CA in the
+persistent `caddy-data` volume, so subsequent runs retain the same trusted root unless that volume
+is intentionally deleted.
+
+After initialization, start the complete local stack with:
 
 ```bash
 just compose-up
 ```
 
-`just compose-up` waits for Caddy's local CA to exist and runs `just trust-local-ca`. The trust
-step uses `sudo` to install the generated root certificate into Fedora/RHEL, Debian/Ubuntu, or
-macOS system trust. This is mandatory: do not bypass browser certificate warnings. Restart open
-browsers after the first trust operation. Caddy keeps its CA in the persistent `caddy-data` volume,
-so subsequent runs retain the same trusted root unless that volume is intentionally deleted.
-
 Compose services are grouped into three profiles: `mahfel` (the four application services and
-Caddy), `infrastructure` (PostgreSQL, Redis, RabbitMQ, RustFS, and coturn), and `observability`
+Caddy), `infrastructure` (PostgreSQL, Redis, RabbitMQ, RustFS, Dex, and coturn), and `observability`
 (Prometheus, Grafana, and Alertmanager). `just compose-up` enables all three profiles. To start a
 subset explicitly, use for example `docker compose --profile infrastructure up -d`; the `mahfel`
 and `observability` profiles require their dependency profiles as well.
@@ -68,11 +76,11 @@ presigned browser URLs from containing an unresolvable Compose service name. The
 RustFS's default storage format must not be assumed to be compatible; migrate any valuable local
 objects through the S3 API before removing that old volume.
 
-TinyAuth provides local OIDC login at `https://auth.mahfel.localhost`. The seeded development
-accounts are `admin`, `manager-1`, `manager-2`, and `user-1` through `user-5`; all use
-the local-only password `password`. Replace the entries in `deploy/tinyauth/users` when sharing the
-environment. Its SQLite state is persisted in the `tinyauth-data` volume. Production can point
-the same Mahfel OIDC configuration at Keycloak.
+Dex provides local OIDC at `https://auth.mahfel.localhost/dex`. The seeded development accounts are
+`shinji`, `asuka`, `rei`, `misato`, `ritsuko`, and `admin`; all use the local-only password `password`. See
+`deploy/dex/README.md` for the fixture identities. Dex's SQLite state is persisted in the `dex-data`
+volume. Production continues to point the same provider-neutral Mahfel OIDC configuration at
+Keycloak; Dex is not deployed there.
 
 Infrastructure host ports can be changed with the `*_HOST_PORT` values in `.env`. Their defaults
 match the port map. For example, use `MAHFEL_REDIS_HOST_PORT=26379` when another local project owns

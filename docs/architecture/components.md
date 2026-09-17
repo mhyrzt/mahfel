@@ -16,11 +16,12 @@ persistence, Redis coordination, RabbitMQ publishing, and the gRPC media client.
 The service currently exposes only a status endpoint and infrastructure health. Product routes are
 deliberately deferred.
 
-For local development, OIDC is provided by TinyAuth (`auth.mahfel.localhost`) with SQLite-backed
-state. The API consumes the standard issuer/discovery, authorization-code, token, and userinfo
-contracts rather than TinyAuth-specific management endpoints. Production may replace the issuer
-with Keycloak by configuration; identity linking, claim normalization, role mapping, logout, and
-user migration must be validated as a separate deployment concern.
+For local development, OIDC is provided by Dex (`auth.mahfel.localhost`) with SQLite-backed state.
+The API is intended to consume standard issuer/discovery, authorization-code, token, and userinfo
+contracts rather than Dex-specific management endpoints. Production continues to use Keycloak by
+configuration; identity linking, claim normalization, role mapping, logout, and user migration must
+be validated as a separate deployment concern. Dex is never an additional production proxy or
+federation layer.
 
 The first control-plane persistence boundary is intentionally small: users, rooms, and classroom
 sessions have UUID identifiers, explicit lifecycle statuses, and UTC timestamps in PostgreSQL.

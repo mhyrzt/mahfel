@@ -31,6 +31,10 @@ realtime proxy. Signaling passes through the API, but negotiated media never doe
 flows between browser and media node, falling back through coturn only when network traversal
 requires it.
 
+For local development and integration tests, the browser/API OIDC issuer is Dex behind the local
+Caddy route. Production configuration points the same standards-based OIDC client directly at
+Keycloak; Dex is not a production federation or proxy layer.
+
 ## Data ownership
 
 | System | Role | Authoritative? |

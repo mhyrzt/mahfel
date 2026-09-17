@@ -3,6 +3,32 @@ set dotenv-load
 default:
     @just --list
 
+# Create local environment files without overwriting existing values, then initialize Caddy's
+# persistent local HTTPS certificate and trust it on the host.
+bootstrap:
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    copy_if_missing() {
+        local source="$1"
+        local destination="$2"
+        if [[ ! -f "${destination}" ]]; then
+            cp "${source}" "${destination}"
+            echo "Created ${destination}"
+        else
+            echo "Keeping existing ${destination}"
+        fi
+    }
+
+    copy_if_missing .env.example .env
+    copy_if_missing frontend/.env.local.example frontend/.env.local
+    just caddy-init
+
+# Start Caddy and its application/infrastructure dependencies once, then trust its generated CA.
+caddy-init:
+    docker compose --profile mahfel --profile infrastructure up --build -d caddy
+    just trust-local-ca
+
 # Forward arbitrary recipes and arguments to the backend Justfile.
 backend *args:
     just --justfile backend/justfile {{args}}

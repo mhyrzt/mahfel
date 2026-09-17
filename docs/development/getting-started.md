@@ -78,14 +78,16 @@ their own native toolchain. A Docker daemon is still required by Testcontainers 
 ## First checkout
 
 ```bash
-cp .env.example .env
+just bootstrap
 just frontend install
-cp frontend/.env.local.example frontend/.env.local
 just compose-up
 ```
 
-`just compose-up` starts all three Compose profiles (`mahfel`, `infrastructure`, and
-`observability`), builds application images, and installs/trusts Caddy's local CA. Browse through
+`just bootstrap` creates `.env` and `frontend/.env.local` only when they do not already exist,
+starts Caddy with its required application/infrastructure dependencies, and installs/trusts Caddy's
+local CA. `just compose-up` then starts all three Compose profiles (`mahfel`, `infrastructure`, and
+`observability`) and builds application images. Local OIDC is available at
+`https://auth.mahfel.localhost/dex`; production remains configured for Keycloak. Browse through
 `https://mahfel.localhost`; do not bypass certificate warnings.
 
 ## Host-run development

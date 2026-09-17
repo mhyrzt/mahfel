@@ -45,6 +45,14 @@ integration test is skipped. Never point it at a shared or production PostgreSQL
 binaries run through `cargo-nextest`; doctests remain a separate `cargo test --doc` step because
 nextest does not execute them.
 
+OIDC integration tests use the existing Rust `testcontainers` 0.28 ecosystem with a `GenericImage`
+for the pinned official Dex image. The helper allocates and maps a dynamic host port, then verifies
+OIDC discovery without assuming `localhost:5556`; set `MAHFEL_TESTCONTAINERS=1` to enable
+Docker-backed tests. `testcontainers-modules` currently targets an incompatible 0.27 dependency,
+so it is not introduced just to wrap this small fixture. The bootstrap currently has no API login or
+callback route, so authorization-code exchange and session assertions remain M2 work rather than
+being faked by the provider fixture.
+
 SQL migrations use SQLFluff with the PostgreSQL dialect. `just backend sql-lint` checks migration
 files and `just backend sql-fmt` applies SQLFluff formatting. The backend `lint` recipe includes the
 SQL lint check. SQLFluff is expected to be available in the developer environment or CI image.

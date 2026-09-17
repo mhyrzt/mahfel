@@ -18,7 +18,7 @@ and the implementation roadmap.
 ## Quick start
 
 ```bash
-cp .env.example .env
+just bootstrap
 just frontend install
 just compose-up
 ```
