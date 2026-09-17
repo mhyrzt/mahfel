@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Mahfel Caddy</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        background: #0b1020;
+        color: #eef2ff;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        padding: 24px;
+        background: radial-gradient(circle at top, #26366d, #0b1020 58%);
+      }
+
+      main {
+        width: min(100%, 620px);
+        padding: 52px;
+        border: 1px solid rgba(165, 180, 252, 0.25);
+        border-radius: 24px;
+        background: rgba(15, 23, 42, 0.78);
+        box-shadow: 0 24px 80px rgba(0, 0, 0, 0.35);
+        backdrop-filter: blur(18px);
+      }
+
+      .eyebrow {
+        margin: 0 0 16px;
+        color: #a5b4fc;
+        font-size: 0.78rem;
+        font-weight: 700;
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+      }
+
+      h1 {
+        margin: 0;
+        font-size: clamp(2.5rem, 8vw, 4.5rem);
+        letter-spacing: -0.06em;
+        line-height: 0.95;
+      }
+
+      p {
+        margin: 20px 0 0;
+        color: #cbd5e1;
+        font-size: 1.08rem;
+        line-height: 1.7;
+      }
+
+      ul {
+        display: grid;
+        gap: 10px;
+        margin: 28px 0 0;
+        padding: 0;
+        list-style: none;
+      }
+
+      li {
+        padding: 12px 16px;
+        border: 1px solid rgba(148, 163, 184, 0.18);
+        border-radius: 12px;
+        background: rgba(30, 41, 59, 0.68);
+      }
+
+      a {
+        color: #c4b5fd;
+        text-decoration: none;
+      }
+
+      a:hover {
+        color: #ddd6fe;
+        text-decoration: underline;
+      }
+
+      .status {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        margin-top: 32px;
+        padding: 10px 14px;
+        border-radius: 999px;
+        background: rgba(52, 211, 153, 0.12);
+        color: #6ee7b7;
+        font-size: 0.9rem;
+        font-weight: 600;
+      }
+
+      .status::before {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: #34d399;
+        box-shadow: 0 0 14px #34d399;
+        content: "";
+      }
+
+      @media (max-width: 520px) {
+        main {
+          padding: 34px 26px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <p class="eyebrow">Local edge gateway</p>
+      <h1>Mahfel Caddy</h1>
+      <p>Local HTTPS reverse proxy is running.</p>
+      <div class="status">Online and ready</div>
+      <ul>
+        <li><a href="https://mahfel.localhost">Mahfel web application</a></li>
+        <li><a href="https://api.mahfel.localhost">Mahfel API</a></li>
+        <li><a href="https://auth.mahfel.localhost">Dex authentication</a></li>
+        <li><a href="https://s3.mahfel.localhost">RustFS S3 endpoint</a></li>
+        <li><a href="https://storage.mahfel.localhost">RustFS console</a></li>
+        <li><a href="https://rabbitmq.mahfel.localhost">RabbitMQ management</a></li>
+      </ul>
+    </main>
+  </body>
+</html>

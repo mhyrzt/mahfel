@@ -35,3 +35,15 @@ https://auth.mahfel.localhost {
 	encode zstd gzip
 	reverse_proxy dex:5556
 }
+
+https://caddy.mahfel.localhost {
+	tls internal
+	encode zstd gzip
+	root * /srv/caddy
+	file_server
+}
+
+https://*.mahfel.localhost {
+	tls internal
+	redir https://caddy.mahfel.localhost 302
+}
