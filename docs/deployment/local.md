@@ -15,8 +15,7 @@ just bootstrap
 ```
 
 `just bootstrap` creates `.env` and `frontend/.env.local` without overwriting existing files, starts
-the complete infrastructure profile (including Caddy) without building application images, and runs
-`just trust-local-ca`.
+only Caddy without building application images, and runs `just trust-local-ca`.
 The trust step uses `sudo` to install the generated root certificate into Fedora/RHEL,
 Debian/Ubuntu, or macOS system trust. This is mandatory: do not bypass browser certificate
 warnings. Restart open browsers after the first trust operation. Caddy keeps its CA in the
@@ -29,11 +28,20 @@ After initialization, start the complete local stack with:
 just compose-up
 ```
 
-Compose services are grouped into three profiles: `mahfel` (the four buildable application services),
+Compose services are grouped into three stack profiles: `mahfel` (the four buildable application services),
 `infrastructure` (Caddy, PostgreSQL, Redis, RabbitMQ, RustFS, Dex, and coturn), and `observability`
 (Prometheus, Grafana, and Alertmanager). `just compose-up` enables all three profiles. To start a
 subset explicitly, use for example `docker compose --profile infrastructure up -d`; the `mahfel`
 and `observability` profiles require their dependency profiles as well.
+
+Caddy also has a dedicated `caddy` profile for starting only the reverse proxy:
+
+```bash
+just caddy
+```
+
+Standalone Caddy starts even when its configured upstreams are not running; use this mode for local
+HTTPS certificate work or when proxying to host-run services.
 
 The first media build is slow because `mediasoup-sys` builds the native worker. It also downloads
 Python build tooling and Meson wrap dependencies; CI/build networks must permit those downloads or
@@ -60,6 +68,10 @@ The canonical browser endpoints are `https://mahfel.localhost`, `https://api.mah
 the local-only RabbitMQ management route `https://rabbitmq.mahfel.localhost`. Direct loopback ports
 `3000`, `8080`, and `15672` remain available for low-level debugging, but normal browser development
 must use Caddy HTTPS so secure-context and CORS behavior match deployment assumptions.
+
+`https://caddy.mahfel.localhost` serves a small static page directly from Caddy and is useful for
+confirming local HTTPS and certificate trust independently of the application services. Unknown
+`*.mahfel.localhost` hosts redirect there, where the available local routes are listed.
 
 The media control gRPC port `50051` is published on loopback for host-run API development only;
 it remains a private internal port and must not be exposed through public ingress.
@@ -93,5 +105,6 @@ network, a host-routable admin bridge, and loopback binds for private/admin port
 exists only so Docker can publish those loopback ports; it is not a production ingress model.
 Application containers have no persistent volumes.
 
-Stop containers with `just compose-down`. Add `--volumes` manually only when intentionally deleting
-local infrastructure data.
+Stop containers with `just compose-down`. Use `just compose-clean` when intentionally deleting all
+local infrastructure data and starting from fresh volumes. Use `just clean` for build, test,
+Storybook, and documentation artifacts without touching Docker volumes or environment files.

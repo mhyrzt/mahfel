@@ -3,6 +3,10 @@ set dotenv-load
 default:
     @just --list
 
+# Remove local build, test, Storybook, and documentation artifacts.
+clean:
+    rm -rf backend/target frontend/.next frontend/out frontend/storybook-static frontend/coverage site
+
 # Create local environment files without overwriting existing values, then initialize Caddy's
 # persistent local HTTPS certificate and trust it on the host.
 bootstrap:
@@ -22,11 +26,11 @@ bootstrap:
 
     copy_if_missing .env.example .env
     copy_if_missing frontend/.env.local.example frontend/.env.local
-    just caddy-init
+    just caddy
 
-# Start infrastructure, including Caddy, without building application images.
-caddy-init:
-    docker compose --profile infrastructure up -d
+# Start only Caddy, without infrastructure or application dependencies.
+caddy:
+    docker compose --profile caddy up -d caddy
     just trust-local-ca
 
 # Forward arbitrary recipes and arguments to the backend Justfile.
@@ -63,6 +67,10 @@ compose-up *profiles:
 # Stop the local Compose stack. Named volumes are retained.
 compose-down:
     docker compose down
+
+# Stop every Compose profile and remove all named volumes for a fresh local start.
+compose-clean:
+    docker compose --profile mahfel --profile infrastructure --profile observability down --volumes --remove-orphans
 
 # Follow logs from selected Compose profiles; no arguments means all profiles.
 compose-logs *profiles:

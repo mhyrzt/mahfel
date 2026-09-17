@@ -84,11 +84,14 @@ just compose-up
 ```
 
 `just bootstrap` creates `.env` and `frontend/.env.local` only when they do not already exist,
-starts the infrastructure profile (including Caddy) without building application images, and
+starts only Caddy without building application images, and
 installs/trusts Caddy's local CA. `just compose-up` then starts all three Compose profiles (`mahfel`, `infrastructure`, and
 `observability`) and builds application images. Local OIDC is available at
 `https://auth.mahfel.localhost/dex`; production remains configured for Keycloak. Browse through
 `https://mahfel.localhost`; do not bypass certificate warnings.
+
+To start infrastructure, use `just compose-up infrastructure`. To start only Caddy for certificate
+or host-upstream work, use `just caddy`.
 
 ## Host-run development
 
@@ -133,7 +136,8 @@ make repeated startup safe. `just backend test-database` starts a disposable Pos
 verifies the embedded migrations against a uniquely named database, then removes the container.
 
 Common component gates are recipes under `just backend <recipe>` and `just frontend <recipe>`;
-`just docs` builds documentation. The root `justfile` keeps only these component proxies. Use
+`just docs` builds documentation, `just clean` removes generated local artifacts, and
+`just compose-clean` resets Docker volumes. The root `justfile` keeps only these component proxies. Use
 `just backend <recipe>` or `just frontend <recipe>` for a focused workflow; running `just` inside
 either component lists its local recipes. The frontend uses Bun exclusively. Rust uses edition 2024
 and the pinned toolchain in `backend/rust-toolchain.toml`.

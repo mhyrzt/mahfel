@@ -88,7 +88,7 @@ services:
     networks: [internal, admin]
 
   caddy:
-    profiles: [infrastructure]
+    profiles: [infrastructure, caddy]
     image: docker.arvancloud.ir/caddy:2.11.4-alpine
     restart: unless-stopped
     ports:
@@ -96,6 +96,7 @@ services:
       - "127.0.0.1:${MAHFEL_CADDY_HTTPS_HOST_PORT:-443}:443"
     volumes:
       - ./deploy/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./deploy/caddy/index.html:/srv/caddy/index.html:ro
       - caddy-data:/data
       - caddy-config:/config
     environment:
@@ -103,13 +104,6 @@ services:
       MAHFEL_CADDY_API_UPSTREAM: ${MAHFEL_CADDY_API_UPSTREAM:-mahfel-api:8080}
     extra_hosts:
       - host.docker.internal:host-gateway
-    depends_on:
-      rustfs:
-        condition: service_healthy
-      rabbitmq:
-        condition: service_healthy
-      dex:
-        condition: service_started
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://127.0.0.1:2019/config/"]
       interval: 10s
