@@ -6,10 +6,10 @@
     <title>Mahfel Caddy</title>
     <style>
       :root {
-        color-scheme: dark;
+        color-scheme: light;
         font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-        background: #0b1020;
-        color: #eef2ff;
+        background: #f8fafc;
+        color: #172033;
       }
 
       * {
@@ -22,22 +22,21 @@
         display: grid;
         place-items: center;
         padding: 24px;
-        background: radial-gradient(circle at top, #26366d, #0b1020 58%);
+        background: #f8fafc;
       }
 
       main {
-        width: min(100%, 620px);
-        padding: 52px;
-        border: 1px solid rgba(165, 180, 252, 0.25);
-        border-radius: 24px;
-        background: rgba(15, 23, 42, 0.78);
-        box-shadow: 0 24px 80px rgba(0, 0, 0, 0.35);
-        backdrop-filter: blur(18px);
+        width: min(100%, 680px);
+        padding: 48px;
+        border: 1px solid #e2e8f0;
+        border-radius: 16px;
+        background: #ffffff;
+        box-shadow: 0 12px 32px rgba(15, 23, 42, 0.06);
       }
 
       .eyebrow {
         margin: 0 0 16px;
-        color: #a5b4fc;
+        color: #64748b;
         font-size: 0.78rem;
         font-weight: 700;
         letter-spacing: 0.18em;
@@ -46,52 +45,45 @@
 
       h1 {
         margin: 0;
-        font-size: clamp(2.5rem, 8vw, 4.5rem);
-        letter-spacing: -0.06em;
-        line-height: 0.95;
+        font-size: clamp(2.4rem, 8vw, 4rem);
+        letter-spacing: -0.05em;
+        line-height: 1;
       }
 
       p {
         margin: 20px 0 0;
-        color: #cbd5e1;
+        color: #64748b;
         font-size: 1.08rem;
         line-height: 1.7;
       }
 
       ul {
-        display: grid;
-        gap: 10px;
-        margin: 28px 0 0;
-        padding: 0;
-        list-style: none;
+        margin: 24px 0 0;
+        padding-left: 24px;
       }
 
       li {
-        padding: 12px 16px;
-        border: 1px solid rgba(148, 163, 184, 0.18);
-        border-radius: 12px;
-        background: rgba(30, 41, 59, 0.68);
+        padding: 4px 0;
       }
 
       a {
-        color: #c4b5fd;
+        color: #4f46e5;
         text-decoration: none;
       }
 
       a:hover {
-        color: #ddd6fe;
-        text-decoration: underline;
+        color: #3730a3;
       }
 
       .status {
         display: inline-flex;
         align-items: center;
-        gap: 10px;
-        margin-top: 32px;
-        padding: 10px 14px;
+        gap: 8px;
+        margin-top: 28px;
+        padding: 8px 12px;
         border-radius: 999px;
-        background: rgba(52, 211, 153, 0.12);
-        color: #6ee7b7;
+        background: #ecfdf5;
+        color: #047857;
         font-size: 0.9rem;
         font-weight: 600;
       }
@@ -100,8 +92,7 @@
         width: 8px;
         height: 8px;
         border-radius: 50%;
-        background: #34d399;
-        box-shadow: 0 0 14px #34d399;
+        background: #10b981;
         content: "";
       }
 
