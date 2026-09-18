@@ -7,8 +7,10 @@ use std::time::Duration;
 use thiserror::Error;
 
 mod repositories;
+mod stores;
 
 pub use repositories::{ClassroomSessionRepository, RoomRepository, UserRepository};
+pub use stores::{PostgresRoomStore, PostgresSessionStore, PostgresUserStore};
 
 static MIGRATOR: Migrator = sqlx::migrate!("../../migrations");
 

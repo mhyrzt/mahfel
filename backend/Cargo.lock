@@ -2537,17 +2537,31 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "axum",
+ "mahfel-application",
  "mahfel-auth",
  "mahfel-config",
- "mahfel-database",
  "mahfel-domain",
  "mahfel-media-client",
+ "mahfel-postgres",
  "mahfel-telemetry",
  "serde",
  "sqlx",
  "tokio",
  "tower-http 0.7.1",
  "tracing",
+]
+
+[[package]]
+name = "mahfel-application"
+version = "0.1.0"
+dependencies = [
+ "mahfel-domain",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.20",
+ "time",
+ "tokio",
+ "uuid",
 ]
 
 [[package]]
@@ -2569,21 +2583,6 @@ dependencies = [
  "config",
  "serde",
  "thiserror 2.0.20",
-]
-
-[[package]]
-name = "mahfel-database"
-version = "0.1.0"
-dependencies = [
- "mahfel-domain",
- "prometheus",
- "sqlx",
- "testcontainers",
- "thiserror 2.0.20",
- "time",
- "tokio",
- "url",
- "uuid",
 ]
 
 [[package]]
@@ -2617,6 +2616,8 @@ dependencies = [
 name = "mahfel-media-client"
 version = "0.1.0"
 dependencies = [
+ "mahfel-application",
+ "mahfel-domain",
  "mahfel-rtc-protocol",
  "thiserror 2.0.20",
  "tonic",
@@ -2627,7 +2628,26 @@ name = "mahfel-messaging"
 version = "0.1.0"
 dependencies = [
  "lapin",
+ "mahfel-application",
+ "serde_json",
  "thiserror 2.0.20",
+]
+
+[[package]]
+name = "mahfel-postgres"
+version = "0.1.0"
+dependencies = [
+ "mahfel-application",
+ "mahfel-domain",
+ "prometheus",
+ "serde_json",
+ "sqlx",
+ "testcontainers",
+ "thiserror 2.0.20",
+ "time",
+ "tokio",
+ "url",
+ "uuid",
 ]
 
 [[package]]

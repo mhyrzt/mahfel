@@ -1,7 +1,7 @@
 use crate::DatabaseError;
 use mahfel_domain::{
-    ClassroomSession, ClassroomSessionId, Room, RoomId, RoomStatus, SessionStatus, User, UserId,
-    UserStatus,
+    ClassroomSession, ClassroomSessionId, DisplayName, Room, RoomId, RoomStatus, RoomTitle,
+    SessionStatus, User, UserId, UserStatus,
 };
 use sqlx::{FromRow, PgPool};
 use time::OffsetDateTime;
@@ -179,7 +179,9 @@ impl TryFrom<UserRow> for User {
     fn try_from(row: UserRow) -> Result<Self, Self::Error> {
         Ok(Self {
             id: UserId::from_uuid(row.id),
-            display_name: row.display_name,
+            display_name: DisplayName::new(row.display_name.clone()).map_err(|_| {
+                DatabaseError::InvalidConfiguration("invalid display_name from database")
+            })?,
             status: UserStatus::try_from(row.status.as_str())?,
             created_at: row.created_at,
             updated_at: row.updated_at,
@@ -193,7 +195,9 @@ impl TryFrom<RoomRow> for Room {
     fn try_from(row: RoomRow) -> Result<Self, Self::Error> {
         Ok(Self {
             id: RoomId::from_uuid(row.id),
-            title: row.title,
+            title: RoomTitle::new(row.title.clone()).map_err(|_| {
+                DatabaseError::InvalidConfiguration("invalid room title from database")
+            })?,
             created_by: UserId::from_uuid(row.created_by),
             status: RoomStatus::try_from(row.status.as_str())?,
             created_at: row.created_at,

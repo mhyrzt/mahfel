@@ -1,4 +1,4 @@
-use mahfel_database::{
+use mahfel_postgres::{
     ClassroomSessionRepository, ConnectionSettings, PoolSettings, RoomRepository, UserRepository,
     connect, migrate,
 };
