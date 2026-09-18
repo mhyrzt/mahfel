@@ -6,6 +6,8 @@ rust-version.workspace = true
 license.workspace = true
 
 [dependencies]
+mahfel-application = { path = "../application" }
+mahfel-domain = { path = "../domain" }
 mahfel-rtc-protocol = { path = "../rtc-protocol" }
 thiserror.workspace = true
 tonic.workspace = true
