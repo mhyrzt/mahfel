@@ -3,6 +3,7 @@ members = [
   "bins/api",
   "bins/media",
   "bins/worker",
+  "crates/application",
   "crates/auth",
   "crates/config",
   "crates/database",
