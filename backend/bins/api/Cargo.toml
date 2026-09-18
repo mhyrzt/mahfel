@@ -8,11 +8,12 @@ license.workspace = true
 [dependencies]
 anyhow.workspace = true
 axum.workspace = true
+mahfel-application = { path = "../../crates/application" }
 mahfel-auth = { path = "../../crates/auth" }
 mahfel-config = { path = "../../crates/config" }
-mahfel-database = { path = "../../crates/database" }
 mahfel-domain = { path = "../../crates/domain" }
 mahfel-media-client = { path = "../../crates/media-client" }
+mahfel-postgres = { path = "../../crates/postgres" }
 mahfel-telemetry = { path = "../../crates/telemetry" }
 serde.workspace = true
 sqlx.workspace = true

@@ -5,9 +5,9 @@ use axum::{
     routing::get,
 };
 use mahfel_config::Settings;
-use mahfel_database::{ConnectionSettings, PoolMetrics, PoolSettings, connect, migrate, ping};
 use mahfel_domain::NodeId;
 use mahfel_media_client::lazy as lazy_media_client;
+use mahfel_postgres::{ConnectionSettings, PoolMetrics, PoolSettings, connect, migrate, ping};
 use mahfel_telemetry::{HealthState, init_tracing, operations, shutdown_signal};
 use serde::Serialize;
 use std::{ffi::OsStr, net::SocketAddr, time::Duration};
