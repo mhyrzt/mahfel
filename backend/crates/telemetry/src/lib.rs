@@ -9,11 +9,16 @@ use prometheus::{Encoder, IntGauge, Opts, Registry, TextEncoder};
 use serde::Serialize;
 use std::{
     collections::{BTreeMap, HashMap},
+    future::Future,
     sync::Arc,
-    time::Instant,
+    time::{Duration, Instant},
 };
 use thiserror::Error;
-use tokio::sync::RwLock;
+use tokio::{
+    net::TcpListener,
+    sync::{RwLock, watch},
+    task::JoinHandle,
+};
 use tracing_subscriber::{EnvFilter, layer::SubscriberExt, util::SubscriberInitExt};
 
 #[derive(Clone)]
@@ -170,6 +175,54 @@ async fn metrics(State(state): State<OperationsState>) -> Response {
         .into_response()
 }
 
+/// Serve an HTTP router on an already-bound listener until shutdown.
+pub async fn serve_http(
+    listener: TcpListener,
+    router: Router,
+    shutdown: watch::Receiver<bool>,
+) -> std::io::Result<()> {
+    axum::serve(listener, router)
+        .with_graceful_shutdown(wait_for_shutdown(shutdown))
+        .await
+}
+
+/// Resolve once shutdown has been requested on the watch channel.
+pub async fn wait_for_shutdown(mut shutdown: watch::Receiver<bool>) {
+    while !*shutdown.borrow() && shutdown.changed().await.is_ok() {}
+}
+
+/// Poll a dependency on a fixed interval and publish the result as a readiness check.
+///
+/// The runner owns interval and shutdown wiring only; the closure owns the
+/// dependency-specific probe and any metrics it records.
+pub fn spawn_probe<F, Fut>(
+    name: &'static str,
+    interval: Duration,
+    health: HealthState,
+    mut shutdown: watch::Receiver<bool>,
+    mut check: F,
+) -> JoinHandle<()>
+where
+    F: FnMut() -> Fut + Send + 'static,
+    Fut: Future<Output = bool> + Send + 'static,
+{
+    tokio::spawn(async move {
+        loop {
+            tokio::select! {
+                _ = tokio::time::sleep(interval) => {
+                    let healthy = check().await;
+                    health.set_check(name, healthy).await;
+                }
+                changed = shutdown.changed() => {
+                    if changed.is_err() || *shutdown.borrow() {
+                        break;
+                    }
+                }
+            }
+        }
+    })
+}
+
 pub async fn shutdown_signal() {
     #[cfg(unix)]
     {
@@ -232,5 +285,47 @@ mod tests {
             .await
             .expect("response must be available");
         assert_eq!(response.status(), StatusCode::OK);
+    }
+
+    #[tokio::test]
+    async fn probe_runner_degrades_readiness_and_stops_on_shutdown() {
+        let (router, health) = operations("test", "0").expect("operations setup must work");
+        health.set_initialized(true).await;
+
+        let (shutdown_tx, shutdown_rx) = watch::channel(false);
+        let probe = spawn_probe(
+            "dependency",
+            Duration::from_millis(5),
+            health.clone(),
+            shutdown_rx,
+            || async { false },
+        );
+
+        let degraded = tokio::time::timeout(Duration::from_secs(2), async {
+            loop {
+                let response = router
+                    .clone()
+                    .oneshot(
+                        Request::builder()
+                            .uri("/health/ready")
+                            .body(Body::empty())
+                            .expect("request must be valid"),
+                    )
+                    .await
+                    .expect("response must be available");
+                if response.status() == StatusCode::SERVICE_UNAVAILABLE {
+                    break;
+                }
+                tokio::time::sleep(Duration::from_millis(5)).await;
+            }
+        })
+        .await;
+        assert!(degraded.is_ok(), "probe must publish a failed check");
+
+        let _ = shutdown_tx.send(true);
+        tokio::time::timeout(Duration::from_secs(1), probe)
+            .await
+            .expect("probe must stop after shutdown")
+            .expect("probe task must not panic");
     }
 }
