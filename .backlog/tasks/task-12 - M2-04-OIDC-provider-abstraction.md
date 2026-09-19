@@ -4,6 +4,7 @@ title: M2-04 OIDC provider abstraction
 status: To Do
 assignee: []
 created_date: '2026-09-08 00:31'
+updated_date: '2026-09-19 12:14'
 labels: []
 milestone: m-2
 dependencies: []
@@ -26,4 +27,11 @@ Dependencies: M2-01, M2-03
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
 - [ ] #1 Fake issuer integration covers success, bad nonce/state/signature, and key rotation.
+- [ ] #2 The OIDC callback normalizes claims into AuthenticatedIdentity and calls the identity sync use case, provisioning or resolving the local user by (issuer, subject) and never by email
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Just-in-time provisioning (raised during M1-07 review): the callback must upsert the local user for a valid (issuer, subject) that Mahfel has not seen, so an IdP-only identity is created gracefully on first login. Uses the identity store behind the sync_identity use case from M2-01.
+<!-- SECTION:NOTES:END -->
