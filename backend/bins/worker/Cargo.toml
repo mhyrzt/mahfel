@@ -7,8 +7,6 @@ license.workspace = true
 
 [dependencies]
 anyhow.workspace = true
-axum.workspace = true
-lapin.workspace = true
 mahfel-config = { path = "../../crates/config" }
 mahfel-messaging = { path = "../../crates/messaging" }
 mahfel-telemetry = { path = "../../crates/telemetry" }

@@ -11,7 +11,7 @@ use mahfel_rtc_protocol::media::{
     ProduceRequest, ProduceResponse, ResumeConsumerRequest, ResumeConsumerResponse,
     media_control_server::{MediaControl, MediaControlServer},
 };
-use mahfel_telemetry::{init_tracing, operations, shutdown_signal};
+use mahfel_telemetry::{init_tracing, operations, serve_http, shutdown_signal, wait_for_shutdown};
 use std::net::SocketAddr;
 use tokio::sync::watch;
 use tokio_stream::wrappers::TcpListenerStream;
@@ -148,11 +148,11 @@ async fn main() -> Result<()> {
     health.set_initialized(true).await;
     let (shutdown_tx, shutdown_rx) = watch::channel(false);
     let grpc_shutdown = shutdown_rx.clone();
-    let operations_task = tokio::spawn(async move {
-        axum::serve(operations_listener, operations_router)
-            .with_graceful_shutdown(wait_for_shutdown(shutdown_rx))
-            .await
-    });
+    let operations_task = tokio::spawn(serve_http(
+        operations_listener,
+        operations_router,
+        shutdown_rx,
+    ));
     let grpc_task = tokio::spawn(async move {
         Server::builder()
             .add_service(MediaControlServer::new(service))
@@ -173,8 +173,4 @@ async fn main() -> Result<()> {
     grpc_task.await.context("join gRPC listener")??;
     drop(media);
     Ok(())
-}
-
-async fn wait_for_shutdown(mut shutdown: watch::Receiver<bool>) {
-    while !*shutdown.borrow() && shutdown.changed().await.is_ok() {}
 }

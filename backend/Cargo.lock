@@ -2603,7 +2603,6 @@ name = "mahfel-media"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "axum",
  "mahfel-config",
  "mahfel-domain",
  "mahfel-rtc",
@@ -2691,8 +2690,6 @@ name = "mahfel-worker"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "axum",
- "lapin",
  "mahfel-config",
  "mahfel-messaging",
  "mahfel-telemetry",
