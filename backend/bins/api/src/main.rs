@@ -1,6 +1,7 @@
 mod cli;
 mod http;
 mod migrate;
+mod seed;
 mod serve;
 mod settings;
 
@@ -16,5 +17,6 @@ async fn main() -> Result<()> {
     match cli::command().context("parse command")? {
         cli::Command::Serve => serve::run(settings).await,
         cli::Command::Migrate => migrate::run(settings).await,
+        cli::Command::Seed { path } => seed::run(settings, path).await,
     }
 }

@@ -43,9 +43,33 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      mahfel-seed:
+        condition: service_completed_successfully
       mahfel-media:
         condition: service_healthy
     networks: [edge, internal]
+
+  mahfel-seed:
+    profiles: [mahfel]
+    image: mahfel-api:local
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+      target: api
+    restart: "no"
+    entrypoint: ["/bin/sh", "-c"]
+    command: ["mahfel-api migrate && mahfel-api seed"]
+    environment:
+      MAHFEL_DATABASE__HOST: postgres
+      MAHFEL_DATABASE__PORT: 5432
+      MAHFEL_DATABASE__USER: ${MAHFEL_POSTGRES_USER:-mahfel}
+      MAHFEL_DATABASE__PASSWORD: ${MAHFEL_POSTGRES_PASSWORD:-mahfel-local-only}
+      MAHFEL_DATABASE__NAME: ${MAHFEL_POSTGRES_DB:-mahfel}
+      MAHFEL_CONFIG_PROFILE: docker
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks: [internal]
 
   mahfel-media:
     profiles: [mahfel]

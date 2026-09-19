@@ -12,6 +12,10 @@ dev-api:
 migrate:
     cargo run --bin mahfel-api -- migrate
 
+# Apply development seed fixtures. Pass an optional file or directory path.
+seed *args:
+    MAHFEL_CONFIG_PROFILE=local cargo run --bin mahfel-api -- seed {{args}}
+
 # Run the media-plane binary with host configuration.
 dev-media:
     MAHFEL_CONFIG_PROFILE=local cargo run --bin mahfel-media
@@ -59,7 +63,7 @@ sql-lint:
 # Run the PostgreSQL integration test with a disposable Testcontainer.
 test-database:
     MAHFEL_TESTCONTAINERS=1 \
-        cargo nextest run -p mahfel-database --test migrations --no-capture
+        cargo nextest run -p mahfel-postgres --test migrations --no-capture
 
 # Compile every Rust workspace package without quality checks.
 build:

@@ -10,7 +10,10 @@
 | `backend/crates/auth` | Provider-neutral OIDC identity normalization and Dex test harness |
 | `backend/crates/telemetry` | Logs, metrics, health, shutdown foundation |
 | `backend/crates/domain` | Shared durable domain types when genuinely cross-capability |
-| `backend/crates/database` | SQLx pool and migrations boundary |
+| `backend/crates/application` | Use cases and outbound port contracts |
+| `backend/crates/postgres` | SQLx pool, migrations, and store adapters |
+| `backend/migrations` | Forward-only schema migrations |
+| `backend/seeds` | Explicit development seed fixtures, applied by `mahfel-api seed` |
 | `backend/crates/messaging` | RabbitMQ connection/publishing/consumption boundary |
 | `backend/crates/rtc-protocol` | Generated internal gRPC contract |
 | `backend/crates/media-client` | API-side gRPC client boundary |

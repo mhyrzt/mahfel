@@ -1,0 +1,19 @@
+-- Development seed fixtures.
+--
+-- Applied explicitly with `mahfel-api seed` (or the `mahfel-seed` Compose
+-- service), never by migrations and never during normal startup. The fixtures
+-- are idempotent so the command can be re-run safely.
+--
+-- The development principal gives local development a stable authenticated
+-- identity before real authentication (M2) exists. Nothing authenticates as
+-- this user unless MAHFEL_API__DEVELOPMENT_PRINCIPAL_USER_ID is configured,
+-- which is a local-only setting. Do not enable it in production.
+INSERT INTO mahfel.users (id, display_name, status, created_at, updated_at)
+VALUES (
+    '00000000-0000-0000-0000-000000000001',
+    'Development Principal',
+    'active',
+    '2026-01-01 00:00:00+00',
+    '2026-01-01 00:00:00+00'
+)
+ON CONFLICT (id) DO NOTHING;
