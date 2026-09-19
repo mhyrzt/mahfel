@@ -27,6 +27,11 @@ pub enum StoreError {
     Conflict(String),
     #[error("entity not found: {0}")]
     NotFound(String),
+    /// A referenced row is missing (for example a foreign key target), so the
+    /// operation cannot succeed. Distinct from [`StoreError::NotFound`], which
+    /// means the requested entity itself was absent.
+    #[error("referenced entity not found: {0}")]
+    MissingReference(String),
 }
 
 impl StoreError {

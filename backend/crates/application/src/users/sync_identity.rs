@@ -1,3 +1,4 @@
+use crate::error::{ApplicationError, ErrorKind};
 use crate::ports::{StoreError, UserStore};
 use mahfel_domain::{DisplayName, User, ValidationError};
 use thiserror::Error;
@@ -18,6 +19,15 @@ pub enum SyncIdentityError {
     InvalidDisplayName(#[from] ValidationError),
     #[error("storage failure: {0}")]
     Store(#[from] StoreError),
+}
+
+impl ApplicationError for SyncIdentityError {
+    fn kind(&self) -> ErrorKind {
+        match self {
+            Self::InvalidDisplayName(_) => ErrorKind::Unprocessable,
+            Self::Store(_) => ErrorKind::Internal,
+        }
+    }
 }
 
 pub async fn sync_identity<R>(_users: &R, _command: SyncIdentity) -> Result<User, SyncIdentityError>

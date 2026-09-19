@@ -6,6 +6,7 @@
 //! attach a principal without authentication, and an [`Authorizer`] must
 //! return an error unless an explicit rule grants access.
 
+use crate::error::{ApplicationError, ErrorKind};
 use mahfel_domain::UserId;
 use thiserror::Error;
 
@@ -22,6 +23,7 @@ pub struct Principal {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Action {
     ViewOwnIdentity,
+    CreateRoom,
 }
 
 /// Why an authorization attempt failed.
@@ -31,6 +33,15 @@ pub enum AuthorizationError {
     Unauthenticated,
     #[error("permission denied")]
     Denied,
+}
+
+impl ApplicationError for AuthorizationError {
+    fn kind(&self) -> ErrorKind {
+        match self {
+            Self::Unauthenticated => ErrorKind::Unauthorized,
+            Self::Denied => ErrorKind::Forbidden,
+        }
+    }
 }
 
 /// Policy interface. Implementations must deny unless a rule grants access.
