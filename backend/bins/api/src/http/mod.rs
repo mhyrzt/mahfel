@@ -5,7 +5,7 @@ pub mod extractor;
 pub mod middleware;
 pub mod pagination;
 pub mod request_id;
-mod routes;
+pub(crate) mod routes;
 pub mod state;
 pub mod ws;
 

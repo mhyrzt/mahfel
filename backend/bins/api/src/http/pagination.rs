@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
+use utoipa::ToSchema;
 
 const DEFAULT_PAGE: u64 = 1;
 const DEFAULT_PER_PAGE: u64 = 20;
@@ -68,7 +69,7 @@ impl PaginationParams {
     }
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, ToSchema)]
 pub struct PaginationMeta {
     pub page: u64,
     pub per_page: u64,
@@ -76,7 +77,7 @@ pub struct PaginationMeta {
     pub total: Option<u64>,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, ToSchema)]
 pub struct Paginated<T: Serialize> {
     pub data: Vec<T>,
     pub pagination: PaginationMeta,

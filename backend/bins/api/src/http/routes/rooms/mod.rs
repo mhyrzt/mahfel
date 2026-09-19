@@ -1,12 +1,12 @@
-mod archive;
-mod create;
-mod dto;
-mod error;
-mod get;
-mod join;
-mod list;
-mod members;
-mod update;
+pub(crate) mod archive;
+pub(crate) mod create;
+pub(crate) mod dto;
+pub(crate) mod error;
+pub(crate) mod get;
+pub(crate) mod join;
+pub(crate) mod list;
+pub(crate) mod members;
+pub(crate) mod update;
 
 use crate::http::state::{AppState, RoomStoreState};
 use axum::{
@@ -14,7 +14,7 @@ use axum::{
     routing::{delete, get, post},
 };
 
-pub(super) fn route<R: RoomStoreState>() -> Router<AppState<R>> {
+pub(crate) fn route<R: RoomStoreState>() -> Router<AppState<R>> {
     Router::new()
         .route(
             "/rooms",

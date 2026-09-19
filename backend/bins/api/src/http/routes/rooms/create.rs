@@ -1,4 +1,4 @@
-use super::dto::{CreateRoomRequest, RoomResponse};
+use super::dto::{CreateRoomRequest, RoomResponse, RoomVisibilityDto};
 use crate::http::{
     auth::{self, Authenticated},
     error::ApiError,
@@ -10,9 +10,19 @@ use mahfel_application::{
     ports::Action,
     rooms::{CreateRoom, create_room},
 };
-use mahfel_domain::RoomVisibility;
 
-pub(super) async fn create<R: RoomStoreState>(
+#[utoipa::path(
+    post,
+    path = "/v1/rooms",
+    tag = "rooms",
+    request_body = CreateRoomRequest,
+    responses(
+        (status = 201, description = "Room created", body = RoomResponse),
+        (status = 401, description = "Authentication required"),
+        (status = 422, description = "Invalid room title"),
+    ),
+)]
+pub(crate) async fn create<R: RoomStoreState>(
     State(state): State<AppState<R>>,
     Authenticated(principal): Authenticated,
     ValidatedJson(body): ValidatedJson<CreateRoomRequest>,
@@ -22,7 +32,10 @@ pub(super) async fn create<R: RoomStoreState>(
         &state.rooms,
         CreateRoom {
             title: body.title,
-            visibility: body.visibility.unwrap_or(RoomVisibility::InviteOnly),
+            visibility: body
+                .visibility
+                .unwrap_or(RoomVisibilityDto::InviteOnly)
+                .into(),
             created_by: principal.user_id,
         },
     )

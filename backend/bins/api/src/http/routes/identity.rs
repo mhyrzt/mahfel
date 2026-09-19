@@ -6,17 +6,23 @@ use crate::http::{
 use axum::{Json, Router, extract::State, routing::get};
 use mahfel_application::ports::Action;
 use serde::Serialize;
+use utoipa::ToSchema;
 
-#[derive(Serialize)]
-struct IdentityResponse {
+#[derive(Serialize, ToSchema)]
+pub(crate) struct IdentityResponse {
     user_id: String,
 }
 
-pub(super) fn route<R: RoomStoreState>() -> Router<AppState<R>> {
-    Router::new().route("/me", get(me::<R>))
-}
-
-async fn me<R: RoomStoreState>(
+#[utoipa::path(
+    get,
+    path = "/v1/me",
+    tag = "identity",
+    responses(
+        (status = 200, description = "Authenticated principal", body = IdentityResponse),
+        (status = 401, description = "Authentication required"),
+    ),
+)]
+pub(crate) async fn me<R: RoomStoreState>(
     State(state): State<AppState<R>>,
     Authenticated(principal): Authenticated,
 ) -> Result<Json<IdentityResponse>, ApiError> {
@@ -24,4 +30,8 @@ async fn me<R: RoomStoreState>(
     Ok(Json(IdentityResponse {
         user_id: principal.user_id.to_string(),
     }))
+}
+
+pub(crate) fn route<R: RoomStoreState>() -> Router<AppState<R>> {
+    Router::new().route("/me", get(me::<R>))
 }

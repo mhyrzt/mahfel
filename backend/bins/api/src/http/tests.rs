@@ -1101,6 +1101,38 @@ async fn websocket_shutdown_closes_connections() {
     );
 }
 
+#[test]
+fn openapi_document_covers_every_rest_route() {
+    use utoipa::OpenApi;
+
+    let document = crate::http::routes::openapi::ApiDoc::openapi();
+    for path in crate::http::routes::openapi::REST_PATH_TEMPLATES {
+        assert!(
+            document.paths.paths.contains_key(*path),
+            "REST route missing from the OpenAPI document: {path}"
+        );
+    }
+}
+
+#[tokio::test]
+async fn openapi_document_is_served() {
+    let req = Request::builder()
+        .uri("/v1/openapi.json")
+        .body(Body::empty())
+        .expect("request");
+    let resp = app().oneshot(req).await.expect("response");
+
+    assert_eq!(resp.status(), StatusCode::OK);
+    let json = response_json(resp).await;
+    assert!(
+        json.get("openapi")
+            .and_then(|value| value.as_str())
+            .is_some_and(|value| value.starts_with("3.")),
+        "document must declare an OpenAPI 3.x version"
+    );
+    assert!(json.get("paths").is_some());
+}
+
 #[tokio::test]
 async fn websocket_rejects_clients_at_capacity() {
     let config = WsConfig {

@@ -9,6 +9,8 @@ use mahfel_domain::NodeId;
 use mahfel_telemetry::{HealthState, serve_http, shutdown_signal};
 use std::net::SocketAddr;
 use tokio::{net::TcpListener, sync::watch, task::JoinHandle};
+use utoipa::OpenApi;
+use utoipa_scalar::{Scalar, Servable};
 
 /// The running service: listeners, probe, and the shutdown handshake.
 pub(super) struct Runtime {
@@ -37,12 +39,14 @@ pub(super) async fn start(
     let operations_address = settings.api.operations_bind.parse::<SocketAddr>()?;
 
     let app_task = spawn_listener(app_address, app, shutdown_rx.clone()).await?;
-    let operations_task = spawn_listener(
-        operations_address,
-        telemetry.operations.clone(),
-        shutdown_rx.clone(),
-    )
-    .await?;
+    // The interactive docs UI stays on the private operations listener
+    // (ADR 0011, ADR 0015); the machine-readable document is served publicly.
+    let operations = telemetry.operations.clone().merge(Scalar::with_url(
+        "/docs",
+        crate::http::routes::ApiDoc::openapi(),
+    ));
+    let operations_task =
+        spawn_listener(operations_address, operations, shutdown_rx.clone()).await?;
     let probe_task = database::spawn_probe(database, telemetry, shutdown_rx);
 
     Ok(Runtime {
