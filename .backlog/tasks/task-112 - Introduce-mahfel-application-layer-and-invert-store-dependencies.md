@@ -1,10 +1,10 @@
 ---
 id: TASK-112
 title: Introduce mahfel-application layer and invert store dependencies
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-09-18 15:01'
-updated_date: '2026-09-18 16:25'
+updated_date: '2026-09-19 15:54'
 labels:
   - backend
   - architecture
@@ -39,3 +39,9 @@ Add the missing application layer between HTTP/gRPC transports and domain so Cre
 <!-- SECTION:NOTES:BEGIN -->
 Completed hexagon migration: domain invariants (DisplayName/RoomTitle + Room::create/archive, User::create/rename/disable/enable, Session::schedule/start/end/cancel), application ports (RoomStore/UserStore/SessionStore/MediaGateway/EventPublisher) + vertical slices rooms/sessions/users, mahfel-database -> mahfel-postgres with Postgres*Store insert/save, GrpcMediaGateway and RabbitMqEventPublisher hiding tonic/lapin. cargo fmt/clippy pass, lib tests 9 passed.
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Introduced mahfel-application as the hexagon boundary between transports and domain: domain constructor invariants and validation (Room/User/Session, DisplayName/RoomTitle), application ports (RoomStore/UserStore/SessionStore/MediaGateway/EventPublisher) with rooms/users/sessions vertical slices, mahfel-postgres Postgres*Store adapters that insert/save fully-formed entities, and GrpcMediaGateway/RabbitMqEventPublisher hiding tonic/lapin. Workspace fmt/clippy/tests pass. Finalized retroactively; the layer is implemented and consumed by the room endpoints and the WebSocket gateway.
+<!-- SECTION:FINAL_SUMMARY:END -->

@@ -5,7 +5,7 @@ status: Done
 assignee:
   - '@mahyar'
 created_date: '2026-09-08 00:31'
-updated_date: '2026-09-19 12:46'
+updated_date: '2026-09-19 15:54'
 labels: []
 milestone: m-1
 dependencies: []
@@ -35,8 +35,10 @@ Implementation scope: rooms.visibility migration, room_memberships table, domain
 - [x] #6 POST /v1/rooms/{id}/join joins a public room idempotently and returns 404 for an invite-only room
 - [x] #7 PATCH /v1/rooms/{id} lets a manager change title or visibility and preserves existing members and roles
 - [x] #8 Rooms are public or invite-only; titles are not unique
-- [ ] #9 The duplicate legacy repositories.rs is removed and the M1-02 integration test uses Postgres*Store
+- [x] #9 The duplicate legacy repositories.rs is removed and the M1-02 integration test uses Postgres*Store
 <!-- AC:END -->
+
+
 
 ## Implementation Plan
 

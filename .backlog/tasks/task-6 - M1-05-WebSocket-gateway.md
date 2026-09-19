@@ -1,11 +1,11 @@
 ---
 id: TASK-6
 title: M1-05 WebSocket gateway
-status: In Progress
+status: Done
 assignee:
   - '@mahyar'
 created_date: '2026-09-08 00:31'
-updated_date: '2026-09-19 14:32'
+updated_date: '2026-09-19 15:54'
 labels: []
 milestone: m-1
 dependencies: []
@@ -52,3 +52,9 @@ Validation: cargo clippy --workspace --all-targets -D warnings clean; mahfel-api
 
 Known boundaries: fan-out is process-local (cross-replica delivery and presence are M1-06 Redis work); the interim DevAuthenticator ignores the token and only grants the configured development principal, so it denies by default when that principal is unset; heartbeat Pings cannot be observed by a client that never reads, which is exactly the idle case the timeout is meant to close.
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Shipped the WebSocket gateway at GET /v1/ws: a versioned JSON envelope, a deny-by-default UpgradeAuthenticator seam (bearer header or auth-first-message), heartbeat ping/timeout, a bounded per-connection outbound queue with a write timeout, a process-local fan-out registry with an atomic connection cap, and mahfel_websocket_* metrics on the operations registry. Limits come from the api.ws config section. Verified with workspace clippy, real-socket integration tests (echo, broadcast, auth denial, capacity release, heartbeat timeout, graceful shutdown, cap rejection), and a boot smoke; committed in d08b1d0 with docs and backlog.
+<!-- SECTION:FINAL_SUMMARY:END -->
