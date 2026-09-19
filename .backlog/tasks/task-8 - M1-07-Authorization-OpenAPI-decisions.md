@@ -1,10 +1,10 @@
 ---
 id: TASK-8
 title: M1-07 Authorization/OpenAPI decisions
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-09-08 00:31'
-updated_date: '2026-09-19 12:46'
+updated_date: '2026-09-19 15:24'
 labels: []
 milestone: m-1
 dependencies: []
@@ -26,7 +26,7 @@ Dependencies: M1-03
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Room handler uses authorization seam; development identity is explicit; OpenAPI approach recorded.
+- [x] #1 Room handler uses authorization seam; development identity is explicit; OpenAPI approach recorded.
 <!-- AC:END -->
 
 ## Implementation Plan
@@ -47,4 +47,14 @@ Fixed a pre-existing migration integrity bug found while verifying seeds: the DB
 Validation: just backend lint clean (clippy workspace + sqlfluff); cargo test --workspace --lib --bins pass (api 17 incl. 401/200/403 identity paths); docker compose config OK; just docs strict pass. Manual verification against a disposable PostgreSQL container: migrate ran twice (second no-op), single _sqlx_migrations table with versions 1 and 2, seed idempotent across repeated runs, and the API boots to 'API service ready'. The Testcontainers migration test could not run in this environment (connection reset to the Docker socket/registry); the manual container run covers the same behavior. Remaining: TASK-5 must wire the room handler to the seam, and the OpenAPI decision is deferred by request.
 
 TASK-5 (M1-04) now exercises this seam: room routes require the Authenticated extractor (401 without an identity) and POST /v1/rooms runs the Authorizer via Action::CreateRoom. Room-scoped membership checks live in the room use cases because they need the loaded membership; the Authorizer remains the coarse policy gate. The OpenAPI decision is still deferred by request, so this task stays In Progress.
+
+OpenAPI decision recorded as ADR 0015: code-first OpenAPI 3.1 generated with utoipa confined to the mahfel-api transport (domain/application stay free of it), transport DTOs carry ToSchema with transport-level schema types for domain enums, the document is served at GET /v1/openapi.json with the interactive UI non-production or operations-only (ADR 0011), and a test must assert every /v1 REST route appears in the document; websocket endpoints are out of scope. Authorization seam direction documented in docs/architecture/components.md instead of a separate ADR, because the durable policy arrives with M2-07. No runtime change in this task; mkdocs nav and ADR index updated.
+
+Bruno follow-up decided as ADR 0016: a bruno/ collection generated from the utoipa OpenAPI document (REST + manual WebSocket requests, local-first, never replacing the Rust tests). Implementation tracked as TASK-115 (OpenAPI generation and Bruno collection, depends on this task).
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Closed M1-07. The authorization seam (deny-by-default Authorizer, interim AllowAuthenticated policy, explicit inert development principal) is implemented, exercised by the room handler, and documented in the architecture components. Recorded ADR 0015 deciding code-first OpenAPI 3.1 generation with utoipa confined to the API transport, a public /v1/openapi.json with a non-production docs UI, and a route-coverage test. Verified with just docs (strict). Implementation of the OpenAPI generator itself is follow-up work, not part of this decision task.
+<!-- SECTION:FINAL_SUMMARY:END -->
