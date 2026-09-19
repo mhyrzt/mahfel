@@ -7,6 +7,7 @@ mod status;
 use crate::http::{
     error::ApiError,
     state::{AppState, RoomStoreState},
+    ws,
 };
 use axum::Router;
 
@@ -22,6 +23,7 @@ pub(super) fn router<R: RoomStoreState>(state: AppState<R>) -> Router {
         .merge(echo::route::<R>())
         .merge(identity::route::<R>())
         .merge(rooms::route::<R>())
+        .merge(ws::route::<R>())
         .fallback(not_found);
 
     Router::new()

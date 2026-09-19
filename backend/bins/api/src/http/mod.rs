@@ -7,6 +7,7 @@ pub mod pagination;
 pub mod request_id;
 mod routes;
 pub mod state;
+pub mod ws;
 
 pub use cors::cors_layer;
 pub use state::{AppState, RoomStoreState};

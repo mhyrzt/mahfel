@@ -9,6 +9,7 @@ pub enum ErrorCode {
     Unauthorized,
     Forbidden,
     Conflict,
+    Unavailable,
     Internal,
 }
 
@@ -22,6 +23,7 @@ impl ErrorCode {
             Self::Unauthorized => "unauthorized",
             Self::Forbidden => "forbidden",
             Self::Conflict => "conflict",
+            Self::Unavailable => "unavailable",
             Self::Internal => "internal_error",
         }
     }
@@ -35,6 +37,7 @@ impl ErrorCode {
             Self::Unauthorized => StatusCode::UNAUTHORIZED,
             Self::Forbidden => StatusCode::FORBIDDEN,
             Self::Conflict => StatusCode::CONFLICT,
+            Self::Unavailable => StatusCode::SERVICE_UNAVAILABLE,
             Self::Internal => StatusCode::INTERNAL_SERVER_ERROR,
         }
     }

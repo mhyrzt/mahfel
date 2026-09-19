@@ -73,6 +73,11 @@ impl ApiError {
     }
 
     #[must_use]
+    pub fn unavailable(message: impl Into<String>) -> Self {
+        Self::new(ErrorCode::Unavailable, message)
+    }
+
+    #[must_use]
     pub fn internal(message: impl Into<String>) -> Self {
         Self::new(ErrorCode::Internal, message)
     }

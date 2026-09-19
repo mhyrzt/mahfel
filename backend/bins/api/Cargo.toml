@@ -8,6 +8,7 @@ license.workspace = true
 [dependencies]
 anyhow.workspace = true
 axum.workspace = true
+futures-util.workspace = true
 mahfel-application = { path = "../../crates/application" }
 mahfel-auth = { path = "../../crates/auth" }
 mahfel-config = { path = "../../crates/config" }
@@ -15,6 +16,7 @@ mahfel-domain = { path = "../../crates/domain" }
 mahfel-media-client = { path = "../../crates/media-client" }
 mahfel-postgres = { path = "../../crates/postgres" }
 mahfel-telemetry = { path = "../../crates/telemetry" }
+prometheus.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 sqlx.workspace = true
@@ -27,6 +29,7 @@ uuid.workspace = true
 
 [dev-dependencies]
 time.workspace = true
+tokio-tungstenite = "0.29"
 
 [lints]
 workspace = true

@@ -1,4 +1,4 @@
-use crate::http::auth::AuthState;
+use crate::http::{auth::AuthState, ws::WsState};
 use mahfel_application::ports::RoomStore;
 
 /// Store bound required by the API transport.
@@ -18,4 +18,5 @@ pub struct AppState<R> {
     pub node_id: String,
     pub auth: AuthState,
     pub rooms: R,
+    pub realtime: WsState,
 }

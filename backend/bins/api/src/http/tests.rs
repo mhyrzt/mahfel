@@ -1,15 +1,34 @@
-use super::{AppState, api_router, auth::AuthState, cors_layer};
+use super::{
+    AppState, api_router,
+    auth::AuthState,
+    cors_layer,
+    ws::{DevAuthenticator, WsConfig, WsMetrics, WsState},
+};
 use axum::{
     Router,
     body::Body,
     http::{HeaderValue, Method, Request, StatusCode, header},
 };
+use futures_util::{SinkExt, StreamExt};
 use mahfel_application::ports::{
     Action, AllowAuthenticated, AuthorizationError, Authorizer, Principal, RoomStore, StoreError,
 };
 use mahfel_domain::{Room, RoomId, RoomMember, RoomRole, RoomTitle, RoomVisibility, UserId};
-use std::sync::{Arc, Mutex};
+use prometheus::Encoder;
+use std::{
+    net::SocketAddr,
+    sync::{Arc, Mutex},
+    time::Duration,
+};
 use time::OffsetDateTime;
+use tokio::{
+    net::{TcpListener, TcpStream},
+    sync::watch,
+    task::JoinHandle,
+};
+use tokio_tungstenite::{
+    MaybeTlsStream, WebSocketStream, connect_async, tungstenite::Message as ClientWsMessage,
+};
 use tower::ServiceExt;
 use uuid::Uuid;
 
@@ -179,13 +198,26 @@ impl RoomStore for FakeRoomStore {
     }
 }
 
+fn ws_state(principal: Option<Principal>) -> WsState {
+    let (_shutdown_tx, shutdown_rx) = watch::channel(false);
+    let metrics = WsMetrics::register(&prometheus::Registry::new()).expect("register ws metrics");
+    WsState::new(
+        Arc::new(DevAuthenticator::new(principal)),
+        WsConfig::default(),
+        metrics,
+        shutdown_rx,
+    )
+}
+
 fn state(principal: Option<Principal>, authorizer: Arc<dyn Authorizer>) -> AppState<FakeRoomStore> {
+    let auth = AuthState::new(principal.clone(), authorizer);
     AppState {
         service: "mahfel-api-test",
         version: "0.1.0",
         node_id: "node-test".to_owned(),
-        auth: AuthState::new(principal, authorizer),
+        auth,
         rooms: FakeRoomStore::default(),
+        realtime: ws_state(principal),
     }
 }
 
@@ -212,12 +244,14 @@ fn authenticated_app() -> Router {
 }
 
 fn authenticated_room_app(principal: Principal, store: FakeRoomStore) -> Router {
+    let realtime = ws_state(Some(principal.clone()));
     api_router(AppState {
         service: "mahfel-api-test",
         version: "0.1.0",
         node_id: "node-test".to_owned(),
         auth: AuthState::new(Some(principal), Arc::new(AllowAuthenticated)),
         rooms: store,
+        realtime,
     })
 }
 
@@ -859,4 +893,225 @@ async fn malformed_room_id_maps_to_error_envelope() {
     assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
     let json = response_json(resp).await;
     assert_eq!(error_code(&json), Some("invalid_input"));
+}
+
+type ClientSocket = WebSocketStream<MaybeTlsStream<TcpStream>>;
+
+struct WsHarness {
+    addr: SocketAddr,
+    shutdown: watch::Sender<bool>,
+    registry: prometheus::Registry,
+    _task: JoinHandle<std::io::Result<()>>,
+}
+
+async fn serve_ws(principal: Option<Principal>, config: WsConfig) -> WsHarness {
+    let registry = prometheus::Registry::new();
+    let metrics = WsMetrics::register(&registry).expect("register ws metrics");
+    let (shutdown_tx, shutdown_rx) = watch::channel(false);
+    let realtime = WsState::new(
+        Arc::new(DevAuthenticator::new(principal.clone())),
+        config,
+        metrics,
+        shutdown_rx.clone(),
+    );
+    let state = AppState {
+        service: "mahfel-api-test",
+        version: "0.1.0",
+        node_id: "node-test".to_owned(),
+        auth: AuthState::new(principal, Arc::new(AllowAuthenticated)),
+        rooms: FakeRoomStore::default(),
+        realtime,
+    };
+    let listener = TcpListener::bind("127.0.0.1:0").await.expect("bind");
+    let addr = listener.local_addr().expect("listener address");
+    let task = tokio::spawn(mahfel_telemetry::serve_http(
+        listener,
+        api_router(state),
+        shutdown_rx,
+    ));
+    WsHarness {
+        addr,
+        shutdown: shutdown_tx,
+        registry,
+        _task: task,
+    }
+}
+
+async fn connect(addr: SocketAddr) -> ClientSocket {
+    let (socket, _) = connect_async(format!("ws://{addr}/v1/ws"))
+        .await
+        .expect("connect");
+    socket
+}
+
+async fn send(socket: &mut ClientSocket, frame: &str) {
+    socket
+        .send(ClientWsMessage::text(frame.to_owned()))
+        .await
+        .expect("send frame");
+}
+
+async fn next(socket: &mut ClientSocket) -> ClientWsMessage {
+    loop {
+        match socket
+            .next()
+            .await
+            .expect("frame present")
+            .expect("frame ok")
+        {
+            ClientWsMessage::Ping(_) | ClientWsMessage::Pong(_) => continue,
+            frame => return frame,
+        }
+    }
+}
+
+async fn authenticate(socket: &mut ClientSocket) {
+    send(socket, r#"{"v":1,"type":"auth"}"#).await;
+    assert!(
+        next(socket)
+            .await
+            .to_text()
+            .expect("text")
+            .contains("welcome"),
+        "authentication must be acknowledged with a welcome frame"
+    );
+}
+
+async fn wait_for_metric(registry: &prometheus::Registry, needle: &str) {
+    let encoder = prometheus::TextEncoder::new();
+    for _ in 0..300 {
+        let mut buffer = Vec::new();
+        encoder
+            .encode(&registry.gather(), &mut buffer)
+            .expect("encode metrics");
+        if String::from_utf8_lossy(&buffer).contains(needle) {
+            return;
+        }
+        tokio::time::sleep(Duration::from_millis(10)).await;
+    }
+    panic!("metric not observed: {needle}");
+}
+
+#[tokio::test]
+async fn websocket_authenticates_and_echoes() {
+    let harness = serve_ws(Some(principal()), WsConfig::default()).await;
+    let mut socket = connect(harness.addr).await;
+    authenticate(&mut socket).await;
+
+    send(&mut socket, r#"{"v":1,"type":"echo","text":"hi"}"#).await;
+    let echo = next(&mut socket).await;
+    assert!(echo.to_text().expect("text").contains(r#""type":"echo""#));
+    assert!(echo.to_text().expect("text").contains(r#""text":"hi""#));
+}
+
+#[tokio::test]
+async fn websocket_broadcasts_to_all_clients() {
+    let harness = serve_ws(Some(principal()), WsConfig::default()).await;
+    let mut first = connect(harness.addr).await;
+    let mut second = connect(harness.addr).await;
+    authenticate(&mut first).await;
+    authenticate(&mut second).await;
+
+    send(&mut first, r#"{"v":1,"type":"broadcast","text":"ping"}"#).await;
+
+    let from_sender = next(&mut first).await;
+    let from_peer = next(&mut second).await;
+    assert!(
+        from_sender
+            .to_text()
+            .expect("text")
+            .contains(r#""type":"broadcast""#)
+    );
+    assert!(
+        from_peer
+            .to_text()
+            .expect("text")
+            .contains(r#""text":"ping""#)
+    );
+}
+
+#[tokio::test]
+async fn websocket_denies_unauthenticated_clients() {
+    let harness = serve_ws(None, WsConfig::default()).await;
+    let mut socket = connect(harness.addr).await;
+    send(&mut socket, r#"{"v":1,"type":"auth"}"#).await;
+
+    loop {
+        match socket.next().await {
+            Some(Ok(ClientWsMessage::Close(_))) | None | Some(Err(_)) => break,
+            Some(Ok(_)) => continue,
+        }
+    }
+    wait_for_metric(
+        &harness.registry,
+        r#"websocket_disconnects_total{reason="unauthorized"} 1"#,
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn websocket_disconnect_releases_capacity() {
+    let harness = serve_ws(Some(principal()), WsConfig::default()).await;
+    let mut socket = connect(harness.addr).await;
+    authenticate(&mut socket).await;
+    wait_for_metric(&harness.registry, "websocket_connections_active 1").await;
+
+    drop(socket);
+    wait_for_metric(&harness.registry, "websocket_connections_active 0").await;
+}
+
+#[tokio::test]
+async fn websocket_closes_idle_connections() {
+    let config = WsConfig {
+        heartbeat_interval: Duration::from_millis(10),
+        heartbeat_timeout: Duration::from_millis(40),
+        ..WsConfig::default()
+    };
+    let harness = serve_ws(Some(principal()), config).await;
+    let mut socket = connect(harness.addr).await;
+    authenticate(&mut socket).await;
+
+    // Without reading, the client never answers the server's pings.
+    wait_for_metric(
+        &harness.registry,
+        r#"websocket_disconnects_total{reason="heartbeat_timeout"} 1"#,
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn websocket_shutdown_closes_connections() {
+    let harness = serve_ws(Some(principal()), WsConfig::default()).await;
+    let mut socket = connect(harness.addr).await;
+    authenticate(&mut socket).await;
+
+    harness.shutdown.send(true).expect("signal shutdown");
+    let closed = tokio::time::timeout(Duration::from_secs(2), async {
+        loop {
+            match socket.next().await {
+                Some(Ok(ClientWsMessage::Close(_))) | None | Some(Err(_)) => break,
+                Some(Ok(_)) => continue,
+            }
+        }
+    })
+    .await;
+    assert!(
+        closed.is_ok(),
+        "server must close the connection on shutdown"
+    );
+}
+
+#[tokio::test]
+async fn websocket_rejects_clients_at_capacity() {
+    let config = WsConfig {
+        max_connections: 1,
+        ..WsConfig::default()
+    };
+    let harness = serve_ws(Some(principal()), config).await;
+    let mut first = connect(harness.addr).await;
+    authenticate(&mut first).await;
+
+    let rejected = connect_async(format!("ws://{}/v1/ws", harness.addr)).await;
+    assert!(rejected.is_err(), "second connection must be rejected");
+    wait_for_metric(&harness.registry, "websocket_connections_rejected_total 1").await;
 }
