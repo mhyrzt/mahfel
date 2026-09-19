@@ -14,11 +14,17 @@ auth_timeout_seconds = 10
 max_message_bytes = 65536
 
 [oidc]
-issuer_url = "https://auth.mahfel.localhost/dex"
-client_id = "mahfel"
+issuer_url = "https://auth.mahfel.localhost/realms/rastai"
+client_id = "mahfel-api"
 client_secret = "mahfel-dev-secret"
 redirect_uri = "https://api.mahfel.localhost/v1/auth/oidc/callback"
-scopes = ["openid", "profile", "email", "groups"]
+scopes = ["openid", "profile", "email", "roles"]
+
+[keycloak]
+base_url = "https://auth.mahfel.localhost"
+realm = "rastai"
+admin_client_id = "mahfel-admin"
+admin_client_secret = "mahfel-admin-dev-secret"
 
 [database]
 host = "postgres"

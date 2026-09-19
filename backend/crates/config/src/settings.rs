@@ -1,6 +1,6 @@
 use crate::{
-    ApiSettings, DatabaseSettings, MediaSettings, OidcSettings, RedisSettings, SettingsError,
-    TelemetrySettings, WorkerSettings,
+    ApiSettings, DatabaseSettings, KeycloakSettings, MediaSettings, OidcSettings, RedisSettings,
+    SettingsError, TelemetrySettings, WorkerSettings,
 };
 use config::{Config, Environment, File};
 use serde::Deserialize;
@@ -10,6 +10,7 @@ use std::path::PathBuf;
 pub struct Settings {
     pub api: ApiSettings,
     pub oidc: OidcSettings,
+    pub keycloak: KeycloakSettings,
     pub database: DatabaseSettings,
     pub media: MediaSettings,
     pub redis: RedisSettings,

@@ -7,6 +7,7 @@
 mod api;
 mod database;
 mod error;
+mod keycloak;
 mod media;
 mod oidc;
 mod redis;
@@ -17,6 +18,7 @@ mod worker;
 pub use api::{ApiSettings, WsSettings};
 pub use database::DatabaseSettings;
 pub use error::SettingsError;
+pub use keycloak::KeycloakSettings;
 pub use media::MediaSettings;
 pub use oidc::OidcSettings;
 pub use redis::RedisSettings;
