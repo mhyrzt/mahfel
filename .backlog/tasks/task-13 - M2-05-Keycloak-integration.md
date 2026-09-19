@@ -4,10 +4,12 @@ title: M2-05 OIDC provider compatibility
 status: To Do
 assignee: []
 created_date: '2026-09-08 00:31'
-updated_date: '2026-09-16 22:10'
+updated_date: '2026-09-19 19:31'
 labels: []
 milestone: m-2
-dependencies: []
+dependencies:
+  - TASK-11
+  - TASK-12
 documentation:
   - docs/backlog/roadmap.md
 priority: medium
@@ -17,19 +19,8 @@ ordinal: 21000
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
-Problem: Local development needs a lightweight OIDC provider while production must remain compatible with the organization’s Keycloak deployment.
-
-Implementation scope: Verify TinyAuth discovery and authorization-code login using the local Compose fixture; verify Keycloak realm/client settings, redirect/logout flows, avatar and role claim mapping, and configuration-only issuer switching. Document identity migration/linking and provider-specific differences.
-
-Dependencies: M2-04
+Verify the Keycloak integration end to end against the Compose fixture: a confidential mahfel-web client in the rastai realm, browser login and logout through mahfel-web, and deterministic claim mapping (sub, preferred_username, name, email, realm/resource roles) into the API principal. Retarget the stale TinyAuth references to Keycloak.
 <!-- SECTION:DESCRIPTION:END -->
-
-## Acceptance Criteria
-<!-- AC:BEGIN -->
-- [ ] #1 TinyAuth local OIDC login works against the shared Compose fixture
-- [ ] #2 Real Keycloak login/logout works and expected claims map deterministically
-<!-- AC:END -->
-
 
 
 
@@ -39,3 +30,12 @@ Dependencies: M2-04
 - [ ] #1 Provider-specific settings are externalized from application domain code
 - [ ] #2 TinyAuth and Keycloak compatibility results are documented
 <!-- DOD:END -->
+
+## Acceptance Criteria
+<!-- AC:BEGIN -->
+- [ ] #1 The rastai realm fixture defines the confidential mahfel-web client with the NextAuth redirect and post-logout URIs
+- [ ] #2 A browser login against the Compose Keycloak succeeds and the API authenticates the resulting access token
+- [ ] #3 Expected claims map deterministically into the application profile and roles
+- [ ] #4 Logout ends both the Mahfel session and the Keycloak SSO session
+- [ ] #5 The Keycloak README and docs no longer reference TinyAuth
+<!-- AC:END -->
