@@ -77,7 +77,7 @@ mod tests {
     use serde_json::json;
 
     #[test]
-    fn normalizes_dex_standard_claims() {
+    fn normalizes_standard_claims() {
         let identity = normalize_claims(&json!({
             "sub": "student",
             "email": "student@mahfel.local",
