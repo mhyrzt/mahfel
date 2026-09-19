@@ -87,7 +87,7 @@ just compose-up
 starts only Caddy without building application images, and
 installs/trusts Caddy's local CA. `just compose-up` then starts all three Compose profiles (`mahfel`, `infrastructure`, and
 `observability`) and builds application images. Local OIDC is available at
-`https://auth.mahfel.localhost/dex`; production remains configured for Keycloak. Browse through
+`https://auth.mahfel.localhost/realms/rastai`; the same Keycloak provider is used in production. Browse through
 `https://mahfel.localhost`; do not bypass certificate warnings.
 
 To start infrastructure, use `just compose-up infrastructure`. To start only Caddy for certificate

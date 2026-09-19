@@ -57,4 +57,6 @@ nav:
       - 0015 OpenAPI generation: adr/0015-openapi-generation.md
       - 0016 Bruno collection: adr/0016-bruno-collection.md
       - 0017 Redis pub/sub: adr/0017-redis-pubsub-ephemeral.md
+      - 0018 Keycloak provider: adr/0018-keycloak-oidc-provider.md
+      - 0019 Frontend OIDC and BFF: adr/0019-frontend-oidc-bff.md
   - Backlog: backlog/roadmap.md

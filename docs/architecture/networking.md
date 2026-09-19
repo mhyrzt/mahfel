@@ -18,7 +18,7 @@
 | RabbitMQ management | 15672/TCP | 127.0.0.1:15672; `rabbitmq.mahfel.localhost` through Caddy | Local/admin only |
 | RabbitMQ metrics | 15692/TCP | 127.0.0.1:15692 | Private |
 | RustFS API/console | 9000/9001 TCP | loopback same; HTTPS through Caddy | Local/admin only |
-| Dex local OIDC | 5556/TCP | 127.0.0.1:5556; HTTPS through Caddy | Local/test only |
+| Keycloak OIDC | 8080/TCP | 127.0.0.1:8080; HTTPS through Caddy | Local/test only |
 | coturn | 3478 UDP/TCP | same | Public traversal |
 | coturn relay | 49160–49200/UDP | same | Public local relay range |
 | Prometheus | 9090/TCP | 127.0.0.1:9090 | Private |
@@ -33,9 +33,13 @@ Local browser traffic terminates at Caddy using its internal CA. The CA certific
 from Caddy's persistent data volume and installed with `just trust-local-ca`; ignoring certificate
 errors is not a supported development mode.
 
-Local OIDC uses `https://auth.mahfel.localhost/dex`, which Caddy proxies to the Compose-only Dex
-service. Dex is not part of the production topology; production OIDC continues to point directly at
-Keycloak through configuration.
+Local OIDC uses `https://auth.mahfel.localhost/realms/rastai`, which Caddy proxies to the
+Compose-only Keycloak service. Keycloak is also the production provider; only the issuer URL and
+client secret differ between the two through configuration.
+
+Browser REST traffic is authenticated in `mahfel-web` and forwarded to `mahfel-api` by its narrow
+BFF (ADR 0019); WebSocket traffic connects to the API directly. The BFF is not a general proxy, so
+media, WebSocket, and presigned S3 traffic never pass through Next.js.
 
 Caddy routes `s3.mahfel.localhost` to the RustFS S3 API, `storage.mahfel.localhost` to its console,
 and `rabbitmq.mahfel.localhost` to the local RabbitMQ management UI. The latter is an operator

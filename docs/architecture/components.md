@@ -4,7 +4,9 @@
 
 An independently deployed Next.js App Router application built with Bun, TypeScript, Tailwind CSS,
 and shadcn/ui. It eventually owns all user and administration interfaces, device control,
-`mediasoup-client`, and Yjs integration. It does not contain authoritative backend logic.
+`mediasoup-client`, and Yjs integration. It is the browser OIDC client (NextAuth with Keycloak) and
+exposes a narrow BFF for authenticated API calls (ADR 0019). It does not contain authoritative
+backend logic.
 
 ## `mahfel-api`
 
@@ -18,12 +20,13 @@ WebSocket gateway at `/v1/ws`. The REST contract is generated from the transport
 OpenAPI at `/v1/openapi.json`, with its interactive UI on the private operations listener
 (ADR 0015). Higher-level product surfaces remain deliberately deferred.
 
-For local development, OIDC is provided by Dex (`auth.mahfel.localhost`) with SQLite-backed state.
-The API is intended to consume standard issuer/discovery, authorization-code, token, and userinfo
-contracts rather than Dex-specific management endpoints. Production continues to use Keycloak by
-configuration; identity linking, claim normalization, role mapping, logout, and user migration must
-be validated as a separate deployment concern. Dex is never an additional production proxy or
-federation layer.
+OIDC is provided by Keycloak for both local development and production (`auth.mahfel.localhost`
+locally). The browser authenticates through `mahfel-web` (NextAuth with the Keycloak provider) and a
+narrow BFF, and the API is a resource server that verifies Keycloak access tokens and provisions
+local users by `(issuer, subject)` (ADR 0019). The API also manages the realm through the Keycloak
+Admin API using the client-credentials grant of a dedicated service account rather than an
+interactive administrator account. Identity linking, role mapping, and logout remain M2
+implementation concerns; the local realm fixture is described in `deploy/keycloak/README.md`.
 
 The first control-plane persistence boundary is intentionally small: users, rooms, and classroom
 sessions have UUID identifiers, explicit lifecycle statuses, and UTC timestamps in PostgreSQL.

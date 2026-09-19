@@ -210,7 +210,7 @@ It owns browser-facing:
 
 - REST;
 - WebSocket signaling;
-- authentication integration;
+- Keycloak token verification and local identity provisioning (ADR 0019);
 - authorization;
 - durable application operations;
 - coordination with media and workers.
@@ -218,6 +218,21 @@ It owns browser-facing:
 The API may call `mahfel-media` through the private media client.
 
 Do not expose mediasoup or internal media-node implementation details through public handlers unless they are intentionally mapped into a stable application contract.
+
+### Authentication
+
+`mahfel-api` is a resource server for Keycloak access tokens (ADR 0019). The browser OIDC client is
+`mahfel-web`; the API does not run an authorization-code login and does not own a browser session.
+
+- Verify issuer, audience, signature (JWKS, including key rotation), and expiry before trusting any
+  claim. Reject anything that fails with a deliberate 401 and no internal detail.
+- Derive the principal from verified claims. Resolve or provision the local user by
+  `(issuer, subject)` and never by email.
+- Provision idempotently; concurrent first requests must not create duplicate users.
+- Manage the realm only through the `mahfel-admin` client-credentials service account, never an
+  interactive administrator account.
+- Authorization remains deny-by-default and authoritative here; the frontend hiding a control is not
+  an authorization decision.
 
 ### HTTP APIs
 

@@ -7,7 +7,8 @@ coordination state. RabbitMQ transports durable jobs. S3 stores file and media a
 ```mermaid
 flowchart LR
   Browser[Browser] -->|HTTPS| Web[mahfel-web]
-  Browser -->|REST and WebSocket| API[mahfel-api]
+  Web -->|BFF REST with bearer token| API[mahfel-api]
+  Browser -->|WebSocket| API
   Browser <-->|WebRTC media| Media[mahfel-media]
   Browser -.->|TURN fallback| Turn[coturn]
   Turn -.-> Media
@@ -26,14 +27,16 @@ flowchart LR
   Grafana[Grafana] --> Ops
 ```
 
-The browser calls `mahfel-api` directly for REST and WebSocket traffic. Next.js is not a general
-realtime proxy. Signaling passes through the API, but negotiated media never does: direct WebRTC
-flows between browser and media node, falling back through coturn only when network traversal
+Authenticated REST calls go from the browser to `mahfel-web`, whose narrow BFF forwards allowlisted
+`/v1` paths to `mahfel-api` with the Keycloak access token (ADR 0019). WebSocket signaling connects
+to the API directly. Next.js is not a general proxy: WebSocket, media, and presigned S3 traffic
+never pass through it. Signaling passes through the API, but negotiated media never does: direct
+WebRTC flows between browser and media node, falling back through coturn only when network traversal
 requires it.
 
-For local development and integration tests, the browser/API OIDC issuer is Dex behind the local
-Caddy route. Production configuration points the same standards-based OIDC client directly at
-Keycloak; Dex is not a production federation or proxy layer.
+Keycloak is the single OIDC provider: local development and integration tests run it behind the
+local Caddy route, and production configuration points the same standards-based OIDC client at the
+deployment Keycloak. There is no separate local-only provider.
 
 ## Data ownership
 

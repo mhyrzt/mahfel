@@ -1,5 +1,27 @@
 # Runtime data flows
 
+## Authentication and session
+
+```mermaid
+sequenceDiagram
+  participant B as Browser
+  participant W as mahfel-web (NextAuth + BFF)
+  participant K as Keycloak
+  participant A as mahfel-api
+  participant P as PostgreSQL
+  B->>W: Start login
+  W->>K: Authorization code with PKCE and state
+  K-->>W: Code, then tokens (server-side exchange)
+  W->>A: POST /v1/auth/provision with the access token
+  A->>K: Fetch JWKS and verify the token
+  A->>P: Upsert user and identity by (issuer, subject)
+  A-->>W: Application profile and avatar URL
+  W-->>B: httpOnly session cookie
+  B->>W: GET /api/backend/v1/...
+  W->>A: Forward with Authorization: Bearer
+  A-->>W: Response
+```
+
 ## Classroom join
 
 ```mermaid

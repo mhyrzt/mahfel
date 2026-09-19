@@ -29,7 +29,7 @@ just compose-up
 ```
 
 Compose services are grouped into three stack profiles: `mahfel` (the four buildable application services),
-`infrastructure` (Caddy, PostgreSQL, Redis, RabbitMQ, RustFS, Dex, and coturn), and `observability`
+`infrastructure` (Caddy, PostgreSQL, Redis, RabbitMQ, RustFS, Keycloak, and coturn), and `observability`
 (Prometheus, Grafana, and Alertmanager). `just compose-up` enables all three profiles. To start a
 subset explicitly, use for example `docker compose --profile infrastructure up -d`; the `mahfel`
 and `observability` profiles require their dependency profiles as well.
@@ -89,11 +89,13 @@ presigned browser URLs from containing an unresolvable Compose service name. The
 RustFS's default storage format must not be assumed to be compatible; migrate any valuable local
 objects through the S3 API before removing that old volume.
 
-Dex provides local OIDC at `https://auth.mahfel.localhost/dex`. The seeded development accounts are
-`shinji`, `asuka`, `rei`, `misato`, `ritsuko`, and `admin`; all use the local-only password `password`. See
-`deploy/dex/README.md` for the fixture identities. Dex's SQLite state is persisted in the `dex-data`
-volume. Production continues to point the same provider-neutral Mahfel OIDC configuration at
-Keycloak; Dex is not deployed there.
+Keycloak provides local OIDC at `https://auth.mahfel.localhost/realms/rastai`. The imported
+development accounts are `shinji`, `asuka`, `rei`, `misato`, `ritsuko`, and `admin`; all use the
+local-only password `password`. See `deploy/keycloak/README.md` for the fixture identities and the
+`mahfel-admin` service account used for Admin API access. The local realm is imported from
+`deploy/keycloak/rastai-realm.json` into an in-memory database, so the committed fixture is the
+source of truth on every start. Production points the same provider-neutral configuration at its
+Keycloak deployment.
 
 Until browser authentication lands (milestone M2), the API has no signed-in users. Development
 fixtures live separately from schema migrations in `backend/seeds/`, applied in file-name order.

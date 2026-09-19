@@ -138,23 +138,40 @@ Do not access secrets or server-only configuration from client components.
 The normal browser architecture is:
 
 ```text
-Browser ──REST──────────> mahfel-api
-Browser ──WebSocket─────> mahfel-api
-Browser ──WebRTC────────> mahfel-media
-Browser ──presigned─────> S3-compatible storage
+Browser ──REST──> mahfel-web BFF ──Bearer(KC JWT)──> mahfel-api
+Browser ──WebSocket───────────────────────────────> mahfel-api
+Browser ──WebRTC──────────────────────────────────> mahfel-media
+Browser ──presigned───────────────────────────────> S3-compatible storage
 ```
+
+`mahfel-web` authenticates the browser with NextAuth against Keycloak and exposes a narrow BFF for
+authenticated REST calls (ADR 0019). The BFF forwards only allowlisted `/v1` paths to the API with
+the Keycloak access token and must not become a general proxy.
 
 Next.js is not a general backend-for-frontend proxy for Mahfel.
 
-Do not proxy ordinary Mahfel REST or WebSocket traffic through Next.js route handlers without a concrete architectural reason.
+Do not proxy WebSocket, WebRTC media, or presigned S3 transfers through Next.js.
 
-Do not proxy WebRTC media through Next.js.
+Do not widen the BFF beyond the authenticated REST surface or forward arbitrary upstream paths.
 
-Do not proxy normal large file uploads/downloads through Next.js when the architecture calls for presigned S3 transfers.
+Never expose access tokens, refresh tokens, or the NextAuth secret to browser JavaScript; the session
+is an httpOnly cookie.
 
 Use the configured public API base URL rather than hardcoding deployment-specific API hosts.
 
 Only expose values through `NEXT_PUBLIC_*` when they are safe to expose to every browser user.
+
+## Authentication
+
+Browser authentication uses NextAuth with the Keycloak provider: a confidential client,
+server-side code exchange, and `state` + PKCE (`S256`) + nonce. Keep tokens server-side and the
+session cookie httpOnly with secure flags in production.
+
+Authorization remains authoritative in `mahfel-api`; hiding a control in the UI is not an
+authorization decision.
+
+Treat the session and the BFF as security boundaries: validate the upstream path, bound request
+size, apply upstream timeouts, and strip cookies and hop-by-hop headers when forwarding.
 
 ## API Boundaries
 

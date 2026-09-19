@@ -7,7 +7,7 @@
 | `backend/bins/media` | Media-plane executable |
 | `backend/bins/worker` | Background worker executable |
 | `backend/crates/config` | Layered typed configuration |
-| `backend/crates/auth` | Provider-neutral OIDC identity normalization and Dex test harness |
+| `backend/crates/auth` | Provider-neutral OIDC identity normalization and Keycloak test harness |
 | `backend/crates/telemetry` | Logs, metrics, health, shutdown foundation |
 | `backend/crates/domain` | Shared durable domain types when genuinely cross-capability |
 | `backend/crates/application` | Use cases and outbound port contracts |
@@ -33,5 +33,5 @@
 
 Crates are added when a meaningful boundary has implementation and tests. Chat, files,
 collaboration, storage, and AI remain planned module boundaries; authentication now owns the
-provider-neutral identity boundary and its local Dex discovery test, while the login/callback flow
-remains an M2 implementation task.
+provider-neutral identity boundary and its local Keycloak discovery test, while the login/callback
+flow remains an M2 implementation task.
