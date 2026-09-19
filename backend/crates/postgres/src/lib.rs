@@ -119,7 +119,13 @@ pub async fn connect(
         .port(connection.port)
         .username(&connection.user)
         .password(&connection.password)
-        .database(&connection.name);
+        .database(&connection.name)
+        // The database role and the `mahfel` schema share a name, and the
+        // default search_path is `"$user", public`. Without pinning it,
+        // unqualified `_sqlx_migrations` resolves to a different schema before
+        // and after migration 0001 creates `mahfel`, splitting migration
+        // bookkeeping. All application SQL qualifies `mahfel.` explicitly.
+        .options([("search_path", "public")]);
     PgPoolOptions::new()
         .min_connections(settings.min_connections)
         .max_connections(settings.max_connections)

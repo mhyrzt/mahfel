@@ -85,10 +85,26 @@ async fn verify_migrations_and_repositories(
 ) -> Result<(), Box<dyn Error>> {
     migrate(pool).await?;
 
+    // Re-running migrations on an already-migrated database must be a no-op.
+    // The connection pins `search_path=public` because the database role and
+    // the `mahfel` schema share a name; otherwise `_sqlx_migrations` resolves
+    // to a different schema before and after migration 0001 creates `mahfel`.
+    migrate(pool).await?;
+
     let migration_count = sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM _sqlx_migrations")
         .fetch_one(pool)
         .await?;
     assert_eq!(migration_count, 2, "each migration must be recorded once");
+
+    let migration_tables = sqlx::query_scalar::<_, i64>(
+        "SELECT COUNT(*) FROM pg_class WHERE relname = '_sqlx_migrations'",
+    )
+    .fetch_one(pool)
+    .await?;
+    assert_eq!(
+        migration_tables, 1,
+        "migration bookkeeping must use a single table"
+    );
 
     let namespace_exists = sqlx::query_scalar::<_, bool>(
         "SELECT EXISTS (SELECT 1 FROM pg_namespace WHERE nspname = 'mahfel')",

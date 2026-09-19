@@ -256,6 +256,10 @@ Use SQLx.
 
 Prefer explicit SQL and typed mapping over hiding persistence behind a heavyweight ORM.
 
+Connections pin `search_path=public` and application SQL qualifies the `mahfel` schema explicitly.
+The database role and schema intentionally share a name, so unqualified relation names would be
+resolved against a `"$user"` schema and must not be relied on.
+
 ### Migrations
 
 Schema changes belong in reviewed forward migrations under:
