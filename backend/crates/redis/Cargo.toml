@@ -1,0 +1,23 @@
+[package]
+name = "mahfel-redis"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+mahfel-application = { path = "../application" }
+futures-util.workspace = true
+prometheus.workspace = true
+redis.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+
+[dev-dependencies]
+testcontainers = "0.28.0"
+tokio.workspace = true
+uuid.workspace = true
+
+[lints]
+workspace = true

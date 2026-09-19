@@ -1,0 +1,184 @@
+use crate::{
+    error::RedisError, keys::Keys, metrics::RedisMetrics, settings::RedisConnectionSettings,
+};
+use futures_util::StreamExt;
+use mahfel_application::ports::{CoordinationError, CoordinationStore};
+use redis::aio::ConnectionManager;
+use std::time::Duration;
+use tokio::{sync::mpsc, time::timeout};
+
+/// Bounded queue depth for a subscription.
+const SUBSCRIBER_CAPACITY: usize = 256;
+
+/// A message received from a pub/sub channel.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct RedisMessage {
+    pub channel: String,
+    pub payload: Vec<u8>,
+}
+
+/// Redis-backed ephemeral coordination.
+///
+/// The command path uses a multiplexed, auto-reconnecting [`ConnectionManager`];
+/// pub/sub uses a dedicated connection and forwards messages through a bounded
+/// queue.
+#[derive(Clone)]
+pub struct RedisCoordination {
+    url: String,
+    manager: ConnectionManager,
+    keys: Keys,
+    command_timeout: Duration,
+    metrics: RedisMetrics,
+}
+
+impl RedisCoordination {
+    pub async fn connect(
+        settings: &RedisConnectionSettings,
+        metrics: RedisMetrics,
+    ) -> Result<Self, RedisError> {
+        let client = redis::Client::open(settings.url.as_str())?;
+        let manager = timeout(settings.connect_timeout, client.get_connection_manager())
+            .await
+            .map_err(|_| RedisError::Unavailable("connect timed out".to_owned()))??;
+        Ok(Self {
+            url: settings.url.clone(),
+            manager,
+            keys: Keys::new(settings.key_prefix.clone()),
+            command_timeout: settings.command_timeout,
+            metrics,
+        })
+    }
+
+    /// Namespaced key and channel builders.
+    #[must_use]
+    pub fn keys(&self) -> &Keys {
+        &self.keys
+    }
+
+    /// Liveness probe for readiness reporting.
+    pub async fn ping(&self) -> Result<(), RedisError> {
+        let mut connection = self.manager.clone();
+        let result = timeout(
+            self.command_timeout,
+            redis::cmd("PING").query_async::<String>(&mut connection),
+        )
+        .await;
+        self.finish(result).map(|_| ())
+    }
+
+    /// Subscribe to a channel. Messages arrive on a bounded queue; a slow
+    /// consumer stops the forwarder rather than growing without limit.
+    pub async fn subscribe(
+        &self,
+        channel: &str,
+    ) -> Result<mpsc::Receiver<RedisMessage>, RedisError> {
+        let client = redis::Client::open(self.url.as_str())?;
+        let mut pubsub = client.get_async_pubsub().await?;
+        pubsub.subscribe(channel).await?;
+
+        let (sender, receiver) = mpsc::channel(SUBSCRIBER_CAPACITY);
+        let metrics = self.metrics.clone();
+        tokio::spawn(async move {
+            let mut stream = pubsub.on_message();
+            while let Some(message) = stream.next().await {
+                metrics.message_received();
+                let received = RedisMessage {
+                    channel: message.get_channel_name().to_owned(),
+                    payload: message.get_payload_bytes().to_vec(),
+                };
+                if sender.send(received).await.is_err() {
+                    break;
+                }
+            }
+        });
+        Ok(receiver)
+    }
+
+    fn finish<T>(
+        &self,
+        result: Result<Result<T, redis::RedisError>, tokio::time::error::Elapsed>,
+    ) -> Result<T, RedisError> {
+        match result {
+            Ok(Ok(value)) => {
+                self.metrics.command_ok();
+                Ok(value)
+            }
+            Ok(Err(error)) => {
+                self.metrics.command_error();
+                Err(RedisError::from(error))
+            }
+            Err(_) => {
+                self.metrics.command_error();
+                Err(RedisError::Unavailable("command timed out".to_owned()))
+            }
+        }
+    }
+}
+
+impl CoordinationStore for RedisCoordination {
+    async fn set_with_ttl(
+        &self,
+        key: &str,
+        value: &[u8],
+        ttl: Duration,
+    ) -> Result<(), CoordinationError> {
+        let mut connection = self.manager.clone();
+        let milliseconds = u64::try_from(ttl.as_millis()).unwrap_or(u64::MAX);
+        let result = timeout(
+            self.command_timeout,
+            redis::cmd("SET")
+                .arg(key)
+                .arg(value)
+                .arg("PX")
+                .arg(milliseconds)
+                .query_async::<String>(&mut connection),
+        )
+        .await;
+        self.finish(result)
+            .map(|_| ())
+            .map_err(CoordinationError::from)
+    }
+
+    async fn get(&self, key: &str) -> Result<Option<Vec<u8>>, CoordinationError> {
+        let mut connection = self.manager.clone();
+        let result = timeout(
+            self.command_timeout,
+            redis::cmd("GET")
+                .arg(key)
+                .query_async::<Option<Vec<u8>>>(&mut connection),
+        )
+        .await;
+        self.finish(result).map_err(CoordinationError::from)
+    }
+
+    async fn delete(&self, key: &str) -> Result<(), CoordinationError> {
+        let mut connection = self.manager.clone();
+        let result = timeout(
+            self.command_timeout,
+            redis::cmd("DEL")
+                .arg(key)
+                .query_async::<i64>(&mut connection),
+        )
+        .await;
+        self.finish(result)
+            .map(|_| ())
+            .map_err(CoordinationError::from)
+    }
+
+    async fn publish(&self, channel: &str, payload: &[u8]) -> Result<(), CoordinationError> {
+        let mut connection = self.manager.clone();
+        let result = timeout(
+            self.command_timeout,
+            redis::cmd("PUBLISH")
+                .arg(channel)
+                .arg(payload)
+                .query_async::<i64>(&mut connection),
+        )
+        .await;
+        let outcome = self.finish(result);
+        if outcome.is_ok() {
+            self.metrics.message_published();
+        }
+        outcome.map(|_| ()).map_err(CoordinationError::from)
+    }
+}
