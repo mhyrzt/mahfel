@@ -5,7 +5,7 @@ status: Done
 assignee:
   - '@codex'
 created_date: '2026-09-08 00:30'
-updated_date: '2026-09-15 02:52'
+updated_date: '2026-09-19 12:07'
 labels: []
 milestone: m-1
 dependencies: []
@@ -41,6 +41,16 @@ Dependencies: M0
 <!-- SECTION:NOTES:BEGIN -->
 Implemented typed bounded SQLx pool settings, embedded forward migrations, explicit API migrate mode, opt-in local migrate-on-start, PostgreSQL readiness probing, and low-cardinality pool/probe metrics. Added a disposable-database integration test and just test-database workflow. Validation: focused check/clippy/tests passed; live migration was idempotent across two runs; schema and one migration ledger entry verified; readiness changed 200 to 503 while PostgreSQL was unavailable while liveness stayed 200, then recovered; docker validation target passed exact fmt/check/clippy/test workspace gates; production API image and migration command passed; MkDocs strict and docker compose config passed.
 <!-- SECTION:NOTES:END -->
+
+## Comments
+
+<!-- COMMENTS:BEGIN -->
+author: @mahyar
+created: 2026-09-19 12:07
+---
+Regression found and fixed during M1-07 work: with DB role 'mahfel' and schema 'mahfel', the default search_path "$user", public made unqualified _sqlx_migrations resolve to public before migration 0001 created the schema and to mahfel afterwards. Migration bookkeeping split across two tables and a second migrate failed with 'relation users already exists'. Fix: mahfel-postgres::connect pins search_path=public; the integration test now asserts migrate is idempotent and only one tracking table exists.
+---
+<!-- COMMENTS:END -->
 
 ## Final Summary
 
