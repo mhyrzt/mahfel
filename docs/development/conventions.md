@@ -59,3 +59,7 @@ share one contract:
   a strict-origin referrer policy, and a restrictive permissions policy.
 - **CORS.** The API allows only the configured browser origin and an explicit method/header set;
   unconfigured origins receive no `Access-Control-Allow-Origin`.
+- **Authorization.** Protected routes opt into the `Authenticated` extractor, which yields a
+  `Principal`; policy is then checked through the application `Authorizer` seam. Routes deny by
+  default — with no configured identity, protected endpoints return `401`. Do not expose a route
+  without a deliberate reason.

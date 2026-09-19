@@ -1,13 +1,15 @@
 use crate::{http, settings};
 use anyhow::{Context, Result};
 use axum::{Router, http::HeaderValue};
+use mahfel_application::ports::{AllowAuthenticated, Principal};
 use mahfel_config::Settings;
-use mahfel_domain::NodeId;
+use mahfel_domain::{NodeId, UserId};
 use mahfel_media_client::lazy as lazy_media_client;
 use mahfel_postgres::{PoolMetrics, connect, migrate, ping};
 use mahfel_telemetry::{HealthState, operations, serve_http, shutdown_signal, spawn_probe};
-use std::{net::SocketAddr, time::Duration};
+use std::{net::SocketAddr, sync::Arc, time::Duration};
 use tokio::{net::TcpListener, sync::watch, task::JoinHandle};
+use uuid::Uuid;
 
 const SERVICE: &str = "mahfel-api";
 const POSTGRES_PROBE: &str = "postgresql";
@@ -39,8 +41,25 @@ pub(crate) async fn run(settings: Settings) -> Result<()> {
         .allowed_origin
         .parse::<HeaderValue>()
         .context("parse configured browser origin")?;
-    let app = http::api_router(SERVICE, env!("CARGO_PKG_VERSION"), node_id.to_string())
-        .layer(http::cors_layer(origin));
+    let principal = settings
+        .api
+        .development_principal_user_id
+        .as_deref()
+        .filter(|value| !value.trim().is_empty())
+        .map(|value| {
+            value.parse::<Uuid>().map(|id| Principal {
+                user_id: UserId::from_uuid(id),
+            })
+        })
+        .transpose()
+        .context("parse development principal user id")?;
+    let state = http::AppState {
+        service: SERVICE,
+        version: env!("CARGO_PKG_VERSION"),
+        node_id: node_id.to_string(),
+        auth: http::auth::AuthState::new(principal, Arc::new(AllowAuthenticated)),
+    };
+    let app = http::api_router(state).layer(http::cors_layer(origin));
 
     let app_address = settings.api.http_bind.parse::<SocketAddr>()?;
     let operations_address = settings.api.operations_bind.parse::<SocketAddr>()?;

@@ -106,6 +106,16 @@ impl ApiError {
     }
 
     #[must_use]
+    pub fn unauthorized(message: impl Into<String>) -> Self {
+        Self::new(ErrorCode::Unauthorized, message)
+    }
+
+    #[must_use]
+    pub fn forbidden(message: impl Into<String>) -> Self {
+        Self::new(ErrorCode::Forbidden, message)
+    }
+
+    #[must_use]
     pub fn internal(message: impl Into<String>) -> Self {
         Self::new(ErrorCode::Internal, message)
     }

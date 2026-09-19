@@ -1,13 +1,48 @@
-use super::{api_router, cors_layer};
+use super::{AppState, api_router, auth::AuthState, cors_layer};
 use axum::{
     Router,
     body::Body,
     http::{HeaderValue, Method, Request, StatusCode, header},
 };
+use mahfel_application::ports::{
+    Action, AllowAuthenticated, AuthorizationError, Authorizer, Principal,
+};
+use mahfel_domain::UserId;
+use std::sync::Arc;
 use tower::ServiceExt;
+use uuid::Uuid;
+
+fn state(principal: Option<Principal>, authorizer: Arc<dyn Authorizer>) -> AppState {
+    AppState {
+        service: "mahfel-api-test",
+        version: "0.1.0",
+        node_id: "node-test".to_owned(),
+        auth: AuthState::new(principal, authorizer),
+    }
+}
+
+fn principal() -> Principal {
+    Principal {
+        user_id: UserId::from_uuid(
+            Uuid::parse_str("00000000-0000-0000-0000-000000000009").expect("valid uuid"),
+        ),
+    }
+}
 
 fn app() -> Router {
-    api_router("mahfel-api-test", "0.1.0", "node-test".to_owned())
+    api_router(state(None, Arc::new(AllowAuthenticated)))
+}
+
+fn authenticated_app() -> Router {
+    api_router(state(Some(principal()), Arc::new(AllowAuthenticated)))
+}
+
+struct DenyAll;
+
+impl Authorizer for DenyAll {
+    fn authorize(&self, _principal: &Principal, _action: Action) -> Result<(), AuthorizationError> {
+        Err(AuthorizationError::Denied)
+    }
 }
 
 async fn response_body_string(resp: axum::response::Response) -> String {
@@ -175,10 +210,53 @@ async fn unversioned_unknown_route_returns_404_envelope() {
 }
 
 #[tokio::test]
+async fn identity_requires_authentication() {
+    let req = Request::builder()
+        .uri("/v1/me")
+        .body(Body::empty())
+        .expect("request");
+    let resp = app().oneshot(req).await.expect("response");
+
+    assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
+    assert!(resp.headers().contains_key("x-request-id"));
+    let json = response_json(resp).await;
+    assert_eq!(error_code(&json), Some("unauthorized"));
+}
+
+#[tokio::test]
+async fn identity_returns_the_authenticated_principal() {
+    let req = Request::builder()
+        .uri("/v1/me")
+        .body(Body::empty())
+        .expect("request");
+    let resp = authenticated_app().oneshot(req).await.expect("response");
+
+    assert_eq!(resp.status(), StatusCode::OK);
+    let json = response_json(resp).await;
+    assert_eq!(
+        json.get("user_id").and_then(|v| v.as_str()),
+        Some("00000000-0000-0000-0000-000000000009")
+    );
+}
+
+#[tokio::test]
+async fn identity_is_denied_when_policy_denies() {
+    let app = api_router(state(Some(principal()), Arc::new(DenyAll)));
+    let req = Request::builder()
+        .uri("/v1/me")
+        .body(Body::empty())
+        .expect("request");
+    let resp = app.oneshot(req).await.expect("response");
+
+    assert_eq!(resp.status(), StatusCode::FORBIDDEN);
+    let json = response_json(resp).await;
+    assert_eq!(error_code(&json), Some("forbidden"));
+}
+
+#[tokio::test]
 async fn cors_preflight_allows_configured_origin_and_exposes_request_id() {
     let origin = HeaderValue::from_static("http://localhost:3000");
-    let app =
-        api_router("mahfel-api-test", "0.1.0", "node-test".to_owned()).layer(cors_layer(origin));
+    let app = api_router(state(None, Arc::new(AllowAuthenticated))).layer(cors_layer(origin));
 
     let req = Request::builder()
         .uri("/v1/status")

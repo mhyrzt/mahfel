@@ -2,6 +2,7 @@ use super::super::{
     error::ApiError,
     extractor::{ValidatedJson, ValidatedPagination},
     pagination::Paginated,
+    state::AppState,
 };
 use axum::{Json, Router, routing::get};
 use serde::{Deserialize, Serialize};
@@ -15,7 +16,7 @@ pub struct EchoPayload {
 const PLACEHOLDERS: [&str; 4] = ["alpha", "beta", "gamma", "delta"];
 const MAX_MESSAGE_LEN: usize = 300;
 
-pub(super) fn route() -> Router {
+pub(super) fn route() -> Router<AppState> {
     Router::new().route("/echo", get(list).post(create))
 }
 

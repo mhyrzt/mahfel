@@ -28,6 +28,10 @@ pub struct ApiSettings {
     pub operations_bind: String,
     pub media_grpc_url: String,
     pub allowed_origin: String,
+    /// Local-only development principal. When unset, the API has no
+    /// authenticated identity and requests requiring one are denied.
+    #[serde(default)]
+    pub development_principal_user_id: Option<String>,
 }
 
 #[derive(Clone, Debug, Deserialize)]
