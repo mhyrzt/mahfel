@@ -1,0 +1,159 @@
+{
+  "realm": "rastai",
+  "enabled": true,
+  "displayName": "Rastai",
+  "sslRequired": "external",
+  "registrationAllowed": false,
+  "loginWithEmailAllowed": true,
+  "duplicateEmailsAllowed": false,
+  "resetPasswordAllowed": false,
+  "editUsernameAllowed": false,
+  "accessTokenLifespan": 300,
+  "ssoSessionIdleTimeout": 1800,
+  "ssoSessionMaxLifespan": 36000,
+  "roles": {
+    "realm": [
+      { "name": "admin", "description": "Mahfel administration" },
+      { "name": "teacher", "description": "Instructor capabilities" },
+      { "name": "student", "description": "Learner capabilities" },
+      { "name": "moderator", "description": "Moderation capabilities" }
+    ]
+  },
+  "clients": [
+    {
+      "clientId": "mahfel-api",
+      "name": "Mahfel API",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "bearerOnly": false,
+      "secret": "mahfel-dev-secret",
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "redirectUris": ["https://api.mahfel.localhost/v1/auth/oidc/callback"],
+      "webOrigins": ["https://api.mahfel.localhost"],
+      "defaultClientScopes": ["profile", "email", "roles"],
+      "attributes": {
+        "pkce.code.challenge.method": "S256"
+      }
+    },
+    {
+      "clientId": "mahfel-web",
+      "name": "Mahfel Web",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": true,
+      "bearerOnly": false,
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "redirectUris": ["https://mahfel.localhost/*", "http://127.0.0.1:3000/*"],
+      "webOrigins": ["https://mahfel.localhost", "http://127.0.0.1:3000"],
+      "defaultClientScopes": ["profile", "email", "roles"],
+      "attributes": {
+        "pkce.code.challenge.method": "S256"
+      }
+    },
+    {
+      "clientId": "mahfel-admin",
+      "name": "Mahfel API administration",
+      "description": "Client-credentials service account used by mahfel-api to manage the realm through the Admin API.",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "bearerOnly": false,
+      "secret": "mahfel-admin-dev-secret",
+      "standardFlowEnabled": false,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true,
+      "redirectUris": [],
+      "webOrigins": []
+    }
+  ],
+  "users": [
+    {
+      "id": "00000000-0000-4000-8000-000000000001",
+      "username": "shinji",
+      "enabled": true,
+      "email": "shinji.ikari@mahfel.local",
+      "emailVerified": true,
+      "firstName": "Shinji",
+      "lastName": "Ikari",
+      "requiredActions": [],
+      "credentials": [{ "type": "password", "value": "password", "temporary": false }],
+      "realmRoles": ["student"]
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000002",
+      "username": "asuka",
+      "enabled": true,
+      "email": "asuka.langley@mahfel.local",
+      "emailVerified": true,
+      "firstName": "Asuka",
+      "lastName": "Langley",
+      "requiredActions": [],
+      "credentials": [{ "type": "password", "value": "password", "temporary": false }],
+      "realmRoles": ["student"]
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000003",
+      "username": "rei",
+      "enabled": true,
+      "email": "rei.ayanami@mahfel.local",
+      "emailVerified": true,
+      "firstName": "Rei",
+      "lastName": "Ayanami",
+      "requiredActions": [],
+      "credentials": [{ "type": "password", "value": "password", "temporary": false }],
+      "realmRoles": ["student"]
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000004",
+      "username": "misato",
+      "enabled": true,
+      "email": "misato.katsuragi@mahfel.local",
+      "emailVerified": true,
+      "firstName": "Misato",
+      "lastName": "Katsuragi",
+      "requiredActions": [],
+      "credentials": [{ "type": "password", "value": "password", "temporary": false }],
+      "realmRoles": ["teacher"]
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000005",
+      "username": "ritsuko",
+      "enabled": true,
+      "email": "ritsuko.akagi@mahfel.local",
+      "emailVerified": true,
+      "firstName": "Ritsuko",
+      "lastName": "Akagi",
+      "requiredActions": [],
+      "credentials": [{ "type": "password", "value": "password", "temporary": false }],
+      "realmRoles": ["moderator"]
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000006",
+      "username": "admin",
+      "enabled": true,
+      "email": "admin@mahfel.local",
+      "emailVerified": true,
+      "firstName": "Mahfel",
+      "lastName": "Admin",
+      "requiredActions": [],
+      "credentials": [{ "type": "password", "value": "password", "temporary": false }],
+      "realmRoles": ["admin"]
+    },
+    {
+      "username": "service-account-mahfel-admin",
+      "enabled": true,
+      "serviceAccountClientId": "mahfel-admin",
+      "clientRoles": {
+        "realm-management": ["manage-users", "view-users", "query-users", "view-realm"]
+      }
+    }
+  ]
+}

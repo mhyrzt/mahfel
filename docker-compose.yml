@@ -245,16 +245,32 @@ services:
         condition: service_healthy
     networks: [internal]
 
-  dex:
+  keycloak:
     profiles: [infrastructure]
-    image: ghcr.io/dexidp/dex:v2.41.1
+    image: quay.io/keycloak/keycloak:26.7.4
     restart: unless-stopped
-    command: ["dex", "serve", "/etc/dex/config.yaml"]
+    command:
+      - start-dev
+      - --import-realm
+      - --db=dev-mem
+      - --http-enabled=true
+      - --hostname=https://auth.mahfel.localhost
+      - --hostname-backchannel-dynamic=true
+      - --proxy-headers=xforwarded
+      - --health-enabled=true
     ports:
-      - "127.0.0.1:${MAHFEL_DEX_HOST_PORT:-5556}:5556"
+      - "127.0.0.1:${MAHFEL_KEYCLOAK_HOST_PORT:-8080}:8080"
     volumes:
-      - ./deploy/dex/config.yaml:/etc/dex/config.yaml:ro
-      - dex-data:/var/dex
+      - ./deploy/keycloak/rastai-realm.json:/opt/keycloak/data/import/rastai-realm.json:ro
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >-
+          exec 3<>/dev/tcp/127.0.0.1/9000 && printf 'GET /health/ready HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n' >&3 && grep -q '200 OK' <&3
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 60s
     networks: [edge, internal]
 
   coturn:
@@ -341,4 +357,3 @@ volumes:
   rabbitmq-data:
   rustfs-data:
   grafana-data:
-  dex-data:

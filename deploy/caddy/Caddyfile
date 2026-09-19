@@ -33,7 +33,7 @@ https://rabbitmq.mahfel.localhost {
 https://auth.mahfel.localhost {
 	tls internal
 	encode zstd gzip
-	reverse_proxy dex:5556
+	reverse_proxy keycloak:8080
 }
 
 https://caddy.mahfel.localhost {
