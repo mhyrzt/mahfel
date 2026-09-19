@@ -45,6 +45,11 @@ template appears in the generated document, so a new route cannot be silently un
 An interactive Bruno collection for manual and end-to-end requests is planned under `bruno/`
 (ADR 0016) and is not yet present; the directory holds a placeholder.
 
+Redis coordination tests run against a disposable instance: set `MAHFEL_TEST_REDIS_URL` to an
+isolated Redis, or `MAHFEL_TESTCONTAINERS=1` to start one. They cover TTL expiry, a pub/sub
+round-trip, and that an unreachable backend maps to an `Unavailable` coordination error. The
+outage test needs no server.
+
 RTC load and resilience testing is a dedicated M14 deliverable, not a unit-test substitute.
 
 Database integration tests use Testcontainers by default through `just backend test-database`. The harness

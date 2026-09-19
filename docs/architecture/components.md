@@ -64,7 +64,9 @@ listener.
 ## Infrastructure
 
 - PostgreSQL is durable truth and hosts SQLx migrations.
-- Redis provides ephemeral state and coordination; losing it must not destroy business data.
+- Redis provides ephemeral state and coordination through the `mahfel-redis` adapter (namespaced
+  keys with TTLs); cross-replica signalling uses fire-and-forget pub/sub (ADR 0017); losing it must
+  not destroy business data.
 - RabbitMQ provides confirms, acknowledgements, redelivery, retry/DLQ, and competing consumers.
 - S3-compatible storage holds files and media artifacts; RustFS implements the local interface.
 - coturn supplies STUN/TURN traversal.

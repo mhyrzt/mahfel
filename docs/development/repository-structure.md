@@ -12,6 +12,7 @@
 | `backend/crates/domain` | Shared durable domain types when genuinely cross-capability |
 | `backend/crates/application` | Use cases and outbound port contracts |
 | `backend/crates/postgres` | SQLx pool, migrations, and store adapters |
+| `backend/crates/redis` | Redis coordination adapter (namespaced keys/TTL, pub/sub) |
 | `backend/migrations` | Forward-only schema migrations |
 | `backend/seeds` | Explicit development seed fixtures, applied by `mahfel-api seed` |
 | `backend/crates/messaging` | RabbitMQ connection/publishing/consumption boundary |

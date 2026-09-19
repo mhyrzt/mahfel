@@ -30,7 +30,8 @@ flowchart LR
 
 Bootstrap exports process metrics and `mahfel_service_ready`, with constant `service` and `version`
 labels. The API additionally exports `mahfel_websocket_*` gauges and counters for active and
-accepted connections, cap rejections, disconnects by reason, messages, and send drops. Future media metrics cover active rooms, participants, workers, routers, transports,
+accepted connections, cap rejections, disconnects by reason, messages, and send drops, and
+`mahfel_redis_*` counters for command outcomes, pub/sub messages by direction, and probe failures. Future media metrics cover active rooms, participants, workers, routers, transports,
 producers, consumers, ingress/egress bytes and bitrate, packet loss, retransmissions, RTT, and
 available outgoing bitrate.
 

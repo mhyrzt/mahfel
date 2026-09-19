@@ -385,6 +385,11 @@ Every Redis key family should have explicit namespace and lifecycle semantics.
 
 Use TTLs where stale coordination state would otherwise remain indefinitely.
 
+Cross-replica ephemeral signalling uses Redis pub/sub, which is fire-and-forget with no replay
+(ADR 0017); subscribers must reconnect, tolerate gaps, and buffer through bounded queues. Durable
+delivery stays in PostgreSQL and RabbitMQ. Timeouts and connection failures classify as
+`Unavailable` so callers degrade instead of failing as internal errors.
+
 ## RabbitMQ
 
 RabbitMQ is a delivery mechanism, not business truth.
