@@ -4,6 +4,7 @@ use mahfel_application::ports::Principal;
 use mahfel_config::Settings;
 use mahfel_domain::UserId;
 use mahfel_postgres::{ConnectionSettings, PoolSettings};
+use mahfel_redis::RedisConnectionSettings;
 use std::time::Duration;
 use uuid::Uuid;
 
@@ -24,6 +25,16 @@ pub(crate) fn connection(settings: &Settings) -> ConnectionSettings {
         user: settings.database.user.clone(),
         password: settings.database.password.clone(),
         name: settings.database.name.clone(),
+    }
+}
+
+/// Ephemeral coordination backend settings.
+pub(crate) fn redis(settings: &Settings) -> RedisConnectionSettings {
+    RedisConnectionSettings {
+        url: settings.redis.url.clone(),
+        key_prefix: settings.redis.key_prefix.clone(),
+        connect_timeout: Duration::from_secs(settings.redis.connect_timeout_seconds),
+        command_timeout: Duration::from_secs(settings.redis.command_timeout_seconds),
     }
 }
 

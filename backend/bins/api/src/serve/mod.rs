@@ -5,6 +5,7 @@
 //! readiness/probes (`database`), transport composition (`http`), and lifecycle
 //! (`runtime`).
 
+mod coordination;
 mod database;
 mod http;
 mod runtime;
@@ -25,6 +26,7 @@ pub(crate) async fn run(settings: Settings) -> Result<()> {
     let _media =
         lazy_media_client(settings.api.media_grpc_url.clone()).context("configure media client")?;
     let database = database::Database::connect(&settings, &telemetry).await?;
+    let coordination = coordination::Coordination::connect(&settings, &telemetry).await?;
     let node_id = NodeId::new();
     let (shutdown_tx, shutdown_rx) = watch::channel(false);
     let app = http::app(
@@ -41,6 +43,7 @@ pub(crate) async fn run(settings: Settings) -> Result<()> {
         app,
         &telemetry,
         &database,
+        &coordination,
         (shutdown_tx, shutdown_rx),
     )
     .await?

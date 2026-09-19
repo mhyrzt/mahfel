@@ -33,6 +33,7 @@ services:
       MAHFEL_DATABASE__NAME: ${MAHFEL_POSTGRES_DB:-mahfel}
       MAHFEL_DATABASE__MIGRATE_ON_START: "true"
       MAHFEL_CONFIG_PROFILE: docker
+      MAHFEL_REDIS__URL: redis://redis:6379
       MAHFEL_API__MEDIA_GRPC_URL: http://mahfel-media:50051
       MAHFEL_API__ALLOWED_ORIGIN: https://mahfel.localhost
       MAHFEL_API__DEVELOPMENT_PRINCIPAL_USER_ID: ${MAHFEL_API__DEVELOPMENT_PRINCIPAL_USER_ID:-00000000-0000-0000-0000-000000000001}
@@ -42,6 +43,8 @@ services:
       - "127.0.0.1:9101:9101"
     depends_on:
       postgres:
+        condition: service_healthy
+      redis:
         condition: service_healthy
       mahfel-seed:
         condition: service_completed_successfully

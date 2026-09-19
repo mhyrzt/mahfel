@@ -1,4 +1,5 @@
 use super::{
+    coordination::{self, Coordination},
     database::{self, Database},
     telemetry::Telemetry,
 };
@@ -23,6 +24,7 @@ pub(super) struct Runtime {
     app_task: JoinHandle<std::io::Result<()>>,
     operations_task: JoinHandle<std::io::Result<()>>,
     probe_task: JoinHandle<()>,
+    redis_probe_task: JoinHandle<()>,
 }
 
 /// Bind listeners, start the probe, and hand back a runnable service.
@@ -32,6 +34,7 @@ pub(super) async fn start(
     app: Router,
     telemetry: &Telemetry,
     database: &Database,
+    coordination: &Coordination,
     shutdown: (watch::Sender<bool>, watch::Receiver<bool>),
 ) -> Result<Runtime> {
     let (shutdown_tx, shutdown_rx) = shutdown;
@@ -47,7 +50,8 @@ pub(super) async fn start(
     ));
     let operations_task =
         spawn_listener(operations_address, operations, shutdown_rx.clone()).await?;
-    let probe_task = database::spawn_probe(database, telemetry, shutdown_rx);
+    let probe_task = database::spawn_probe(database, telemetry, shutdown_rx.clone());
+    let redis_probe_task = coordination::spawn_probe(coordination, telemetry, shutdown_rx);
 
     Ok(Runtime {
         node_id,
@@ -59,6 +63,7 @@ pub(super) async fn start(
         app_task,
         operations_task,
         probe_task,
+        redis_probe_task,
     })
 }
 
@@ -84,6 +89,7 @@ impl Runtime {
             .await
             .context("join operations listener")??;
         self.probe_task.await.context("join PostgreSQL probe")?;
+        self.redis_probe_task.await.context("join Redis probe")?;
         self.pool.close().await;
         Ok(())
     }
