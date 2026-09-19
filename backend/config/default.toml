@@ -8,7 +8,7 @@ allowed_origin = "https://mahfel.localhost"
 issuer_url = "https://auth.mahfel.localhost/dex"
 client_id = "mahfel"
 client_secret = "mahfel-dev-secret"
-redirect_uri = "https://api.mahfel.localhost/api/v1/auth/oidc/callback"
+redirect_uri = "https://api.mahfel.localhost/v1/auth/oidc/callback"
 scopes = ["openid", "profile", "email", "groups"]
 
 [database]

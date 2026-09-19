@@ -51,7 +51,7 @@ Verify endpoints:
 
 ```bash
 curl https://mahfel.localhost/api/health
-curl https://api.mahfel.localhost/api/v1/status
+curl https://api.mahfel.localhost/v1/status
 curl http://localhost:9101/health/ready
 curl http://localhost:9102/health/ready
 curl http://localhost:9103/health/ready

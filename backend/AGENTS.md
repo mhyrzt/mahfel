@@ -160,8 +160,10 @@ Do not expose mediasoup or internal media-node implementation details through pu
 Public product APIs live under:
 
 ```text
-/api/v1
+/v1
 ```
+
+The API is served on its own host, so the version prefix is not nested under `/api`.
 
 Maintain stable, explicit request and response contracts.
 

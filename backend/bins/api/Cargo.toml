@@ -16,7 +16,10 @@ mahfel-media-client = { path = "../../crates/media-client" }
 mahfel-postgres = { path = "../../crates/postgres" }
 mahfel-telemetry = { path = "../../crates/telemetry" }
 serde.workspace = true
+serde_json.workspace = true
 sqlx.workspace = true
+thiserror.workspace = true
+tower.workspace = true
 tokio.workspace = true
 tower-http.workspace = true
 tracing.workspace = true

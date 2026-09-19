@@ -38,3 +38,24 @@
   dead-letter poison messages, and enforce idempotency.
 - Redis is never the sole home of durable user-visible data.
 - Logs are structured. Metrics use bounded labels. Request and trace IDs provide correlation.
+
+## HTTP contract
+
+Public product APIs live under `/v1` (the API has its own host, so `/api` is not repeated) and
+share one contract:
+
+- **Request IDs.** Every response carries `x-request-id`. A client-supplied value is propagated;
+  otherwise the API generates one. The header is exposed to browser JS via CORS and is the
+  correlation source for error reports.
+- **Error envelope.** Errors render as `{"error":{"code","message","details?"}}`. Codes are stable,
+  lower-snake-case strings such as `invalid_input`, `unprocessable_entity`, `not_found`,
+  `unauthorized`, `forbidden`, `conflict`, and `internal_error`.
+- **Never 500 for bad input.** Malformed JSON and invalid query/body values map to `422`/`400` with
+  the envelope above. Validation and known domain failures must not surface as `500`.
+- **Pagination.** List endpoints accept optional `?page` (default `1`, minimum `1`) and `per_page`
+  (default `20`, maximum `100`). Responses use
+  `{"data":[...],"pagination":{"page","per_page","total?"}}`. Out-of-range values return `400`.
+- **Security headers.** Responses set `x-content-type-options: nosniff`, `x-frame-options: DENY`,
+  a strict-origin referrer policy, and a restrictive permissions policy.
+- **CORS.** The API allows only the configured browser origin and an explicit method/header set;
+  unconfigured origins receive no `Access-Control-Allow-Origin`.

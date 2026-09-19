@@ -1,31 +1,17 @@
+mod http;
+
 use anyhow::{Context, Result};
-use axum::{
-    Json, Router,
-    http::{HeaderName, HeaderValue},
-    routing::get,
-};
+use axum::{Router, http::HeaderValue};
+use http::{api_router, cors_layer};
 use mahfel_config::Settings;
 use mahfel_domain::NodeId;
 use mahfel_media_client::lazy as lazy_media_client;
 use mahfel_postgres::{ConnectionSettings, PoolMetrics, PoolSettings, connect, migrate, ping};
 use mahfel_telemetry::{HealthState, init_tracing, operations, shutdown_signal};
-use serde::Serialize;
 use std::{ffi::OsStr, net::SocketAddr, time::Duration};
 use tokio::{sync::watch, task::JoinHandle};
-use tower_http::{
-    cors::{Any, CorsLayer},
-    request_id::{MakeRequestUuid, PropagateRequestIdLayer, SetRequestIdLayer},
-    trace::TraceLayer,
-};
 
 const SERVICE: &str = "mahfel-api";
-
-#[derive(Serialize)]
-struct StatusResponse {
-    service: &'static str,
-    version: &'static str,
-    node_id: NodeId,
-}
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum Command {
@@ -75,28 +61,8 @@ async fn main() -> Result<()> {
         .allowed_origin
         .parse::<HeaderValue>()
         .context("parse configured browser origin")?;
-    let response_node_id = node_id.clone();
-    let request_id_header = HeaderName::from_static("x-request-id");
-    let app = Router::new()
-        .route(
-            "/api/v1/status",
-            get(move || async move {
-                Json(StatusResponse {
-                    service: SERVICE,
-                    version: env!("CARGO_PKG_VERSION"),
-                    node_id: response_node_id,
-                })
-            }),
-        )
-        .layer(
-            CorsLayer::new()
-                .allow_origin(origin)
-                .allow_methods(Any)
-                .allow_headers(Any),
-        )
-        .layer(PropagateRequestIdLayer::new(request_id_header.clone()))
-        .layer(TraceLayer::new_for_http())
-        .layer(SetRequestIdLayer::new(request_id_header, MakeRequestUuid));
+    let app = api_router(SERVICE, env!("CARGO_PKG_VERSION"), node_id.to_string())
+        .layer(cors_layer(origin));
 
     let app_address = settings.api.http_bind.parse::<SocketAddr>()?;
     let operations_address = settings.api.operations_bind.parse::<SocketAddr>()?;
