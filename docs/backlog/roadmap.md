@@ -5,7 +5,7 @@ Backlog.md holds the executable task records. Dependencies name roadmap IDs or m
 Capacity and product assumptions must be validated rather than treated as promises.
 
 Backlog task mapping: M0-01–M0-08 are `TASK-1.1`–`TASK-1.8`; M1-01–M1-07 are
-`TASK-2`–`TASK-8`; M2 is `TASK-9`–`TASK-16`; M3 is `TASK-17`–`TASK-25`; M4 is
+`TASK-2`–`TASK-8`; M2 is `TASK-9`–`TASK-16` plus `TASK-114` (M2-09); M3 is `TASK-17`–`TASK-25`; M4 is
 `TASK-26`–`TASK-31`; M5 is `TASK-32`–`TASK-37`; M6 is `TASK-38`–`TASK-43`; M7 is
 `TASK-44`–`TASK-49`; M8 is `TASK-50`–`TASK-55`; M9 is `TASK-56`–`TASK-61`; M10 is
 `TASK-62`–`TASK-67`; M11 is `TASK-68`–`TASK-73`; M12 is `TASK-74`–`TASK-78`; M13 is
@@ -59,6 +59,7 @@ WebSocket, and room state persists through PostgreSQL restart.
 | M2-06 Identity linking | Existing users need safe account association across providers. | Explicit linking ceremony, verified-email policy, collision handling, unlink safeguards and audit events. | M2-03, M2-04 | Same user owns multiple identities; implicit unverified-email linking is impossible; tests cover conflict. |
 | M2-07 RBAC and classroom roles | Authentication alone does not enforce classroom actions. | Global admin plus teacher/student/moderator role model, policy checks, audit context, role assignment constraints. | M1-07, M2-03 | Route/service tests prove deny-by-default and role-specific allow/deny matrix. |
 | M2-08 Avatar resolution | OIDC avatar URLs and custom uploads need one safe response strategy. | Claim URL validation/proxy decision, custom avatar object metadata, precedence/fallback and cache policy. | M2-04, M6 design input | Strategy documented; unsafe schemes rejected; endpoint contract tested. |
+| M2-09 Service principals | External systems such as lms-core need to own and manage rooms without impersonating a user. | Machine actor distinct from users, service-authentication mechanism, provisioning/rotation/revocation, room ownership and management by a service, ADR. | M2-01, M2-03, M2-07 | Service principal acts as owner/manager without a user row; revocation enforced; matrix tests deny by default. |
 
 **Milestone done:** local and Keycloak login work, multiple identities map to one Mahfel user, and
 classroom role enforcement is integration-tested.

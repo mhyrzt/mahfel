@@ -138,6 +138,70 @@ They should not accumulate core business rules.
 
 If significant business logic appears in `bins/*/main.rs`, move it into the appropriate library boundary.
 
+## Code Organization
+
+Organize by domain concept, not by technical layer. A module should have one reason to change: an
+aggregate, a use case, an adapter, or a transport resource.
+
+### Files and modules
+
+- One concept per file. Split a file once it holds independent, named responsibilities. Do not split
+  a small module across a `mod.rs` and one or two trivial files.
+- `lib.rs` and `mod.rs` are declarations and re-exports. They define a module's public surface; they
+  do not hold business logic.
+- Keep public paths stable across refactors: define items in focused private modules and re-export
+  them (`pub use room::{Room, RoomId, RoomRole};`).
+- Visibility follows need: private by default, `pub(super)` for the parent module, `pub(crate)` for
+  crate-wide helpers, `pub` only for the intended surface.
+- Organize larger crates into folders by aggregate or responsibility, for example:
+
+```text
+crates/postgres/src/
+  lib.rs            declarations + re-exports
+  error.rs          DatabaseError
+  settings.rs       pool/connection settings
+  metrics.rs        pool metrics
+  pool.rs           connect, ping
+  migrations.rs     migrator
+  stores/           one file per aggregate
+```
+
+- Keep unit tests next to their subject in a `#[cfg(test)] mod tests`. Integration tests live in
+  `tests/`.
+
+### Imports and paths
+
+- Inside a crate, reference shared modules with absolute `crate::...` paths. Avoid
+  `super::super::super`; keep `super::` for a short, obvious sibling hop.
+- Group imports by origin: standard library, external crates, then `crate`/`super`.
+
+### Macros
+
+- Prefer `macro_rules!` over a new dependency or a proc-macro crate.
+- Keep crate-internal macros private: declare the `macro_rules!`, then `pub(crate) use name;`.
+- Fully qualify paths inside an expansion (`$crate::...`, `::serde::Serialize`) so invocation sites
+  need no extra imports.
+- Put a shared macro in the module that owns its purpose, not in one of its users. A definition macro
+  such as `entity_id!` is invoked next to the entity it defines.
+
+### Generics and trait objects
+
+- Application ports return `impl Future`, so they are not dyn-compatible. Bind the composition
+  surface with a generic parameter (`AppState<R: RoomStoreState>`) instead of boxing futures.
+- Prefer a small bound trait (a trait alias) over repeating long `where` clauses at every call site.
+
+### Duplication
+
+- Extract a helper when the same logic appears with only a value differing (text validation, adapter
+  error mapping). Do not extract a helper for a single use.
+
+### Refactoring
+
+- Refactor for one reason at a time and keep behavior unchanged.
+- Preserve the public API: move definitions, re-export, and leave callers untouched.
+- Update tests alongside the move; a refactor is done when the same checks pass.
+- Remove superseded code in the same change rather than leaving parallel implementations.
+
 ## `mahfel-api`
 
 `mahfel-api` is the authoritative control plane.
@@ -382,6 +446,18 @@ Unavailable
 over forcing callers to inspect error strings.
 
 Avoid stringly typed control flow.
+
+### Classification and transport mapping
+
+- Application errors classify themselves: implement `ApplicationError` with a semantic `ErrorKind`
+  (`NotFound`, `Forbidden`, `Conflict`, `Unprocessable`, `Internal`, …). The classification is
+  transport-agnostic.
+- Transports map the kind once, for example `ApiError::from_application(kind, message)`.
+  `Internal` must never expose the underlying message to a client.
+- Convert application errors into the transport error with `From` so handlers use bare `?`. Generate
+  those impls with the shared `api_error_from!` macro. A blanket
+  `impl<T: ApplicationError> From<T> for ApiError` is rejected by coherence.
+- Keep HTTP status codes in the transport layer, never in the application layer.
 
 ## Async Rust
 

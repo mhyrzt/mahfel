@@ -25,9 +25,11 @@ federation layer.
 
 The first control-plane persistence boundary is intentionally small: users, rooms, and classroom
 sessions have UUID identifiers, explicit lifecycle statuses, and UTC timestamps in PostgreSQL.
-Domain types remain independent of SQLx; repository adapters in `mahfel-database` own SQL mapping.
-Authentication identities, memberships, permissions, and attendance are separate later
-milestones and are not implied by these foundational records.
+A room is a durable container with `public` or `invite_only` visibility and room-scoped memberships
+whose roles are `manager` and `member`. A room's identity is its id alone, so titles need not be
+unique. Domain types remain independent of SQLx; the `mahfel-postgres` adapters (`Postgres*Store`)
+implement the application ports and own SQL mapping. Authentication identities, permissions,
+attendance, and chat remain separate later milestones.
 
 ## `mahfel-media`
 
