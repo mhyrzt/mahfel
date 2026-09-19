@@ -1,6 +1,6 @@
 use crate::ids::entity_id;
 use crate::status::status_conversion;
-use crate::validation::{DisplayName, ValidationError};
+use crate::validation::{AvatarUrl, DisplayName, ValidationError};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use time::OffsetDateTime;
@@ -29,6 +29,7 @@ pub struct User {
     pub id: UserId,
     pub display_name: DisplayName,
     pub status: UserStatus,
+    pub avatar_url: Option<AvatarUrl>,
     pub created_at: OffsetDateTime,
     pub updated_at: OffsetDateTime,
 }
@@ -40,6 +41,7 @@ impl User {
             id: UserId::new(),
             display_name,
             status: UserStatus::Active,
+            avatar_url: None,
             created_at: now,
             updated_at: now,
         }
@@ -47,6 +49,13 @@ impl User {
 
     pub fn rename(&mut self, display_name: DisplayName, now: OffsetDateTime) {
         self.display_name = display_name;
+        self.updated_at = now;
+    }
+
+    /// Set or clear the user's own avatar (an S3 link). Provider avatars live
+    /// on the identity and are resolved separately.
+    pub fn set_avatar_url(&mut self, avatar_url: Option<AvatarUrl>, now: OffsetDateTime) {
+        self.avatar_url = avatar_url;
         self.updated_at = now;
     }
 

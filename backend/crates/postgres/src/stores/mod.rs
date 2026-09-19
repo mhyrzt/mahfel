@@ -1,7 +1,9 @@
+mod identity;
 mod room;
 mod session;
 mod user;
 
+pub use identity::PostgresIdentityStore;
 pub use room::PostgresRoomStore;
 pub use session::PostgresSessionStore;
 pub use user::PostgresUserStore;
@@ -18,6 +20,7 @@ use sqlx::PgPool;
 /// clone.
 pub struct PostgresStores {
     pub users: PostgresUserStore,
+    pub identities: PostgresIdentityStore,
     pub rooms: PostgresRoomStore,
     pub sessions: PostgresSessionStore,
 }
@@ -27,6 +30,7 @@ impl PostgresStores {
     pub fn new(pool: PgPool) -> Self {
         Self {
             users: PostgresUserStore::new(pool.clone()),
+            identities: PostgresIdentityStore::new(pool.clone()),
             rooms: PostgresRoomStore::new(pool.clone()),
             sessions: PostgresSessionStore::new(pool),
         }

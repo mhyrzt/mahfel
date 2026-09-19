@@ -1,7 +1,7 @@
 use crate::DatabaseError;
 use crate::stores::store_error;
 use mahfel_application::ports::{StoreError, UserStore};
-use mahfel_domain::{DisplayName, User, UserId};
+use mahfel_domain::{AvatarUrl, DisplayName, User, UserId};
 use sqlx::{FromRow, PgPool};
 use time::OffsetDateTime;
 use uuid::Uuid;
@@ -19,18 +19,19 @@ impl PostgresUserStore {
 }
 
 #[derive(FromRow)]
-struct UserRow {
+pub(crate) struct UserRow {
     id: Uuid,
     display_name: String,
     status: String,
     created_at: OffsetDateTime,
     updated_at: OffsetDateTime,
+    avatar_url: Option<String>,
 }
 
 impl UserStore for PostgresUserStore {
     async fn get(&self, id: UserId) -> Result<Option<User>, StoreError> {
         let row = sqlx::query_as::<_, UserRow>(
-            "SELECT id, display_name, status, created_at, updated_at \
+            "SELECT id, display_name, status, created_at, updated_at, avatar_url \
              FROM mahfel.users WHERE id = $1",
         )
         .bind(id.as_uuid())
@@ -44,13 +45,14 @@ impl UserStore for PostgresUserStore {
 
     async fn insert(&self, user: &User) -> Result<(), StoreError> {
         sqlx::query(
-            "INSERT INTO mahfel.users (id, display_name, status, created_at, updated_at) \
-             VALUES ($1, $2, $3, $4, $4)",
+            "INSERT INTO mahfel.users (id, display_name, status, created_at, updated_at, avatar_url) \
+             VALUES ($1, $2, $3, $4, $4, $5)",
         )
         .bind(user.id.as_uuid())
         .bind(user.display_name.as_str())
         .bind(user.status.as_str())
         .bind(user.created_at)
+        .bind(user.avatar_url.as_ref().map(AvatarUrl::as_str))
         .execute(&self.pool)
         .await
         .map_err(store_error)?;
@@ -60,13 +62,14 @@ impl UserStore for PostgresUserStore {
     async fn save(&self, user: &User) -> Result<(), StoreError> {
         let result = sqlx::query(
             "UPDATE mahfel.users \
-             SET display_name = $2, status = $3, updated_at = $4 \
+             SET display_name = $2, status = $3, updated_at = $4, avatar_url = $5 \
              WHERE id = $1",
         )
         .bind(user.id.as_uuid())
         .bind(user.display_name.as_str())
         .bind(user.status.as_str())
         .bind(user.updated_at)
+        .bind(user.avatar_url.as_ref().map(AvatarUrl::as_str))
         .execute(&self.pool)
         .await
         .map_err(store_error)?;
@@ -82,11 +85,19 @@ impl TryFrom<UserRow> for User {
     type Error = DatabaseError;
 
     fn try_from(row: UserRow) -> Result<Self, Self::Error> {
+        let avatar_url = row
+            .avatar_url
+            .map(|value| {
+                AvatarUrl::new(value)
+                    .map_err(|_| DatabaseError::InvalidStoredValue("invalid avatar url"))
+            })
+            .transpose()?;
         Ok(Self {
             id: UserId::from_uuid(row.id),
             display_name: DisplayName::new(row.display_name.clone())
                 .map_err(|_| DatabaseError::InvalidStoredValue("invalid display name"))?,
             status: row.status.as_str().try_into()?,
+            avatar_url,
             created_at: row.created_at,
             updated_at: row.updated_at,
         })

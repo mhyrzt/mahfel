@@ -5,6 +5,7 @@
 //! crate root (`mahfel_domain::User`, `mahfel_domain::Room`, …) and organized
 //! into modules by aggregate.
 
+mod identity;
 mod ids;
 mod room;
 mod session;
@@ -12,6 +13,7 @@ mod status;
 mod user;
 mod validation;
 
+pub use identity::{Identity, IdentityId};
 pub use ids::NodeId;
 pub use room::{
     MembershipError, Room, RoomError, RoomId, RoomMember, RoomRole, RoomStatus, RoomVisibility,
@@ -21,5 +23,7 @@ pub use session::{ClassroomSession, ClassroomSessionId, SessionError, SessionSta
 pub use status::InvalidStatus;
 pub use user::{User, UserError, UserId, UserStatus};
 pub use validation::{
-    DisplayName, MAX_DISPLAY_NAME_LEN, MAX_ROOM_TITLE_LEN, RoomTitle, ValidationError,
+    AvatarUrl, DisplayName, EmailAddress, Issuer, MAX_AVATAR_URL_LEN, MAX_DISPLAY_NAME_LEN,
+    MAX_EMAIL_LEN, MAX_ISSUER_LEN, MAX_ROOM_TITLE_LEN, MAX_SUBJECT_LEN, RoomTitle, Subject,
+    ValidationError,
 };

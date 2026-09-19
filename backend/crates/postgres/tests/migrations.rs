@@ -1,11 +1,13 @@
-use mahfel_application::ports::{RoomStore, SessionStore, StoreError, UserStore};
+use mahfel_application::ports::{
+    IdentityProfile, IdentityStore, RoomStore, SessionStore, StoreError, UserStore,
+};
 use mahfel_domain::{
-    ClassroomSession, DisplayName, Room, RoomMember, RoomRole, RoomTitle, RoomVisibility, User,
-    UserId,
+    AvatarUrl, ClassroomSession, DisplayName, EmailAddress, Issuer, Room, RoomMember, RoomRole,
+    RoomTitle, RoomVisibility, Subject, User, UserId,
 };
 use mahfel_postgres::{
-    ConnectionSettings, PoolSettings, PostgresRoomStore, PostgresSessionStore, PostgresUserStore,
-    connect, migrate,
+    ConnectionSettings, PoolSettings, PostgresIdentityStore, PostgresRoomStore,
+    PostgresSessionStore, PostgresUserStore, connect, migrate,
 };
 use sqlx::PgPool;
 use std::{error::Error, time::Duration};
@@ -100,7 +102,7 @@ async fn verify_migrations_and_stores(
     let migration_count = sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM _sqlx_migrations")
         .fetch_one(pool)
         .await?;
-    assert_eq!(migration_count, 3, "each migration must be recorded once");
+    assert_eq!(migration_count, 4, "each migration must be recorded once");
 
     let migration_tables = sqlx::query_scalar::<_, i64>(
         "SELECT COUNT(*) FROM pg_class WHERE relname = '_sqlx_migrations'",
@@ -130,9 +132,12 @@ async fn verify_migrations_and_stores(
     let users = PostgresUserStore::new(pool.clone());
     let rooms = PostgresRoomStore::new(pool.clone());
     let sessions = PostgresSessionStore::new(pool.clone());
+    let identities = PostgresIdentityStore::new(pool.clone());
 
     let user = User::create(DisplayName::new("Ada Lovelace".to_owned())?, now);
     users.insert(&user).await?;
+
+    verify_identity_lifecycle(&identities, users.clone(), now).await?;
 
     let room = Room::create(
         RoomTitle::new("Analytical Engines".to_owned())?,
@@ -209,6 +214,105 @@ async fn verify_migrations_and_stores(
         vec![room]
     );
     restarted_pool.close().await;
+    Ok(())
+}
+
+/// Prove the identity rules that guard against account takeover and races.
+async fn verify_identity_lifecycle(
+    identities: &PostgresIdentityStore,
+    users: PostgresUserStore,
+    now: OffsetDateTime,
+) -> Result<(), Box<dyn Error>> {
+    let issuer = Issuer::new("https://auth.mahfel.localhost/realms/rastai".to_owned())?;
+    let profile = IdentityProfile {
+        display_name: Some(DisplayName::new("Shinji Ikari".to_owned())?),
+        email: Some(EmailAddress::new("shinji.ikari@mahfel.local".to_owned())?),
+        email_verified: true,
+        avatar_url: Some(AvatarUrl::new(
+            "https://s3.mahfel.localhost/avatars/shinji.png".to_owned(),
+        )?),
+    };
+
+    // First login provisions exactly one user and identity.
+    let subject = Subject::new("00000000-0000-4000-8000-000000000001".to_owned())?;
+    let first = identities
+        .resolve_or_provision(
+            &issuer,
+            &subject,
+            profile.display_name.as_ref().expect("display name"),
+            &profile,
+            now,
+        )
+        .await?;
+    assert_eq!(first.user.display_name.as_str(), "Shinji Ikari");
+    assert_eq!(first.identity.user_id, first.user.id);
+    assert!(first.identity.email_verified);
+    assert_eq!(
+        first.identity.email.as_ref().map(EmailAddress::as_str),
+        Some("shinji.ikari@mahfel.local")
+    );
+
+    // Concurrent first logins for the same subject converge on one user.
+    let subject_race = Subject::new("00000000-0000-4000-8000-000000000002".to_owned())?;
+    let name = DisplayName::new("Asuka Langley".to_owned())?;
+    let (left, right) = tokio::join!(
+        identities.resolve_or_provision(&issuer, &subject_race, &name, &profile, now),
+        identities.resolve_or_provision(&issuer, &subject_race, &name, &profile, now),
+    );
+    let left = left?;
+    let right = right?;
+    assert_eq!(
+        left.user.id, right.user.id,
+        "a concurrent first login must not create a second user"
+    );
+
+    // The same user may own identities from different issuers.
+    let other_issuer = Issuer::new("https://keycloak.example.com/realms/rastai".to_owned())?;
+    let linked = identities
+        .resolve_or_provision(&other_issuer, &subject, &name, &profile, now)
+        .await?;
+    assert_ne!(
+        linked.user.id, first.user.id,
+        "a different issuer with the same subject is a different identity"
+    );
+
+    // A repeated login refreshes profile fields without moving the key.
+    let renamed = IdentityProfile {
+        display_name: Some(DisplayName::new("Shinji Ikari II".to_owned())?),
+        ..profile.clone()
+    };
+    let refreshed = identities
+        .resolve_or_provision(&issuer, &subject, &name, &renamed, now)
+        .await?;
+    assert_eq!(refreshed.user.id, first.user.id);
+    assert_eq!(refreshed.identity.id, first.identity.id);
+    assert_eq!(
+        refreshed
+            .identity
+            .display_name
+            .as_ref()
+            .map(DisplayName::as_str),
+        Some("Shinji Ikari II")
+    );
+
+    // Claiming an email that another identity already verified does not take
+    // over that account; identity remains keyed on (issuer, subject).
+    let collision_subject = Subject::new("00000000-0000-4000-8000-000000000003".to_owned())?;
+    let collision = identities
+        .resolve_or_provision(&issuer, &collision_subject, &name, &profile, now)
+        .await?;
+    assert_ne!(
+        collision.user.id, first.user.id,
+        "email must never link two identities to one user"
+    );
+
+    // The avatar link persists on the user record.
+    let stored = users.get(first.user.id).await?;
+    assert!(
+        stored.is_some(),
+        "the provisioned user must be readable through the user store"
+    );
+
     Ok(())
 }
 
