@@ -241,6 +241,19 @@ Request IDs should remain available for correlation.
 
 Authorization checks belong at a deliberate boundary and should default to deny.
 
+### OpenAPI contract
+
+The REST contract is generated from the transport code with `utoipa` and confined to `mahfel-api`
+(ADR 0015). Do not add `utoipa` to `mahfel-domain` or `mahfel-application`; represent domain types
+that appear in a contract with transport-level schema types.
+
+Serve the machine-readable document at `GET /v1/openapi.json`. Keep the interactive documentation
+UI off the public product host: mount it on the private operations listener or gate it to
+non-production.
+
+A test must fail when a registered REST route is missing from the generated document, so a new route
+cannot be silently undocumented.
+
 ### WebSockets
 
 Treat every WebSocket connection as bounded state.

@@ -25,6 +25,7 @@
 | `frontend/features` | Feature-oriented product modules as they arrive |
 | `frontend/lib` | API, WebSocket, RTC, and collaboration adapters |
 | `frontend/Dockerfile` | Next.js production image definition |
+| `bruno` | Bruno API collection (placeholder; generated from the OpenAPI document per ADR 0016) |
 | `proto` | Source protobuf contracts |
 | `deploy` | Container, Prometheus, Grafana, and future platform assets |
 | `docs` | MkDocs architecture, decisions, deployment, development, roadmap |

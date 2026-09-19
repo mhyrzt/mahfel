@@ -37,6 +37,14 @@ mkdocs build --strict
 docker compose config
 ```
 
+The REST contract is generated from the transport code with `utoipa` (ADR 0015). `mahfel-api`
+serves the machine-readable document at `GET /v1/openapi.json`, and the interactive Scalar UI at
+`/docs` on the private operations listener (ADR 0011). A unit test asserts that every REST route
+template appears in the generated document, so a new route cannot be silently undocumented.
+
+An interactive Bruno collection for manual and end-to-end requests is planned under `bruno/`
+(ADR 0016) and is not yet present; the directory holds a placeholder.
+
 RTC load and resilience testing is a dedicated M14 deliverable, not a unit-test substitute.
 
 Database integration tests use Testcontainers by default through `just backend test-database`. The harness
