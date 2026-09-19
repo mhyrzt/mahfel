@@ -1,5 +1,10 @@
+use mahfel_application::ports::{RoomStore, SessionStore, StoreError, UserStore};
+use mahfel_domain::{
+    ClassroomSession, DisplayName, Room, RoomMember, RoomRole, RoomTitle, RoomVisibility, User,
+    UserId,
+};
 use mahfel_postgres::{
-    ClassroomSessionRepository, ConnectionSettings, PoolSettings, RoomRepository, UserRepository,
+    ConnectionSettings, PoolSettings, PostgresRoomStore, PostgresSessionStore, PostgresUserStore,
     connect, migrate,
 };
 use sqlx::PgPool;
@@ -9,6 +14,7 @@ use testcontainers::{
     core::{IntoContainerPort, WaitFor},
     runners::AsyncRunner,
 };
+use time::OffsetDateTime;
 use url::Url;
 use uuid::Uuid;
 
@@ -63,7 +69,7 @@ async fn verify_disposable_database(admin_url: &str) -> Result<(), Box<dyn Error
     test_url.set_path(&format!("/{database_name}"));
     let connection = connection_settings(&test_url)?;
     let test_pool = connect(&connection, test_pool_settings()).await?;
-    let verification = verify_migrations_and_repositories(&test_pool, &connection).await;
+    let verification = verify_migrations_and_stores(&test_pool, &connection).await;
     if !test_pool.is_closed() {
         test_pool.close().await;
     }
@@ -79,7 +85,7 @@ async fn verify_disposable_database(admin_url: &str) -> Result<(), Box<dyn Error
     Ok(())
 }
 
-async fn verify_migrations_and_repositories(
+async fn verify_migrations_and_stores(
     pool: &PgPool,
     connection: &ConnectionSettings,
 ) -> Result<(), Box<dyn Error>> {
@@ -94,7 +100,7 @@ async fn verify_migrations_and_repositories(
     let migration_count = sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM _sqlx_migrations")
         .fetch_one(pool)
         .await?;
-    assert_eq!(migration_count, 2, "each migration must be recorded once");
+    assert_eq!(migration_count, 3, "each migration must be recorded once");
 
     let migration_tables = sqlx::query_scalar::<_, i64>(
         "SELECT COUNT(*) FROM pg_class WHERE relname = '_sqlx_migrations'",
@@ -116,22 +122,92 @@ async fn verify_migrations_and_repositories(
         "migration must provision the Mahfel schema"
     );
 
-    let users = UserRepository::new(pool.clone());
-    let rooms = RoomRepository::new(pool.clone());
-    let sessions = ClassroomSessionRepository::new(pool.clone());
-    let user = users.create("Ada Lovelace").await?;
-    let room = rooms.create("Analytical Engines", user.id).await?;
-    let session = sessions.create(room.id, None).await?;
+    // PostgreSQL keeps microseconds; align the in-memory clock so round-trip
+    // equality assertions compare the same instant.
+    let now = OffsetDateTime::now_utc()
+        .replace_nanosecond(0)
+        .expect("zero nanoseconds is valid");
+    let users = PostgresUserStore::new(pool.clone());
+    let rooms = PostgresRoomStore::new(pool.clone());
+    let sessions = PostgresSessionStore::new(pool.clone());
+
+    let user = User::create(DisplayName::new("Ada Lovelace".to_owned())?, now);
+    users.insert(&user).await?;
+
+    let room = Room::create(
+        RoomTitle::new("Analytical Engines".to_owned())?,
+        user.id,
+        RoomVisibility::InviteOnly,
+        now,
+    );
+    let manager = RoomMember::new(room.id, user.id, RoomRole::Manager, now);
+    rooms.create_with_manager(&room, &manager).await?;
+
+    let session = ClassroomSession::schedule(room.id, None, now);
+    sessions.insert(&session).await?;
+
+    assert_eq!(
+        rooms.get_member(room.id, user.id).await?,
+        Some(manager.clone())
+    );
+    assert_eq!(rooms.list_members(room.id).await?, vec![manager.clone()]);
+    assert_eq!(
+        rooms.list_for_member(user.id, 10, 0).await?,
+        vec![room.clone()]
+    );
+
+    // A missing referenced user must surface as a typed adapter error rather
+    // than a generic storage failure.
+    let missing = rooms
+        .add_member(&RoomMember::new(
+            room.id,
+            UserId::new(),
+            RoomRole::Member,
+            now,
+        ))
+        .await;
+    assert!(
+        matches!(missing, Err(StoreError::MissingReference(_))),
+        "unknown user must map to MissingReference, got {missing:?}"
+    );
+
+    // The last manager cannot be removed; a co-manager can.
+    let co_manager = User::create(DisplayName::new("Grace Hopper".to_owned())?, now);
+    users.insert(&co_manager).await?;
+    rooms
+        .add_member(&RoomMember::new(
+            room.id,
+            co_manager.id,
+            RoomRole::Manager,
+            now,
+        ))
+        .await?;
+    assert!(
+        rooms.remove_member(room.id, co_manager.id).await?,
+        "removing a co-manager must succeed"
+    );
+    assert!(
+        !rooms.remove_member(room.id, user.id).await?,
+        "the last manager must not be removed"
+    );
 
     pool.close().await;
     let restarted_pool = connect(connection, test_pool_settings()).await?;
-    let restarted_users = UserRepository::new(restarted_pool.clone());
-    let restarted_rooms = RoomRepository::new(restarted_pool.clone());
-    let restarted_sessions = ClassroomSessionRepository::new(restarted_pool.clone());
+    let restarted_users = PostgresUserStore::new(restarted_pool.clone());
+    let restarted_rooms = PostgresRoomStore::new(restarted_pool.clone());
+    let restarted_sessions = PostgresSessionStore::new(restarted_pool.clone());
 
-    assert_eq!(restarted_users.get(user.id).await?, Some(user));
-    assert_eq!(restarted_rooms.get(room.id).await?, Some(room));
+    assert_eq!(restarted_users.get(user.id).await?, Some(user.clone()));
+    assert_eq!(restarted_rooms.get(room.id).await?, Some(room.clone()));
     assert_eq!(restarted_sessions.get(session.id).await?, Some(session));
+    assert_eq!(
+        restarted_rooms.get_member(room.id, user.id).await?,
+        Some(manager.clone())
+    );
+    assert_eq!(
+        restarted_rooms.list_for_member(user.id, 10, 0).await?,
+        vec![room]
+    );
     restarted_pool.close().await;
     Ok(())
 }
