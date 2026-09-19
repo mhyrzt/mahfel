@@ -95,6 +95,8 @@ impl ApiError {
             ErrorKind::Unauthorized => Self::unauthorized(message),
             ErrorKind::Forbidden => Self::forbidden(message),
             ErrorKind::Conflict => Self::new(ErrorCode::Conflict, message),
+            // Dependency outages must not leak infrastructure detail.
+            ErrorKind::Unavailable => Self::unavailable("service temporarily unavailable"),
             ErrorKind::Internal => Self::internal("internal error"),
         }
     }

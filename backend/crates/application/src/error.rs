@@ -21,6 +21,10 @@ pub enum ErrorKind {
     Forbidden,
     /// The operation conflicts with current state.
     Conflict,
+    /// A required dependency is temporarily unavailable. Callers should
+    /// degrade rather than treat the request as malformed. Messages must not
+    /// reach clients.
+    Unavailable,
     /// An unexpected internal failure. Messages must not reach clients.
     Internal,
 }

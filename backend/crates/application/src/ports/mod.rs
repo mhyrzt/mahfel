@@ -1,4 +1,5 @@
 pub mod authorization;
+pub mod coordination;
 pub mod event_publisher;
 pub mod media_gateway;
 pub mod room_store;
@@ -6,6 +7,7 @@ pub mod session_store;
 pub mod user_store;
 
 pub use authorization::{Action, AllowAuthenticated, AuthorizationError, Authorizer, Principal};
+pub use coordination::{CoordinationError, CoordinationStore};
 pub use event_publisher::{DomainEvent, EventPublisher, PublishError};
 pub use media_gateway::{MediaGateway, MediaGatewayError};
 pub use room_store::RoomStore;
