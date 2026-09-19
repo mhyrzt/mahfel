@@ -42,6 +42,12 @@ rtc_port_max = 40003
 listen_ip = "0.0.0.0"
 announced_address = "127.0.0.1"
 
+[redis]
+url = "redis://redis:6379"
+key_prefix = "mahfel"
+connect_timeout_seconds = 5
+command_timeout_seconds = 3
+
 [worker]
 operations_bind = "0.0.0.0:9103"
 amqp_url = "amqp://mahfel:mahfel-local-only@rabbitmq:5672/%2f"
