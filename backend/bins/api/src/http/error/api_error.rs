@@ -1,51 +1,11 @@
+use super::code::ErrorCode;
 use axum::{
     Json,
-    http::StatusCode,
     response::{IntoResponse, Response},
 };
 use mahfel_application::ErrorKind;
 use serde::Serialize;
 use serde_json::Value;
-
-#[allow(dead_code)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ErrorCode {
-    InvalidInput,
-    Unprocessable,
-    NotFound,
-    Unauthorized,
-    Forbidden,
-    Conflict,
-    Internal,
-}
-
-impl ErrorCode {
-    #[must_use]
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::InvalidInput => "invalid_input",
-            Self::Unprocessable => "unprocessable_entity",
-            Self::NotFound => "not_found",
-            Self::Unauthorized => "unauthorized",
-            Self::Forbidden => "forbidden",
-            Self::Conflict => "conflict",
-            Self::Internal => "internal_error",
-        }
-    }
-
-    #[must_use]
-    pub const fn status(self) -> StatusCode {
-        match self {
-            Self::InvalidInput => StatusCode::BAD_REQUEST,
-            Self::Unprocessable => StatusCode::UNPROCESSABLE_ENTITY,
-            Self::NotFound => StatusCode::NOT_FOUND,
-            Self::Unauthorized => StatusCode::UNAUTHORIZED,
-            Self::Forbidden => StatusCode::FORBIDDEN,
-            Self::Conflict => StatusCode::CONFLICT,
-            Self::Internal => StatusCode::INTERNAL_SERVER_ERROR,
-        }
-    }
-}
 
 #[derive(Debug, Serialize)]
 struct ErrorBody {
@@ -64,16 +24,13 @@ struct ErrorDetail {
 ///
 /// Validation and known domain failures must not become 500. Correlation is
 /// carried by the `x-request-id` response header set by the request-id layer.
-#[allow(dead_code)]
 #[derive(Debug)]
 pub struct ApiError {
     code: ErrorCode,
     message: String,
     details: Option<Value>,
-    status_override: Option<StatusCode>,
 }
 
-#[allow(dead_code)]
 impl ApiError {
     #[must_use]
     pub fn new(code: ErrorCode, message: impl Into<String>) -> Self {
@@ -81,7 +38,6 @@ impl ApiError {
             code,
             message: message.into(),
             details: None,
-            status_override: None,
         }
     }
 
@@ -121,12 +77,6 @@ impl ApiError {
         Self::new(ErrorCode::Internal, message)
     }
 
-    #[must_use]
-    pub fn status(mut self, status: StatusCode) -> Self {
-        self.status_override = Some(status);
-        self
-    }
-
     /// Render an application error from its semantic kind.
     ///
     /// `Internal` never exposes the underlying message: storage and
@@ -145,30 +95,8 @@ impl ApiError {
     }
 }
 
-/// Implement `From<AppError> for ApiError` for each application error type,
-/// using its [`ApplicationError::kind`](mahfel_application::ApplicationError).
-///
-/// This gives handlers bare `?` on use-case results. `From` is implemented per
-/// error type because a blanket `impl<T: ApplicationError> From<T> for ApiError`
-/// would overlap with the standard reflexive `impl<T> From<T> for T`.
-macro_rules! api_error_from {
-    ($($error:ty),+ $(,)?) => {$(
-        impl From<$error> for $crate::http::error::ApiError {
-            fn from(error: $error) -> Self {
-                $crate::http::error::ApiError::from_application(
-                    ::mahfel_application::ApplicationError::kind(&error),
-                    error.to_string(),
-                )
-            }
-        }
-    )+};
-}
-
-pub(crate) use api_error_from;
-
 impl IntoResponse for ApiError {
     fn into_response(self) -> Response {
-        let status = self.status_override.unwrap_or_else(|| self.code.status());
         let body = ErrorBody {
             error: ErrorDetail {
                 code: self.code.as_str().to_owned(),
@@ -176,6 +104,6 @@ impl IntoResponse for ApiError {
                 details: self.details,
             },
         };
-        (status, Json(body)).into_response()
+        (self.code.status(), Json(body)).into_response()
     }
 }
