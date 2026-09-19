@@ -1,0 +1,98 @@
+use crate::ids::entity_id;
+use crate::status::status_conversion;
+use crate::validation::{DisplayName, ValidationError};
+use serde::{Deserialize, Serialize};
+use thiserror::Error;
+use time::OffsetDateTime;
+
+entity_id!(UserId);
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum UserStatus {
+    Active,
+    Disabled,
+}
+
+#[derive(Clone, Debug, Error, Eq, PartialEq)]
+pub enum UserError {
+    #[error("invalid display name: {0}")]
+    InvalidDisplayName(#[from] ValidationError),
+    #[error("user is already disabled")]
+    AlreadyDisabled,
+    #[error("user is not disabled")]
+    NotDisabled,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct User {
+    pub id: UserId,
+    pub display_name: DisplayName,
+    pub status: UserStatus,
+    pub created_at: OffsetDateTime,
+    pub updated_at: OffsetDateTime,
+}
+
+impl User {
+    #[must_use]
+    pub fn create(display_name: DisplayName, now: OffsetDateTime) -> Self {
+        Self {
+            id: UserId::new(),
+            display_name,
+            status: UserStatus::Active,
+            created_at: now,
+            updated_at: now,
+        }
+    }
+
+    pub fn rename(&mut self, display_name: DisplayName, now: OffsetDateTime) {
+        self.display_name = display_name;
+        self.updated_at = now;
+    }
+
+    pub fn disable(&mut self, now: OffsetDateTime) -> Result<(), UserError> {
+        if self.status == UserStatus::Disabled {
+            return Err(UserError::AlreadyDisabled);
+        }
+        self.status = UserStatus::Disabled;
+        self.updated_at = now;
+        Ok(())
+    }
+
+    pub fn enable(&mut self, now: OffsetDateTime) -> Result<(), UserError> {
+        if self.status == UserStatus::Active {
+            return Err(UserError::NotDisabled);
+        }
+        self.status = UserStatus::Active;
+        self.updated_at = now;
+        Ok(())
+    }
+}
+
+status_conversion!(UserStatus, "user", { Active => "active", Disabled => "disabled" });
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn status_storage_names_are_stable() {
+        assert_eq!(UserStatus::Active.as_str(), "active");
+        assert_eq!(UserStatus::Disabled.as_str(), "disabled");
+        assert_eq!(
+            UserStatus::try_from("disabled").expect("known status"),
+            UserStatus::Disabled
+        );
+        assert!(UserStatus::try_from("deleted").is_err());
+    }
+
+    #[test]
+    fn disable_and_enable_are_state_checked() {
+        let now = OffsetDateTime::now_utc();
+        let mut user = User::create(DisplayName::new("Ada".to_owned()).expect("valid"), now);
+        assert!(user.disable(now).is_ok());
+        assert!(user.disable(now).is_err());
+        assert!(user.enable(now).is_ok());
+        assert!(user.enable(now).is_err());
+    }
+}
