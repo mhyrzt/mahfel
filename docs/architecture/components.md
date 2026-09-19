@@ -13,8 +13,8 @@ identity integration, authorization, users, rooms and sessions, attendance, pers
 metadata and presigning, collaborative-state orchestration, media-node scheduling, PostgreSQL
 persistence, Redis coordination, RabbitMQ publishing, and the gRPC media client.
 
-The service currently exposes only a status endpoint and infrastructure health. Product routes are
-deliberately deferred.
+It exposes the versioned `/v1` control-plane API (status, identity, and room endpoints) plus a
+WebSocket gateway at `/v1/ws`. Higher-level product surfaces remain deliberately deferred.
 
 For local development, OIDC is provided by Dex (`auth.mahfel.localhost`) with SQLite-backed state.
 The API is intended to consume standard issuer/discovery, authorization-code, token, and userinfo
@@ -30,6 +30,11 @@ whose roles are `manager` and `member`. A room's identity is its id alone, so ti
 unique. Domain types remain independent of SQLx; the `mahfel-postgres` adapters (`Postgres*Store`)
 implement the application ports and own SQL mapping. Authentication identities, permissions,
 attendance, and chat remain separate later milestones.
+
+The realtime gateway at `/v1/ws` is a bounded connection boundary: a versioned JSON envelope, an
+authentication seam that denies by default, heartbeats, per-connection bounded queues with a write
+timeout, and a process-local fan-out registry. It carries test events only; signaling semantics,
+cross-replica delivery, and presence are later work.
 
 ## `mahfel-media`
 
