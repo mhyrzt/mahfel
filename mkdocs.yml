@@ -54,4 +54,6 @@ nav:
       - 0012 Yrs and Yjs: adr/0012-yrs-yjs-crdt.md
       - 0013 Stateless PaaS: adr/0013-stateless-paas.md
       - 0014 Frontend stack: adr/0014-frontend-stack.md
+      - 0015 OpenAPI generation: adr/0015-openapi-generation.md
+      - 0016 Bruno collection: adr/0016-bruno-collection.md
   - Backlog: backlog/roadmap.md
