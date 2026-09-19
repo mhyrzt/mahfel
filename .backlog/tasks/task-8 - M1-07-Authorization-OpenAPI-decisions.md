@@ -4,7 +4,7 @@ title: M1-07 Authorization/OpenAPI decisions
 status: In Progress
 assignee: []
 created_date: '2026-09-08 00:31'
-updated_date: '2026-09-19 12:07'
+updated_date: '2026-09-19 12:46'
 labels: []
 milestone: m-1
 dependencies: []
@@ -45,4 +45,6 @@ Seed separation: reverted the migration seed; added backend/seeds/0001_developme
 Fixed a pre-existing migration integrity bug found while verifying seeds: the DB role and the 'mahfel' schema share a name and default search_path is "$user", public, so unqualified _sqlx_migrations resolved to public before migration 0001 created the schema and to mahfel afterwards, splitting bookkeeping and making a second migrate fail with 'relation users already exists'. Pinned search_path=public in mahfel-postgres::connect, added idempotent-migrate and single-tracking-table assertions to the Postgres integration test, and documented the rule in backend/AGENTS.md.
 
 Validation: just backend lint clean (clippy workspace + sqlfluff); cargo test --workspace --lib --bins pass (api 17 incl. 401/200/403 identity paths); docker compose config OK; just docs strict pass. Manual verification against a disposable PostgreSQL container: migrate ran twice (second no-op), single _sqlx_migrations table with versions 1 and 2, seed idempotent across repeated runs, and the API boots to 'API service ready'. The Testcontainers migration test could not run in this environment (connection reset to the Docker socket/registry); the manual container run covers the same behavior. Remaining: TASK-5 must wire the room handler to the seam, and the OpenAPI decision is deferred by request.
+
+TASK-5 (M1-04) now exercises this seam: room routes require the Authenticated extractor (401 without an identity) and POST /v1/rooms runs the Authorizer via Action::CreateRoom. Room-scoped membership checks live in the room use cases because they need the loaded membership; the Authorizer remains the coarse policy gate. The OpenAPI decision is still deferred by request, so this task stays In Progress.
 <!-- SECTION:NOTES:END -->
