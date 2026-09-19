@@ -1,4 +1,4 @@
-use super::super::state::AppState;
+use crate::http::state::{AppState, RoomStoreState};
 use axum::{Json, Router, extract::State, routing::get};
 use serde::Serialize;
 
@@ -9,11 +9,11 @@ struct StatusResponse {
     node_id: String,
 }
 
-pub(super) fn route() -> Router<AppState> {
-    Router::new().route("/status", get(status))
+pub(super) fn route<R: RoomStoreState>() -> Router<AppState<R>> {
+    Router::new().route("/status", get(status::<R>))
 }
 
-async fn status(State(state): State<AppState>) -> Json<StatusResponse> {
+async fn status<R: RoomStoreState>(State(state): State<AppState<R>>) -> Json<StatusResponse> {
     Json(StatusResponse {
         service: state.service,
         version: state.version,

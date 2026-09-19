@@ -9,7 +9,7 @@ mod routes;
 pub mod state;
 
 pub use cors::cors_layer;
-pub use state::AppState;
+pub use state::{AppState, RoomStoreState};
 
 use axum::{Router, middleware as axum_middleware};
 use tower_http::{
@@ -29,7 +29,7 @@ use tower_http::{
 ///
 /// CORS is layered by the composition root via [`cors_layer`] because it
 /// depends on configured deployment origin.
-pub fn api_router(state: AppState) -> Router {
+pub fn api_router<R: RoomStoreState>(state: AppState<R>) -> Router {
     let app = routes::router(state).layer(axum_middleware::from_fn(middleware::security_headers));
 
     app.layer(PropagateRequestIdLayer::new(request_id::header()))

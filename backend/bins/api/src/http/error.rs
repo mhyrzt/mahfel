@@ -3,6 +3,7 @@ use axum::{
     http::StatusCode,
     response::{IntoResponse, Response},
 };
+use mahfel_application::ErrorKind;
 use serde::Serialize;
 use serde_json::Value;
 
@@ -125,7 +126,45 @@ impl ApiError {
         self.status_override = Some(status);
         self
     }
+
+    /// Render an application error from its semantic kind.
+    ///
+    /// `Internal` never exposes the underlying message: storage and
+    /// infrastructure details must not reach clients.
+    #[must_use]
+    pub fn from_application(kind: ErrorKind, message: String) -> Self {
+        match kind {
+            ErrorKind::InvalidInput => Self::bad_request(message),
+            ErrorKind::Unprocessable => Self::unprocessable(message),
+            ErrorKind::NotFound => Self::not_found(message),
+            ErrorKind::Unauthorized => Self::unauthorized(message),
+            ErrorKind::Forbidden => Self::forbidden(message),
+            ErrorKind::Conflict => Self::new(ErrorCode::Conflict, message),
+            ErrorKind::Internal => Self::internal("internal error"),
+        }
+    }
 }
+
+/// Implement `From<AppError> for ApiError` for each application error type,
+/// using its [`ApplicationError::kind`](mahfel_application::ApplicationError).
+///
+/// This gives handlers bare `?` on use-case results. `From` is implemented per
+/// error type because a blanket `impl<T: ApplicationError> From<T> for ApiError`
+/// would overlap with the standard reflexive `impl<T> From<T> for T`.
+macro_rules! api_error_from {
+    ($($error:ty),+ $(,)?) => {$(
+        impl From<$error> for $crate::http::error::ApiError {
+            fn from(error: $error) -> Self {
+                $crate::http::error::ApiError::from_application(
+                    ::mahfel_application::ApplicationError::kind(&error),
+                    error.to_string(),
+                )
+            }
+        }
+    )+};
+}
+
+pub(crate) use api_error_from;
 
 impl IntoResponse for ApiError {
     fn into_response(self) -> Response {

@@ -1,7 +1,7 @@
 use super::{error::ApiError, pagination::PaginationParams};
 use axum::{
     Json,
-    extract::{FromRequest, FromRequestParts, Query, Request},
+    extract::{FromRequest, FromRequestParts, Path, Query, Request},
     http::request::Parts,
 };
 use serde::de::DeserializeOwned;
@@ -28,6 +28,30 @@ where
                     .with_details(json!({ "reason": rejection.to_string() }))
             })?;
         Ok(Self(json.0))
+    }
+}
+
+/// `ValidatedPath<T>` — path extractor that renders the JSON error envelope.
+///
+/// Axum's built-in `Path` rejection is plain text; routing path parameters
+/// through this wrapper keeps malformed identifiers on the shared envelope.
+pub struct ValidatedPath<T>(pub T);
+
+impl<T, S> FromRequestParts<S> for ValidatedPath<T>
+where
+    T: DeserializeOwned + Send,
+    S: Send + Sync,
+{
+    type Rejection = ApiError;
+
+    async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
+        Path::<T>::from_request_parts(parts, state)
+            .await
+            .map(|Path(value)| Self(value))
+            .map_err(|rejection| {
+                ApiError::bad_request(rejection.to_string())
+                    .with_details(json!({ "reason": rejection.to_string() }))
+            })
     }
 }
 

@@ -1,9 +1,13 @@
 mod echo;
 mod health;
 mod identity;
+mod rooms;
 mod status;
 
-use super::{error::ApiError, state::AppState};
+use crate::http::{
+    error::ApiError,
+    state::{AppState, RoomStoreState},
+};
 use axum::Router;
 
 /// JSON envelope fallback for unmatched routes — never an empty/HTML 404.
@@ -12,11 +16,12 @@ pub(super) async fn not_found() -> ApiError {
 }
 
 /// Versioned route table plus fallback, before transport middleware.
-pub(super) fn router(state: AppState) -> Router {
-    let v1 = status::route()
-        .merge(health::route())
-        .merge(echo::route())
-        .merge(identity::route())
+pub(super) fn router<R: RoomStoreState>(state: AppState<R>) -> Router {
+    let v1 = status::route::<R>()
+        .merge(health::route::<R>())
+        .merge(echo::route::<R>())
+        .merge(identity::route::<R>())
+        .merge(rooms::route::<R>())
         .fallback(not_found);
 
     Router::new()

@@ -1,7 +1,7 @@
-use super::super::{
+use crate::http::{
     auth::{self, Authenticated},
     error::ApiError,
-    state::AppState,
+    state::{AppState, RoomStoreState},
 };
 use axum::{Json, Router, extract::State, routing::get};
 use mahfel_application::ports::Action;
@@ -12,12 +12,12 @@ struct IdentityResponse {
     user_id: String,
 }
 
-pub(super) fn route() -> Router<AppState> {
-    Router::new().route("/me", get(me))
+pub(super) fn route<R: RoomStoreState>() -> Router<AppState<R>> {
+    Router::new().route("/me", get(me::<R>))
 }
 
-async fn me(
-    State(state): State<AppState>,
+async fn me<R: RoomStoreState>(
+    State(state): State<AppState<R>>,
     Authenticated(principal): Authenticated,
 ) -> Result<Json<IdentityResponse>, ApiError> {
     auth::authorize(&state, &principal, Action::ViewOwnIdentity)?;

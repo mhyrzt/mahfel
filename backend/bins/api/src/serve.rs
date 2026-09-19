@@ -5,7 +5,7 @@ use mahfel_application::ports::{AllowAuthenticated, Principal};
 use mahfel_config::Settings;
 use mahfel_domain::{NodeId, UserId};
 use mahfel_media_client::lazy as lazy_media_client;
-use mahfel_postgres::{PoolMetrics, connect, migrate, ping};
+use mahfel_postgres::{PoolMetrics, PostgresStores, connect, migrate, ping};
 use mahfel_telemetry::{HealthState, operations, serve_http, shutdown_signal, spawn_probe};
 use std::{net::SocketAddr, sync::Arc, time::Duration};
 use tokio::{net::TcpListener, sync::watch, task::JoinHandle};
@@ -53,11 +53,13 @@ pub(crate) async fn run(settings: Settings) -> Result<()> {
         })
         .transpose()
         .context("parse development principal user id")?;
+    let stores = PostgresStores::new(pool.clone());
     let state = http::AppState {
         service: SERVICE,
         version: env!("CARGO_PKG_VERSION"),
         node_id: node_id.to_string(),
         auth: http::auth::AuthState::new(principal, Arc::new(AllowAuthenticated)),
+        rooms: stores.rooms,
     };
     let app = http::api_router(state).layer(http::cors_layer(origin));
 

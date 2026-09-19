@@ -1,4 +1,7 @@
-use super::{error::ApiError, state::AppState};
+use crate::http::{
+    error::{ApiError, api_error_from},
+    state::RoomStoreState,
+};
 use axum::{extract::FromRequestParts, http::request::Parts};
 use mahfel_application::ports::{Action, AuthorizationError, Authorizer, Principal};
 use std::sync::Arc;
@@ -39,12 +42,15 @@ impl AuthState {
 /// available, so a route can never silently run without authentication.
 pub struct Authenticated(pub Principal);
 
-impl FromRequestParts<AppState> for Authenticated {
+impl<R> FromRequestParts<crate::http::state::AppState<R>> for Authenticated
+where
+    R: RoomStoreState,
+{
     type Rejection = ApiError;
 
     async fn from_request_parts(
         _parts: &mut Parts,
-        state: &AppState,
+        state: &crate::http::state::AppState<R>,
     ) -> Result<Self, Self::Rejection> {
         state
             .auth
@@ -55,15 +61,14 @@ impl FromRequestParts<AppState> for Authenticated {
     }
 }
 
+api_error_from!(AuthorizationError);
+
 /// Run a policy check, mapping denials into the HTTP error envelope.
-pub fn authorize(state: &AppState, principal: &Principal, action: Action) -> Result<(), ApiError> {
-    state
-        .auth
-        .authorize(principal, action)
-        .map_err(|error| match error {
-            AuthorizationError::Unauthenticated => {
-                ApiError::unauthorized("authentication required")
-            }
-            AuthorizationError::Denied => ApiError::forbidden("permission denied"),
-        })
+pub fn authorize<R>(
+    state: &crate::http::state::AppState<R>,
+    principal: &Principal,
+    action: Action,
+) -> Result<(), ApiError> {
+    state.auth.authorize(principal, action)?;
+    Ok(())
 }
