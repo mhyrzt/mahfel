@@ -2599,6 +2599,7 @@ dependencies = [
  "mahfel-postgres",
  "mahfel-redis",
  "mahfel-telemetry",
+ "mediasoup",
  "prometheus",
  "serde",
  "serde_json",
@@ -2688,11 +2689,13 @@ dependencies = [
  "mahfel-rtc",
  "mahfel-rtc-protocol",
  "mahfel-telemetry",
+ "mediasoup",
  "prometheus",
  "tokio",
  "tokio-stream",
  "tonic",
  "tracing",
+ "uuid",
 ]
 
 [[package]]
@@ -2702,6 +2705,7 @@ dependencies = [
  "mahfel-application",
  "mahfel-domain",
  "mahfel-rtc-protocol",
+ "mediasoup",
  "thiserror 2.0.20",
  "tokio",
  "tonic",
@@ -2753,6 +2757,7 @@ dependencies = [
 name = "mahfel-rtc"
 version = "0.1.0"
 dependencies = [
+ "mahfel-domain",
  "mediasoup",
  "serde_json",
  "thiserror 2.0.20",

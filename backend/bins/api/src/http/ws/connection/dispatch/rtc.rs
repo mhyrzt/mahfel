@@ -3,6 +3,7 @@ use super::helpers::{parse_room_or_send_error, send_err, send_ok};
 use crate::http::ws::{envelope::ServerMessage, metrics::DisconnectReason};
 use mahfel_application::ports::Principal;
 use mahfel_media_client::GrpcMediaGateway;
+use mediasoup::prelude::MediaKind;
 
 pub(super) async fn handle_create_transport(
     c: &mut Connection,
@@ -15,8 +16,7 @@ pub(super) async fn handle_create_transport(
     let Some(room) = parse_room_or_send_error(c, rid.clone(), room_id).await else {
         return Ok(());
     };
-    let pid = principal.user_id.to_string();
-    match media.create_transport(room, pid).await {
+    match media.create_transport(room, principal.user_id).await {
         Ok((tid, ice_p, ice_c, dtls_p)) => {
             send_ok(
                 c,
@@ -83,9 +83,21 @@ pub(super) async fn handle_produce(
     let Some(room) = parse_room_or_send_error(c, rid.clone(), &room_id).await else {
         return Ok(());
     };
-    let pid = principal.user_id.to_string();
+    let kind = match produce_kind.as_str() {
+        "audio" => MediaKind::Audio,
+        "video" => MediaKind::Video,
+        _ => {
+            let _ = c
+                .send_with_id(
+                    rid.clone(),
+                    super::helpers::protocol_error("invalid_argument", "invalid kind"),
+                )
+                .await;
+            return Ok(());
+        }
+    };
     match media
-        .produce(room, pid, transport_id.clone(), produce_kind, rtp)
+        .produce(room, principal.user_id, transport_id.clone(), kind, rtp)
         .await
     {
         Ok(producer_id) => {
@@ -119,11 +131,10 @@ pub(super) async fn handle_consume(
     let Some(room) = parse_room_or_send_error(c, rid.clone(), &room_id).await else {
         return Ok(());
     };
-    let pid = principal.user_id.to_string();
     match media
         .consume(
             room,
-            pid,
+            principal.user_id,
             producer_id.clone(),
             transport_id.clone(),
             rtp_cap,

@@ -1,6 +1,6 @@
 use anyhow::{Context, Result};
 use mahfel_config::Settings;
-use mahfel_domain::NodeId;
+use mahfel_domain::{NodeId, RoomId, UserId};
 use mahfel_rtc::MediaRuntime;
 use mahfel_rtc_protocol::media::{
     CloseParticipantRequest, CloseParticipantResponse, ConnectWebRtcTransportRequest,
@@ -12,6 +12,7 @@ use mahfel_rtc_protocol::media::{
     media_control_server::{MediaControl, MediaControlServer},
 };
 use mahfel_telemetry::{init_tracing, operations, serve_http, shutdown_signal, wait_for_shutdown};
+use mediasoup::prelude::MediaKind;
 use prometheus::{Counter, IntGauge, Opts};
 use std::net::SocketAddr;
 use std::sync::Arc;
@@ -19,6 +20,7 @@ use std::time::Duration;
 use tokio::sync::watch;
 use tokio_stream::wrappers::TcpListenerStream;
 use tonic::{Request, Response, Status, transport::Server};
+use uuid::Uuid;
 
 const SERVICE: &str = "mahfel-media";
 
@@ -66,27 +68,28 @@ impl MediaControl for MediaControlService {
         &self,
         request: Request<CreateRoomRequest>,
     ) -> Result<Response<CreateRoomResponse>, Status> {
-        let room_id = request.into_inner().room_id.trim().to_owned();
-        if room_id.is_empty() {
+        let raw = request.into_inner().room_id.trim().to_owned();
+        if raw.is_empty() {
             return Err(Status::invalid_argument("room_id must not be empty"));
         }
-        self.media.create_room(&room_id).await.map_err(|e| {
-            tracing::error!(%room_id, error=%e, "create_room failed");
+        let room_id = parse_room_id(&raw)?;
+        self.media.create_room(room_id).await.map_err(|e| {
+            tracing::error!(%raw, error=%e, "create_room failed");
             Status::internal("router creation failed")
         })?;
-        Ok(Response::new(CreateRoomResponse { room_id }))
+        Ok(Response::new(CreateRoomResponse { room_id: raw }))
     }
 
     async fn delete_room(
         &self,
         request: Request<DeleteRoomRequest>,
     ) -> Result<Response<DeleteRoomResponse>, Status> {
-        let room_id = request.into_inner().room_id.trim().to_owned();
-        if room_id.is_empty() {
+        let raw = request.into_inner().room_id.trim().to_owned();
+        if raw.is_empty() {
             return Err(Status::invalid_argument("room_id must not be empty"));
         }
-        // Idempotent: missing room is OK.
-        let _ = self.media.delete_room(&room_id).await;
+        let room_id = parse_room_id(&raw)?;
+        let _ = self.media.delete_room(room_id).await;
         Ok(Response::new(DeleteRoomResponse {}))
     }
     async fn create_web_rtc_transport(
@@ -94,21 +97,23 @@ impl MediaControl for MediaControlService {
         request: Request<CreateWebRtcTransportRequest>,
     ) -> Result<Response<CreateWebRtcTransportResponse>, Status> {
         let inner = request.into_inner();
-        let room_id = inner.room_id.trim().to_owned();
-        let participant_id = inner.participant_id.trim().to_owned();
-        if room_id.is_empty() || participant_id.is_empty() {
+        let raw_room = inner.room_id.trim().to_owned();
+        let raw_participant = inner.participant_id.trim().to_owned();
+        if raw_room.is_empty() || raw_participant.is_empty() {
             return Err(Status::invalid_argument(
                 "room_id and participant_id must not be empty",
             ));
         }
+        let room_id = parse_room_id(&raw_room)?;
+        let participant_id = parse_user_id(&raw_participant)?;
         let (transport_id, ice_parameters, ice_candidates, dtls_parameters) = self
             .media
-            .create_transport(&room_id, &participant_id)
+            .create_transport(room_id, participant_id)
             .await
             .map_err(|e| match e {
-                mahfel_rtc::RtcError::RoomNotFound(_) => Status::not_found(e.to_string()),
+                mahfel_rtc::RtcError::RoomNotFound { .. } => Status::not_found(e.to_string()),
                 _ => {
-                    tracing::error!(%room_id, %participant_id, error=%e, "create_transport failed");
+                    tracing::error!(%raw_room, %raw_participant, error=%e, "create_transport failed");
                     Status::internal("transport creation failed")
                 }
             })?;
@@ -125,23 +130,26 @@ impl MediaControl for MediaControlService {
         request: Request<ConnectWebRtcTransportRequest>,
     ) -> Result<Response<ConnectWebRtcTransportResponse>, Status> {
         let inner = request.into_inner();
-        let room_id = inner.room_id.trim().to_owned();
+        let raw_room = inner.room_id.trim().to_owned();
         let transport_id = inner.transport_id.trim().to_owned();
         let dtls_parameters = inner.dtls_parameters.trim().to_owned();
-        if room_id.is_empty() || transport_id.is_empty() || dtls_parameters.is_empty() {
+        if raw_room.is_empty() || transport_id.is_empty() || dtls_parameters.is_empty() {
             return Err(Status::invalid_argument(
                 "room_id, transport_id and dtls_parameters must not be empty",
             ));
         }
+        let room_id = parse_room_id(&raw_room)?;
         self.media
-            .connect_transport(&room_id, &transport_id, &dtls_parameters)
+            .connect_transport(room_id, &transport_id, &dtls_parameters)
             .await
             .map_err(|e| match e {
-                mahfel_rtc::RtcError::RoomNotFound(_)
-                | mahfel_rtc::RtcError::TransportNotFound(_) => Status::not_found(e.to_string()),
+                mahfel_rtc::RtcError::RoomNotFound { .. }
+                | mahfel_rtc::RtcError::TransportNotFound { .. } => {
+                    Status::not_found(e.to_string())
+                }
                 mahfel_rtc::RtcError::Dtls(_) => Status::invalid_argument(e.to_string()),
                 _ => {
-                    tracing::error!(%room_id, %transport_id, error=%e, "connect_transport failed");
+                    tracing::error!(%raw_room, %transport_id, error=%e, "connect_transport failed");
                     Status::internal("transport connect failed")
                 }
             })?;
@@ -152,39 +160,44 @@ impl MediaControl for MediaControlService {
         request: Request<ProduceRequest>,
     ) -> Result<Response<ProduceResponse>, Status> {
         let inner = request.into_inner();
-        let room_id = inner.room_id.trim().to_owned();
-        let participant_id = inner.participant_id.trim().to_owned();
+        let raw_room = inner.room_id.trim().to_owned();
+        let raw_participant = inner.participant_id.trim().to_owned();
         let transport_id = inner.transport_id.trim().to_owned();
-        let kind = inner.kind.trim().to_owned();
+        let raw_kind = inner.kind.trim().to_owned();
         let rtp_parameters = inner.rtp_parameters.trim().to_owned();
-        if room_id.is_empty()
-            || participant_id.is_empty()
+        if raw_room.is_empty()
+            || raw_participant.is_empty()
             || transport_id.is_empty()
-            || kind.is_empty()
+            || raw_kind.is_empty()
             || rtp_parameters.is_empty()
         {
             return Err(Status::invalid_argument(
                 "room_id, participant_id, transport_id, kind and rtp_parameters must not be empty",
             ));
         }
+        let room_id = parse_room_id(&raw_room)?;
+        let participant_id = parse_user_id(&raw_participant)?;
+        let kind = parse_media_kind(&raw_kind)?;
         let producer_id = self
             .media
             .create_producer(
-                &room_id,
+                room_id,
                 &transport_id,
-                &participant_id,
-                &kind,
+                participant_id,
+                kind,
                 &rtp_parameters,
             )
             .await
             .map_err(|e| match e {
-                mahfel_rtc::RtcError::RoomNotFound(_)
-                | mahfel_rtc::RtcError::TransportNotFound(_) => Status::not_found(e.to_string()),
-                mahfel_rtc::RtcError::Kind(_)
-                | mahfel_rtc::RtcError::RtpParameters(_)
-                | mahfel_rtc::RtcError::Dtls(_) => Status::invalid_argument(e.to_string()),
+                mahfel_rtc::RtcError::RoomNotFound { .. }
+                | mahfel_rtc::RtcError::TransportNotFound { .. } => {
+                    Status::not_found(e.to_string())
+                }
+                mahfel_rtc::RtcError::RtpParameters(_) | mahfel_rtc::RtcError::Dtls(_) => {
+                    Status::invalid_argument(e.to_string())
+                }
                 _ => {
-                    tracing::error!(%room_id, %transport_id, error=%e, "produce failed");
+                    tracing::error!(%raw_room, %transport_id, error=%e, "produce failed");
                     Status::internal("producer creation failed")
                 }
             })?;
@@ -195,13 +208,13 @@ impl MediaControl for MediaControlService {
         request: Request<ConsumeRequest>,
     ) -> Result<Response<ConsumeResponse>, Status> {
         let inner = request.into_inner();
-        let room_id = inner.room_id.trim().to_owned();
-        let participant_id = inner.participant_id.trim().to_owned();
+        let raw_room = inner.room_id.trim().to_owned();
+        let raw_participant = inner.participant_id.trim().to_owned();
         let producer_id = inner.producer_id.trim().to_owned();
         let transport_id = inner.transport_id.trim().to_owned();
         let rtp_capabilities = inner.rtp_capabilities.trim().to_owned();
-        if room_id.is_empty()
-            || participant_id.is_empty()
+        if raw_room.is_empty()
+            || raw_participant.is_empty()
             || producer_id.is_empty()
             || transport_id.is_empty()
             || rtp_capabilities.is_empty()
@@ -210,23 +223,25 @@ impl MediaControl for MediaControlService {
                 "room_id, participant_id, producer_id, transport_id and rtp_capabilities must not be empty",
             ));
         }
+        let room_id = parse_room_id(&raw_room)?;
+        let participant_id = parse_user_id(&raw_participant)?;
         let (consumer_id, rtp_parameters, paused) = self
             .media
             .create_consumer(
-                &room_id,
+                room_id,
                 &transport_id,
-                &participant_id,
+                participant_id,
                 &producer_id,
                 &rtp_capabilities,
             )
             .await
             .map_err(|e| match e {
-                mahfel_rtc::RtcError::RoomNotFound(_)
-                | mahfel_rtc::RtcError::TransportNotFound(_)
-                | mahfel_rtc::RtcError::ProducerNotFound(_) => Status::not_found(e.to_string()),
+                mahfel_rtc::RtcError::RoomNotFound { .. }
+                | mahfel_rtc::RtcError::TransportNotFound { .. }
+                | mahfel_rtc::RtcError::ProducerNotFound { .. } => Status::not_found(e.to_string()),
                 mahfel_rtc::RtcError::RtpCapabilities(_) => Status::invalid_argument(e.to_string()),
                 _ => {
-                    tracing::error!(%room_id, %producer_id, error=%e, "consume failed");
+                    tracing::error!(%raw_room, %producer_id, error=%e, "consume failed");
                     Status::internal("consumer creation failed")
                 }
             })?;
@@ -242,21 +257,22 @@ impl MediaControl for MediaControlService {
         request: Request<PauseConsumerRequest>,
     ) -> Result<Response<PauseConsumerResponse>, Status> {
         let inner = request.into_inner();
-        let room_id = inner.room_id.trim().to_owned();
+        let raw_room = inner.room_id.trim().to_owned();
         let consumer_id = inner.consumer_id.trim().to_owned();
-        if room_id.is_empty() || consumer_id.is_empty() {
+        if raw_room.is_empty() || consumer_id.is_empty() {
             return Err(Status::invalid_argument(
                 "room_id and consumer_id must not be empty",
             ));
         }
+        let room_id = parse_room_id(&raw_room)?;
         self.media
-            .pause_consumer(&room_id, &consumer_id)
+            .pause_consumer(room_id, &consumer_id)
             .await
             .map_err(|e| match e {
-                mahfel_rtc::RtcError::ConsumerNotFound(_)
-                | mahfel_rtc::RtcError::RoomNotFound(_) => Status::not_found(e.to_string()),
+                mahfel_rtc::RtcError::ConsumerNotFound { .. }
+                | mahfel_rtc::RtcError::RoomNotFound { .. } => Status::not_found(e.to_string()),
                 _ => {
-                    tracing::error!(%room_id, %consumer_id, error=%e, "pause_consumer failed");
+                    tracing::error!(%raw_room, %consumer_id, error=%e, "pause_consumer failed");
                     Status::internal("pause failed")
                 }
             })?;
@@ -268,21 +284,22 @@ impl MediaControl for MediaControlService {
         request: Request<ResumeConsumerRequest>,
     ) -> Result<Response<ResumeConsumerResponse>, Status> {
         let inner = request.into_inner();
-        let room_id = inner.room_id.trim().to_owned();
+        let raw_room = inner.room_id.trim().to_owned();
         let consumer_id = inner.consumer_id.trim().to_owned();
-        if room_id.is_empty() || consumer_id.is_empty() {
+        if raw_room.is_empty() || consumer_id.is_empty() {
             return Err(Status::invalid_argument(
                 "room_id and consumer_id must not be empty",
             ));
         }
+        let room_id = parse_room_id(&raw_room)?;
         self.media
-            .resume_consumer(&room_id, &consumer_id)
+            .resume_consumer(room_id, &consumer_id)
             .await
             .map_err(|e| match e {
-                mahfel_rtc::RtcError::ConsumerNotFound(_)
-                | mahfel_rtc::RtcError::RoomNotFound(_) => Status::not_found(e.to_string()),
+                mahfel_rtc::RtcError::ConsumerNotFound { .. }
+                | mahfel_rtc::RtcError::RoomNotFound { .. } => Status::not_found(e.to_string()),
                 _ => {
-                    tracing::error!(%room_id, %consumer_id, error=%e, "resume_consumer failed");
+                    tracing::error!(%raw_room, %consumer_id, error=%e, "resume_consumer failed");
                     Status::internal("resume failed")
                 }
             })?;
@@ -293,6 +310,25 @@ impl MediaControl for MediaControlService {
         _: Request<CloseParticipantRequest>,
     ) -> Result<Response<CloseParticipantResponse>, Status> {
         planned()
+    }
+}
+
+fn parse_room_id(raw: &str) -> Result<RoomId, Status> {
+    let uuid = Uuid::parse_str(raw).map_err(|_| Status::invalid_argument("invalid room_id"))?;
+    Ok(RoomId::from_uuid(uuid))
+}
+
+fn parse_user_id(raw: &str) -> Result<UserId, Status> {
+    let uuid =
+        Uuid::parse_str(raw).map_err(|_| Status::invalid_argument("invalid participant_id"))?;
+    Ok(UserId::from_uuid(uuid))
+}
+
+fn parse_media_kind(raw: &str) -> Result<MediaKind, Status> {
+    match raw {
+        "audio" => Ok(MediaKind::Audio),
+        "video" => Ok(MediaKind::Video),
+        _ => Err(Status::invalid_argument("invalid kind")),
     }
 }
 
