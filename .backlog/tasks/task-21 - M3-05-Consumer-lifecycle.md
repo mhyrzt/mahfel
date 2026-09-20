@@ -1,10 +1,10 @@
 ---
 id: TASK-21
 title: M3-05 Consumer lifecycle
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-09-08 00:31'
-updated_date: '2026-09-20 11:54'
+updated_date: '2026-09-20 12:02'
 labels: []
 milestone: m-3
 dependencies: []
@@ -24,7 +24,7 @@ Expanded: Consumer registry HashMap<ConsumerId,Consumer> under room (uuid). Cons
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Multiple browsers consume teacher tracks and cleanup follows disconnect.
+- [x] #1 Multiple browsers consume teacher tracks and cleanup follows disconnect.
 <!-- AC:END -->
 
 ## Implementation Plan
@@ -37,3 +37,9 @@ Expanded: Consumer registry HashMap<ConsumerId,Consumer> under room (uuid). Cons
 5. Metrics + GetNodeStats.consumers.
 6. Test multi-consumer pause/resume leak after close.
 <!-- SECTION:PLAN:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Extended proto ConsumeRequest with transport_id + rtp_capabilities JSON, ConsumeResponse with rtp_parameters + paused. Added ConsumerEntry HashMap in backend/crates/rtc/src/lib.rs with RtpCapabilities parse, router.can_consume check, transport.consume(ConsumerOptions::new(producer_id, rtp_capabilities) paused true), serde_json rtp_parameters, pause_consumer/resume_consumer via consumer.pause()/resume(). Added cleanup on delete_room, consumer_count, mahfel_media_active_consumers gauge on 9102, GetNodeStats consumers. Verified check/clippy/fmt pass, proto fmt applied.
+<!-- SECTION:NOTES:END -->
