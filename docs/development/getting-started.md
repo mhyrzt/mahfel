@@ -109,6 +109,11 @@ Host processes use `backend/config/local.toml` and environment overrides. The fr
 `frontend/.env.local`. Use direct loopback ports for this mode, or configure the Caddy upstream
 variables documented in [local deployment](../deployment/local.md) when HTTPS domains are needed.
 
+The local realm fixture seeds an administrator; bootstrapping a service principal locally is to log
+in through `mahfel-web` as that administrator, let `POST /v1/auth/provision` link the local user, then
+call `POST /v1/admin/service-principals` with the resulting access token. The raw API key is returned
+once and cannot be recovered (ADR 0022).
+
 For host development, infrastructure may be started separately and each application launched with
 `just frontend dev`, `just backend dev-api`, `just backend dev-media`, or `just backend dev-worker`. Host Rust processes load
 `backend/config/default.toml`, the selected `backend/config/{profile}.toml` profile, optional

@@ -32,6 +32,8 @@
 | `docs` | MkDocs architecture, decisions, deployment, development, roadmap |
 
 Crates are added when a meaningful boundary has implementation and tests. Chat, files,
-collaboration, storage, and AI remain planned module boundaries; authentication now owns the
-provider-neutral identity boundary and its local Keycloak discovery test, while the login/callback
-flow remains an M2 implementation task.
+collaboration, storage, and AI remain planned module boundaries; authentication owns the
+provider-neutral identity boundary and its local Keycloak discovery test, while browser login lives
+in `mahfel-web` (ADR 0019). The actor model and service principals live in the domain, application,
+and Postgres layers described above, with their admin endpoints under `/v1/admin/service-principals`
+(ADR 0022).
