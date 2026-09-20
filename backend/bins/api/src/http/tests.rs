@@ -1169,6 +1169,7 @@ async fn serve_ws(principal: Option<Principal>, config: WsConfig) -> WsHarness {
         linker: Arc::new(StubLinker),
         rooms: FakeRoomStore::default(),
         realtime,
+        turn: turn_settings(),
     };
     let listener = TcpListener::bind("127.0.0.1:0").await.expect("bind");
     let addr = listener.local_addr().expect("listener address");
