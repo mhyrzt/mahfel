@@ -17,10 +17,12 @@ use mahfel_application::ports::{
 use mahfel_application::users::{IdentityProvisioner, SyncIdentity, SyncIdentityError};
 use mahfel_auth::AuthenticatedIdentity;
 use mahfel_auth::{TokenVerifier, TokenVerifierConfig};
+use mahfel_config::TurnSettings;
 use mahfel_domain::{
     DisplayName, Identity, Issuer, Room, RoomId, RoomMember, RoomRole, RoomTitle, RoomVisibility,
     Subject, User, UserId, UserStatus,
 };
+use mahfel_media_client::GrpcMediaGateway;
 use prometheus::Encoder;
 use std::{
     net::SocketAddr,
@@ -313,6 +315,7 @@ fn ws_state(principal: Option<Principal>) -> WsState {
         Arc::new(StubAuthenticator::new(principal)),
         WsConfig::default(),
         metrics,
+        Arc::new(GrpcMediaGateway::lazy("http://localhost:50051".to_owned()).expect("media")),
         shutdown_rx,
     )
 }
@@ -348,6 +351,7 @@ fn state_with(
         linker: Arc::new(StubLinker),
         rooms: FakeRoomStore::default(),
         realtime,
+        turn: turn_settings(),
     }
 }
 
@@ -371,6 +375,15 @@ fn other_principal() -> Principal {
     principal_with("00000000-0000-0000-0000-000000000010")
 }
 
+fn turn_settings() -> TurnSettings {
+    TurnSettings {
+        static_secret: "test-turn-secret".to_owned(),
+        realm: "mahfel.local".to_owned(),
+        uris: vec!["turn:127.0.0.1:3478?transport=udp".to_owned()],
+        ttl_seconds: 300,
+    }
+}
+
 fn app() -> Router {
     api_router(state(None, Arc::new(AllowAuthenticated)))
 }
@@ -391,6 +404,7 @@ fn authenticated_room_app(principal: Principal, store: FakeRoomStore) -> Router 
         linker: Arc::new(StubLinker),
         rooms: store,
         realtime,
+        turn: turn_settings(),
     })
 }
 
@@ -1142,6 +1156,7 @@ async fn serve_ws(principal: Option<Principal>, config: WsConfig) -> WsHarness {
         Arc::new(StubAuthenticator::new(principal.clone())),
         config,
         metrics,
+        Arc::new(GrpcMediaGateway::lazy("http://localhost:50051".to_owned()).expect("media")),
         shutdown_rx.clone(),
     );
     let state = AppState {
@@ -1154,6 +1169,7 @@ async fn serve_ws(principal: Option<Principal>, config: WsConfig) -> WsHarness {
         linker: Arc::new(StubLinker),
         rooms: FakeRoomStore::default(),
         realtime,
+        turn: turn_settings(),
     };
     let listener = TcpListener::bind("127.0.0.1:0").await.expect("bind");
     let addr = listener.local_addr().expect("listener address");
@@ -1328,7 +1344,13 @@ async fn serve_ws_with_verifier(verifier: TokenVerifier, config: WsConfig) -> Ws
     let metrics = WsMetrics::register(&registry).expect("register ws metrics");
     let (shutdown_tx, shutdown_rx) = watch::channel(false);
     let auth: Arc<dyn RequestAuthenticator> = Arc::new(TokenAuthentication::new(verifier));
-    let realtime = WsState::new(Arc::clone(&auth), config, metrics, shutdown_rx.clone());
+    let realtime = WsState::new(
+        Arc::clone(&auth),
+        config,
+        metrics,
+        Arc::new(GrpcMediaGateway::lazy("http://localhost:50051".to_owned()).expect("media")),
+        shutdown_rx.clone(),
+    );
     let state = AppState {
         service: "mahfel-api-test",
         version: "0.1.0",
@@ -1339,6 +1361,7 @@ async fn serve_ws_with_verifier(verifier: TokenVerifier, config: WsConfig) -> Ws
         linker: Arc::new(StubLinker),
         rooms: FakeRoomStore::default(),
         realtime,
+        turn: turn_settings(),
     };
     let listener = TcpListener::bind("127.0.0.1:0").await.expect("bind");
     let addr = listener.local_addr().expect("addr");
@@ -1644,10 +1667,10 @@ async fn ws_message_auth_with_expired_token_rejected() {
             match socket.next().await {
                 Some(Ok(ClientWsMessage::Close(frame))) => {
                     closed = true;
-                    if let Some(f) = frame {
-                        if u16::from(f.code) == 4401 {
-                            code_ok = true;
-                        }
+                    if let Some(f) = frame
+                        && u16::from(f.code) == 4401
+                    {
+                        code_ok = true;
                     }
                     break;
                 }

@@ -1,0 +1,23 @@
+syntax = "proto3";
+
+package mahfel.media.v1;
+
+message GetNodeInfoRequest {}
+
+message GetNodeInfoResponse {
+  string node_id = 1;
+  string version = 2;
+  uint32 worker_count = 3;
+  repeated uint32 rtc_ports = 4;
+}
+
+message GetNodeStatsRequest {}
+
+message GetNodeStatsResponse {
+  uint32 active_workers = 1;
+  uint64 active_rooms = 2;
+  uint64 participants = 3;
+  uint64 transports = 4;
+  uint64 producers = 5;
+  uint64 consumers = 6;
+}

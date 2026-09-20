@@ -46,6 +46,23 @@ impl Connection {
         }
     }
 
+    /// Send one message preserving the request id for correlation.
+    pub(super) async fn send_with_id(
+        &mut self,
+        id: Option<String>,
+        message: ServerMessage,
+    ) -> Result<(), DisconnectReason> {
+        let text = envelope::encode_with_id(id, message);
+        let frame = Message::Text(text.into());
+        match timeout(self.config.write_timeout, self.sink.send(frame)).await {
+            Ok(Ok(())) => {
+                self.metrics.message_sent();
+                Ok(())
+            }
+            Ok(Err(_)) | Err(_) => Err(DisconnectReason::Backpressure),
+        }
+    }
+
     /// Send a heartbeat ping, bounded by the write timeout.
     pub(super) async fn ping(&mut self) -> Result<(), DisconnectReason> {
         let frame = Message::Ping(Vec::<u8>::new().into());
@@ -71,5 +88,9 @@ impl Connection {
     /// Count one inbound message.
     pub(super) fn record_received(&self) {
         self.metrics.message_received();
+    }
+
+    pub(super) fn metrics(&self) -> &WsMetrics {
+        &self.metrics
     }
 }

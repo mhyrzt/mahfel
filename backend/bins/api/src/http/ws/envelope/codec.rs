@@ -1,71 +1,11 @@
-//! Versioned JSON envelope for the realtime gateway.
-//!
-//! Every frame is `{ "v": <version>, "type": <kind>, ... }`. The version is
-//! independent of the URL so the protocol can evolve without a new route.
-
-use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-/// Protocol version carried by every frame. Reject unknown versions.
-pub const PROTOCOL_VERSION: u8 = 1;
+use super::{ClientMessage, Envelope, PROTOCOL_VERSION, ServerMessage};
 
 /// Fallback used only if serializing a server message ever fails; server
 /// messages contain only owned strings, so this is unreachable in practice.
 const SERIALIZE_FALLBACK: &str =
     r#"{"v":1,"type":"error","code":"internal","message":"internal error"}"#;
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct Envelope<T> {
-    #[serde(default = "protocol_version")]
-    pub v: u8,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub id: Option<String>,
-    #[serde(flatten)]
-    pub message: T,
-}
-
-// Used by `#[serde(default = ...)]` above.
-#[allow(clippy::trivially_copy_pass_by_ref)]
-fn protocol_version() -> u8 {
-    PROTOCOL_VERSION
-}
-
-impl<T> Envelope<T> {
-    pub fn new(message: T) -> Self {
-        Self {
-            v: PROTOCOL_VERSION,
-            id: None,
-            message,
-        }
-    }
-}
-
-/// Frames accepted from a client.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(tag = "type", rename_all = "snake_case")]
-pub enum ClientMessage {
-    /// Authenticate the connection. `token` is validated by the authenticator;
-    /// the interim development authenticator ignores it.
-    Auth {
-        #[serde(default, skip_serializing_if = "Option::is_none")]
-        token: Option<String>,
-    },
-    /// Reply to the sender only.
-    Echo { text: String },
-    /// Fan out to every authenticated connection.
-    Broadcast { text: String },
-}
-
-/// Frames sent by the server.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(tag = "type", rename_all = "snake_case")]
-pub enum ServerMessage {
-    Welcome { connection_id: String },
-    Echo { text: String },
-    Broadcast { from: String, text: String },
-    Error { code: String, message: String },
-    Bye { reason: String },
-}
 
 #[derive(Debug, Error, Clone, PartialEq, Eq)]
 pub enum ProtocolError {
@@ -77,18 +17,34 @@ pub enum ProtocolError {
 
 /// Parse a client frame, rejecting unknown protocol versions.
 pub fn parse(text: &str) -> Result<ClientMessage, ProtocolError> {
+    parse_envelope(text).map(|env| env.message)
+}
+
+/// Parse a client frame preserving the envelope (including `id`).
+pub fn parse_envelope(text: &str) -> Result<Envelope<ClientMessage>, ProtocolError> {
     let envelope: Envelope<ClientMessage> =
         serde_json::from_str(text).map_err(|_| ProtocolError::Malformed)?;
     if envelope.v != PROTOCOL_VERSION {
         return Err(ProtocolError::UnsupportedVersion(envelope.v));
     }
-    Ok(envelope.message)
+    Ok(envelope)
 }
 
 /// Encode a server frame into the versioned envelope.
 #[must_use]
 pub fn encode(message: ServerMessage) -> String {
     serde_json::to_string(&Envelope::new(message)).unwrap_or_else(|_| SERIALIZE_FALLBACK.to_owned())
+}
+
+/// Encode a server frame preserving a request id for correlation.
+#[must_use]
+pub fn encode_with_id(id: Option<String>, message: ServerMessage) -> String {
+    let envelope = Envelope {
+        v: PROTOCOL_VERSION,
+        id,
+        message,
+    };
+    serde_json::to_string(&envelope).unwrap_or_else(|_| SERIALIZE_FALLBACK.to_owned())
 }
 
 #[cfg(test)]

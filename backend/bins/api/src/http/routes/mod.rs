@@ -35,6 +35,7 @@ pub(crate) fn router<R: RoomStoreState>(state: AppState<R>) -> Router {
         .merge(admin::route::<R>())
         .merge(rooms::route::<R>())
         .merge(ws::route::<R>())
+        .merge(crate::http::turn::route::<R>())
         .route("/openapi.json", get(openapi))
         .fallback(not_found);
 

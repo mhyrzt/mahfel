@@ -280,6 +280,8 @@ services:
       - --log-file=stdout
       - --fingerprint
       - --lt-cred-mech
+      - --use-auth-secret
+      - --static-auth-secret=${MAHFEL_TURN_STATIC_SECRET:-mahfel-local-only-turn-secret}
       - --realm=${MAHFEL_TURN_REALM:-mahfel.local}
       - --user=${MAHFEL_TURN_USER:-mahfel}:${MAHFEL_TURN_PASSWORD:-mahfel-local-only}
       - --external-ip=${MAHFEL_TURN_EXTERNAL_IP:-127.0.0.1}

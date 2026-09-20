@@ -6,6 +6,7 @@ use mahfel_application::{
     ports::{RoomStore, UserAttributeWriter},
     users::IdentityProvisioner,
 };
+use mahfel_config::TurnSettings;
 use std::sync::Arc;
 
 /// Store bound required by the API transport.
@@ -29,4 +30,5 @@ pub struct AppState<R> {
     pub linker: Arc<dyn UserAttributeWriter>,
     pub rooms: R,
     pub realtime: WsState,
+    pub turn: TurnSettings,
 }

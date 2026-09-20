@@ -12,6 +12,7 @@ use crate::http::{
 use axum::extract::ws::Message;
 use futures_util::StreamExt;
 use mahfel_application::ports::Principal;
+use mahfel_media_client::GrpcMediaGateway;
 use std::time::{Duration, Instant};
 use tokio::{
     sync::{mpsc, watch},
@@ -28,6 +29,7 @@ pub(super) async fn run(
     mut stream: SocketStream,
     registry: &ConnectionRegistry,
     authenticator: &dyn RequestAuthenticator,
+    media: &GrpcMediaGateway,
     mut shutdown: watch::Receiver<bool>,
     header_principal: Option<Principal>,
 ) -> DisconnectReason {
@@ -67,6 +69,8 @@ pub(super) async fn run(
         &mut shutdown,
         &mut rx,
         id,
+        &principal,
+        media,
     )
     .await;
     drop(registration);
@@ -76,6 +80,7 @@ pub(super) async fn run(
 }
 
 /// The connection's select loop. `Err(reason)` means "disconnect for `reason`".
+#[allow(clippy::too_many_arguments)]
 async fn receive_loop(
     connection: &mut Connection,
     stream: &mut SocketStream,
@@ -83,6 +88,8 @@ async fn receive_loop(
     shutdown: &mut watch::Receiver<bool>,
     rx: &mut mpsc::Receiver<Outbound>,
     id: Uuid,
+    principal: &Principal,
+    media: &GrpcMediaGateway,
 ) -> Result<(), DisconnectReason> {
     let mut heartbeat = interval(connection.config().heartbeat_interval);
     heartbeat.set_missed_tick_behavior(MissedTickBehavior::Delay);
@@ -121,7 +128,8 @@ async fn receive_loop(
                 Some(Ok(Message::Text(text))) => {
                     last_seen = Instant::now();
                     connection.record_received();
-                    dispatch::handle_text(connection, registry, id, text.as_str()).await?;
+                    dispatch::handle_text(connection, registry, id, text.as_str(), principal, media)
+                        .await?;
                 }
             },
             _ = heartbeat.tick() => {

@@ -2588,6 +2588,7 @@ dependencies = [
  "axum",
  "base64 0.22.1",
  "futures-util",
+ "hmac 0.12.1",
  "jsonwebtoken",
  "mahfel-application",
  "mahfel-auth",
@@ -2598,14 +2599,17 @@ dependencies = [
  "mahfel-postgres",
  "mahfel-redis",
  "mahfel-telemetry",
+ "mediasoup",
  "prometheus",
  "serde",
  "serde_json",
+ "sha1 0.10.7",
  "sqlx",
  "thiserror 2.0.20",
  "time",
  "tokio",
  "tokio-tungstenite",
+ "tonic",
  "tower",
  "tower-http 0.7.1",
  "tracing",
@@ -2685,10 +2689,13 @@ dependencies = [
  "mahfel-rtc",
  "mahfel-rtc-protocol",
  "mahfel-telemetry",
+ "mediasoup",
+ "prometheus",
  "tokio",
  "tokio-stream",
  "tonic",
  "tracing",
+ "uuid",
 ]
 
 [[package]]
@@ -2698,7 +2705,9 @@ dependencies = [
  "mahfel-application",
  "mahfel-domain",
  "mahfel-rtc-protocol",
+ "mediasoup",
  "thiserror 2.0.20",
+ "tokio",
  "tonic",
 ]
 
@@ -2748,8 +2757,12 @@ dependencies = [
 name = "mahfel-rtc"
 version = "0.1.0"
 dependencies = [
+ "mahfel-domain",
  "mediasoup",
+ "serde_json",
  "thiserror 2.0.20",
+ "tokio",
+ "tonic",
 ]
 
 [[package]]

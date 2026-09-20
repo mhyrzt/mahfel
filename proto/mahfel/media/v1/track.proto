@@ -1,0 +1,54 @@
+syntax = "proto3";
+
+package mahfel.media.v1;
+
+message ProduceRequest {
+  string room_id = 1;
+  string participant_id = 2;
+  string transport_id = 3;
+  // "audio" | "video"
+  string kind = 4;
+  // JSON-encoded RtpParameters from mediasoup-client transport.produce
+  string rtp_parameters = 5;
+}
+
+message ProduceResponse {
+  string producer_id = 1;
+}
+
+message ConsumeRequest {
+  string room_id = 1;
+  string participant_id = 2;
+  string producer_id = 3;
+  string transport_id = 4;
+  // JSON-encoded RtpCapabilities from mediasoup-client Device.rtpCapabilities
+  string rtp_capabilities = 5;
+}
+
+message ConsumeResponse {
+  string consumer_id = 1;
+  // JSON-encoded RtpParameters for the consumer
+  string rtp_parameters = 2;
+  bool paused = 3;
+}
+
+message PauseConsumerRequest {
+  string room_id = 1;
+  string consumer_id = 2;
+}
+
+message PauseConsumerResponse {}
+
+message ResumeConsumerRequest {
+  string room_id = 1;
+  string consumer_id = 2;
+}
+
+message ResumeConsumerResponse {}
+
+message CloseParticipantRequest {
+  string room_id = 1;
+  string participant_id = 2;
+}
+
+message CloseParticipantResponse {}

@@ -1,0 +1,22 @@
+syntax = "proto3";
+
+package mahfel.media.v1;
+
+import "mahfel/media/v1/node.proto";
+import "mahfel/media/v1/room.proto";
+import "mahfel/media/v1/track.proto";
+import "mahfel/media/v1/transport.proto";
+
+service MediaControl {
+  rpc GetNodeInfo(GetNodeInfoRequest) returns (GetNodeInfoResponse);
+  rpc GetNodeStats(GetNodeStatsRequest) returns (GetNodeStatsResponse);
+  rpc CreateRoom(CreateRoomRequest) returns (CreateRoomResponse);
+  rpc DeleteRoom(DeleteRoomRequest) returns (DeleteRoomResponse);
+  rpc CreateWebRtcTransport(CreateWebRtcTransportRequest) returns (CreateWebRtcTransportResponse);
+  rpc ConnectWebRtcTransport(ConnectWebRtcTransportRequest) returns (ConnectWebRtcTransportResponse);
+  rpc Produce(ProduceRequest) returns (ProduceResponse);
+  rpc Consume(ConsumeRequest) returns (ConsumeResponse);
+  rpc PauseConsumer(PauseConsumerRequest) returns (PauseConsumerResponse);
+  rpc ResumeConsumer(ResumeConsumerRequest) returns (ResumeConsumerResponse);
+  rpc CloseParticipant(CloseParticipantRequest) returns (CloseParticipantResponse);
+}

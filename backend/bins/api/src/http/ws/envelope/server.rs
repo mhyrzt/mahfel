@@ -1,0 +1,54 @@
+use serde::{Deserialize, Serialize};
+
+/// Frames sent by the server.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "type", rename_all = "snake_case")]
+pub enum ServerMessage {
+    Welcome {
+        connection_id: String,
+    },
+    Echo {
+        text: String,
+    },
+    Broadcast {
+        from: String,
+        text: String,
+    },
+    Error {
+        code: String,
+        message: String,
+    },
+    Bye {
+        reason: String,
+    },
+    // --- RTC responses ---
+    TransportCreated {
+        room_id: String,
+        transport_id: String,
+        ice_parameters: String,
+        ice_candidates: String,
+        dtls_parameters: String,
+    },
+    TransportConnected {
+        room_id: String,
+        transport_id: String,
+    },
+    Produced {
+        room_id: String,
+        producer_id: String,
+    },
+    Consumed {
+        room_id: String,
+        consumer_id: String,
+        rtp_parameters: String,
+        paused: bool,
+    },
+    ConsumerPaused {
+        room_id: String,
+        consumer_id: String,
+    },
+    ConsumerResumed {
+        room_id: String,
+        consumer_id: String,
+    },
+}
