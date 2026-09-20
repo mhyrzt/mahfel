@@ -14,6 +14,16 @@ use thiserror::Error;
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Principal {
     pub user_id: UserId,
+    /// Local display name resolved at provisioning time.
+    pub display_name: Option<String>,
+    /// Resolved avatar link (user-owned first, provider claim second).
+    pub avatar_url: Option<String>,
+    /// Provider-verified profile fields, for responses and authorization
+    /// context. Never populated from unverified input.
+    pub email: Option<String>,
+    pub email_verified: bool,
+    pub username: Option<String>,
+    pub roles: Vec<String>,
 }
 
 /// An operation a principal may attempt.

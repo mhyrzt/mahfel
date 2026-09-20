@@ -5,6 +5,7 @@ pub mod identity_store;
 pub mod media_gateway;
 pub mod room_store;
 pub mod session_store;
+pub mod user_attribute;
 pub mod user_store;
 
 pub use authorization::{Action, AllowAuthenticated, AuthorizationError, Authorizer, Principal};
@@ -14,6 +15,7 @@ pub use identity_store::{IdentityProfile, IdentityStore, ProvisionedIdentity};
 pub use media_gateway::{MediaGateway, MediaGatewayError};
 pub use room_store::RoomStore;
 pub use session_store::SessionStore;
+pub use user_attribute::{AttributeError, UserAttributeWriter};
 pub use user_store::UserStore;
 
 use thiserror::Error;
