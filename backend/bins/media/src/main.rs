@@ -24,6 +24,21 @@ use uuid::Uuid;
 
 const SERVICE: &str = "mahfel-media";
 
+#[inline]
+fn saturating_u64(v: usize) -> u64 {
+    u64::try_from(v).unwrap_or(u64::MAX)
+}
+
+#[inline]
+fn saturating_u32(v: usize) -> u32 {
+    u32::try_from(v).unwrap_or(u32::MAX)
+}
+
+#[inline]
+fn saturating_i64(v: usize) -> i64 {
+    i64::try_from(v).unwrap_or(0)
+}
+
 #[derive(Clone)]
 struct MediaControlService {
     node_id: NodeId,
@@ -50,17 +65,13 @@ impl MediaControl for MediaControlService {
         &self,
         _request: Request<GetNodeStatsRequest>,
     ) -> Result<Response<GetNodeStatsResponse>, Status> {
-        let active_rooms = u64::try_from(self.media.room_count().await).unwrap_or(u64::MAX);
-        let transports = u64::try_from(self.media.transport_count().await).unwrap_or(u64::MAX);
-        let producers = u64::try_from(self.media.producer_count().await).unwrap_or(u64::MAX);
-        let consumers = u64::try_from(self.media.consumer_count().await).unwrap_or(u64::MAX);
         Ok(Response::new(GetNodeStatsResponse {
-            active_workers: u32::try_from(self.media.active_workers()).unwrap_or(u32::MAX),
-            active_rooms,
+            active_workers: saturating_u32(self.media.active_workers()),
+            active_rooms: saturating_u64(self.media.room_count().await),
             participants: 0,
-            transports,
-            producers,
-            consumers,
+            transports: saturating_u64(self.media.transport_count().await),
+            producers: saturating_u64(self.media.producer_count().await),
+            consumers: saturating_u64(self.media.consumer_count().await),
         }))
     }
 
@@ -68,10 +79,7 @@ impl MediaControl for MediaControlService {
         &self,
         request: Request<CreateRoomRequest>,
     ) -> Result<Response<CreateRoomResponse>, Status> {
-        let raw = request.into_inner().room_id.trim().to_owned();
-        if raw.is_empty() {
-            return Err(Status::invalid_argument("room_id must not be empty"));
-        }
+        let raw = require_field(request.into_inner().room_id, "room_id")?;
         let room_id = parse_room_id(&raw)?;
         self.media.create_room(room_id).await.map_err(|e| {
             tracing::error!(%raw, error=%e, "create_room failed");
@@ -97,13 +105,8 @@ impl MediaControl for MediaControlService {
         request: Request<CreateWebRtcTransportRequest>,
     ) -> Result<Response<CreateWebRtcTransportResponse>, Status> {
         let inner = request.into_inner();
-        let raw_room = inner.room_id.trim().to_owned();
-        let raw_participant = inner.participant_id.trim().to_owned();
-        if raw_room.is_empty() || raw_participant.is_empty() {
-            return Err(Status::invalid_argument(
-                "room_id and participant_id must not be empty",
-            ));
-        }
+        let raw_room = require_field(inner.room_id, "room_id")?;
+        let raw_participant = require_field(inner.participant_id, "participant_id")?;
         let room_id = parse_room_id(&raw_room)?;
         let participant_id = parse_user_id(&raw_participant)?;
         let (transport_id, ice_parameters, ice_candidates, dtls_parameters) = self
@@ -130,14 +133,9 @@ impl MediaControl for MediaControlService {
         request: Request<ConnectWebRtcTransportRequest>,
     ) -> Result<Response<ConnectWebRtcTransportResponse>, Status> {
         let inner = request.into_inner();
-        let raw_room = inner.room_id.trim().to_owned();
-        let transport_id = inner.transport_id.trim().to_owned();
-        let dtls_parameters = inner.dtls_parameters.trim().to_owned();
-        if raw_room.is_empty() || transport_id.is_empty() || dtls_parameters.is_empty() {
-            return Err(Status::invalid_argument(
-                "room_id, transport_id and dtls_parameters must not be empty",
-            ));
-        }
+        let raw_room = require_field(inner.room_id, "room_id")?;
+        let transport_id = require_field(inner.transport_id, "transport_id")?;
+        let dtls_parameters = require_field(inner.dtls_parameters, "dtls_parameters")?;
         let room_id = parse_room_id(&raw_room)?;
         self.media
             .connect_transport(room_id, &transport_id, &dtls_parameters)
@@ -160,21 +158,11 @@ impl MediaControl for MediaControlService {
         request: Request<ProduceRequest>,
     ) -> Result<Response<ProduceResponse>, Status> {
         let inner = request.into_inner();
-        let raw_room = inner.room_id.trim().to_owned();
-        let raw_participant = inner.participant_id.trim().to_owned();
-        let transport_id = inner.transport_id.trim().to_owned();
-        let raw_kind = inner.kind.trim().to_owned();
-        let rtp_parameters = inner.rtp_parameters.trim().to_owned();
-        if raw_room.is_empty()
-            || raw_participant.is_empty()
-            || transport_id.is_empty()
-            || raw_kind.is_empty()
-            || rtp_parameters.is_empty()
-        {
-            return Err(Status::invalid_argument(
-                "room_id, participant_id, transport_id, kind and rtp_parameters must not be empty",
-            ));
-        }
+        let raw_room = require_field(inner.room_id, "room_id")?;
+        let raw_participant = require_field(inner.participant_id, "participant_id")?;
+        let transport_id = require_field(inner.transport_id, "transport_id")?;
+        let raw_kind = require_field(inner.kind, "kind")?;
+        let rtp_parameters = require_field(inner.rtp_parameters, "rtp_parameters")?;
         let room_id = parse_room_id(&raw_room)?;
         let participant_id = parse_user_id(&raw_participant)?;
         let kind = parse_media_kind(&raw_kind)?;
@@ -208,21 +196,11 @@ impl MediaControl for MediaControlService {
         request: Request<ConsumeRequest>,
     ) -> Result<Response<ConsumeResponse>, Status> {
         let inner = request.into_inner();
-        let raw_room = inner.room_id.trim().to_owned();
-        let raw_participant = inner.participant_id.trim().to_owned();
-        let producer_id = inner.producer_id.trim().to_owned();
-        let transport_id = inner.transport_id.trim().to_owned();
-        let rtp_capabilities = inner.rtp_capabilities.trim().to_owned();
-        if raw_room.is_empty()
-            || raw_participant.is_empty()
-            || producer_id.is_empty()
-            || transport_id.is_empty()
-            || rtp_capabilities.is_empty()
-        {
-            return Err(Status::invalid_argument(
-                "room_id, participant_id, producer_id, transport_id and rtp_capabilities must not be empty",
-            ));
-        }
+        let raw_room = require_field(inner.room_id, "room_id")?;
+        let raw_participant = require_field(inner.participant_id, "participant_id")?;
+        let producer_id = require_field(inner.producer_id, "producer_id")?;
+        let transport_id = require_field(inner.transport_id, "transport_id")?;
+        let rtp_capabilities = require_field(inner.rtp_capabilities, "rtp_capabilities")?;
         let room_id = parse_room_id(&raw_room)?;
         let participant_id = parse_user_id(&raw_participant)?;
         let (consumer_id, rtp_parameters, paused) = self
@@ -257,13 +235,8 @@ impl MediaControl for MediaControlService {
         request: Request<PauseConsumerRequest>,
     ) -> Result<Response<PauseConsumerResponse>, Status> {
         let inner = request.into_inner();
-        let raw_room = inner.room_id.trim().to_owned();
-        let consumer_id = inner.consumer_id.trim().to_owned();
-        if raw_room.is_empty() || consumer_id.is_empty() {
-            return Err(Status::invalid_argument(
-                "room_id and consumer_id must not be empty",
-            ));
-        }
+        let raw_room = require_field(inner.room_id, "room_id")?;
+        let consumer_id = require_field(inner.consumer_id, "consumer_id")?;
         let room_id = parse_room_id(&raw_room)?;
         self.media
             .pause_consumer(room_id, &consumer_id)
@@ -284,13 +257,8 @@ impl MediaControl for MediaControlService {
         request: Request<ResumeConsumerRequest>,
     ) -> Result<Response<ResumeConsumerResponse>, Status> {
         let inner = request.into_inner();
-        let raw_room = inner.room_id.trim().to_owned();
-        let consumer_id = inner.consumer_id.trim().to_owned();
-        if raw_room.is_empty() || consumer_id.is_empty() {
-            return Err(Status::invalid_argument(
-                "room_id and consumer_id must not be empty",
-            ));
-        }
+        let raw_room = require_field(inner.room_id, "room_id")?;
+        let consumer_id = require_field(inner.consumer_id, "consumer_id")?;
         let room_id = parse_room_id(&raw_room)?;
         self.media
             .resume_consumer(room_id, &consumer_id)
@@ -311,6 +279,16 @@ impl MediaControl for MediaControlService {
     ) -> Result<Response<CloseParticipantResponse>, Status> {
         planned()
     }
+}
+
+fn require_field(raw: String, field: &str) -> Result<String, Status> {
+    let trimmed = raw.trim().to_owned();
+    if trimmed.is_empty() {
+        return Err(Status::invalid_argument(format!(
+            "{field} must not be empty"
+        )));
+    }
+    Ok(trimmed)
 }
 
 fn parse_room_id(raw: &str) -> Result<RoomId, Status> {
@@ -355,8 +333,7 @@ async fn main() -> Result<()> {
     let node_id = NodeId::new();
     let service = MediaControlService {
         node_id: node_id.clone(),
-        worker_count: u32::try_from(media.active_workers())
-            .context("worker count exceeds protocol range")?,
+        worker_count: saturating_u32(media.active_workers()),
         rtc_ports: media.ports().iter().copied().map(u32::from).collect(),
         media: Arc::clone(&media),
     };
@@ -397,11 +374,11 @@ async fn main() -> Result<()> {
         "Number of active consumers",
     ))?;
     registry.register(Box::new(active_consumers_gauge.clone()))?;
-    active_workers_gauge.set(i64::try_from(media.active_workers()).unwrap_or(0));
-    active_rooms_gauge.set(i64::try_from(media.room_count().await).unwrap_or(0));
-    active_transports_gauge.set(i64::try_from(media.transport_count().await).unwrap_or(0));
-    active_producers_gauge.set(i64::try_from(media.producer_count().await).unwrap_or(0));
-    active_consumers_gauge.set(i64::try_from(media.consumer_count().await).unwrap_or(0));
+    active_workers_gauge.set(saturating_i64(media.active_workers()));
+    active_rooms_gauge.set(saturating_i64(media.room_count().await));
+    active_transports_gauge.set(saturating_i64(media.transport_count().await));
+    active_producers_gauge.set(saturating_i64(media.producer_count().await));
+    active_consumers_gauge.set(saturating_i64(media.consumer_count().await));
 
     let expected_workers = media.active_workers();
     let health_probe = health.clone();
@@ -437,14 +414,11 @@ async fn main() -> Result<()> {
                 tokio::select! {
                     _ = interval.tick() => {
                         let active = media.active_workers();
-                        gauge_probe.set(i64::try_from(active).unwrap_or(0));
-                        rooms_gauge_probe.set(i64::try_from(media.room_count().await).unwrap_or(0));
-                        transports_gauge_probe
-                            .set(i64::try_from(media.transport_count().await).unwrap_or(0));
-                        producers_gauge_probe
-                            .set(i64::try_from(media.producer_count().await).unwrap_or(0));
-                        consumers_gauge_probe
-                            .set(i64::try_from(media.consumer_count().await).unwrap_or(0));
+                        gauge_probe.set(saturating_i64(active));
+                        rooms_gauge_probe.set(saturating_i64(media.room_count().await));
+                        transports_gauge_probe.set(saturating_i64(media.transport_count().await));
+                        producers_gauge_probe.set(saturating_i64(media.producer_count().await));
+                        consumers_gauge_probe.set(saturating_i64(media.consumer_count().await));
                         if active < last_active {
                             let delta = last_active - active;
                             failures_probe.inc_by(f64::from(u32::try_from(delta).unwrap_or(0)));
