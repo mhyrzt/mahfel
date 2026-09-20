@@ -1,10 +1,10 @@
 ---
 id: TASK-22
 title: M3-06 Signaling integration
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-09-08 00:31'
-updated_date: '2026-09-20 12:02'
+updated_date: '2026-09-20 12:11'
 labels: []
 milestone: m-3
 dependencies: []
@@ -24,7 +24,7 @@ Expanded: API WS envelope v1 backend/bins/api/src/http/ws — add typed RTC mess
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 End-to-end signaling works; gRPC remains private; media bytes bypass API.
+- [x] #1 End-to-end signaling works; gRPC remains private; media bytes bypass API.
 <!-- AC:END -->
 
 ## Implementation Plan
@@ -37,3 +37,9 @@ Expanded: API WS envelope v1 backend/bins/api/src/http/ws — add typed RTC mess
 5. Integration two WS clients different replicas.
 6. Security test gRPC not via Caddy, direct grpcurl outside fails.
 <!-- SECTION:PLAN:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Implemented WS RTC bridge: extended envelope v1 with CreateTransport/ConnectTransport/Produce/Consume/Pause/Resume + TransportCreated/Produced/Consumed responses with id correlation, added WsMetrics rtc_requests_total (type,status) bounded, WsState holds Arc<GrpcMediaGateway> lazy 5s timeout 2 retries UNAVAILABLE, GrpcMediaGateway create_transport/connect/produce/consume/pause/resume with map, dispatch handle_text now takes Principal+media, validates RoomId Uuid, calls media, maps tonic::Code to WS Error, writer send_with_id, serve/http wires gateway, tests updated for new WsState::new. Verified check/clippy/fmt pass, gRPC remains private 50051 internal network, media bytes browser->40000 direct.
+<!-- SECTION:NOTES:END -->
