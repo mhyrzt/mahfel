@@ -1,0 +1,24 @@
+syntax = "proto3";
+
+package mahfel.media.v1;
+
+message CreateWebRtcTransportRequest {
+  string room_id = 1;
+  string participant_id = 2;
+}
+
+message CreateWebRtcTransportResponse {
+  string transport_id = 1;
+  // JSON-encoded ICE/DTLS parameters for mediasoup-client Device.create*Transport
+  string ice_parameters = 2;
+  string ice_candidates = 3;
+  string dtls_parameters = 4;
+}
+
+message ConnectWebRtcTransportRequest {
+  string room_id = 1;
+  string transport_id = 2;
+  string dtls_parameters = 3;
+}
+
+message ConnectWebRtcTransportResponse {}

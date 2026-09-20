@@ -1,0 +1,17 @@
+syntax = "proto3";
+
+package mahfel.media.v1;
+
+message CreateRoomRequest {
+  string room_id = 1;
+}
+
+message CreateRoomResponse {
+  string room_id = 1;
+}
+
+message DeleteRoomRequest {
+  string room_id = 1;
+}
+
+message DeleteRoomResponse {}
