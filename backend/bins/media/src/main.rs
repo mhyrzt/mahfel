@@ -12,7 +12,10 @@ use mahfel_rtc_protocol::media::{
     media_control_server::{MediaControl, MediaControlServer},
 };
 use mahfel_telemetry::{init_tracing, operations, serve_http, shutdown_signal, wait_for_shutdown};
+use prometheus::{Counter, IntGauge, Opts};
 use std::net::SocketAddr;
+use std::sync::Arc;
+use std::time::Duration;
 use tokio::sync::watch;
 use tokio_stream::wrappers::TcpListenerStream;
 use tonic::{Request, Response, Status, transport::Server};
@@ -24,6 +27,7 @@ struct MediaControlService {
     node_id: NodeId,
     worker_count: u32,
     rtc_ports: Vec<u32>,
+    media: Arc<MediaRuntime>,
 }
 
 #[tonic::async_trait]
@@ -44,45 +48,146 @@ impl MediaControl for MediaControlService {
         &self,
         _request: Request<GetNodeStatsRequest>,
     ) -> Result<Response<GetNodeStatsResponse>, Status> {
+        let active_rooms = u64::try_from(self.media.room_count().await).unwrap_or(u64::MAX);
+        let transports = u64::try_from(self.media.transport_count().await).unwrap_or(u64::MAX);
+        let producers = u64::try_from(self.media.producer_count().await).unwrap_or(u64::MAX);
         Ok(Response::new(GetNodeStatsResponse {
-            active_workers: self.worker_count,
-            active_rooms: 0,
+            active_workers: u32::try_from(self.media.active_workers()).unwrap_or(u32::MAX),
+            active_rooms,
             participants: 0,
-            transports: 0,
-            producers: 0,
+            transports,
+            producers,
             consumers: 0,
         }))
     }
 
     async fn create_room(
         &self,
-        _: Request<CreateRoomRequest>,
+        request: Request<CreateRoomRequest>,
     ) -> Result<Response<CreateRoomResponse>, Status> {
-        planned()
+        let room_id = request.into_inner().room_id.trim().to_owned();
+        if room_id.is_empty() {
+            return Err(Status::invalid_argument("room_id must not be empty"));
+        }
+        self.media.create_room(&room_id).await.map_err(|e| {
+            tracing::error!(%room_id, error=%e, "create_room failed");
+            Status::internal("router creation failed")
+        })?;
+        Ok(Response::new(CreateRoomResponse { room_id }))
     }
+
     async fn delete_room(
         &self,
-        _: Request<DeleteRoomRequest>,
+        request: Request<DeleteRoomRequest>,
     ) -> Result<Response<DeleteRoomResponse>, Status> {
-        planned()
+        let room_id = request.into_inner().room_id.trim().to_owned();
+        if room_id.is_empty() {
+            return Err(Status::invalid_argument("room_id must not be empty"));
+        }
+        // Idempotent: missing room is OK.
+        let _ = self.media.delete_room(&room_id).await;
+        Ok(Response::new(DeleteRoomResponse {}))
     }
     async fn create_web_rtc_transport(
         &self,
-        _: Request<CreateWebRtcTransportRequest>,
+        request: Request<CreateWebRtcTransportRequest>,
     ) -> Result<Response<CreateWebRtcTransportResponse>, Status> {
-        planned()
+        let inner = request.into_inner();
+        let room_id = inner.room_id.trim().to_owned();
+        let participant_id = inner.participant_id.trim().to_owned();
+        if room_id.is_empty() || participant_id.is_empty() {
+            return Err(Status::invalid_argument(
+                "room_id and participant_id must not be empty",
+            ));
+        }
+        let (transport_id, ice_parameters, ice_candidates, dtls_parameters) = self
+            .media
+            .create_transport(&room_id, &participant_id)
+            .await
+            .map_err(|e| match e {
+                mahfel_rtc::RtcError::RoomNotFound(_) => Status::not_found(e.to_string()),
+                _ => {
+                    tracing::error!(%room_id, %participant_id, error=%e, "create_transport failed");
+                    Status::internal("transport creation failed")
+                }
+            })?;
+        Ok(Response::new(CreateWebRtcTransportResponse {
+            transport_id,
+            ice_parameters,
+            ice_candidates,
+            dtls_parameters,
+        }))
     }
+
     async fn connect_web_rtc_transport(
         &self,
-        _: Request<ConnectWebRtcTransportRequest>,
+        request: Request<ConnectWebRtcTransportRequest>,
     ) -> Result<Response<ConnectWebRtcTransportResponse>, Status> {
-        planned()
+        let inner = request.into_inner();
+        let room_id = inner.room_id.trim().to_owned();
+        let transport_id = inner.transport_id.trim().to_owned();
+        let dtls_parameters = inner.dtls_parameters.trim().to_owned();
+        if room_id.is_empty() || transport_id.is_empty() || dtls_parameters.is_empty() {
+            return Err(Status::invalid_argument(
+                "room_id, transport_id and dtls_parameters must not be empty",
+            ));
+        }
+        self.media
+            .connect_transport(&room_id, &transport_id, &dtls_parameters)
+            .await
+            .map_err(|e| match e {
+                mahfel_rtc::RtcError::RoomNotFound(_)
+                | mahfel_rtc::RtcError::TransportNotFound(_) => Status::not_found(e.to_string()),
+                mahfel_rtc::RtcError::Dtls(_) => Status::invalid_argument(e.to_string()),
+                _ => {
+                    tracing::error!(%room_id, %transport_id, error=%e, "connect_transport failed");
+                    Status::internal("transport connect failed")
+                }
+            })?;
+        Ok(Response::new(ConnectWebRtcTransportResponse {}))
     }
     async fn produce(
         &self,
-        _: Request<ProduceRequest>,
+        request: Request<ProduceRequest>,
     ) -> Result<Response<ProduceResponse>, Status> {
-        planned()
+        let inner = request.into_inner();
+        let room_id = inner.room_id.trim().to_owned();
+        let participant_id = inner.participant_id.trim().to_owned();
+        let transport_id = inner.transport_id.trim().to_owned();
+        let kind = inner.kind.trim().to_owned();
+        let rtp_parameters = inner.rtp_parameters.trim().to_owned();
+        if room_id.is_empty()
+            || participant_id.is_empty()
+            || transport_id.is_empty()
+            || kind.is_empty()
+            || rtp_parameters.is_empty()
+        {
+            return Err(Status::invalid_argument(
+                "room_id, participant_id, transport_id, kind and rtp_parameters must not be empty",
+            ));
+        }
+        let producer_id = self
+            .media
+            .create_producer(
+                &room_id,
+                &transport_id,
+                &participant_id,
+                &kind,
+                &rtp_parameters,
+            )
+            .await
+            .map_err(|e| match e {
+                mahfel_rtc::RtcError::RoomNotFound(_)
+                | mahfel_rtc::RtcError::TransportNotFound(_) => Status::not_found(e.to_string()),
+                mahfel_rtc::RtcError::Kind(_)
+                | mahfel_rtc::RtcError::RtpParameters(_)
+                | mahfel_rtc::RtcError::Dtls(_) => Status::invalid_argument(e.to_string()),
+                _ => {
+                    tracing::error!(%room_id, %transport_id, error=%e, "produce failed");
+                    Status::internal("producer creation failed")
+                }
+            })?;
+        Ok(Response::new(ProduceResponse { producer_id }))
     }
     async fn consume(
         &self,
@@ -129,24 +234,109 @@ async fn main() -> Result<()> {
     )
     .await
     .context("initialize mediasoup")?;
+    let media = Arc::new(media);
     let node_id = NodeId::new();
     let service = MediaControlService {
         node_id: node_id.clone(),
         worker_count: u32::try_from(media.active_workers())
             .context("worker count exceeds protocol range")?,
         rtc_ports: media.ports().iter().copied().map(u32::from).collect(),
+        media: Arc::clone(&media),
     };
     let grpc_address = settings.media.grpc_bind.parse::<SocketAddr>()?;
     let operations_address = settings.media.operations_bind.parse::<SocketAddr>()?;
     let grpc_listener = tokio::net::TcpListener::bind(grpc_address).await?;
     let operations_listener = tokio::net::TcpListener::bind(operations_address).await?;
     let (operations_router, health) = operations(SERVICE, env!("CARGO_PKG_VERSION"))?;
-    health
-        .set_check("mediasoup_workers", media.active_workers() > 0)
-        .await;
+    // Register media-specific metrics on the same registry that feeds /metrics.
+    let registry = health.registry();
+    let active_workers_gauge = IntGauge::with_opts(Opts::new(
+        "media_active_workers",
+        "Number of mediasoup workers currently not closed",
+    ))?;
+    registry.register(Box::new(active_workers_gauge.clone()))?;
+    let worker_failures = Counter::with_opts(Opts::new(
+        "media_worker_failures_total",
+        "Total observed mediasoup worker failures (closed workers)",
+    ))?;
+    registry.register(Box::new(worker_failures.clone()))?;
+    let active_rooms_gauge = IntGauge::with_opts(Opts::new(
+        "media_active_rooms",
+        "Number of active mediasoup routers (rooms)",
+    ))?;
+    registry.register(Box::new(active_rooms_gauge.clone()))?;
+    let active_transports_gauge = IntGauge::with_opts(Opts::new(
+        "media_active_transports",
+        "Number of active WebRtcTransports",
+    ))?;
+    registry.register(Box::new(active_transports_gauge.clone()))?;
+    let active_producers_gauge = IntGauge::with_opts(Opts::new(
+        "media_active_producers",
+        "Number of active producers",
+    ))?;
+    registry.register(Box::new(active_producers_gauge.clone()))?;
+    active_workers_gauge.set(i64::try_from(media.active_workers()).unwrap_or(0));
+    active_rooms_gauge.set(i64::try_from(media.room_count().await).unwrap_or(0));
+    active_transports_gauge.set(i64::try_from(media.transport_count().await).unwrap_or(0));
+    active_producers_gauge.set(i64::try_from(media.producer_count().await).unwrap_or(0));
+
+    let expected_workers = media.active_workers();
+    let health_probe = health.clone();
+    let media_probe = Arc::clone(&media);
+    let gauge_probe = active_workers_gauge.clone();
+    let failures_probe = worker_failures.clone();
+    let rooms_gauge_probe = active_rooms_gauge.clone();
+    let transports_gauge_probe = active_transports_gauge.clone();
+    let producers_gauge_probe = active_producers_gauge.clone();
+
     health.set_check("grpc", true).await;
+    // Initial readiness requires at least one active worker.
+    health
+        .set_check("mediasoup_workers", media_probe.active_workers() > 0)
+        .await;
     health.set_initialized(true).await;
+
+    // Background supervision: poll every 5s, update readiness + metrics, count drops as failures.
+    // Restart policy is documented in mahfel-rtc: dead workers are NOT respawned in-process.
+    // The process becomes not-ready and the orchestrator restarts the container.
     let (shutdown_tx, shutdown_rx) = watch::channel(false);
+    let supervision = {
+        let health = health_probe.clone();
+        let media = Arc::clone(&media_probe);
+        let mut shutdown = shutdown_rx.clone();
+        tokio::spawn(async move {
+            let mut last_active = media.active_workers();
+            let mut interval = tokio::time::interval(Duration::from_secs(5));
+            // First tick completes immediately; skip it.
+            interval.tick().await;
+            loop {
+                tokio::select! {
+                    _ = interval.tick() => {
+                        let active = media.active_workers();
+                        gauge_probe.set(i64::try_from(active).unwrap_or(0));
+                        rooms_gauge_probe.set(i64::try_from(media.room_count().await).unwrap_or(0));
+                        transports_gauge_probe
+                            .set(i64::try_from(media.transport_count().await).unwrap_or(0));
+                        producers_gauge_probe
+                            .set(i64::try_from(media.producer_count().await).unwrap_or(0));
+                        if active < last_active {
+                            let delta = last_active - active;
+                            failures_probe.inc_by(f64::from(u32::try_from(delta).unwrap_or(0)));
+                            tracing::warn!(active, expected = expected_workers, "mediasoup worker failure detected");
+                        }
+                        last_active = active;
+                        health.set_check("mediasoup_workers", active > 0).await;
+                    }
+                    changed = shutdown.changed() => {
+                        if changed.is_err() || *shutdown.borrow() {
+                            break;
+                        }
+                    }
+                }
+            }
+        })
+    };
+
     let grpc_shutdown = shutdown_rx.clone();
     let operations_task = tokio::spawn(serve_http(
         operations_listener,
@@ -163,7 +353,7 @@ async fn main() -> Result<()> {
             .await
     });
 
-    tracing::info!(%grpc_address, %operations_address, %node_id, "media service ready");
+    tracing::info!(%grpc_address, %operations_address, %node_id, expected_workers, ports=?media_probe.ports(), "media service ready");
     shutdown_signal().await;
     health.set_initialized(false).await;
     let _ = shutdown_tx.send(true);
@@ -171,6 +361,7 @@ async fn main() -> Result<()> {
         .await
         .context("join operations listener")??;
     grpc_task.await.context("join gRPC listener")??;
-    drop(media);
+    supervision.abort();
+    drop(media_probe);
     Ok(())
 }

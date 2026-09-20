@@ -2685,6 +2685,7 @@ dependencies = [
  "mahfel-rtc",
  "mahfel-rtc-protocol",
  "mahfel-telemetry",
+ "prometheus",
  "tokio",
  "tokio-stream",
  "tonic",
@@ -2749,7 +2750,9 @@ name = "mahfel-rtc"
 version = "0.1.0"
 dependencies = [
  "mediasoup",
+ "serde_json",
  "thiserror 2.0.20",
+ "tokio",
 ]
 
 [[package]]

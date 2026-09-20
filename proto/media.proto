@@ -19,55 +19,99 @@ service MediaControl {
 message GetNodeInfoRequest {}
 
 message GetNodeInfoResponse {
-  string          node_id      = 1;
-  string          version      = 2;
-  uint32          worker_count = 3;
-  repeated uint32 rtc_ports    = 4;
+  string node_id = 1;
+  string version = 2;
+  uint32 worker_count = 3;
+  repeated uint32 rtc_ports = 4;
 }
 
 message GetNodeStatsRequest {}
 
 message GetNodeStatsResponse {
   uint32 active_workers = 1;
-  uint64 active_rooms   = 2;
-  uint64 participants   = 3;
-  uint64 transports     = 4;
-  uint64 producers      = 5;
-  uint64 consumers      = 6;
+  uint64 active_rooms = 2;
+  uint64 participants = 3;
+  uint64 transports = 4;
+  uint64 producers = 5;
+  uint64 consumers = 6;
 }
 
-message CreateRoomRequest { string room_id = 1; }
+message CreateRoomRequest {
+  string room_id = 1;
+}
 
-message CreateRoomResponse { string room_id = 1; }
+message CreateRoomResponse {
+  string room_id = 1;
+}
 
-message DeleteRoomRequest { string room_id = 1; }
+message DeleteRoomRequest {
+  string room_id = 1;
+}
 
 message DeleteRoomResponse {}
 
-message CreateWebRtcTransportRequest { string room_id = 1; string participant_id = 2; }
+message CreateWebRtcTransportRequest {
+  string room_id = 1;
+  string participant_id = 2;
+}
 
-message CreateWebRtcTransportResponse { string transport_id = 1; }
+message CreateWebRtcTransportResponse {
+  string transport_id = 1;
+  // JSON-encoded ICE/DTLS parameters for mediasoup-client Device.create*Transport
+  string ice_parameters = 2;
+  string ice_candidates = 3;
+  string dtls_parameters = 4;
+}
 
-message ConnectWebRtcTransportRequest { string room_id = 1; string transport_id = 2; }
+message ConnectWebRtcTransportRequest {
+  string room_id = 1;
+  string transport_id = 2;
+  string dtls_parameters = 3;
+}
 
 message ConnectWebRtcTransportResponse {}
 
-message ProduceRequest { string room_id = 1; string participant_id = 2; string transport_id = 3; }
+message ProduceRequest {
+  string room_id = 1;
+  string participant_id = 2;
+  string transport_id = 3;
+  // "audio" | "video"
+  string kind = 4;
+  // JSON-encoded RtpParameters from mediasoup-client transport.produce
+  string rtp_parameters = 5;
+}
 
-message ProduceResponse { string producer_id = 1; }
+message ProduceResponse {
+  string producer_id = 1;
+}
 
-message ConsumeRequest { string room_id = 1; string participant_id = 2; string producer_id = 3; }
+message ConsumeRequest {
+  string room_id = 1;
+  string participant_id = 2;
+  string producer_id = 3;
+}
 
-message ConsumeResponse { string consumer_id = 1; }
+message ConsumeResponse {
+  string consumer_id = 1;
+}
 
-message PauseConsumerRequest { string room_id = 1; string consumer_id = 2; }
+message PauseConsumerRequest {
+  string room_id = 1;
+  string consumer_id = 2;
+}
 
 message PauseConsumerResponse {}
 
-message ResumeConsumerRequest { string room_id = 1; string consumer_id = 2; }
+message ResumeConsumerRequest {
+  string room_id = 1;
+  string consumer_id = 2;
+}
 
 message ResumeConsumerResponse {}
 
-message CloseParticipantRequest { string room_id = 1; string participant_id = 2; }
+message CloseParticipantRequest {
+  string room_id = 1;
+  string participant_id = 2;
+}
 
 message CloseParticipantResponse {}

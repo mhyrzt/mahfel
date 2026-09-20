@@ -1644,10 +1644,10 @@ async fn ws_message_auth_with_expired_token_rejected() {
             match socket.next().await {
                 Some(Ok(ClientWsMessage::Close(frame))) => {
                     closed = true;
-                    if let Some(f) = frame {
-                        if u16::from(f.code) == 4401 {
-                            code_ok = true;
-                        }
+                    if let Some(f) = frame
+                        && u16::from(f.code) == 4401
+                    {
+                        code_ok = true;
                     }
                     break;
                 }
