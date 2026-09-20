@@ -1,10 +1,10 @@
 ---
 id: TASK-22
 title: M3-06 Signaling integration
-status: To Do
+status: In Progress
 assignee: []
 created_date: '2026-09-08 00:31'
-updated_date: '2026-09-20 10:41'
+updated_date: '2026-09-20 12:02'
 labels: []
 milestone: m-3
 dependencies: []
