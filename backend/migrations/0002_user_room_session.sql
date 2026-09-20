@@ -19,7 +19,7 @@ CREATE TABLE mahfel.rooms (
 
 CREATE INDEX rooms_created_by_idx ON mahfel.rooms (created_by);
 
-CREATE TABLE mahfel.classroom_sessions (
+CREATE TABLE mahfel.sessions (
     id UUID PRIMARY KEY,
     room_id UUID NOT NULL REFERENCES mahfel.rooms (id),
     status TEXT NOT NULL CHECK (status IN ('scheduled', 'live', 'ended', 'cancelled')),
@@ -33,7 +33,12 @@ CREATE TABLE mahfel.classroom_sessions (
     CHECK (ended_at IS NULL OR ended_at >= started_at)
 );
 
-CREATE INDEX classroom_sessions_room_id_idx
-ON mahfel.classroom_sessions (room_id);
-CREATE INDEX classroom_sessions_status_idx
-ON mahfel.classroom_sessions (status);
+CREATE INDEX sessions_room_id_idx
+ON mahfel.sessions (room_id);
+CREATE INDEX sessions_status_idx
+ON mahfel.sessions (status);
+
+-- A room hosts at most one live session at a time. The partial index makes the
+-- rule a database invariant, so concurrent starts cannot both win.
+CREATE UNIQUE INDEX sessions_one_live_per_room_idx
+ON mahfel.sessions (room_id) WHERE status = 'live';

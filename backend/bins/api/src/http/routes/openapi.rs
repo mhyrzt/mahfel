@@ -31,6 +31,12 @@ use utoipa::OpenApi;
         super::rooms::members::add,
         super::rooms::members::remove,
         super::rooms::update::update,
+        super::sessions::schedule::schedule,
+        super::sessions::list::list_sessions,
+        super::sessions::get::get_session,
+        super::sessions::start::start,
+        super::sessions::end::end,
+        super::sessions::cancel::cancel,
         crate::http::turn::turn_credentials,
     ),
     components(schemas(
@@ -53,6 +59,9 @@ use utoipa::OpenApi;
         super::rooms::dto::MemberResponse,
         super::rooms::dto::RoomVisibilityDto,
         super::rooms::dto::RoomRoleDto,
+        super::sessions::dto::CreateSessionRequest,
+        super::sessions::dto::SessionResponse,
+        super::sessions::dto::SessionStatusDto,
         crate::http::turn::TurnCredentialsResponse,
     ))
 )]
@@ -77,5 +86,10 @@ pub(crate) const REST_PATH_TEMPLATES: &[&str] = &[
     "/v1/rooms/{room_id}/archive",
     "/v1/rooms/{room_id}/members",
     "/v1/rooms/{room_id}/members/{user_id}",
+    "/v1/rooms/{room_id}/sessions",
+    "/v1/sessions/{session_id}",
+    "/v1/sessions/{session_id}/start",
+    "/v1/sessions/{session_id}/end",
+    "/v1/sessions/{session_id}/cancel",
     "/v1/turn/credentials",
 ];

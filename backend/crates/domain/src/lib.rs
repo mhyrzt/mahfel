@@ -23,7 +23,7 @@ pub use room::{
     MembershipError, Room, RoomError, RoomId, RoomMember, RoomRole, RoomStatus, RoomVisibility,
     ensure_member_removable,
 };
-pub use session::{ClassroomSession, ClassroomSessionId, SessionError, SessionStatus};
+pub use session::{Session, SessionError, SessionId, SessionStatus};
 pub use status::InvalidStatus;
 pub use user::{User, UserError, UserStatus};
 pub use validation::{

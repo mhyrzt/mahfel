@@ -68,6 +68,7 @@ pub(super) fn app(
         provisioner,
         linker,
         rooms: stores.rooms,
+        sessions: http::state::SessionStoreRef::new(stores.sessions.clone()),
         realtime,
         turn: settings.turn.clone(),
     };

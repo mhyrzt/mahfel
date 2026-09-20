@@ -15,9 +15,9 @@ identity integration, authorization, users, rooms and sessions, participation re
 chat, file metadata and presigning, collaborative-state orchestration, media-node scheduling, PostgreSQL
 persistence, Redis coordination, RabbitMQ publishing, and the gRPC media client.
 
-It exposes the versioned `/v1` control-plane API (status, identity, and room endpoints) plus a
-WebSocket gateway at `/v1/ws`. The REST contract is generated from the transport code and served as
-OpenAPI at `/v1/openapi.json`, with its interactive UI on the private operations listener
+It exposes the versioned `/v1` control-plane API (status, identity, room, and session endpoints)
+plus a WebSocket gateway at `/v1/ws`. The REST contract is generated from the transport code and
+served as OpenAPI at `/v1/openapi.json`, with its interactive UI on the private operations listener
 (ADR 0015). Higher-level product surfaces remain deliberately deferred.
 
 OIDC is provided by Keycloak for both local development and production (`auth.mahfel.localhost`
@@ -43,9 +43,16 @@ principals), users, rooms, and sessions have UUID identifiers, explicit lifecycl
 timestamps in PostgreSQL.
 A room is a durable container with `public` or `invite_only` visibility and room-scoped memberships
 whose roles are `manager` and `member`. A room's identity is its id alone, so titles need not be
-unique. Domain types remain independent of SQLx; the `mahfel-postgres` adapters (`Postgres*Store`)
-implement the application ports and own SQL mapping. Authentication identities, permissions,
-participation records, and chat remain separate later milestones.
+unique. A `Session` (table `mahfel.sessions`) is a live occurrence of a room with an explicit state
+machine — `scheduled` to `live` to `ended`, or `scheduled` to `cancelled` — and at most one session
+per room may be `live` at a time, enforced by a partial unique index so concurrent starts cannot both
+win. Scheduling, starting, ending, and cancelling are manager-only (`/v1/rooms/{room_id}/sessions`
+and `/v1/sessions/{session_id}/{start,end,cancel}`); service principals participate by being
+managers of the rooms they own, and every lifecycle action writes a structured audit log. Reading a
+room's sessions is manager-scoped in this task and moves to the capability model in M4-04. Domain
+types remain independent of SQLx; the `mahfel-postgres` adapters (`Postgres*Store`) implement the
+application ports and own SQL mapping. Authentication identities, permissions, participation records,
+and chat remain separate later milestones.
 
 Authorization is deny-by-default behind an `Authorizer` seam in `mahfel-application`: the transport
 attaches a `Principal`, the policy decides coarse actions, and room-scoped membership checks live in

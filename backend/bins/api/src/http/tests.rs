@@ -6,6 +6,7 @@ use super::{
     },
     cors_layer,
     service_principals::{ServicePrincipalAdmin, StoreServicePrincipalAdmin},
+    state::SessionStoreRef,
     ws::{WsConfig, WsMetrics, WsState},
 };
 use axum::{
@@ -16,8 +17,8 @@ use axum::{
 use futures_util::{SinkExt, StreamExt, future::BoxFuture};
 use mahfel_application::ports::{
     Action, AllowAuthenticated, AttributeError, AuthorizationError, Authorizer, Principal,
-    ProvisionedIdentity, RoleBasedAuthorizer, RoomStore, ServicePrincipalStore, StoreError,
-    UserAttributeWriter,
+    ProvisionedIdentity, RoleBasedAuthorizer, RoomStore, ServicePrincipalStore, SessionStore,
+    StoreError, UserAttributeWriter,
 };
 use mahfel_application::service_principals::{CreateServicePrincipal, create_service_principal};
 use mahfel_application::users::{IdentityProvisioner, SyncIdentity, SyncIdentityError};
@@ -26,7 +27,8 @@ use mahfel_auth::{TokenVerifier, TokenVerifierConfig};
 use mahfel_config::TurnSettings;
 use mahfel_domain::{
     ActorId, ActorKind, DisplayName, Identity, Issuer, Room, RoomId, RoomMember, RoomRole,
-    RoomTitle, RoomVisibility, ServicePrincipal, ServicePrincipalStatus, Subject, User, UserStatus,
+    RoomTitle, RoomVisibility, ServicePrincipal, ServicePrincipalStatus, Session, SessionId,
+    SessionStatus, Subject, User, UserStatus,
 };
 use mahfel_media_client::GrpcMediaGateway;
 use prometheus::Encoder;
@@ -210,6 +212,79 @@ impl RoomStore for FakeRoomStore {
             !is_target || (member.role == RoomRole::Manager && managers <= 1)
         });
         Ok(inner.members.len() < before)
+    }
+}
+
+/// In-memory [`SessionStore`] for transport tests.
+///
+/// Mirrors the database's one-live-session-per-room partial unique index so a
+/// second concurrent start is observable as a conflict at the transport.
+#[derive(Clone, Default)]
+struct FakeSessionStore {
+    sessions: Arc<Mutex<Vec<Session>>>,
+}
+
+impl FakeSessionStore {
+    fn seed(&self, session: Session) {
+        self.sessions.lock().expect("fake store lock").push(session);
+    }
+
+    fn has_live(&self, room_id: RoomId, except: Option<SessionId>) -> bool {
+        self.sessions
+            .lock()
+            .expect("fake store lock")
+            .iter()
+            .any(|s| {
+                s.room_id == room_id && s.status == SessionStatus::Live && except != Some(s.id)
+            })
+    }
+}
+
+impl SessionStore for FakeSessionStore {
+    async fn get(&self, id: SessionId) -> Result<Option<Session>, StoreError> {
+        Ok(self
+            .sessions
+            .lock()
+            .expect("fake store lock")
+            .iter()
+            .find(|session| session.id == id)
+            .cloned())
+    }
+
+    async fn insert(&self, session: &Session) -> Result<(), StoreError> {
+        if session.status == SessionStatus::Live && self.has_live(session.room_id, None) {
+            return Err(StoreError::Conflict("live session exists".to_owned()));
+        }
+        self.sessions
+            .lock()
+            .expect("fake store lock")
+            .push(session.clone());
+        Ok(())
+    }
+
+    async fn save(&self, session: &Session) -> Result<(), StoreError> {
+        if session.status == SessionStatus::Live && self.has_live(session.room_id, Some(session.id))
+        {
+            return Err(StoreError::Conflict("live session exists".to_owned()));
+        }
+        let mut sessions = self.sessions.lock().expect("fake store lock");
+        let slot = sessions
+            .iter_mut()
+            .find(|existing| existing.id == session.id)
+            .ok_or_else(|| StoreError::NotFound(session.id.to_string()))?;
+        *slot = session.clone();
+        Ok(())
+    }
+
+    async fn list_for_room(&self, room_id: RoomId) -> Result<Vec<Session>, StoreError> {
+        Ok(self
+            .sessions
+            .lock()
+            .expect("fake store lock")
+            .iter()
+            .filter(|session| session.room_id == room_id)
+            .cloned()
+            .collect())
     }
 }
 
@@ -473,6 +548,7 @@ fn state_with(
         provisioner: Arc::new(StubProvisioner),
         linker: Arc::new(StubLinker),
         rooms: FakeRoomStore::default(),
+        sessions: SessionStoreRef::new(FakeSessionStore::default()),
         realtime,
         turn: turn_settings(),
     }
@@ -530,6 +606,7 @@ fn authenticated_room_app(principal: Principal, store: FakeRoomStore) -> Router 
         provisioner: Arc::new(StubProvisioner),
         linker: Arc::new(StubLinker),
         rooms: store,
+        sessions: SessionStoreRef::new(FakeSessionStore::default()),
         realtime,
         turn: turn_settings(),
     })
@@ -1267,6 +1344,206 @@ async fn malformed_room_id_maps_to_error_envelope() {
     assert_eq!(error_code(&json), Some("invalid_input"));
 }
 
+// --- Session lifecycle transport tests (TASK-26) ---
+
+/// Router with a supplied room and session store, optionally authenticated.
+fn session_app(
+    principal: Option<Principal>,
+    rooms: FakeRoomStore,
+    sessions: FakeSessionStore,
+) -> Router {
+    let realtime = ws_state(principal.clone());
+    let (service_auth, service_principals) = service_seams(FakeServicePrincipalStore::default());
+    api_router(AppState {
+        service: "mahfel-api-test",
+        version: "0.1.0",
+        node_id: "node-test".to_owned(),
+        auth: AuthState::new(Arc::new(AllowAuthenticated)),
+        authentication: Arc::new(StubAuthenticator::new(principal)),
+        service_auth,
+        service_principals,
+        provisioner: Arc::new(StubProvisioner),
+        linker: Arc::new(StubLinker),
+        rooms,
+        sessions: SessionStoreRef::new(sessions),
+        realtime,
+        turn: turn_settings(),
+    })
+}
+
+#[tokio::test]
+async fn manager_can_schedule_start_and_end_a_session() {
+    let rooms = FakeRoomStore::default();
+    let room = rooms.seed_room("Algebra", principal().actor_id, RoomVisibility::InviteOnly);
+    let app = session_app(Some(principal()), rooms, FakeSessionStore::default());
+
+    let resp = send_json(
+        &app,
+        Method::POST,
+        &format!("/v1/rooms/{}/sessions", room.id),
+        "{}",
+    )
+    .await;
+    assert_eq!(resp.status(), StatusCode::CREATED);
+    let json = response_json(resp).await;
+    assert_eq!(
+        json.get("status").and_then(|v| v.as_str()),
+        Some("scheduled")
+    );
+    let session_id = json
+        .get("id")
+        .and_then(|v| v.as_str())
+        .expect("session id")
+        .to_owned();
+
+    let resp = send_json(
+        &app,
+        Method::POST,
+        &format!("/v1/sessions/{session_id}/start"),
+        "",
+    )
+    .await;
+    assert_eq!(resp.status(), StatusCode::OK);
+    let json = response_json(resp).await;
+    assert_eq!(json.get("status").and_then(|v| v.as_str()), Some("live"));
+
+    let resp = send_json(
+        &app,
+        Method::POST,
+        &format!("/v1/sessions/{session_id}/end"),
+        "",
+    )
+    .await;
+    assert_eq!(resp.status(), StatusCode::OK);
+    let json = response_json(resp).await;
+    assert_eq!(json.get("status").and_then(|v| v.as_str()), Some("ended"));
+
+    // The manager can read it back and list it.
+    let req = Request::builder()
+        .uri(format!("/v1/sessions/{session_id}"))
+        .body(Body::empty())
+        .expect("request");
+    let resp = app.clone().oneshot(req).await.expect("response");
+    assert_eq!(resp.status(), StatusCode::OK);
+
+    let req = Request::builder()
+        .uri(format!("/v1/rooms/{}/sessions", room.id))
+        .body(Body::empty())
+        .expect("request");
+    let resp = app.oneshot(req).await.expect("response");
+    assert_eq!(resp.status(), StatusCode::OK);
+    let json = response_json(resp).await;
+    assert_eq!(json.as_array().map(Vec::len), Some(1));
+}
+
+#[tokio::test]
+async fn non_member_cannot_schedule_a_session() {
+    let rooms = FakeRoomStore::default();
+    let room = rooms.seed_room(
+        "Algebra",
+        other_principal().actor_id,
+        RoomVisibility::InviteOnly,
+    );
+    let app = session_app(Some(principal()), rooms, FakeSessionStore::default());
+
+    let resp = send_json(
+        &app,
+        Method::POST,
+        &format!("/v1/rooms/{}/sessions", room.id),
+        "{}",
+    )
+    .await;
+    assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+}
+
+#[tokio::test]
+async fn member_cannot_schedule_a_session() {
+    let rooms = FakeRoomStore::default();
+    let room = rooms.seed_room("Algebra", principal().actor_id, RoomVisibility::InviteOnly);
+    rooms.add_raw_member(room.id, other_principal().actor_id, RoomRole::Member);
+    let app = session_app(Some(other_principal()), rooms, FakeSessionStore::default());
+
+    let resp = send_json(
+        &app,
+        Method::POST,
+        &format!("/v1/rooms/{}/sessions", room.id),
+        "{}",
+    )
+    .await;
+    assert_eq!(resp.status(), StatusCode::FORBIDDEN);
+}
+
+#[tokio::test]
+async fn invalid_session_transition_returns_conflict() {
+    let rooms = FakeRoomStore::default();
+    let room = rooms.seed_room("Algebra", principal().actor_id, RoomVisibility::InviteOnly);
+    let sessions = FakeSessionStore::default();
+    let session = Session::schedule(room.id, None, OffsetDateTime::now_utc());
+    sessions.seed(session.clone());
+    let app = session_app(Some(principal()), rooms, sessions);
+
+    // Ending a scheduled session is invalid.
+    let resp = send_json(
+        &app,
+        Method::POST,
+        &format!("/v1/sessions/{}/end", session.id),
+        "",
+    )
+    .await;
+    assert_eq!(resp.status(), StatusCode::CONFLICT);
+    let json = response_json(resp).await;
+    assert_eq!(error_code(&json), Some("conflict"));
+}
+
+#[tokio::test]
+async fn second_live_session_returns_conflict() {
+    let rooms = FakeRoomStore::default();
+    let room = rooms.seed_room("Algebra", principal().actor_id, RoomVisibility::InviteOnly);
+    let sessions = FakeSessionStore::default();
+    let first = Session::schedule(room.id, None, OffsetDateTime::now_utc());
+    let second = Session::schedule(room.id, None, OffsetDateTime::now_utc());
+    sessions.seed(first.clone());
+    sessions.seed(second.clone());
+    let app = session_app(Some(principal()), rooms, sessions);
+
+    let resp = send_json(
+        &app,
+        Method::POST,
+        &format!("/v1/sessions/{}/start", first.id),
+        "",
+    )
+    .await;
+    assert_eq!(resp.status(), StatusCode::OK);
+
+    let resp = send_json(
+        &app,
+        Method::POST,
+        &format!("/v1/sessions/{}/start", second.id),
+        "",
+    )
+    .await;
+    assert_eq!(resp.status(), StatusCode::CONFLICT);
+}
+
+#[tokio::test]
+async fn session_routes_require_authentication() {
+    let rooms = FakeRoomStore::default();
+    let room = rooms.seed_room("Algebra", principal().actor_id, RoomVisibility::InviteOnly);
+    let sessions = FakeSessionStore::default();
+    let session = Session::schedule(room.id, None, OffsetDateTime::now_utc());
+    sessions.seed(session.clone());
+    let app = session_app(None, rooms, sessions);
+
+    let resp = send_json(
+        &app,
+        Method::POST,
+        &format!("/v1/sessions/{}/start", session.id),
+        "",
+    )
+    .await;
+    assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
+}
+
 type ClientSocket = WebSocketStream<MaybeTlsStream<TcpStream>>;
 
 struct WsHarness {
@@ -1299,6 +1576,7 @@ async fn serve_ws(principal: Option<Principal>, config: WsConfig) -> WsHarness {
         provisioner: Arc::new(StubProvisioner),
         linker: Arc::new(StubLinker),
         rooms: FakeRoomStore::default(),
+        sessions: SessionStoreRef::new(FakeSessionStore::default()),
         realtime,
         turn: turn_settings(),
     };
@@ -1494,6 +1772,7 @@ async fn serve_ws_with_verifier(verifier: TokenVerifier, config: WsConfig) -> Ws
         provisioner: Arc::new(StubProvisioner),
         linker: Arc::new(StubLinker),
         rooms: FakeRoomStore::default(),
+        sessions: SessionStoreRef::new(FakeSessionStore::default()),
         realtime,
         turn: turn_settings(),
     };
@@ -1936,6 +2215,7 @@ fn service_app(
         provisioner: Arc::new(StubProvisioner),
         linker: Arc::new(StubLinker),
         rooms,
+        sessions: SessionStoreRef::new(FakeSessionStore::default()),
         realtime,
         turn: turn_settings(),
     })
