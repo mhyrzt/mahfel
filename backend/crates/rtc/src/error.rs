@@ -53,3 +53,19 @@ impl RtcError {
         Self::RoomNotFound { room_id }
     }
 }
+
+impl From<RtcError> for tonic::Status {
+    fn from(e: RtcError) -> Self {
+        use RtcError::*;
+        match e {
+            RoomNotFound { .. }
+            | TransportNotFound { .. }
+            | ProducerNotFound { .. }
+            | ConsumerNotFound { .. } => Self::not_found(e.to_string()),
+            Dtls(_) | RtpParameters(_) | RtpCapabilities(_) => {
+                Self::invalid_argument(e.to_string())
+            }
+            _ => Self::internal(e.to_string()),
+        }
+    }
+}
