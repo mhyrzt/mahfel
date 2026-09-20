@@ -82,7 +82,8 @@
         }
       ],
       "attributes": {
-        "pkce.code.challenge.method": "S256"
+        "pkce.code.challenge.method": "S256",
+        "post.logout.redirect.uris": "https://mahfel.localhost/*##http://127.0.0.1:3000/*"
       }
     },
     {
