@@ -9,6 +9,7 @@ use mahfel_application::{
 };
 use mahfel_config::Settings;
 use mahfel_domain::NodeId;
+use mahfel_media_client::GrpcMediaGateway;
 use mahfel_postgres::PostgresStores;
 use std::sync::Arc;
 use tokio::sync::watch;
@@ -35,10 +36,15 @@ pub(super) fn app(
     let linker: Arc<dyn UserAttributeWriter> = Arc::new(mahfel_keycloak::KeycloakAdmin::new(
         settings::keycloak(settings),
     ));
+    let media = Arc::new(
+        GrpcMediaGateway::lazy(settings.api.media_grpc_url.clone())
+            .map_err(|e| anyhow::anyhow!("invalid media grpc url: {e}"))?,
+    );
     let realtime = http::ws::WsState::new(
         Arc::clone(&authentication),
         http::ws::WsConfig::from(&settings.api.ws),
         telemetry.ws_metrics.clone(),
+        Arc::clone(&media),
         shutdown,
     );
 

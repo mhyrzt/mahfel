@@ -2606,6 +2606,7 @@ dependencies = [
  "time",
  "tokio",
  "tokio-tungstenite",
+ "tonic",
  "tower",
  "tower-http 0.7.1",
  "tracing",
@@ -2700,6 +2701,7 @@ dependencies = [
  "mahfel-domain",
  "mahfel-rtc-protocol",
  "thiserror 2.0.20",
+ "tokio",
  "tonic",
 ]
 

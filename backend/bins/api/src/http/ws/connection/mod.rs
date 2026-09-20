@@ -45,6 +45,7 @@ pub(super) async fn run(
         config,
         metrics,
         authenticator,
+        media,
         shutdown,
     } = state;
     let (sink, stream) = socket.split();
@@ -57,6 +58,7 @@ pub(super) async fn run(
         stream,
         &registry,
         authenticator.as_ref(),
+        &media,
         shutdown,
         header_principal,
     )

@@ -38,6 +38,7 @@ pub struct WsMetrics {
     messages_received_total: IntCounter,
     messages_sent_total: IntCounter,
     send_drops_total: IntCounter,
+    rtc_requests_total: IntCounterVec,
 }
 
 impl WsMetrics {
@@ -81,6 +82,14 @@ impl WsMetrics {
         registry.register(Box::new(messages_received_total.clone()))?;
         registry.register(Box::new(messages_sent_total.clone()))?;
         registry.register(Box::new(send_drops_total.clone()))?;
+        let rtc_requests_total = IntCounterVec::new(
+            Opts::new(
+                "websocket_rtc_requests_total",
+                "RTC signaling requests by type and status",
+            ),
+            &["type", "status"],
+        )?;
+        registry.register(Box::new(rtc_requests_total.clone()))?;
 
         Ok(Self {
             connections_active,
@@ -90,6 +99,7 @@ impl WsMetrics {
             messages_received_total,
             messages_sent_total,
             send_drops_total,
+            rtc_requests_total,
         })
     }
 
@@ -122,5 +132,11 @@ impl WsMetrics {
 
     pub fn send_dropped(&self) {
         self.send_drops_total.inc();
+    }
+
+    pub fn rtc_request(&self, kind: &str, status: &str) {
+        self.rtc_requests_total
+            .with_label_values(&[kind, status])
+            .inc();
     }
 }

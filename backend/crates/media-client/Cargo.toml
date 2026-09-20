@@ -10,6 +10,7 @@ mahfel-application = { path = "../application" }
 mahfel-domain = { path = "../domain" }
 mahfel-rtc-protocol = { path = "../rtc-protocol" }
 thiserror.workspace = true
+tokio.workspace = true
 tonic.workspace = true
 
 [lints]

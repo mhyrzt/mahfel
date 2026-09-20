@@ -1,5 +1,6 @@
 use super::{config::WsConfig, metrics::WsMetrics, registry::ConnectionRegistry};
 use crate::http::auth::RequestAuthenticator;
+use mahfel_media_client::GrpcMediaGateway;
 use std::sync::Arc;
 use tokio::sync::watch;
 
@@ -10,6 +11,7 @@ pub struct WsState {
     pub config: WsConfig,
     pub metrics: WsMetrics,
     pub authenticator: Arc<dyn RequestAuthenticator>,
+    pub media: Arc<GrpcMediaGateway>,
     pub shutdown: watch::Receiver<bool>,
 }
 
@@ -19,6 +21,7 @@ impl WsState {
         authenticator: Arc<dyn RequestAuthenticator>,
         config: WsConfig,
         metrics: WsMetrics,
+        media: Arc<GrpcMediaGateway>,
         shutdown: watch::Receiver<bool>,
     ) -> Self {
         let registry = ConnectionRegistry::new(config.max_connections, metrics.clone());
@@ -27,6 +30,7 @@ impl WsState {
             config,
             metrics,
             authenticator,
+            media,
             shutdown,
         }
     }

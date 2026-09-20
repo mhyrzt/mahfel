@@ -51,20 +51,95 @@ pub enum ClientMessage {
         token: Option<String>,
     },
     /// Reply to the sender only.
-    Echo { text: String },
+    Echo {
+        text: String,
+    },
     /// Fan out to every authenticated connection.
-    Broadcast { text: String },
+    Broadcast {
+        text: String,
+    },
+    // --- RTC signaling (M3-06) ---
+    CreateTransport {
+        room_id: String,
+    },
+    ConnectTransport {
+        room_id: String,
+        transport_id: String,
+        dtls_parameters: String,
+    },
+    Produce {
+        room_id: String,
+        transport_id: String,
+        kind: String,
+        rtp_parameters: String,
+    },
+    Consume {
+        room_id: String,
+        transport_id: String,
+        producer_id: String,
+        rtp_capabilities: String,
+    },
+    PauseConsumer {
+        room_id: String,
+        consumer_id: String,
+    },
+    ResumeConsumer {
+        room_id: String,
+        consumer_id: String,
+    },
 }
 
 /// Frames sent by the server.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum ServerMessage {
-    Welcome { connection_id: String },
-    Echo { text: String },
-    Broadcast { from: String, text: String },
-    Error { code: String, message: String },
-    Bye { reason: String },
+    Welcome {
+        connection_id: String,
+    },
+    Echo {
+        text: String,
+    },
+    Broadcast {
+        from: String,
+        text: String,
+    },
+    Error {
+        code: String,
+        message: String,
+    },
+    Bye {
+        reason: String,
+    },
+    // --- RTC responses ---
+    TransportCreated {
+        room_id: String,
+        transport_id: String,
+        ice_parameters: String,
+        ice_candidates: String,
+        dtls_parameters: String,
+    },
+    TransportConnected {
+        room_id: String,
+        transport_id: String,
+    },
+    Produced {
+        room_id: String,
+        producer_id: String,
+    },
+    Consumed {
+        room_id: String,
+        consumer_id: String,
+        rtp_parameters: String,
+        paused: bool,
+    },
+    ConsumerPaused {
+        room_id: String,
+        consumer_id: String,
+    },
+    ConsumerResumed {
+        room_id: String,
+        consumer_id: String,
+    },
 }
 
 #[derive(Debug, Error, Clone, PartialEq, Eq)]
@@ -77,18 +152,34 @@ pub enum ProtocolError {
 
 /// Parse a client frame, rejecting unknown protocol versions.
 pub fn parse(text: &str) -> Result<ClientMessage, ProtocolError> {
+    parse_envelope(text).map(|env| env.message)
+}
+
+/// Parse a client frame preserving the envelope (including `id`).
+pub fn parse_envelope(text: &str) -> Result<Envelope<ClientMessage>, ProtocolError> {
     let envelope: Envelope<ClientMessage> =
         serde_json::from_str(text).map_err(|_| ProtocolError::Malformed)?;
     if envelope.v != PROTOCOL_VERSION {
         return Err(ProtocolError::UnsupportedVersion(envelope.v));
     }
-    Ok(envelope.message)
+    Ok(envelope)
 }
 
 /// Encode a server frame into the versioned envelope.
 #[must_use]
 pub fn encode(message: ServerMessage) -> String {
     serde_json::to_string(&Envelope::new(message)).unwrap_or_else(|_| SERIALIZE_FALLBACK.to_owned())
+}
+
+/// Encode a server frame preserving a request id for correlation.
+#[must_use]
+pub fn encode_with_id(id: Option<String>, message: ServerMessage) -> String {
+    let envelope = Envelope {
+        v: PROTOCOL_VERSION,
+        id,
+        message,
+    };
+    serde_json::to_string(&envelope).unwrap_or_else(|_| SERIALIZE_FALLBACK.to_owned())
 }
 
 #[cfg(test)]

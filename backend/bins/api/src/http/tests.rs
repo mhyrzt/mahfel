@@ -21,6 +21,7 @@ use mahfel_domain::{
     DisplayName, Identity, Issuer, Room, RoomId, RoomMember, RoomRole, RoomTitle, RoomVisibility,
     Subject, User, UserId, UserStatus,
 };
+use mahfel_media_client::GrpcMediaGateway;
 use prometheus::Encoder;
 use std::{
     net::SocketAddr,
@@ -313,6 +314,7 @@ fn ws_state(principal: Option<Principal>) -> WsState {
         Arc::new(StubAuthenticator::new(principal)),
         WsConfig::default(),
         metrics,
+        Arc::new(GrpcMediaGateway::lazy("http://localhost:50051".to_owned()).expect("media")),
         shutdown_rx,
     )
 }
@@ -1142,6 +1144,7 @@ async fn serve_ws(principal: Option<Principal>, config: WsConfig) -> WsHarness {
         Arc::new(StubAuthenticator::new(principal.clone())),
         config,
         metrics,
+        Arc::new(GrpcMediaGateway::lazy("http://localhost:50051".to_owned()).expect("media")),
         shutdown_rx.clone(),
     );
     let state = AppState {
@@ -1328,7 +1331,13 @@ async fn serve_ws_with_verifier(verifier: TokenVerifier, config: WsConfig) -> Ws
     let metrics = WsMetrics::register(&registry).expect("register ws metrics");
     let (shutdown_tx, shutdown_rx) = watch::channel(false);
     let auth: Arc<dyn RequestAuthenticator> = Arc::new(TokenAuthentication::new(verifier));
-    let realtime = WsState::new(Arc::clone(&auth), config, metrics, shutdown_rx.clone());
+    let realtime = WsState::new(
+        Arc::clone(&auth),
+        config,
+        metrics,
+        Arc::new(GrpcMediaGateway::lazy("http://localhost:50051".to_owned()).expect("media")),
+        shutdown_rx.clone(),
+    );
     let state = AppState {
         service: "mahfel-api-test",
         version: "0.1.0",
