@@ -61,7 +61,7 @@ pub(crate) fn route<R: RoomStoreState>() -> Router<AppState<R>> {
 mod tests {
     use super::*;
     #[allow(unused_imports)]
-    use base64::{engine::general_purpose::STANDARD, Engine as _};
+    use base64::{Engine as _, engine::general_purpose::STANDARD};
 
     #[test]
     fn hmac_is_deterministic() {
