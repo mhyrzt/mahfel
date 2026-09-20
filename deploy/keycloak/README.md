@@ -64,6 +64,12 @@ The API requests the `openid`, `profile`, `email`, and `roles` scopes, so Keyclo
 authorization consumes its provider-neutral identity model and maps these claims only at the
 authentication boundary.
 
+Both clients also map the `mahfel_user_id` user attribute to an `app_user_id` access-token claim.
+`POST /v1/auth/provision` writes that attribute after provisioning the local user, so subsequent
+tokens identify the application user without a database lookup. A token issued before provisioning
+carries no `app_user_id` and is rejected with `403`; the client refreshes the token after
+provisioning.
+
 ## Managing the realm from `mahfel-api`
 
 `mahfel-api` authenticates to the Keycloak Admin API with the client-credentials grant:
