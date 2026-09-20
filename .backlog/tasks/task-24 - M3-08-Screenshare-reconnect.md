@@ -4,6 +4,7 @@ title: M3-08 Screenshare/reconnect
 status: To Do
 assignee: []
 created_date: '2026-09-08 00:31'
+updated_date: '2026-09-20 10:41'
 labels: []
 milestone: m-3
 dependencies: []
@@ -16,14 +17,20 @@ ordinal: 32000
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
-Problem: Core classroom media needs presentation and transient recovery.
+Problem: Presentation + transient network loss.
 
-Implementation scope: Display track lifecycle, replace/stop signals, connection-state handling, bounded reconnect and full rejoin fallback.
-
-Dependencies: M3-07
+Expanded: getDisplayMedia → produce video via sendTransport separate producer. track.onended → close producer. Handle failed→iceRestart, disconnected 5s grace then full rejoin (leave+join) 3 retries else Rejoin button exponential backoff. Rejoin: close transports, re-create device, re-produce.
 <!-- SECTION:DESCRIPTION:END -->
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
 - [ ] #1 Screen share starts/stops; brief disconnect recovers or produces explicit rejoin outcome.
 <!-- AC:END -->
+
+## Implementation Plan
+
+<!-- SECTION:PLAN:BEGIN -->
+1. Extend producer kind for screen.
+2. Add connectionstate/iceRestart logic frontend.
+3. Rejoin state machine + UI.
+<!-- SECTION:PLAN:END -->
