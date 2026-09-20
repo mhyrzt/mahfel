@@ -7,6 +7,7 @@ members = [
   "crates/auth",
   "crates/config",
   "crates/domain",
+  "crates/keycloak",
   "crates/media-client",
   "crates/messaging",
   "crates/postgres",
