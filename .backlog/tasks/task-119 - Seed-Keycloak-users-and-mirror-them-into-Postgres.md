@@ -5,7 +5,7 @@ status: To Do
 assignee:
   - '@mahyar'
 created_date: '2026-09-19 19:24'
-updated_date: '2026-09-19 19:31'
+updated_date: '2026-09-19 23:54'
 labels:
   - backend
   - auth
@@ -34,3 +34,9 @@ Add a Keycloak Admin adapter that authenticates with the client-credentials gran
 - [ ] #5 The realm import no longer hardcodes development users; the seed is the single source of fixture identities
 - [ ] #6 Integration tests run against a disposable Keycloak and prove create-if-missing and mirror idempotency
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Postponed per 2026-09-20 review: user has a separate plan for seeds. Keep To Do for later; focus now is TASK-11 (frontend session/BFF), TASK-121 (WebSocket verification) and jwks.rs cleanup.
+<!-- SECTION:NOTES:END -->
