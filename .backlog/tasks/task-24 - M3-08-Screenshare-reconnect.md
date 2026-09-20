@@ -1,10 +1,10 @@
 ---
 id: TASK-24
 title: M3-08 Screenshare/reconnect
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-09-08 00:31'
-updated_date: '2026-09-20 12:21'
+updated_date: '2026-09-20 12:26'
 labels: []
 milestone: m-3
 dependencies: []
@@ -24,7 +24,7 @@ Expanded: getDisplayMedia → produce video via sendTransport separate producer.
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Screen share starts/stops; brief disconnect recovers or produces explicit rejoin outcome.
+- [x] #1 Screen share starts/stops; brief disconnect recovers or produces explicit rejoin outcome.
 <!-- AC:END -->
 
 ## Implementation Plan
@@ -34,3 +34,9 @@ Expanded: getDisplayMedia → produce video via sendTransport separate producer.
 2. Add connectionstate/iceRestart logic frontend.
 3. Rejoin state machine + UI.
 <!-- SECTION:PLAN:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Implemented screenshare/reconnect: useRtc requestDisplay with track.onended cleanup, transport restartIce on failed, reconnect controller disconnected 5s grace then rejoin, failed→onRejoin, reset handling, UI shows rejoin outcome. Verified with transport connectionstatechange.
+<!-- SECTION:NOTES:END -->
