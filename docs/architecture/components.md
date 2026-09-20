@@ -11,8 +11,8 @@ backend logic.
 ## `mahfel-api`
 
 The Rust control plane and authoritative application service. It owns REST, WebSocket signaling,
-identity integration, authorization, users, rooms and sessions, attendance, persistent chat, file
-metadata and presigning, collaborative-state orchestration, media-node scheduling, PostgreSQL
+identity integration, authorization, users, rooms and sessions, participation records, persistent
+chat, file metadata and presigning, collaborative-state orchestration, media-node scheduling, PostgreSQL
 persistence, Redis coordination, RabbitMQ publishing, and the gRPC media client.
 
 It exposes the versioned `/v1` control-plane API (status, identity, and room endpoints) plus a
@@ -29,18 +29,19 @@ using the client-credentials grant of a dedicated service account rather than an
 administrator account. Identity linking, role mapping, and logout remain M2 implementation concerns;
 the local realm fixture is described in `deploy/keycloak/README.md`.
 
-The first control-plane persistence boundary is intentionally small: users, rooms, and classroom
-sessions have UUID identifiers, explicit lifecycle statuses, and UTC timestamps in PostgreSQL.
+The first control-plane persistence boundary is intentionally small: users, rooms, and sessions have
+UUID identifiers, explicit lifecycle statuses, and UTC timestamps in PostgreSQL.
 A room is a durable container with `public` or `invite_only` visibility and room-scoped memberships
 whose roles are `manager` and `member`. A room's identity is its id alone, so titles need not be
 unique. Domain types remain independent of SQLx; the `mahfel-postgres` adapters (`Postgres*Store`)
 implement the application ports and own SQL mapping. Authentication identities, permissions,
-attendance, and chat remain separate later milestones.
+participation records, and chat remain separate later milestones.
 
 Authorization is deny-by-default behind an `Authorizer` seam in `mahfel-application`: the transport
 attaches a `Principal`, the policy decides coarse actions, and room-scoped membership checks live in
 the room use cases. The interim policy grants any authenticated principal and is replaced by the
-classroom role model (M2-07).
+role and capability model (M2-07, M4-04). Session vocabulary is generic collaboration, not education
+semantics (ADR 0020).
 
 The realtime gateway at `/v1/ws` is a bounded connection boundary: a versioned JSON envelope, an
 authentication seam that denies by default, heartbeats, per-connection bounded queues with a write

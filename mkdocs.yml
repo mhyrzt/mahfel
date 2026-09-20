@@ -59,4 +59,6 @@ nav:
       - 0017 Redis pub/sub: adr/0017-redis-pubsub-ephemeral.md
       - 0018 Keycloak provider: adr/0018-keycloak-oidc-provider.md
       - 0019 Frontend OIDC and BFF: adr/0019-frontend-oidc-bff.md
+      - 0020 Generic collaboration core: adr/0020-generic-collaboration-core.md
+      - 0021 Invite links: adr/0021-invite-links.md
   - Backlog: backlog/roadmap.md

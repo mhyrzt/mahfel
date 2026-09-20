@@ -6,7 +6,7 @@ Capacity and product assumptions must be validated rather than treated as promis
 
 Backlog task mapping: M0-01–M0-08 are `TASK-1.1`–`TASK-1.8`; M1-01–M1-07 are
 `TASK-2`–`TASK-8`; M2 is `TASK-9`–`TASK-16` plus `TASK-114` (M2-09); M3 is `TASK-17`–`TASK-25`; M4 is
-`TASK-26`–`TASK-31`; M5 is `TASK-32`–`TASK-37`; M6 is `TASK-38`–`TASK-43`; M7 is
+`TASK-26`–`TASK-31` plus `TASK-123`–`TASK-128`, `TASK-129`–`TASK-131`, and `TASK-132`; M5 is `TASK-32`–`TASK-37`; M6 is `TASK-38`–`TASK-43`; M7 is
 `TASK-44`–`TASK-49`; M8 is `TASK-50`–`TASK-55`; M9 is `TASK-56`–`TASK-61`; M10 is
 `TASK-62`–`TASK-67`; M11 is `TASK-68`–`TASK-73`; M12 is `TASK-74`–`TASK-78`; M13 is
 `TASK-79`–`TASK-85`; M14 is `TASK-86`–`TASK-91`; M15 is `TASK-92`–`TASK-98`; and M16 is
@@ -81,19 +81,37 @@ classroom role enforcement is integration-tested.
 **Milestone done:** several real browsers join; teacher audio/video and screen share reach students;
 direct UDP and forced TURN work; metrics exist; no media traverses API.
 
-## M4 — Classroom/session engine
+## M4 — Realtime session engine
+
+The engine is generic realtime collaboration (ADR 0020). Vocabulary is Room, Session, Participant,
+participation record, capability, and admission policy. Education concepts are an integration mapping,
+not core types.
 
 | ID and title | Problem description | Implementation scope | Dependencies | Done criteria |
 |---|---|---|---|---|
-| M4-01 Classroom lifecycle | Persistent classrooms and live sessions have different lifetimes. | Classroom/session state machines, start/end rules, ownership, concurrency constraints and APIs. | M1, M2 | Invalid transitions rejected; start/end flow persists and is audited. |
-| M4-02 Participant lifecycle/attendance | Connections are transient but attendance is durable. | Join authorization, participant state, reconnect identity, join/leave intervals, attendance aggregation. | M4-01, M3-06 | Reconnect does not duplicate participant; attendance accurately records intervals. |
-| M4-03 Teacher controls | Classroom safety needs enforceable role-aware moderation. | Mute request/enforcement semantics, remove/block, publish/screen permissions, waiting-room decision and audit events. | M2-07, M4-02 | Student cannot bypass policy; teacher controls propagate and are integration-tested. |
-| M4-04 Active speaker | UI layout needs a stable aggregate speaker signal. | mediasoup observer, smoothing/rate limits, authorized WebSocket event, metric without participant labels. | M3-05, M4-02 | Multiple speakers update UI without event flood; disconnect cleanup works. |
-| M4-05 Media node registry | Scheduler needs fresh capacity and lifecycle state. | Redis heartbeat schema/TTL, node identity/address/capacity/draining, signed/private update path and metrics. | M1-06, M3-09 | Dead node expires; draining state persists for heartbeat lifetime; spoofed update rejected. |
-| M4-06 Room placement scheduler | Every participant in a room must reach the same capable node. | Atomic placement lease, weighted capacity policy, sticky lookup, race/failure behavior, durable diagnostic record. | M4-05 | Concurrent joins select one node; overload/draining excludes node; Redis race tests pass. |
+| M4-01 Session vocabulary and lifecycle | Persistent rooms and live sessions have different lifetimes, and the live aggregate is named for one vertical. | Rename ClassroomSession to Session (table sessions, amended migration 0002), session state machine, one-live-session-per-room rule, ownership by room manager or service principal, start/end/cancel APIs and audit. | M1, M2-07, M3-06 | Invalid transitions rejected; start/end persists and is audited; one live session per room enforced. |
+| M4-02 Participant lifecycle and reconnect identity | Connections are transient but session presence is durable. | Join authorization, durable per-session participant identity, explicit state machine, reconnect generation, multi-device policy, leave/removal cleanup. | M4-01, M2-07, M3-06 | Reconnect does not duplicate a participant; state transitions and multi-device policy are tested. |
+| M4-03 Participation records | Presence duration must be durable and correctable, not derived from ephemeral state. | Join/leave intervals per participant per session, aggregation to connected duration, reconnect grace policy, audited corrections, session and participant queries. | M4-02 | Intervals never overlap and aggregate correctly; no open interval survives session end. |
+| M4-04 Session capabilities and authorization | Moderation and session actions must not depend on a fixed vertical role enum. | Capability set derived from global roles, room membership, and service principals; one policy seam for REST and WebSocket; deny-by-default matrix; documented education mapping. | M2-07, M2-09, M4-01 | Allow/deny matrix covers member, manager, moderator, admin and service principal; no handler hardcodes roles. |
+| M4-05 Moderation controls | A session needs enforceable, role-aware moderation without vertical-specific roles. | Mute request vs enforced mute, remove/block, publish/screen gating, WebSocket propagation, audit events and media-control enforcement. | M4-04, M4-02, M3-06 | Unprivileged participant cannot bypass policy; controls propagate and are integration-tested. |
+| M4-06 Admission and lobby | A room may need controlled entry instead of open join. | Room admission policy open or lobby, bounded waiting state, admit/reject capability checks, enforcement in REST and WebSocket join, audit. | M4-02, M4-04 | Lobby policy blocks media until admitted; decisions are enforced server-side and audited. |
+| M4-07 Active speaker | UI layout needs a stable aggregate speaker signal. | mediasoup observer, smoothing/rate limits, authorized WebSocket event, cleanup and bounded metric without participant labels. | M3-05, M4-02 | Multiple speakers update UI without event flood; disconnect cleanup works. |
+| M4-08 Media node registry | Scheduler needs fresh capacity and lifecycle state. | Redis heartbeat schema/TTL, node identity/address/capacity/draining, private authenticated update path and metrics. | M1-06, M3-09 | Dead node expires; draining state persists for heartbeat lifetime; spoofed update rejected. |
+| M4-09 Session placement scheduler | Every participant in a session must reach the same capable node. | Atomic placement lease, weighted capacity policy, sticky lookup, race/failure behavior, durable diagnostic record. | M4-08 | Concurrent joins select one node; overload/draining excludes node; Redis race tests pass. |
+| M4-10 Frontend session state and roster | The browser must hold stable participant state across reconnects. | WebSocket session connect/join/leave, roster from stable identities, reconnect reconciliation, lobby state, capability-gated controls. | M4-02, M4-06, M3-07 | Roster survives reconnect without duplicates; lobby and capability gating verified. |
+| M4-11 Frontend moderation and admission UI | Operators need capability-gated controls that match server policy. | Mute/enforce/remove/block and publish/screen controls, admission queue with admit/reject, server-authoritative feedback. | M4-05, M4-06, M4-10 | Controls appear only with capability; server rejects bypass; admission queue updates live. |
+| M4-12 Frontend session lifecycle and active speaker UI | Lifecycle and speaker state need a coherent interface. | Ad-hoc/scheduled session creation with optional title and duration, start/end/cancel controls, scheduled/live/ended treatment, active-speaker layout, post-session participation summary. | M4-01, M4-03, M4-07, M4-10, M4-16 | State drives UI; schedule is advisory; active speaker layout is stable; ended session shows participation summary. |
+| M4-13 Invite link model and management API | Rooms and sessions need a shareable, retractable entry path beyond membership. | Globally unique `xxx-yyyy-zzz` codes, one target (room or session), 7-day default expiry bounded by policy, active/revoked/expired status, create/list/revoke/rotate/regenerate gated by capability, plaintext storage with rate-limited redemption and audit. | M4-01, M4-04 | Codes are unique and normalizable; expired/revoked rejected; management deny-by-default; codes never logged; rotation invalidates atomically. |
+| M4-14 Link join and approval flow | A shared link must not grant immediate access. | Redeem by code into a waiting state unless already an explicit member, admit/reject by capability, session-link approval grants session participation only, room-link approval grants durable membership, rate-limited and non-enumerating failures, audit. | M4-13, M4-06, M4-04, M4-02 | Explicit members bypass confirmation; session links add no membership; room links do; no media before approval; failures audited. |
+| M4-15 Frontend invite links UI | Holders and managers need a usable link experience. | Create/list/copy/revoke/regenerate links for rooms and sessions, capability-gated visibility, join-by-code with waiting/confirmation state and explicit expired/revoked/rejected states. | M4-13, M4-14, M4-10, M4-04 | Management hidden without capability; waiting state shown until resolution; server remains authoritative. |
+| M4-16 Session scheduling and title | A session may need a planned time, a duration, and its own title. | Optional single-occurrence schedule (start instant and advisory duration) and optional session title with room-title fallback, columns on the sessions table, capability-gated and audited; room title stays required. | M4-01, M4-04 | Ad-hoc and scheduled sessions both supported; schedule never gates start; duration is advisory; title falls back to room title. |
 
-**Milestone done:** classrooms consistently place all participants, roles/controls work, attendance is
-durable, and measured node health influences placement.
+**Milestone done:** sessions have a generic lifecycle, an optional schedule and title, and durable
+participation records; capabilities and moderation are enforced server-side; admission, active
+speaker, node registry, and placement work; invite links for rooms and sessions resolve to a
+confirmation flow unless the principal is already a member; the browser roster and controls stay
+consistent across reconnects. Engine vocabulary stays generic and an education deployment maps
+teacher/student/attendance onto capabilities and participation records.
 
 ## M5 — Persistent chat
 

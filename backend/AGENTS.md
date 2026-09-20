@@ -308,7 +308,7 @@ It must not become authoritative for:
 
 - users;
 - authentication;
-- classroom membership;
+- session membership;
 - chat;
 - file metadata;
 - LMS data;

@@ -26,7 +26,7 @@ sequenceDiagram
   A-->>W: Response
 ```
 
-## Classroom join
+## Session join
 
 ```mermaid
 sequenceDiagram
@@ -35,7 +35,7 @@ sequenceDiagram
   participant P as PostgreSQL
   participant R as Redis
   participant M as mahfel-media
-  B->>A: Authenticate and request classroom join
+  B->>A: Authenticate and request session join
   A->>P: Authorize membership and role
   A->>R: Read or acquire room placement
   A->>M: gRPC ensure room on selected node
@@ -64,9 +64,9 @@ sequenceDiagram
 
 ```mermaid
 flowchart LR
-  A[Teacher browser] <-->|SRTP over UDP preferred| M[mahfel-media SFU]
-  B[Student browser] <-->|SRTP over UDP preferred| M
-  C[Student browser] <-->|SRTP over UDP preferred| M
+  A[Participant browser] <-->|SRTP over UDP preferred| M[mahfel-media SFU]
+  B[Participant browser] <-->|SRTP over UDP preferred| M
+  C[Participant browser] <-->|SRTP over UDP preferred| M
   API[mahfel-api] -. signaling only .-> M
 ```
 
