@@ -1,3 +1,4 @@
+use mahfel_auth::{TokenError, TokenVerifier, TokenVerifierConfig};
 use std::{error::Error, time::Duration};
 use testcontainers::{
     GenericImage, ImageExt,
@@ -5,9 +6,17 @@ use testcontainers::{
     runners::AsyncRunner,
 };
 
+/// Client used to obtain a real Keycloak access token.
+///
+/// The service account carries the `mahfel-api` audience mapper, so its token
+/// is verifiable by the resource server exactly like a browser token.
+const ADMIN_CLIENT_ID: &str = "mahfel-admin";
+const ADMIN_CLIENT_SECRET: &str = "mahfel-admin-dev-secret";
+/// Audience the API accepts.
+const API_AUDIENCE: &str = "mahfel-api";
+
 #[tokio::test]
-async fn keycloak_discovery_and_client_credentials_use_a_dynamic_port() -> Result<(), Box<dyn Error>>
-{
+async fn keycloak_tokens_verify_and_reject_tampering() -> Result<(), Box<dyn Error>> {
     if std::env::var("MAHFEL_TESTCONTAINERS").as_deref() != Ok("1") {
         eprintln!("MAHFEL_TESTCONTAINERS is unset; skipping Keycloak integration test");
         return Ok(());
@@ -45,23 +54,77 @@ async fn keycloak_discovery_and_client_credentials_use_a_dynamic_port() -> Resul
         .await?;
     assert_eq!(keycloak.get_host_port_ipv4(8080).await?, port);
 
-    let discovery = reqwest::get(format!("{issuer}/.well-known/openid-configuration"))
-        .await?
-        .error_for_status()?
-        .json::<serde_json::Value>()
+    // The API manages the realm with the client-credentials service account.
+    let admin_token = client_credentials(&issuer, ADMIN_CLIENT_ID, ADMIN_CLIENT_SECRET).await?;
+    let response = reqwest::Client::new()
+        .get(format!("http://127.0.0.1:{port}/admin/realms/rastai/users"))
+        .bearer_auth(&admin_token)
+        .send()
         .await?;
-    assert_eq!(discovery["issuer"], issuer);
-    assert!(discovery["authorization_endpoint"].is_string());
-    assert!(discovery["token_endpoint"].is_string());
-    assert!(discovery["jwks_uri"].is_string());
+    assert_eq!(
+        response.status(),
+        200,
+        "service account must read realm users"
+    );
 
-    // The API manages Keycloak with the client-credentials service account, not an admin user.
+    // The service account's token carries the `mahfel-api` audience, so it
+    // verifies and normalizes exactly like a browser token would.
+    let access_token = admin_token.clone();
+    let verifier = TokenVerifier::new(TokenVerifierConfig::new(issuer.clone(), API_AUDIENCE));
+    let identity = verifier.verify(&access_token).await?;
+    assert!(
+        !identity.subject.is_empty(),
+        "the service-account token must carry a subject"
+    );
+
+    // A tampered signature is rejected.
+    let mut tampered = access_token.clone().into_bytes();
+    let last = tampered.len() - 1;
+    tampered[last] = if tampered[last] == b'A' { b'B' } else { b'A' };
+    let tampered = String::from_utf8(tampered)?;
+    assert!(
+        matches!(
+            verifier.verify(&tampered).await,
+            Err(TokenError::InvalidSignature)
+        ),
+        "a modified signature must not verify"
+    );
+
+    // A token issued for another audience is rejected.
+    let other_audience =
+        TokenVerifier::new(TokenVerifierConfig::new(issuer.clone(), "someone-else"));
+    assert!(
+        matches!(
+            other_audience.verify(&access_token).await,
+            Err(TokenError::WrongAudience)
+        ),
+        "a token for another audience must not verify"
+    );
+
+    // A token from another issuer is rejected outright.
+    let other_issuer = TokenVerifier::new(TokenVerifierConfig::new(
+        "http://127.0.0.1:1/realms/other",
+        API_AUDIENCE,
+    ));
+    assert!(
+        other_issuer.verify(&access_token).await.is_err(),
+        "a token from another issuer must not verify"
+    );
+
+    Ok(())
+}
+
+async fn client_credentials(
+    issuer: &str,
+    client_id: &str,
+    client_secret: &str,
+) -> Result<String, Box<dyn Error>> {
     let token: serde_json::Value = reqwest::Client::new()
         .post(format!("{issuer}/protocol/openid-connect/token"))
         .form(&[
             ("grant_type", "client_credentials"),
-            ("client_id", "mahfel-admin"),
-            ("client_secret", "mahfel-admin-dev-secret"),
+            ("client_id", client_id),
+            ("client_secret", client_secret),
         ])
         .send()
         .await?
@@ -70,14 +133,7 @@ async fn keycloak_discovery_and_client_credentials_use_a_dynamic_port() -> Resul
         .await?;
     let access_token = token["access_token"]
         .as_str()
-        .expect("access token present");
-    assert!(!access_token.is_empty());
-
-    let users = reqwest::Client::new()
-        .get(format!("http://127.0.0.1:{port}/admin/realms/rastai/users"))
-        .bearer_auth(access_token)
-        .send()
-        .await?;
-    assert_eq!(users.status(), 200, "service account must read realm users");
-    Ok(())
+        .ok_or("token response did not contain an access token")?
+        .to_owned();
+    Ok(access_token)
 }
