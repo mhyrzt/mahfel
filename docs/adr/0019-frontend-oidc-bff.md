@@ -28,9 +28,14 @@ Mahfel adopts the same shape so operators and developers have one mental model.
   and applies upstream timeouts. It is not a general proxy: WebSocket, media, and presigned S3
   traffic never pass through it.
 - `mahfel-api` is a resource server. It verifies Keycloak access tokens (issuer, audience, JWKS with
-  key rotation, clock skew), derives a `Principal` from the verified claims, and resolves or
-  provisions the local user by `(issuer, subject)`. It never links identities by email and never
-  runs an authorization-code login.
+  key rotation, clock skew). Normal requests build the principal from the `app_user_id` claim and
+  perform no identity lookup; the claim is injected by a realm protocol mapper from the
+  `mahfel_user_id` user attribute. `POST /v1/auth/provision` is the only request that writes
+  identity: it provisions or refreshes the local user by `(issuer, subject)` and links the local
+  user id onto the Keycloak identity. The API never links identities by email and never runs an
+  authorization-code login.
+- After the first provisioning the client must refresh the Keycloak token so subsequent tokens carry
+  `app_user_id`; the browser session owner (`mahfel-web`) is responsible for that refresh.
 - Authorization stays deny-by-default in the API. Roles are read from the verified token and applied
   by local policy.
 - WebSocket authentication reuses the same token verifier; the browser supplies the access token in

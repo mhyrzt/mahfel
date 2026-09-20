@@ -97,14 +97,13 @@ local-only password `password`. See `deploy/keycloak/README.md` for the fixture 
 source of truth on every start. Production points the same provider-neutral configuration at its
 Keycloak deployment.
 
-Until browser authentication lands (milestone M2), the API has no signed-in users. Development
-fixtures live separately from schema migrations in `backend/seeds/`, applied in file-name order.
-The `mahfel-seed` Compose service applies them (after migrations) before the API starts; for host
-development, run `just backend seed`, or `just backend seed path/to/seed.sql` to apply a single
-file or directory. The seed creates a clearly labeled development principal and
-the local configuration sets `MAHFEL_API__DEVELOPMENT_PRINCIPAL_USER_ID` to that identity. Protected
-endpoints such as `GET /v1/me` return `401` when this variable is unset, which is the default
-outside local development. Never run seeds or set this variable in production.
+Browser authentication is provided by `mahfel-web` with Keycloak, and the API verifies the resulting
+access token as a resource server (ADR 0019); `GET /v1/auth/me` returns `401` without a valid token.
+Development fixtures that pre-provision local users live separately from schema migrations in
+`backend/seeds/`, applied in file-name order. The `mahfel-seed` Compose service applies them (after
+migrations) before the API starts; for host development, run `just backend seed`, or
+`just backend seed path/to/seed.sql` to apply a single file or directory. Never run seeds in
+production.
 
 Infrastructure host ports can be changed with the `*_HOST_PORT` values in `.env`. Their defaults
 match the port map. For example, use `MAHFEL_REDIS_HOST_PORT=26379` when another local project owns

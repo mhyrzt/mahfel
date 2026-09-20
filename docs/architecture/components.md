@@ -22,11 +22,12 @@ OpenAPI at `/v1/openapi.json`, with its interactive UI on the private operations
 
 OIDC is provided by Keycloak for both local development and production (`auth.mahfel.localhost`
 locally). The browser authenticates through `mahfel-web` (NextAuth with the Keycloak provider) and a
-narrow BFF, and the API is a resource server that verifies Keycloak access tokens and provisions
-local users by `(issuer, subject)` (ADR 0019). The API also manages the realm through the Keycloak
-Admin API using the client-credentials grant of a dedicated service account rather than an
-interactive administrator account. Identity linking, role mapping, and logout remain M2
-implementation concerns; the local realm fixture is described in `deploy/keycloak/README.md`.
+narrow BFF (ADR 0019). The API is a resource server: it builds the principal from the `app_user_id`
+claim without an identity lookup, and `POST /v1/auth/provision` provisions the local user and links
+its id onto the Keycloak identity. The API also manages the realm through the Keycloak Admin API
+using the client-credentials grant of a dedicated service account rather than an interactive
+administrator account. Identity linking, role mapping, and logout remain M2 implementation concerns;
+the local realm fixture is described in `deploy/keycloak/README.md`.
 
 The first control-plane persistence boundary is intentionally small: users, rooms, and classroom
 sessions have UUID identifiers, explicit lifecycle statuses, and UTC timestamps in PostgreSQL.
@@ -39,8 +40,7 @@ attendance, and chat remain separate later milestones.
 Authorization is deny-by-default behind an `Authorizer` seam in `mahfel-application`: the transport
 attaches a `Principal`, the policy decides coarse actions, and room-scoped membership checks live in
 the room use cases. The interim policy grants any authenticated principal and is replaced by the
-classroom role model (M2-07). The development principal is inert unless
-`MAHFEL_API__DEVELOPMENT_PRINCIPAL_USER_ID` is set in a local configuration.
+classroom role model (M2-07).
 
 The realtime gateway at `/v1/ws` is a bounded connection boundary: a versioned JSON envelope, an
 authentication seam that denies by default, heartbeats, per-connection bounded queues with a write

@@ -15,10 +15,14 @@ sequenceDiagram
   W->>A: POST /v1/auth/provision with the access token
   A->>K: Fetch JWKS and verify the token
   A->>P: Upsert user and identity by (issuer, subject)
-  A-->>W: Application profile and avatar URL
+  A->>K: Link mahfel_user_id onto the Keycloak identity
+  A-->>W: Application profile
+  W->>K: Refresh the access token
+  K-->>W: Token carrying app_user_id
   W-->>B: httpOnly session cookie
   B->>W: GET /api/backend/v1/...
   W->>A: Forward with Authorization: Bearer
+  A->>A: Build the principal from app_user_id (no identity lookup)
   A-->>W: Response
 ```
 

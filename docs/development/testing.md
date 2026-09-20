@@ -61,15 +61,18 @@ integration test is skipped. Never point it at a shared or production PostgreSQL
 binaries run through `cargo-nextest`; doctests remain a separate `cargo test --doc` step because
 nextest does not execute them.
 
-OIDC integration tests use the existing Rust `testcontainers` 0.28 ecosystem with a `GenericImage`
-for the pinned Keycloak image. The helper imports `deploy/keycloak/rastai-realm.json`, allocates and
-maps a dynamic host port, and verifies OIDC discovery and the `mahfel-admin` client-credentials
-service account without assuming `localhost:8080`; set `MAHFEL_TESTCONTAINERS=1` to enable
-Docker-backed tests. Keycloak takes tens of seconds to start, so the test allows a long startup
-timeout. `testcontainers-modules` currently targets an incompatible dependency, so it is not
-introduced just to wrap this small fixture. The bootstrap currently has no API login or callback
-route, so authorization-code exchange and session assertions remain M2 work rather than being faked
-by the provider fixture.
+OIDC tests use the Rust `testcontainers` 0.28 ecosystem with a `GenericImage` for the pinned
+Keycloak image. The helper imports `deploy/keycloak/rastai-realm.json`, allocates and maps a dynamic
+host port, and verifies OIDC discovery plus real access-token verification — issuer, audience, and
+signature — against a token that carries the `mahfel-api` audience mapper; set
+`MAHFEL_TESTCONTAINERS=1` to enable Docker-backed tests. Keycloak takes tens of seconds to start, so
+the test allows a long startup timeout. A deterministic test with a local issuer and a fixed RSA key
+covers the verifier's edge cases: expiry, wrong audience, wrong issuer, tampered signatures, and
+JWKS key rotation. The API is a resource server: normal requests build the principal from the
+`app_user_id` claim — injected by the realm's `mahfel_user_id` mapper — and never look up identities,
+while `POST /v1/auth/provision` provisions the local user and writes the linking attribute (tested
+end to end). No API login or callback route exists; browser login is `mahfel-web`'s responsibility
+(ADR 0019).
 
 SQL migrations use SQLFluff with the PostgreSQL dialect. `just backend sql-lint` checks migration
 files and `just backend sql-fmt` applies SQLFluff formatting. The backend `lint` recipe includes the

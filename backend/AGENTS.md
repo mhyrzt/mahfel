@@ -226,9 +226,14 @@ Do not expose mediasoup or internal media-node implementation details through pu
 
 - Verify issuer, audience, signature (JWKS, including key rotation), and expiry before trusting any
   claim. Reject anything that fails with a deliberate 401 and no internal detail.
-- Derive the principal from verified claims. Resolve or provision the local user by
-  `(issuer, subject)` and never by email.
-- Provision idempotently; concurrent first requests must not create duplicate users.
+- Derive the principal from verified claims. The local user id comes from the `app_user_id` claim,
+  which provisioning links onto the Keycloak identity; normal requests must not look it up in the
+  database.
+- Provision only on `POST /v1/auth/provision`: resolve or create the local user by
+  `(issuer, subject)` idempotently and write the local user id onto the provider identity so the
+  realm mapper can emit `app_user_id`. Never link identities by email.
+- Treat a verified token without `app_user_id` as unprovisioned: reject it with `403` until the
+  client has provisioned and refreshed.
 - Manage the realm only through the `mahfel-admin` client-credentials service account, never an
   interactive administrator account.
 - Authorization remains deny-by-default and authoritative here; the frontend hiding a control is not
