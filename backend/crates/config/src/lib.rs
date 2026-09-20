@@ -13,6 +13,7 @@ mod oidc;
 mod redis;
 mod settings;
 mod telemetry;
+mod turn;
 mod worker;
 
 pub use api::{ApiSettings, WsSettings};
@@ -24,4 +25,5 @@ pub use oidc::OidcSettings;
 pub use redis::RedisSettings;
 pub use settings::Settings;
 pub use telemetry::TelemetrySettings;
+pub use turn::TurnSettings;
 pub use worker::WorkerSettings;

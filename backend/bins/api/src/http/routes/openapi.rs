@@ -27,6 +27,7 @@ use utoipa::OpenApi;
         super::rooms::members::add,
         super::rooms::members::remove,
         super::rooms::update::update,
+        crate::http::turn::turn_credentials,
     ),
     components(schemas(
         super::status::StatusResponse,
@@ -44,6 +45,7 @@ use utoipa::OpenApi;
         super::rooms::dto::MemberResponse,
         super::rooms::dto::RoomVisibilityDto,
         super::rooms::dto::RoomRoleDto,
+        crate::http::turn::TurnCredentialsResponse,
     ))
 )]
 pub(crate) struct ApiDoc;
@@ -64,4 +66,5 @@ pub(crate) const REST_PATH_TEMPLATES: &[&str] = &[
     "/v1/rooms/{room_id}/archive",
     "/v1/rooms/{room_id}/members",
     "/v1/rooms/{room_id}/members/{user_id}",
+    "/v1/turn/credentials",
 ];

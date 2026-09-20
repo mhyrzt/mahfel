@@ -17,6 +17,7 @@ use mahfel_application::ports::{
 use mahfel_application::users::{IdentityProvisioner, SyncIdentity, SyncIdentityError};
 use mahfel_auth::AuthenticatedIdentity;
 use mahfel_auth::{TokenVerifier, TokenVerifierConfig};
+use mahfel_config::TurnSettings;
 use mahfel_domain::{
     DisplayName, Identity, Issuer, Room, RoomId, RoomMember, RoomRole, RoomTitle, RoomVisibility,
     Subject, User, UserId, UserStatus,
@@ -350,6 +351,7 @@ fn state_with(
         linker: Arc::new(StubLinker),
         rooms: FakeRoomStore::default(),
         realtime,
+        turn: turn_settings(),
     }
 }
 
@@ -373,6 +375,15 @@ fn other_principal() -> Principal {
     principal_with("00000000-0000-0000-0000-000000000010")
 }
 
+fn turn_settings() -> TurnSettings {
+    TurnSettings {
+        static_secret: "test-turn-secret".to_owned(),
+        realm: "mahfel.local".to_owned(),
+        uris: vec!["turn:127.0.0.1:3478?transport=udp".to_owned()],
+        ttl_seconds: 300,
+    }
+}
+
 fn app() -> Router {
     api_router(state(None, Arc::new(AllowAuthenticated)))
 }
@@ -393,6 +404,7 @@ fn authenticated_room_app(principal: Principal, store: FakeRoomStore) -> Router 
         linker: Arc::new(StubLinker),
         rooms: store,
         realtime,
+        turn: turn_settings(),
     })
 }
 
@@ -1348,6 +1360,7 @@ async fn serve_ws_with_verifier(verifier: TokenVerifier, config: WsConfig) -> Ws
         linker: Arc::new(StubLinker),
         rooms: FakeRoomStore::default(),
         realtime,
+        turn: turn_settings(),
     };
     let listener = TcpListener::bind("127.0.0.1:0").await.expect("bind");
     let addr = listener.local_addr().expect("addr");

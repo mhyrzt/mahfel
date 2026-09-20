@@ -31,6 +31,10 @@ tracing.workspace = true
 utoipa.workspace = true
 utoipa-scalar = { version = "0.3", features = ["axum"] }
 uuid.workspace = true
+hmac = "0.12"
+sha1 = "0.10"
+base64 = "0.22"
+time.workspace = true
 
 [dev-dependencies]
 base64 = "0.22"

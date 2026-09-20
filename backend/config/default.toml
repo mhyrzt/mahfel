@@ -61,3 +61,9 @@ amqp_url = "amqp://mahfel:mahfel-local-only@rabbitmq:5672/%2f"
 [telemetry]
 log_filter = "info,tower_http=info"
 otlp_endpoint = ""
+
+[turn]
+static_secret = "mahfel-local-only-turn-secret"
+realm = "mahfel.local"
+uris = ["turn:127.0.0.1:3478?transport=udp", "turn:127.0.0.1:3478?transport=tcp", "turns:127.0.0.1:5349?transport=tcp"]
+ttl_seconds = 300

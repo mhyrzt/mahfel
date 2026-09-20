@@ -58,6 +58,7 @@ pub(super) fn app(
         linker,
         rooms: stores.rooms,
         realtime,
+        turn: settings.turn.clone(),
     };
     Ok(http::api_router(state).layer(http::cors_layer(origin)))
 }
