@@ -1,7 +1,7 @@
 use super::ManagerGuardError;
 use crate::error::{ApplicationError, ErrorKind};
 use crate::ports::{RoomStore, StoreError};
-use mahfel_domain::{Room, RoomError, RoomId, UserId};
+use mahfel_domain::{ActorId, Room, RoomError, RoomId};
 use thiserror::Error;
 use time::OffsetDateTime;
 
@@ -42,7 +42,7 @@ impl ApplicationError for ArchiveRoomError {
 pub async fn archive_room<R>(
     rooms: &R,
     room_id: RoomId,
-    actor: UserId,
+    actor: ActorId,
 ) -> Result<Room, ArchiveRoomError>
 where
     R: RoomStore,

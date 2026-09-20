@@ -1,6 +1,6 @@
+use crate::actor::ActorId;
 use crate::ids::entity_id;
 use crate::status::status_conversion;
-use crate::user::UserId;
 use crate::validation::{RoomTitle, ValidationError};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -47,7 +47,7 @@ pub enum RoomError {
 pub struct Room {
     pub id: RoomId,
     pub title: RoomTitle,
-    pub created_by: UserId,
+    pub created_by: ActorId,
     pub visibility: RoomVisibility,
     pub status: RoomStatus,
     pub created_at: OffsetDateTime,
@@ -58,7 +58,7 @@ impl Room {
     #[must_use]
     pub fn create(
         title: RoomTitle,
-        created_by: UserId,
+        created_by: ActorId,
         visibility: RoomVisibility,
         now: OffsetDateTime,
     ) -> Self {
@@ -106,12 +106,13 @@ impl Room {
     }
 }
 
-/// A user's membership in a room. Created automatically: adding a member or
-/// joining a public room grants access immediately.
+/// An actor's membership in a room. Created automatically: adding a member or
+/// joining a public room grants access immediately. The actor may be a user or
+/// a service principal.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct RoomMember {
     pub room_id: RoomId,
-    pub user_id: UserId,
+    pub actor_id: ActorId,
     pub role: RoomRole,
     pub created_at: OffsetDateTime,
     pub updated_at: OffsetDateTime,
@@ -119,10 +120,10 @@ pub struct RoomMember {
 
 impl RoomMember {
     #[must_use]
-    pub fn new(room_id: RoomId, user_id: UserId, role: RoomRole, now: OffsetDateTime) -> Self {
+    pub fn new(room_id: RoomId, actor_id: ActorId, role: RoomRole, now: OffsetDateTime) -> Self {
         Self {
             room_id,
-            user_id,
+            actor_id,
             role,
             created_at: now,
             updated_at: now,
@@ -147,11 +148,11 @@ pub enum MembershipError {
 /// manager may not be removed.
 pub fn ensure_member_removable(
     members: &[RoomMember],
-    target: UserId,
+    target: ActorId,
 ) -> Result<RoomRole, MembershipError> {
     let member = members
         .iter()
-        .find(|member| member.user_id == target)
+        .find(|member| member.actor_id == target)
         .ok_or(MembershipError::NotFound)?;
     if member.role == RoomRole::Manager
         && members
@@ -176,7 +177,7 @@ mod tests {
     fn room(visibility: RoomVisibility) -> Room {
         Room::create(
             RoomTitle::new("title".to_owned()).expect("valid"),
-            UserId::new(),
+            ActorId::new(),
             visibility,
             OffsetDateTime::now_utc(),
         )
@@ -224,8 +225,8 @@ mod tests {
     fn last_manager_cannot_be_removed() {
         let now = OffsetDateTime::now_utc();
         let room_id = RoomId::new();
-        let manager = UserId::new();
-        let member = UserId::new();
+        let manager = ActorId::new();
+        let member = ActorId::new();
         let mut members = vec![
             RoomMember::new(room_id, manager, RoomRole::Manager, now),
             RoomMember::new(room_id, member, RoomRole::Member, now),
@@ -239,13 +240,13 @@ mod tests {
 
         members.push(RoomMember::new(
             room_id,
-            UserId::new(),
+            ActorId::new(),
             RoomRole::Manager,
             now,
         ));
         assert!(ensure_member_removable(&members, manager).is_ok());
         assert_eq!(
-            ensure_member_removable(&members, UserId::new()).expect_err("unknown"),
+            ensure_member_removable(&members, ActorId::new()).expect_err("unknown"),
             MembershipError::NotFound
         );
     }

@@ -2,7 +2,7 @@ use super::error::RtcError;
 use super::producer::ProducerMap;
 use super::room::RoomMap;
 use super::transport::TransportMap;
-use mahfel_domain::{RoomId, UserId};
+use mahfel_domain::{ActorId, RoomId};
 use mediasoup::prelude::{Consumer, ConsumerOptions, RtpCapabilities, Transport};
 use std::{collections::HashMap, sync::Arc};
 use tokio::sync::RwLock;
@@ -13,7 +13,7 @@ pub(super) struct ConsumerEntry {
     pub(super) room_id: RoomId,
     pub(super) transport_id: String,
     pub(super) producer_id: String,
-    pub(super) participant_id: UserId,
+    pub(super) participant_id: ActorId,
 }
 
 pub(super) type ConsumerMap = Arc<RwLock<HashMap<String, ConsumerEntry>>>;
@@ -26,7 +26,7 @@ pub(super) async fn create_consumer(
     consumers: &ConsumerMap,
     room_id: RoomId,
     transport_id: &str,
-    participant_id: UserId,
+    participant_id: ActorId,
     producer_id: &str,
     rtp_capabilities_json: &str,
 ) -> Result<(String, String, bool), RtcError> {

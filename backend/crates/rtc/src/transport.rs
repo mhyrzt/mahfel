@@ -1,6 +1,6 @@
 use super::error::RtcError;
 use super::room::RoomMap;
-use mahfel_domain::{RoomId, UserId};
+use mahfel_domain::{ActorId, RoomId};
 use mediasoup::prelude::{
     DtlsParameters, IceCandidate, IceParameters, Transport, WebRtcServer, WebRtcTransport,
     WebRtcTransportOptions, WebRtcTransportRemoteParameters,
@@ -12,7 +12,7 @@ use tokio::sync::RwLock;
 pub(super) struct TransportEntry {
     pub(super) transport: WebRtcTransport,
     pub(super) room_id: RoomId,
-    pub(super) participant_id: UserId,
+    pub(super) participant_id: ActorId,
 }
 
 pub(super) type TransportMap = Arc<RwLock<HashMap<String, TransportEntry>>>;
@@ -22,7 +22,7 @@ pub(super) async fn create_transport(
     servers: &[WebRtcServer],
     transports: &TransportMap,
     room_id: RoomId,
-    participant_id: UserId,
+    participant_id: ActorId,
 ) -> Result<(String, String, String, String), RtcError> {
     let (router, worker_index) = {
         let map = rooms.read().await;

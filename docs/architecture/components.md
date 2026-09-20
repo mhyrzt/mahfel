@@ -29,8 +29,18 @@ using the client-credentials grant of a dedicated service account rather than an
 administrator account. Identity linking, role mapping, and logout remain M2 implementation concerns;
 the local realm fixture is described in `deploy/keycloak/README.md`.
 
-The first control-plane persistence boundary is intentionally small: users, rooms, and sessions have
-UUID identifiers, explicit lifecycle statuses, and UTC timestamps in PostgreSQL.
+The API also owns service principals: first-class machine actors that authenticate with
+Mahfel-issued opaque API keys (`mhf_` followed by hex, stored only as a SHA-256 digest) rather than
+Keycloak client credentials (ADR 0022). Users and service principals share one PostgreSQL id space
+(`mahfel.actors`), and rooms and memberships reference actors, so a service can own a room and hold a
+`manager` or `member` role without impersonating a user. Administrators provision, rotate, and
+revoke principals under `/v1/admin/service-principals`; the API-key path and the JWT path produce
+the same `Principal`, and service principals carry no global roles by default. `mahfel-media` and
+`mahfel-worker` do not own service principals or API keys.
+
+The first control-plane persistence boundary is intentionally small: actors (users and service
+principals), users, rooms, and sessions have UUID identifiers, explicit lifecycle statuses, and UTC
+timestamps in PostgreSQL.
 A room is a durable container with `public` or `invite_only` visibility and room-scoped memberships
 whose roles are `manager` and `member`. A room's identity is its id alone, so titles need not be
 unique. Domain types remain independent of SQLx; the `mahfel-postgres` adapters (`Postgres*Store`)

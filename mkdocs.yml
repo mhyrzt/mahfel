@@ -61,4 +61,5 @@ nav:
       - 0019 Frontend OIDC and BFF: adr/0019-frontend-oidc-bff.md
       - 0020 Generic collaboration core: adr/0020-generic-collaboration-core.md
       - 0021 Invite links: adr/0021-invite-links.md
+      - 0022 Service principals: adr/0022-service-principals.md
   - Backlog: backlog/roadmap.md

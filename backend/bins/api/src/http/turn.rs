@@ -39,7 +39,7 @@ pub async fn turn_credentials<R: crate::http::state::RoomStoreState>(
 ) -> Json<TurnCredentialsResponse> {
     let ttl = state.turn.ttl_seconds;
     let expiry = OffsetDateTime::now_utc().unix_timestamp() as u64 + ttl;
-    let username = format!("{}:{}", expiry, principal.user_id);
+    let username = format!("{}:{}", expiry, principal.actor_id);
     let mut mac = Hmac::<Sha1>::new_from_slice(state.turn.static_secret.as_bytes())
         .expect("HMAC key must be valid");
     mac.update(username.as_bytes());

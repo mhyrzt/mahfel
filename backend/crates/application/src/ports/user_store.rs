@@ -1,10 +1,10 @@
 use super::StoreError;
-use mahfel_domain::{User, UserId};
+use mahfel_domain::{ActorId, User};
 
 pub trait UserStore: Send + Sync {
     fn get(
         &self,
-        id: UserId,
+        id: ActorId,
     ) -> impl std::future::Future<Output = Result<Option<User>, StoreError>> + Send;
     fn insert(
         &self,

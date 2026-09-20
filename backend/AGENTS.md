@@ -236,6 +236,12 @@ Do not expose mediasoup or internal media-node implementation details through pu
   client has provisioned and refreshed.
 - Manage the realm only through the `mahfel-admin` client-credentials service account, never an
   interactive administrator account.
+- Service principals authenticate with Mahfel-issued opaque API keys (`mhf_` followed by hex,
+  stored only as a SHA-256 digest), not Keycloak client credentials (ADR 0022). A service principal
+  is a first-class actor in the same id space as users: it can own rooms and hold `manager` or
+  `member` memberships, but carries no global roles by default. Administrators provision, rotate,
+  and revoke principals and keys under `/v1/admin/service-principals`; a raw key is returned exactly
+  once and is never logged or stored in the clear.
 - Authorization remains deny-by-default and authoritative here; the frontend hiding a control is not
   an authorization decision.
 
@@ -307,6 +313,7 @@ It owns:
 It must not become authoritative for:
 
 - users;
+- service principals or API keys;
 - authentication;
 - session membership;
 - chat;

@@ -1,6 +1,6 @@
 use super::error::RtcError;
 use super::{consumer::ConsumerMap, producer::ProducerMap, room::RoomMap, transport::TransportMap};
-use mahfel_domain::{RoomId, UserId};
+use mahfel_domain::{ActorId, RoomId};
 use mediasoup::{
     prelude::{
         ListenInfo, MediaKind, Protocol, WebRtcServer, WebRtcServerListenInfos, WebRtcServerOptions,
@@ -156,7 +156,7 @@ impl MediaRuntime {
     pub async fn create_transport(
         &self,
         room_id: RoomId,
-        participant_id: UserId,
+        participant_id: ActorId,
     ) -> Result<(String, String, String, String), RtcError> {
         super::transport::create_transport(
             &self.rooms,
@@ -188,7 +188,7 @@ impl MediaRuntime {
         &self,
         room_id: RoomId,
         transport_id: &str,
-        participant_id: UserId,
+        participant_id: ActorId,
         kind: MediaKind,
         rtp_parameters_json: &str,
     ) -> Result<String, RtcError> {
@@ -210,7 +210,7 @@ impl MediaRuntime {
         &self,
         room_id: RoomId,
         transport_id: &str,
-        participant_id: UserId,
+        participant_id: ActorId,
         producer_id: &str,
         rtp_capabilities_json: &str,
     ) -> Result<(String, String, bool), RtcError> {

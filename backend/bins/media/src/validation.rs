@@ -1,4 +1,4 @@
-use mahfel_domain::{RoomId, UserId};
+use mahfel_domain::{ActorId, RoomId};
 use mediasoup::prelude::MediaKind;
 use tonic::Status;
 use uuid::Uuid;
@@ -33,10 +33,10 @@ pub(crate) fn parse_room_id(raw: &str) -> Result<RoomId, Status> {
     Ok(RoomId::from_uuid(uuid))
 }
 
-pub(crate) fn parse_user_id(raw: &str) -> Result<UserId, Status> {
+pub(crate) fn parse_user_id(raw: &str) -> Result<ActorId, Status> {
     let uuid =
         Uuid::parse_str(raw).map_err(|_| Status::invalid_argument("invalid participant_id"))?;
-    Ok(UserId::from_uuid(uuid))
+    Ok(ActorId::from_uuid(uuid))
 }
 
 pub(crate) fn parse_media_kind(raw: &str) -> Result<MediaKind, Status> {
@@ -58,7 +58,7 @@ pub struct DeleteRoomValidated {
 }
 pub struct CreateTransportValidated {
     pub room_id: RoomId,
-    pub participant_id: UserId,
+    pub participant_id: ActorId,
 }
 pub struct ConnectTransportValidated {
     pub room_id: RoomId,
@@ -67,14 +67,14 @@ pub struct ConnectTransportValidated {
 }
 pub struct ProduceValidated {
     pub room_id: RoomId,
-    pub participant_id: UserId,
+    pub participant_id: ActorId,
     pub transport_id: String,
     pub kind: MediaKind,
     pub rtp_parameters: String,
 }
 pub struct ConsumeValidated {
     pub room_id: RoomId,
-    pub participant_id: UserId,
+    pub participant_id: ActorId,
     pub producer_id: String,
     pub transport_id: String,
     pub rtp_capabilities: String,

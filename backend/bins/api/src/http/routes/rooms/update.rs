@@ -34,7 +34,7 @@ pub(crate) async fn update<R: RoomStoreState>(
     let room = update_settings(
         &state.rooms,
         RoomId::from_uuid(room_id),
-        principal.user_id,
+        principal.actor_id,
         UpdateRoom {
             title: body.title,
             visibility: body.visibility.map(RoomVisibility::from),

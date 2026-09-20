@@ -26,7 +26,7 @@ pub(crate) async fn get_room<R: RoomStoreState>(
     Authenticated(principal): Authenticated,
     ValidatedPath(room_id): ValidatedPath<Uuid>,
 ) -> Result<Json<RoomResponse>, ApiError> {
-    let room = load_room(&state.rooms, RoomId::from_uuid(room_id), principal.user_id).await?;
+    let room = load_room(&state.rooms, RoomId::from_uuid(room_id), principal.actor_id).await?;
     room.map(RoomResponse::from)
         .map(Json)
         .ok_or_else(|| ApiError::not_found("room not found"))

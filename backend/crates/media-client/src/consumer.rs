@@ -1,12 +1,12 @@
 use super::gateway::GrpcMediaGateway;
-use mahfel_domain::{RoomId, UserId};
+use mahfel_domain::{ActorId, RoomId};
 use mahfel_rtc_protocol::media::{ConsumeRequest, PauseConsumerRequest, ResumeConsumerRequest};
 
 impl GrpcMediaGateway {
     pub async fn consume(
         &self,
         room: RoomId,
-        participant_id: UserId,
+        participant_id: ActorId,
         producer_id: String,
         transport_id: String,
         rtp_capabilities: String,

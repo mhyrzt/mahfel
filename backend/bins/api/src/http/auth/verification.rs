@@ -15,6 +15,12 @@ pub enum AuthenticationError {
     /// The token is valid but no application user has been linked yet.
     #[error("account is not provisioned")]
     NotProvisioned,
+    /// A service API key was presented but is unknown, revoked, or inactive.
+    #[error("credential is invalid")]
+    InvalidCredential,
+    /// Authentication could not be completed because storage failed.
+    #[error("authentication backend is unavailable")]
+    Internal,
 }
 
 /// Verifies a bearer token and returns the provider-neutral claims.

@@ -1,7 +1,7 @@
 use super::ManagerGuardError;
 use crate::error::{ApplicationError, ErrorKind};
 use crate::ports::{RoomStore, StoreError};
-use mahfel_domain::{Room, RoomError, RoomId, RoomTitle, RoomVisibility, UserId, ValidationError};
+use mahfel_domain::{ActorId, Room, RoomError, RoomId, RoomTitle, RoomVisibility, ValidationError};
 use thiserror::Error;
 use time::OffsetDateTime;
 
@@ -52,7 +52,7 @@ impl ApplicationError for UpdateRoomError {
 pub async fn update_settings<R>(
     rooms: &R,
     room_id: RoomId,
-    actor: UserId,
+    actor: ActorId,
     command: UpdateRoom,
 ) -> Result<Room, UpdateRoomError>
 where

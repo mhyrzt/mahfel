@@ -1,5 +1,6 @@
 use crate::http::{
-    auth::{AuthState, RequestAuthenticator},
+    auth::{AuthState, RequestAuthenticator, ServiceKeyAuthenticator},
+    service_principals::ServicePrincipalAdmin,
     ws::WsState,
 };
 use mahfel_application::{
@@ -26,6 +27,8 @@ pub struct AppState<R> {
     pub node_id: String,
     pub auth: AuthState,
     pub authentication: Arc<dyn RequestAuthenticator>,
+    pub service_auth: Arc<dyn ServiceKeyAuthenticator>,
+    pub service_principals: Arc<dyn ServicePrincipalAdmin>,
     pub provisioner: Arc<dyn IdentityProvisioner>,
     pub linker: Arc<dyn UserAttributeWriter>,
     pub rooms: R,

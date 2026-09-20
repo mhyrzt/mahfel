@@ -36,6 +36,15 @@ pub(super) fn app(
     let linker: Arc<dyn UserAttributeWriter> = Arc::new(mahfel_keycloak::KeycloakAdmin::new(
         settings::keycloak(settings),
     ));
+    // Service principals authenticate with Mahfel-issued API keys; the same
+    // store backs the admin provisioning surface.
+    let service_auth: Arc<dyn http::auth::ServiceKeyAuthenticator> = Arc::new(
+        http::auth::StoreServiceKeyAuthenticator::new(stores.service_principals.clone()),
+    );
+    let service_principals: Arc<dyn http::service_principals::ServicePrincipalAdmin> =
+        Arc::new(http::service_principals::StoreServicePrincipalAdmin::new(
+            stores.service_principals.clone(),
+        ));
     let media = Arc::new(
         GrpcMediaGateway::lazy(settings.api.media_grpc_url.clone())
             .map_err(|e| anyhow::anyhow!("invalid media grpc url: {e}"))?,
@@ -54,6 +63,8 @@ pub(super) fn app(
         node_id: node_id.to_string(),
         auth: http::auth::AuthState::new(Arc::new(RoleBasedAuthorizer)),
         authentication,
+        service_auth,
+        service_principals,
         provisioner,
         linker,
         rooms: stores.rooms,

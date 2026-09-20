@@ -10,5 +10,5 @@ pub use codecs::media_codecs;
 pub use error::RtcError;
 pub use runtime::MediaRuntime;
 
-pub use mahfel_domain::{RoomId, UserId};
+pub use mahfel_domain::{ActorId, RoomId};
 pub use mediasoup::prelude::MediaKind;

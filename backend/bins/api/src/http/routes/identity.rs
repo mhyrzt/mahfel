@@ -36,7 +36,7 @@ impl ProfileResponse {
     /// Profile for a request whose identity is already linked.
     fn from_principal(principal: &Principal) -> Self {
         Self {
-            user_id: principal.user_id.to_string(),
+            user_id: principal.actor_id.to_string(),
             display_name: principal.display_name.clone(),
             email: principal.email.clone(),
             email_verified: principal.email_verified,

@@ -1,7 +1,7 @@
 use crate::DatabaseError;
 use crate::stores::{sqlx_store_error, store_error};
 use mahfel_application::ports::{RoomStore, StoreError};
-use mahfel_domain::{Room, RoomId, RoomMember, RoomRole, RoomTitle, UserId};
+use mahfel_domain::{ActorId, Room, RoomId, RoomMember, RoomRole, RoomTitle};
 use sqlx::{FromRow, PgPool};
 use time::OffsetDateTime;
 use uuid::Uuid;
@@ -32,7 +32,7 @@ struct RoomRow {
 #[derive(FromRow)]
 struct RoomMemberRow {
     room_id: Uuid,
-    user_id: Uuid,
+    actor_id: Uuid,
     #[sqlx(rename = "member_role")]
     role: String,
     created_at: OffsetDateTime,
@@ -120,7 +120,7 @@ impl RoomStore for PostgresRoomStore {
 
     async fn list_for_member(
         &self,
-        user_id: UserId,
+        actor_id: ActorId,
         limit: u64,
         offset: u64,
     ) -> Result<Vec<Room>, StoreError> {
@@ -129,11 +129,11 @@ impl RoomStore for PostgresRoomStore {
                     r.created_at, r.updated_at \
              FROM mahfel.rooms r \
              JOIN mahfel.room_memberships m ON m.room_id = r.id \
-             WHERE m.user_id = $1 \
+             WHERE m.actor_id = $1 \
              ORDER BY r.created_at DESC, r.id \
              LIMIT $2 OFFSET $3",
         )
-        .bind(user_id.as_uuid())
+        .bind(actor_id.as_uuid())
         .bind(i64::try_from(limit).unwrap_or(i64::MAX))
         .bind(i64::try_from(offset).unwrap_or(i64::MAX))
         .fetch_all(&self.pool)
@@ -148,14 +148,14 @@ impl RoomStore for PostgresRoomStore {
     async fn get_member(
         &self,
         room_id: RoomId,
-        user_id: UserId,
+        actor_id: ActorId,
     ) -> Result<Option<RoomMember>, StoreError> {
         let row = sqlx::query_as::<_, RoomMemberRow>(
-            "SELECT room_id, user_id, member_role, created_at, updated_at \
-             FROM mahfel.room_memberships WHERE room_id = $1 AND user_id = $2",
+            "SELECT room_id, actor_id, member_role, created_at, updated_at \
+             FROM mahfel.room_memberships WHERE room_id = $1 AND actor_id = $2",
         )
         .bind(room_id.as_uuid())
-        .bind(user_id.as_uuid())
+        .bind(actor_id.as_uuid())
         .fetch_optional(&self.pool)
         .await
         .map_err(sqlx_store_error)?;
@@ -166,9 +166,9 @@ impl RoomStore for PostgresRoomStore {
 
     async fn list_members(&self, room_id: RoomId) -> Result<Vec<RoomMember>, StoreError> {
         let rows = sqlx::query_as::<_, RoomMemberRow>(
-            "SELECT room_id, user_id, member_role, created_at, updated_at \
+            "SELECT room_id, actor_id, member_role, created_at, updated_at \
              FROM mahfel.room_memberships WHERE room_id = $1 \
-             ORDER BY created_at, user_id",
+             ORDER BY created_at, actor_id",
         )
         .bind(room_id.as_uuid())
         .fetch_all(&self.pool)
@@ -183,12 +183,12 @@ impl RoomStore for PostgresRoomStore {
     async fn add_member(&self, member: &RoomMember) -> Result<(), StoreError> {
         let result = sqlx::query(
             "INSERT INTO mahfel.room_memberships \
-             (room_id, user_id, member_role, created_at, updated_at) \
+             (room_id, actor_id, member_role, created_at, updated_at) \
              VALUES ($1, $2, $3, $4, $4) \
-             ON CONFLICT (room_id, user_id) DO NOTHING",
+             ON CONFLICT (room_id, actor_id) DO NOTHING",
         )
         .bind(member.room_id.as_uuid())
-        .bind(member.user_id.as_uuid())
+        .bind(member.actor_id.as_uuid())
         .bind(member.role.as_str())
         .bind(member.created_at)
         .execute(&self.pool)
@@ -198,13 +198,13 @@ impl RoomStore for PostgresRoomStore {
         if result.rows_affected() == 0 {
             return Err(StoreError::Conflict(format!(
                 "user {} is already a member of room {}",
-                member.user_id, member.room_id
+                member.actor_id, member.room_id
             )));
         }
         Ok(())
     }
 
-    async fn remove_member(&self, room_id: RoomId, user_id: UserId) -> Result<bool, StoreError> {
+    async fn remove_member(&self, room_id: RoomId, actor_id: ActorId) -> Result<bool, StoreError> {
         // Serialize membership changes for the room by locking its row, so the
         // manager count and the delete observe one consistent snapshot. The
         // domain check in the use case is defense in depth, not the guard.
@@ -220,11 +220,11 @@ impl RoomStore for PostgresRoomStore {
         }
 
         let target = sqlx::query_as::<_, RoomMemberRow>(
-            "SELECT room_id, user_id, member_role, created_at, updated_at \
-             FROM mahfel.room_memberships WHERE room_id = $1 AND user_id = $2",
+            "SELECT room_id, actor_id, member_role, created_at, updated_at \
+             FROM mahfel.room_memberships WHERE room_id = $1 AND actor_id = $2",
         )
         .bind(room_id.as_uuid())
-        .bind(user_id.as_uuid())
+        .bind(actor_id.as_uuid())
         .fetch_optional(&mut *tx)
         .await
         .map_err(sqlx_store_error)?;
@@ -248,9 +248,9 @@ impl RoomStore for PostgresRoomStore {
         }
 
         let result =
-            sqlx::query("DELETE FROM mahfel.room_memberships WHERE room_id = $1 AND user_id = $2")
+            sqlx::query("DELETE FROM mahfel.room_memberships WHERE room_id = $1 AND actor_id = $2")
                 .bind(room_id.as_uuid())
-                .bind(user_id.as_uuid())
+                .bind(actor_id.as_uuid())
                 .execute(&mut *tx)
                 .await
                 .map_err(sqlx_store_error)?;
@@ -266,11 +266,11 @@ async fn insert_membership(
 ) -> Result<(), StoreError> {
     sqlx::query(
         "INSERT INTO mahfel.room_memberships \
-         (room_id, user_id, member_role, created_at, updated_at) \
+         (room_id, actor_id, member_role, created_at, updated_at) \
          VALUES ($1, $2, $3, $4, $4)",
     )
     .bind(member.room_id.as_uuid())
-    .bind(member.user_id.as_uuid())
+    .bind(member.actor_id.as_uuid())
     .bind(member.role.as_str())
     .bind(member.created_at)
     .execute(&mut **tx)
@@ -287,7 +287,7 @@ impl TryFrom<RoomRow> for Room {
             id: RoomId::from_uuid(row.id),
             title: RoomTitle::new(row.title.clone())
                 .map_err(|_| DatabaseError::InvalidStoredValue("invalid room title"))?,
-            created_by: UserId::from_uuid(row.created_by),
+            created_by: ActorId::from_uuid(row.created_by),
             visibility: row.visibility.as_str().try_into()?,
             status: row.status.as_str().try_into()?,
             created_at: row.created_at,
@@ -302,7 +302,7 @@ impl TryFrom<RoomMemberRow> for RoomMember {
     fn try_from(row: RoomMemberRow) -> Result<Self, Self::Error> {
         Ok(Self {
             room_id: RoomId::from_uuid(row.room_id),
-            user_id: UserId::from_uuid(row.user_id),
+            actor_id: ActorId::from_uuid(row.actor_id),
             role: row.role.as_str().try_into()?,
             created_at: row.created_at,
             updated_at: row.updated_at,

@@ -2,8 +2,8 @@ use mahfel_application::ports::{
     IdentityProfile, IdentityStore, RoomStore, SessionStore, StoreError, UserStore,
 };
 use mahfel_domain::{
-    AvatarUrl, ClassroomSession, DisplayName, EmailAddress, Issuer, Room, RoomMember, RoomRole,
-    RoomTitle, RoomVisibility, Subject, User, UserId,
+    ActorId, AvatarUrl, ClassroomSession, DisplayName, EmailAddress, Issuer, Room, RoomMember,
+    RoomRole, RoomTitle, RoomVisibility, Subject, User,
 };
 use mahfel_postgres::{
     ConnectionSettings, PoolSettings, PostgresIdentityStore, PostgresRoomStore,
@@ -102,7 +102,7 @@ async fn verify_migrations_and_stores(
     let migration_count = sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM _sqlx_migrations")
         .fetch_one(pool)
         .await?;
-    assert_eq!(migration_count, 4, "each migration must be recorded once");
+    assert_eq!(migration_count, 5, "each migration must be recorded once");
 
     let migration_tables = sqlx::query_scalar::<_, i64>(
         "SELECT COUNT(*) FROM pg_class WHERE relname = '_sqlx_migrations'",
@@ -122,6 +122,30 @@ async fn verify_migrations_and_stores(
     assert!(
         namespace_exists,
         "migration must provision the Mahfel schema"
+    );
+
+    // The unified actor model is present and membership is keyed by actor.
+    for table in ["actors", "service_principals", "service_api_keys"] {
+        let exists = sqlx::query_scalar::<_, bool>(
+            "SELECT EXISTS (SELECT 1 FROM pg_tables \
+             WHERE schemaname = 'mahfel' AND tablename = $1)",
+        )
+        .bind(table)
+        .fetch_one(pool)
+        .await?;
+        assert!(exists, "migration must create mahfel.{table}");
+    }
+
+    let membership_actor_column = sqlx::query_scalar::<_, bool>(
+        "SELECT EXISTS (SELECT 1 FROM information_schema.columns \
+         WHERE table_schema = 'mahfel' AND table_name = 'room_memberships' \
+         AND column_name = 'actor_id')",
+    )
+    .fetch_one(pool)
+    .await?;
+    assert!(
+        membership_actor_column,
+        "memberships must be keyed by actor_id"
     );
 
     // PostgreSQL keeps microseconds; align the in-memory clock so round-trip
@@ -166,7 +190,7 @@ async fn verify_migrations_and_stores(
     let missing = rooms
         .add_member(&RoomMember::new(
             room.id,
-            UserId::new(),
+            ActorId::new(),
             RoomRole::Member,
             now,
         ))

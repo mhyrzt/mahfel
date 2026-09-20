@@ -8,6 +8,16 @@
 -- identity before real authentication (M2) exists. Nothing authenticates as
 -- this user unless MAHFEL_API__DEVELOPMENT_PRINCIPAL_USER_ID is configured,
 -- which is a local-only setting. Do not enable it in production.
+-- Users share the actor id space, so the actor row is created first.
+INSERT INTO mahfel.actors (id, kind, created_at, updated_at)
+VALUES (
+    '00000000-0000-0000-0000-000000000001',
+    'user',
+    '2026-01-01 00:00:00+00',
+    '2026-01-01 00:00:00+00'
+)
+ON CONFLICT (id) DO NOTHING;
+
 INSERT INTO mahfel.users (id, display_name, status, created_at, updated_at)
 VALUES (
     '00000000-0000-0000-0000-000000000001',

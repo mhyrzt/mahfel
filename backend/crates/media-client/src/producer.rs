@@ -1,5 +1,5 @@
 use super::gateway::GrpcMediaGateway;
-use mahfel_domain::{RoomId, UserId};
+use mahfel_domain::{ActorId, RoomId};
 use mahfel_rtc_protocol::media::ProduceRequest;
 use mediasoup::prelude::MediaKind;
 
@@ -7,7 +7,7 @@ impl GrpcMediaGateway {
     pub async fn produce(
         &self,
         room: RoomId,
-        participant_id: UserId,
+        participant_id: ActorId,
         transport_id: String,
         kind: MediaKind,
         rtp_parameters: String,

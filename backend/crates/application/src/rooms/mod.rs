@@ -15,7 +15,7 @@ pub use members::{AddMemberError, RemoveMemberError, add_member, remove_member};
 pub use update::{UpdateRoom, UpdateRoomError, update_settings};
 
 use crate::ports::{RoomStore, StoreError};
-use mahfel_domain::{Room, RoomId, RoomRole, UserId};
+use mahfel_domain::{ActorId, Room, RoomId, RoomRole};
 
 /// Why a manager-only operation was rejected.
 ///
@@ -36,7 +36,7 @@ pub(crate) enum ManagerGuardError {
 pub(crate) async fn require_manager<R>(
     rooms: &R,
     room_id: RoomId,
-    actor: UserId,
+    actor: ActorId,
 ) -> Result<Room, ManagerGuardError>
 where
     R: RoomStore,

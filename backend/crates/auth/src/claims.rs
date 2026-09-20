@@ -19,6 +19,11 @@ pub struct AuthenticatedIdentity {
     /// Local application user id, linked by provisioning and injected as a
     /// claim. Absent until the user has provisioned.
     pub app_user_id: Option<String>,
+    /// Optional principal kind claim (`user` or `service`).
+    ///
+    /// Absent means `user`. Unknown values are normalized to `None` (treated as
+    /// `user`) so a malformed claim can never widen access to a machine actor.
+    pub app_principal_kind: Option<String>,
     pub email: Option<String>,
     /// Whether the provider asserts the email is verified.
     pub email_verified: bool,
@@ -75,6 +80,7 @@ pub const DEFAULT_LEEWAY: Duration = Duration::from_secs(30);
 struct StandardClaims {
     sub: Option<String>,
     app_user_id: Option<String>,
+    app_principal_kind: Option<String>,
     email: Option<String>,
     email_verified: Option<bool>,
     preferred_username: Option<String>,
@@ -135,6 +141,9 @@ pub fn normalize_claims(claims: &Value) -> Result<AuthenticatedIdentity, ClaimsE
         subject,
         issuer: String::new(),
         app_user_id: claims.app_user_id.filter(|value| !value.is_empty()),
+        app_principal_kind: claims
+            .app_principal_kind
+            .filter(|value| matches!(value.as_str(), "user" | "service")),
         email: claims.email,
         // A verified flag without an email is meaningless.
         email_verified,
@@ -204,5 +213,33 @@ mod tests {
         let unlinked = normalize_claims(&json!({ "sub": "teacher", "app_user_id": "" }))
             .expect("valid claims");
         assert!(unlinked.app_user_id.is_none());
+    }
+
+    #[test]
+    fn normalizes_the_optional_principal_kind() {
+        let absent = normalize_claims(&json!({ "sub": "teacher" })).expect("valid claims");
+        assert!(absent.app_principal_kind.is_none());
+
+        let service = normalize_claims(&json!({
+            "sub": "lms-core",
+            "app_principal_kind": "service"
+        }))
+        .expect("valid claims");
+        assert_eq!(service.app_principal_kind.as_deref(), Some("service"));
+
+        let user = normalize_claims(&json!({
+            "sub": "teacher",
+            "app_principal_kind": "user"
+        }))
+        .expect("valid claims");
+        assert_eq!(user.app_principal_kind.as_deref(), Some("user"));
+
+        // An unknown kind is dropped (treated as user), never trusted.
+        let unknown = normalize_claims(&json!({
+            "sub": "teacher",
+            "app_principal_kind": "admin"
+        }))
+        .expect("valid claims");
+        assert!(unknown.app_principal_kind.is_none());
     }
 }

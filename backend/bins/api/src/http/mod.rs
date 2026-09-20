@@ -6,6 +6,7 @@ pub mod middleware;
 pub mod pagination;
 pub mod request_id;
 pub(crate) mod routes;
+pub mod service_principals;
 pub mod state;
 pub mod turn;
 pub mod ws;

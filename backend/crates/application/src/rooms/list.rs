@@ -1,6 +1,6 @@
 use crate::error::{ApplicationError, ErrorKind};
 use crate::ports::{RoomStore, StoreError};
-use mahfel_domain::{Room, UserId};
+use mahfel_domain::{ActorId, Room};
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -21,7 +21,7 @@ impl ApplicationError for ListRoomsError {
 /// only after a membership exists.
 pub async fn list_joined<R>(
     rooms: &R,
-    actor: UserId,
+    actor: ActorId,
     limit: u64,
     offset: u64,
 ) -> Result<Vec<Room>, ListRoomsError>

@@ -1,10 +1,12 @@
 mod identity;
 mod room;
+mod service_principal;
 mod session;
 mod user;
 
 pub use identity::PostgresIdentityStore;
 pub use room::PostgresRoomStore;
+pub use service_principal::PostgresServicePrincipalStore;
 pub use session::PostgresSessionStore;
 pub use user::PostgresUserStore;
 
@@ -23,6 +25,7 @@ pub struct PostgresStores {
     pub identities: PostgresIdentityStore,
     pub rooms: PostgresRoomStore,
     pub sessions: PostgresSessionStore,
+    pub service_principals: PostgresServicePrincipalStore,
 }
 
 impl PostgresStores {
@@ -32,7 +35,8 @@ impl PostgresStores {
             users: PostgresUserStore::new(pool.clone()),
             identities: PostgresIdentityStore::new(pool.clone()),
             rooms: PostgresRoomStore::new(pool.clone()),
-            sessions: PostgresSessionStore::new(pool),
+            sessions: PostgresSessionStore::new(pool.clone()),
+            service_principals: PostgresServicePrincipalStore::new(pool),
         }
     }
 }

@@ -8,6 +8,7 @@
 pub mod error;
 pub mod ports;
 pub mod rooms;
+pub mod service_principals;
 pub mod sessions;
 pub mod users;
 

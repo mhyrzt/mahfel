@@ -1,0 +1,211 @@
+//! Administrative management of service principals.
+//!
+//! Every endpoint requires [`Action::ManageSystem`]. A service principal holds
+//! no global roles, so it can never manage other principals; only an
+//! administrator token can. Raw API keys are returned once, on create and
+//! rotate, and are never logged.
+
+use crate::http::{
+    auth::{self, Authenticated},
+    error::{ApiError, api_error_from},
+    extractor::{ValidatedJson, ValidatedPath},
+    state::{AppState, RoomStoreState},
+};
+use axum::{
+    Json, Router,
+    extract::State,
+    http::StatusCode,
+    routing::{delete, get, post},
+};
+use mahfel_application::ports::Action;
+use mahfel_application::service_principals::{
+    CreateServicePrincipal, CreateServicePrincipalError, ListServicePrincipalsError,
+    RevokeServicePrincipalError, RotateServicePrincipalKey, RotateServicePrincipalKeyError,
+};
+use mahfel_domain::ServicePrincipal;
+use serde::{Deserialize, Serialize};
+use utoipa::ToSchema;
+use uuid::Uuid;
+
+api_error_from!(
+    CreateServicePrincipalError,
+    ListServicePrincipalsError,
+    RotateServicePrincipalKeyError,
+    RevokeServicePrincipalError,
+);
+
+#[derive(Debug, Deserialize, ToSchema)]
+pub(crate) struct CreateServicePrincipalRequest {
+    pub(crate) name: String,
+    #[serde(default)]
+    pub(crate) display_name: Option<String>,
+}
+
+#[derive(Debug, Serialize, ToSchema)]
+pub(crate) struct ServicePrincipalResponse {
+    pub(crate) id: String,
+    pub(crate) name: String,
+    pub(crate) display_name: Option<String>,
+    pub(crate) status: String,
+}
+
+impl ServicePrincipalResponse {
+    fn from_principal(principal: &ServicePrincipal) -> Self {
+        Self {
+            id: principal.id.to_string(),
+            name: principal.name.as_str().to_owned(),
+            display_name: principal
+                .display_name
+                .as_ref()
+                .map(|name| name.as_str().to_owned()),
+            status: principal.status.as_str().to_owned(),
+        }
+    }
+}
+
+#[derive(Serialize, ToSchema)]
+pub(crate) struct CreatedServicePrincipalResponse {
+    pub(crate) id: String,
+    pub(crate) name: String,
+    pub(crate) display_name: Option<String>,
+    pub(crate) status: String,
+    /// Raw API key, returned exactly once and never stored in the clear.
+    pub(crate) api_key: String,
+}
+
+#[derive(Serialize, ToSchema)]
+pub(crate) struct RotatedServicePrincipalKeyResponse {
+    pub(crate) id: String,
+    /// New raw API key, returned exactly once and never stored in the clear.
+    pub(crate) api_key: String,
+}
+
+#[utoipa::path(
+    post,
+    path = "/v1/admin/service-principals",
+    tag = "admin",
+    request_body = CreateServicePrincipalRequest,
+    responses(
+        (status = 201, description = "Service principal created; api_key is shown once", body = CreatedServicePrincipalResponse),
+        (status = 401, description = "Authentication required"),
+        (status = 403, description = "Permission denied"),
+        (status = 409, description = "Name already exists"),
+        (status = 422, description = "Invalid name"),
+    ),
+)]
+pub(crate) async fn create<R: RoomStoreState>(
+    State(state): State<AppState<R>>,
+    Authenticated(principal): Authenticated,
+    ValidatedJson(body): ValidatedJson<CreateServicePrincipalRequest>,
+) -> Result<(StatusCode, Json<CreatedServicePrincipalResponse>), ApiError> {
+    auth::authorize(&state, &principal, Action::ManageSystem)?;
+    let created = state
+        .service_principals
+        .create(CreateServicePrincipal {
+            name: body.name,
+            display_name: body.display_name,
+        })
+        .await?;
+    let response = CreatedServicePrincipalResponse {
+        id: created.principal.id.to_string(),
+        name: created.principal.name.as_str().to_owned(),
+        display_name: created
+            .principal
+            .display_name
+            .as_ref()
+            .map(|name| name.as_str().to_owned()),
+        status: created.principal.status.as_str().to_owned(),
+        api_key: created.api_key,
+    };
+    Ok((StatusCode::CREATED, Json(response)))
+}
+
+#[utoipa::path(
+    get,
+    path = "/v1/admin/service-principals",
+    tag = "admin",
+    responses(
+        (status = 200, description = "Service principals", body = [ServicePrincipalResponse]),
+        (status = 401, description = "Authentication required"),
+        (status = 403, description = "Permission denied"),
+    ),
+)]
+pub(crate) async fn list<R: RoomStoreState>(
+    State(state): State<AppState<R>>,
+    Authenticated(principal): Authenticated,
+) -> Result<Json<Vec<ServicePrincipalResponse>>, ApiError> {
+    auth::authorize(&state, &principal, Action::ManageSystem)?;
+    let principals = state.service_principals.list().await?;
+    Ok(Json(
+        principals
+            .iter()
+            .map(ServicePrincipalResponse::from_principal)
+            .collect(),
+    ))
+}
+
+#[utoipa::path(
+    post,
+    path = "/v1/admin/service-principals/{id}/rotate",
+    tag = "admin",
+    params(("id" = String, Path, description = "Service principal identifier (UUID)")),
+    responses(
+        (status = 200, description = "New api_key shown once; previous keys revoked", body = RotatedServicePrincipalKeyResponse),
+        (status = 401, description = "Authentication required"),
+        (status = 403, description = "Permission denied"),
+        (status = 404, description = "Service principal not found"),
+        (status = 409, description = "Service principal is revoked"),
+    ),
+)]
+pub(crate) async fn rotate<R: RoomStoreState>(
+    State(state): State<AppState<R>>,
+    Authenticated(principal): Authenticated,
+    ValidatedPath(id): ValidatedPath<Uuid>,
+) -> Result<Json<RotatedServicePrincipalKeyResponse>, ApiError> {
+    auth::authorize(&state, &principal, Action::ManageSystem)?;
+    let rotated = state
+        .service_principals
+        .rotate(RotateServicePrincipalKey {
+            id: mahfel_domain::ActorId::from_uuid(id),
+        })
+        .await?;
+    Ok(Json(RotatedServicePrincipalKeyResponse {
+        id: rotated.principal.id.to_string(),
+        api_key: rotated.api_key,
+    }))
+}
+
+#[utoipa::path(
+    delete,
+    path = "/v1/admin/service-principals/{id}",
+    tag = "admin",
+    params(("id" = String, Path, description = "Service principal identifier (UUID)")),
+    responses(
+        (status = 204, description = "Service principal revoked"),
+        (status = 401, description = "Authentication required"),
+        (status = 403, description = "Permission denied"),
+        (status = 404, description = "Service principal not found"),
+    ),
+)]
+pub(crate) async fn revoke<R: RoomStoreState>(
+    State(state): State<AppState<R>>,
+    Authenticated(principal): Authenticated,
+    ValidatedPath(id): ValidatedPath<Uuid>,
+) -> Result<StatusCode, ApiError> {
+    auth::authorize(&state, &principal, Action::ManageSystem)?;
+    state
+        .service_principals
+        .revoke(mahfel_domain::ActorId::from_uuid(id))
+        .await?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+pub(crate) fn route<R: RoomStoreState>() -> Router<AppState<R>> {
+    Router::new()
+        .route(
+            "/admin/service-principals",
+            get(list::<R>).post(create::<R>),
+        )
+        .route("/admin/service-principals/{id}/rotate", post(rotate::<R>))
+        .route("/admin/service-principals/{id}", delete(revoke::<R>))
+}

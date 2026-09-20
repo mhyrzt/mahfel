@@ -110,7 +110,7 @@ impl From<Room> for RoomResponse {
 impl From<RoomMember> for MemberResponse {
     fn from(member: RoomMember) -> Self {
         Self {
-            user_id: member.user_id.to_string(),
+            user_id: member.actor_id.to_string(),
             role: member.role.into(),
         }
     }

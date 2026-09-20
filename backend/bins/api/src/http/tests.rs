@@ -1,7 +1,11 @@
 use super::{
     AppState, api_router,
-    auth::{AuthState, AuthenticationError, RequestAuthenticator, TokenAuthentication},
+    auth::{
+        AuthState, AuthenticationError, RequestAuthenticator, ServiceKeyAuthenticator,
+        StoreServiceKeyAuthenticator, TokenAuthentication,
+    },
     cors_layer,
+    service_principals::{ServicePrincipalAdmin, StoreServicePrincipalAdmin},
     ws::{WsConfig, WsMetrics, WsState},
 };
 use axum::{
@@ -12,15 +16,17 @@ use axum::{
 use futures_util::{SinkExt, StreamExt, future::BoxFuture};
 use mahfel_application::ports::{
     Action, AllowAuthenticated, AttributeError, AuthorizationError, Authorizer, Principal,
-    ProvisionedIdentity, RoomStore, StoreError, UserAttributeWriter,
+    ProvisionedIdentity, RoleBasedAuthorizer, RoomStore, ServicePrincipalStore, StoreError,
+    UserAttributeWriter,
 };
+use mahfel_application::service_principals::{CreateServicePrincipal, create_service_principal};
 use mahfel_application::users::{IdentityProvisioner, SyncIdentity, SyncIdentityError};
 use mahfel_auth::AuthenticatedIdentity;
 use mahfel_auth::{TokenVerifier, TokenVerifierConfig};
 use mahfel_config::TurnSettings;
 use mahfel_domain::{
-    DisplayName, Identity, Issuer, Room, RoomId, RoomMember, RoomRole, RoomTitle, RoomVisibility,
-    Subject, User, UserId, UserStatus,
+    ActorId, ActorKind, DisplayName, Identity, Issuer, Room, RoomId, RoomMember, RoomRole,
+    RoomTitle, RoomVisibility, ServicePrincipal, ServicePrincipalStatus, Subject, User, UserStatus,
 };
 use mahfel_media_client::GrpcMediaGateway;
 use prometheus::Encoder;
@@ -53,7 +59,7 @@ struct FakeRoomStoreInner {
 }
 
 impl FakeRoomStore {
-    fn seed_room(&self, title: &str, owner: UserId, visibility: RoomVisibility) -> Room {
+    fn seed_room(&self, title: &str, owner: ActorId, visibility: RoomVisibility) -> Room {
         let now = OffsetDateTime::now_utc();
         let room = Room::create(
             RoomTitle::new(title.to_owned()).expect("valid title"),
@@ -68,7 +74,7 @@ impl FakeRoomStore {
         room
     }
 
-    fn add_raw_member(&self, room_id: RoomId, user_id: UserId, role: RoomRole) {
+    fn add_raw_member(&self, room_id: RoomId, user_id: ActorId, role: RoomRole) {
         let mut inner = self.inner.lock().expect("fake store lock");
         inner.members.push(RoomMember::new(
             room_id,
@@ -124,7 +130,7 @@ impl RoomStore for FakeRoomStore {
 
     async fn list_for_member(
         &self,
-        user_id: UserId,
+        user_id: ActorId,
         limit: u64,
         offset: u64,
     ) -> Result<Vec<Room>, StoreError> {
@@ -136,7 +142,7 @@ impl RoomStore for FakeRoomStore {
                 inner
                     .members
                     .iter()
-                    .any(|member| member.room_id == room.id && member.user_id == user_id)
+                    .any(|member| member.room_id == room.id && member.actor_id == user_id)
             })
             .cloned()
             .collect();
@@ -156,7 +162,7 @@ impl RoomStore for FakeRoomStore {
     async fn get_member(
         &self,
         room_id: RoomId,
-        user_id: UserId,
+        user_id: ActorId,
     ) -> Result<Option<RoomMember>, StoreError> {
         Ok(self
             .inner
@@ -164,7 +170,7 @@ impl RoomStore for FakeRoomStore {
             .expect("fake store lock")
             .members
             .iter()
-            .find(|member| member.room_id == room_id && member.user_id == user_id)
+            .find(|member| member.room_id == room_id && member.actor_id == user_id)
             .cloned())
     }
 
@@ -183,7 +189,7 @@ impl RoomStore for FakeRoomStore {
     async fn add_member(&self, member: &RoomMember) -> Result<(), StoreError> {
         let mut inner = self.inner.lock().expect("fake store lock");
         if inner.members.iter().any(|existing| {
-            existing.room_id == member.room_id && existing.user_id == member.user_id
+            existing.room_id == member.room_id && existing.actor_id == member.actor_id
         }) {
             return Err(StoreError::Conflict("already a member".to_owned()));
         }
@@ -191,7 +197,7 @@ impl RoomStore for FakeRoomStore {
         Ok(())
     }
 
-    async fn remove_member(&self, room_id: RoomId, user_id: UserId) -> Result<bool, StoreError> {
+    async fn remove_member(&self, room_id: RoomId, user_id: ActorId) -> Result<bool, StoreError> {
         let mut inner = self.inner.lock().expect("fake store lock");
         let managers = inner
             .members
@@ -200,11 +206,118 @@ impl RoomStore for FakeRoomStore {
             .count();
         let before = inner.members.len();
         inner.members.retain(|member| {
-            let is_target = member.room_id == room_id && member.user_id == user_id;
+            let is_target = member.room_id == room_id && member.actor_id == user_id;
             !is_target || (member.role == RoomRole::Manager && managers <= 1)
         });
         Ok(inner.members.len() < before)
     }
+}
+
+/// In-memory [`ServicePrincipalStore`] for transport tests.
+#[derive(Clone, Default)]
+struct FakeServicePrincipalStore {
+    inner: Arc<Mutex<FakeServicePrincipalInner>>,
+}
+
+#[derive(Default)]
+struct FakeServicePrincipalInner {
+    principals: Vec<ServicePrincipal>,
+    active_keys: std::collections::HashMap<String, ActorId>,
+}
+
+impl ServicePrincipalStore for FakeServicePrincipalStore {
+    async fn create(
+        &self,
+        principal: &ServicePrincipal,
+        api_key_hash: &str,
+    ) -> Result<(), StoreError> {
+        let mut inner = self.inner.lock().expect("fake store lock");
+        if inner
+            .principals
+            .iter()
+            .any(|other| other.name == principal.name)
+        {
+            return Err(StoreError::Conflict("duplicate name".to_owned()));
+        }
+        inner.principals.push(principal.clone());
+        inner
+            .active_keys
+            .insert(api_key_hash.to_owned(), principal.id);
+        Ok(())
+    }
+
+    async fn get(&self, id: ActorId) -> Result<Option<ServicePrincipal>, StoreError> {
+        Ok(self
+            .inner
+            .lock()
+            .expect("fake store lock")
+            .principals
+            .iter()
+            .find(|principal| principal.id == id)
+            .cloned())
+    }
+
+    async fn list(&self) -> Result<Vec<ServicePrincipal>, StoreError> {
+        Ok(self
+            .inner
+            .lock()
+            .expect("fake store lock")
+            .principals
+            .clone())
+    }
+
+    async fn revoke(&self, id: ActorId) -> Result<(), StoreError> {
+        let mut inner = self.inner.lock().expect("fake store lock");
+        let Some(principal) = inner.principals.iter_mut().find(|p| p.id == id) else {
+            return Err(StoreError::NotFound(id.to_string()));
+        };
+        principal.status = ServicePrincipalStatus::Revoked;
+        inner.active_keys.retain(|_, owner| *owner != id);
+        Ok(())
+    }
+
+    async fn rotate_key(&self, id: ActorId, api_key_hash: &str) -> Result<(), StoreError> {
+        let mut inner = self.inner.lock().expect("fake store lock");
+        let Some(principal) = inner.principals.iter().find(|p| p.id == id) else {
+            return Err(StoreError::NotFound(id.to_string()));
+        };
+        if principal.status != ServicePrincipalStatus::Active {
+            return Err(StoreError::NotFound(id.to_string()));
+        }
+        inner.active_keys.retain(|_, owner| *owner != id);
+        inner.active_keys.insert(api_key_hash.to_owned(), id);
+        Ok(())
+    }
+
+    async fn find_active_by_key_hash(
+        &self,
+        api_key_hash: &str,
+    ) -> Result<Option<ServicePrincipal>, StoreError> {
+        let inner = self.inner.lock().expect("fake store lock");
+        let Some(id) = inner.active_keys.get(api_key_hash).copied() else {
+            return Ok(None);
+        };
+        Ok(inner
+            .principals
+            .iter()
+            .find(|principal| {
+                principal.id == id && principal.status == ServicePrincipalStatus::Active
+            })
+            .cloned())
+    }
+}
+
+/// Build the auth/admin seams over one shared fake service principal store.
+fn service_seams(
+    store: FakeServicePrincipalStore,
+) -> (
+    Arc<dyn ServiceKeyAuthenticator>,
+    Arc<dyn ServicePrincipalAdmin>,
+) {
+    (
+        Arc::new(StoreServiceKeyAuthenticator::new(store.clone())),
+        Arc::new(StoreServicePrincipalAdmin::new(store)),
+    )
 }
 
 /// Test double: yields a fixed principal, or rejects when none is configured.
@@ -239,9 +352,16 @@ impl RequestAuthenticator for StubAuthenticator {
             .principal
             .clone()
             .map(|principal| AuthenticatedIdentity {
-                subject: principal.user_id.to_string(),
+                subject: principal.actor_id.to_string(),
                 issuer: "https://auth.test/realms/rastai".to_owned(),
-                app_user_id: self.provisioned.then(|| principal.user_id.to_string()),
+                app_user_id: self.provisioned.then(|| principal.actor_id.to_string()),
+                app_principal_kind: Some(
+                    match principal.kind {
+                        ActorKind::User => "user",
+                        ActorKind::Service => "service",
+                    }
+                    .to_owned(),
+                ),
                 email: principal.email.clone(),
                 email_verified: principal.email_verified,
                 username: principal.username.clone(),
@@ -269,7 +389,7 @@ impl IdentityProvisioner for StubProvisioner {
             ..
         } = command;
         let user_id = Uuid::parse_str(&subject)
-            .map(UserId::from_uuid)
+            .map(ActorId::from_uuid)
             .unwrap_or_default();
         let now = OffsetDateTime::now_utc();
         let user = User {
@@ -337,6 +457,7 @@ fn state_with(
     provisioned: bool,
 ) -> AppState<FakeRoomStore> {
     let realtime = ws_state(principal.clone());
+    let (service_auth, service_principals) = service_seams(FakeServicePrincipalStore::default());
     AppState {
         service: "mahfel-api-test",
         version: "0.1.0",
@@ -347,6 +468,8 @@ fn state_with(
         } else {
             StubAuthenticator::unprovisioned(principal)
         }),
+        service_auth,
+        service_principals,
         provisioner: Arc::new(StubProvisioner),
         linker: Arc::new(StubLinker),
         rooms: FakeRoomStore::default(),
@@ -357,7 +480,8 @@ fn state_with(
 
 fn principal_with(value: &str) -> Principal {
     Principal {
-        user_id: UserId::from_uuid(Uuid::parse_str(value).expect("valid uuid")),
+        actor_id: ActorId::from_uuid(Uuid::parse_str(value).expect("valid uuid")),
+        kind: ActorKind::User,
         display_name: Some("Test User".to_owned()),
         avatar_url: None,
         email: Some("test@mahfel.local".to_owned()),
@@ -394,12 +518,15 @@ fn authenticated_app() -> Router {
 
 fn authenticated_room_app(principal: Principal, store: FakeRoomStore) -> Router {
     let realtime = ws_state(Some(principal.clone()));
+    let (service_auth, service_principals) = service_seams(FakeServicePrincipalStore::default());
     api_router(AppState {
         service: "mahfel-api-test",
         version: "0.1.0",
         node_id: "node-test".to_owned(),
         auth: AuthState::new(Arc::new(AllowAuthenticated)),
         authentication: Arc::new(StubAuthenticator::new(Some(principal))),
+        service_auth,
+        service_principals,
         provisioner: Arc::new(StubProvisioner),
         linker: Arc::new(StubLinker),
         rooms: store,
@@ -678,7 +805,8 @@ async fn admin_ping_allows_admin_and_denies_member_and_moderator() {
     use mahfel_application::ports::RoleBasedAuthorizer;
 
     let admin = Principal {
-        user_id: principal().user_id,
+        actor_id: principal().actor_id,
+        kind: mahfel_domain::ActorKind::User,
         display_name: Some("Admin".to_owned()),
         avatar_url: None,
         email: Some("admin@mahfel.local".to_owned()),
@@ -835,7 +963,7 @@ async fn room_is_created_and_read_by_its_creator() {
 #[tokio::test]
 async fn room_requires_authentication() {
     let store = FakeRoomStore::default();
-    let room = store.seed_room("Algebra", principal().user_id, RoomVisibility::Public);
+    let room = store.seed_room("Algebra", principal().actor_id, RoomVisibility::Public);
     let req = Request::builder()
         .uri(format!("/v1/rooms/{}", room.id))
         .body(Body::empty())
@@ -847,7 +975,7 @@ async fn room_requires_authentication() {
 #[tokio::test]
 async fn room_is_404_for_a_non_member() {
     let store = FakeRoomStore::default();
-    let room = store.seed_room("Algebra", principal().user_id, RoomVisibility::Public);
+    let room = store.seed_room("Algebra", principal().actor_id, RoomVisibility::Public);
     let app = authenticated_room_app(other_principal(), store);
     let req = Request::builder()
         .uri(format!("/v1/rooms/{}", room.id))
@@ -862,8 +990,8 @@ async fn room_is_404_for_a_non_member() {
 #[tokio::test]
 async fn room_list_returns_only_joined_rooms() {
     let store = FakeRoomStore::default();
-    store.seed_room("Owned", principal().user_id, RoomVisibility::InviteOnly);
-    store.seed_room("Other", other_principal().user_id, RoomVisibility::Public);
+    store.seed_room("Owned", principal().actor_id, RoomVisibility::InviteOnly);
+    store.seed_room("Other", other_principal().actor_id, RoomVisibility::Public);
     let app = authenticated_room_app(principal(), store);
     let req = Request::builder()
         .uri("/v1/rooms")
@@ -880,7 +1008,7 @@ async fn room_list_returns_only_joined_rooms() {
 #[tokio::test]
 async fn joining_a_public_room_is_idempotent() {
     let store = FakeRoomStore::default();
-    let room = store.seed_room("Open", other_principal().user_id, RoomVisibility::Public);
+    let room = store.seed_room("Open", other_principal().actor_id, RoomVisibility::Public);
     let app = authenticated_room_app(principal(), store.clone());
     let uri = format!("/v1/rooms/{}/join", room.id);
 
@@ -901,7 +1029,7 @@ async fn joining_a_public_room_is_idempotent() {
     assert_eq!(resp.status(), StatusCode::OK);
     assert!(
         store
-            .get_member(room.id, principal().user_id)
+            .get_member(room.id, principal().actor_id)
             .await
             .expect("store")
             .is_some()
@@ -913,7 +1041,7 @@ async fn joining_an_invite_only_room_is_404() {
     let store = FakeRoomStore::default();
     let room = store.seed_room(
         "Private",
-        other_principal().user_id,
+        other_principal().actor_id,
         RoomVisibility::InviteOnly,
     );
     let app = authenticated_room_app(principal(), store);
@@ -929,8 +1057,8 @@ async fn joining_an_invite_only_room_is_404() {
 #[tokio::test]
 async fn manager_can_add_and_remove_a_member() {
     let store = FakeRoomStore::default();
-    let room = store.seed_room("Algebra", principal().user_id, RoomVisibility::InviteOnly);
-    let target = other_principal().user_id;
+    let room = store.seed_room("Algebra", principal().actor_id, RoomVisibility::InviteOnly);
+    let target = other_principal().actor_id;
     let app = authenticated_room_app(principal(), store.clone());
 
     let resp = send_json(
@@ -968,10 +1096,10 @@ async fn manager_can_add_and_remove_a_member() {
 #[tokio::test]
 async fn non_manager_member_cannot_add_a_member() {
     let store = FakeRoomStore::default();
-    let room = store.seed_room("Algebra", principal().user_id, RoomVisibility::InviteOnly);
-    store.add_raw_member(room.id, other_principal().user_id, RoomRole::Member);
+    let room = store.seed_room("Algebra", principal().actor_id, RoomVisibility::InviteOnly);
+    store.add_raw_member(room.id, other_principal().actor_id, RoomRole::Member);
     let app = authenticated_room_app(other_principal(), store);
-    let third = principal_with("00000000-0000-0000-0000-000000000011").user_id;
+    let third = principal_with("00000000-0000-0000-0000-000000000011").actor_id;
 
     let resp = send_json(
         &app,
@@ -986,9 +1114,9 @@ async fn non_manager_member_cannot_add_a_member() {
 #[tokio::test]
 async fn non_member_cannot_add_a_member() {
     let store = FakeRoomStore::default();
-    let room = store.seed_room("Algebra", principal().user_id, RoomVisibility::InviteOnly);
+    let room = store.seed_room("Algebra", principal().actor_id, RoomVisibility::InviteOnly);
     let app = authenticated_room_app(other_principal(), store);
-    let target = principal_with("00000000-0000-0000-0000-000000000011").user_id;
+    let target = principal_with("00000000-0000-0000-0000-000000000011").actor_id;
 
     let resp = send_json(
         &app,
@@ -1003,8 +1131,8 @@ async fn non_member_cannot_add_a_member() {
 #[tokio::test]
 async fn last_manager_cannot_be_removed() {
     let store = FakeRoomStore::default();
-    let room = store.seed_room("Algebra", principal().user_id, RoomVisibility::InviteOnly);
-    let owner = principal().user_id;
+    let room = store.seed_room("Algebra", principal().actor_id, RoomVisibility::InviteOnly);
+    let owner = principal().actor_id;
     let app = authenticated_room_app(principal(), store.clone());
 
     let req = Request::builder()
@@ -1026,8 +1154,8 @@ async fn last_manager_cannot_be_removed() {
 #[tokio::test]
 async fn visibility_change_preserves_members() {
     let store = FakeRoomStore::default();
-    let room = store.seed_room("Algebra", principal().user_id, RoomVisibility::InviteOnly);
-    let member = other_principal().user_id;
+    let room = store.seed_room("Algebra", principal().actor_id, RoomVisibility::InviteOnly);
+    let member = other_principal().actor_id;
     store.add_raw_member(room.id, member, RoomRole::Member);
     let app = authenticated_room_app(principal(), store.clone());
 
@@ -1063,7 +1191,7 @@ async fn empty_room_title_is_422() {
 #[tokio::test]
 async fn manager_can_archive_a_room() {
     let store = FakeRoomStore::default();
-    let room = store.seed_room("Algebra", principal().user_id, RoomVisibility::InviteOnly);
+    let room = store.seed_room("Algebra", principal().actor_id, RoomVisibility::InviteOnly);
     let app = authenticated_room_app(principal(), store);
 
     let req = Request::builder()
@@ -1084,8 +1212,8 @@ async fn manager_can_archive_a_room() {
 #[tokio::test]
 async fn non_manager_cannot_archive_a_room() {
     let store = FakeRoomStore::default();
-    let room = store.seed_room("Algebra", principal().user_id, RoomVisibility::InviteOnly);
-    store.add_raw_member(room.id, other_principal().user_id, RoomRole::Member);
+    let room = store.seed_room("Algebra", principal().actor_id, RoomVisibility::InviteOnly);
+    store.add_raw_member(room.id, other_principal().actor_id, RoomRole::Member);
     let app = authenticated_room_app(other_principal(), store);
 
     let req = Request::builder()
@@ -1101,7 +1229,7 @@ async fn non_manager_cannot_archive_a_room() {
 #[tokio::test]
 async fn joining_an_archived_room_is_conflict() {
     let store = FakeRoomStore::default();
-    let room = store.seed_room("Open", other_principal().user_id, RoomVisibility::Public);
+    let room = store.seed_room("Open", other_principal().actor_id, RoomVisibility::Public);
 
     let owner_app = authenticated_room_app(other_principal(), store.clone());
     let req = Request::builder()
@@ -1159,12 +1287,15 @@ async fn serve_ws(principal: Option<Principal>, config: WsConfig) -> WsHarness {
         Arc::new(GrpcMediaGateway::lazy("http://localhost:50051".to_owned()).expect("media")),
         shutdown_rx.clone(),
     );
+    let (service_auth, service_principals) = service_seams(FakeServicePrincipalStore::default());
     let state = AppState {
         service: "mahfel-api-test",
         version: "0.1.0",
         node_id: "node-test".to_owned(),
         auth: AuthState::new(Arc::new(AllowAuthenticated)),
         authentication: Arc::new(StubAuthenticator::new(principal)),
+        service_auth,
+        service_principals,
         provisioner: Arc::new(StubProvisioner),
         linker: Arc::new(StubLinker),
         rooms: FakeRoomStore::default(),
@@ -1351,12 +1482,15 @@ async fn serve_ws_with_verifier(verifier: TokenVerifier, config: WsConfig) -> Ws
         Arc::new(GrpcMediaGateway::lazy("http://localhost:50051".to_owned()).expect("media")),
         shutdown_rx.clone(),
     );
+    let (service_auth, service_principals) = service_seams(FakeServicePrincipalStore::default());
     let state = AppState {
         service: "mahfel-api-test",
         version: "0.1.0",
         node_id: "node-test".to_owned(),
         auth: AuthState::new(Arc::new(AllowAuthenticated)),
         authentication: auth,
+        service_auth,
+        service_principals,
         provisioner: Arc::new(StubProvisioner),
         linker: Arc::new(StubLinker),
         rooms: FakeRoomStore::default(),
@@ -1778,4 +1912,250 @@ async fn ws_auth_times_out_if_no_frame() {
         r#"websocket_disconnects_total{reason="unauthorized"} 1"#,
     )
     .await;
+}
+
+// --- Service principal transport tests (TASK-114) ---
+
+/// Router with shared service principal seams and a supplied room store.
+fn service_app(
+    principal: Option<Principal>,
+    authorizer: Arc<dyn Authorizer>,
+    rooms: FakeRoomStore,
+    service_store: FakeServicePrincipalStore,
+) -> Router {
+    let realtime = ws_state(principal.clone());
+    let (service_auth, service_principals) = service_seams(service_store);
+    api_router(AppState {
+        service: "mahfel-api-test",
+        version: "0.1.0",
+        node_id: "node-test".to_owned(),
+        auth: AuthState::new(authorizer),
+        authentication: Arc::new(StubAuthenticator::new(principal)),
+        service_auth,
+        service_principals,
+        provisioner: Arc::new(StubProvisioner),
+        linker: Arc::new(StubLinker),
+        rooms,
+        realtime,
+        turn: turn_settings(),
+    })
+}
+
+fn bearer_request(uri: &str, method: Method, key: &str) -> Request<Body> {
+    Request::builder()
+        .uri(uri)
+        .method(method)
+        .header(header::AUTHORIZATION, format!("Bearer {key}"))
+        .body(Body::empty())
+        .expect("request")
+}
+
+async fn provisioned_service(
+    store: &FakeServicePrincipalStore,
+    name: &str,
+) -> mahfel_application::service_principals::CreatedServicePrincipal {
+    create_service_principal(
+        store,
+        CreateServicePrincipal {
+            name: name.to_owned(),
+            display_name: None,
+        },
+    )
+    .await
+    .expect("create service principal")
+}
+
+#[tokio::test]
+async fn service_api_key_authenticates_as_a_service_principal() {
+    let service_store = FakeServicePrincipalStore::default();
+    let created = provisioned_service(&service_store, "lms-core").await;
+    let app = service_app(
+        None,
+        Arc::new(AllowAuthenticated),
+        FakeRoomStore::default(),
+        service_store.clone(),
+    );
+
+    let resp = app
+        .oneshot(bearer_request("/v1/auth/me", Method::GET, &created.api_key))
+        .await
+        .expect("response");
+    assert_eq!(resp.status(), StatusCode::OK);
+    let expected = created.principal.id.to_string();
+    let json = response_json(resp).await;
+    assert_eq!(
+        json.get("user_id").and_then(|value| value.as_str()),
+        Some(expected.as_str()),
+        "the principal must be the service actor, not an impersonated user"
+    );
+}
+
+#[tokio::test]
+async fn revoked_service_api_key_is_rejected() {
+    let service_store = FakeServicePrincipalStore::default();
+    let created = provisioned_service(&service_store, "lms-core").await;
+    service_store
+        .revoke(created.principal.id)
+        .await
+        .expect("revoke principal");
+
+    let app = service_app(
+        None,
+        Arc::new(AllowAuthenticated),
+        FakeRoomStore::default(),
+        service_store,
+    );
+    let resp = app
+        .oneshot(bearer_request("/v1/auth/me", Method::GET, &created.api_key))
+        .await
+        .expect("response");
+    assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
+}
+
+#[tokio::test]
+async fn unknown_service_api_key_is_rejected() {
+    let app = service_app(
+        None,
+        Arc::new(AllowAuthenticated),
+        FakeRoomStore::default(),
+        FakeServicePrincipalStore::default(),
+    );
+    let resp = app
+        .oneshot(bearer_request("/v1/auth/me", Method::GET, "mhf_garbage"))
+        .await
+        .expect("response");
+    assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
+}
+
+#[tokio::test]
+async fn admin_service_principals_require_manage_system() {
+    let service_store = FakeServicePrincipalStore::default();
+    let admin = Principal {
+        actor_id: ActorId::new(),
+        kind: ActorKind::User,
+        display_name: Some("Admin".to_owned()),
+        avatar_url: None,
+        email: None,
+        email_verified: false,
+        username: Some("admin".to_owned()),
+        roles: vec!["admin".to_owned()],
+    };
+    let moderator = Principal {
+        roles: vec!["moderator".to_owned()],
+        ..principal()
+    };
+
+    let admin_app = service_app(
+        Some(admin),
+        Arc::new(RoleBasedAuthorizer),
+        FakeRoomStore::default(),
+        service_store.clone(),
+    );
+    let resp = admin_app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri("/v1/admin/service-principals")
+                .body(Body::empty())
+                .expect("request"),
+        )
+        .await
+        .expect("response");
+    assert_eq!(resp.status(), StatusCode::OK);
+
+    let resp = send_json(
+        &admin_app,
+        Method::POST,
+        "/v1/admin/service-principals",
+        r#"{"name":"lms-core"}"#,
+    )
+    .await;
+    assert_eq!(resp.status(), StatusCode::CREATED);
+
+    for (principal, label) in [(principal(), "member"), (moderator, "moderator")] {
+        let app = service_app(
+            Some(principal),
+            Arc::new(RoleBasedAuthorizer),
+            FakeRoomStore::default(),
+            service_store.clone(),
+        );
+        let resp = app
+            .oneshot(
+                Request::builder()
+                    .uri("/v1/admin/service-principals")
+                    .body(Body::empty())
+                    .expect("request"),
+            )
+            .await
+            .expect("response");
+        assert_eq!(
+            resp.status(),
+            StatusCode::FORBIDDEN,
+            "{label} must be denied service principal administration"
+        );
+    }
+}
+
+#[tokio::test]
+async fn service_principal_cannot_manage_service_principals() {
+    let service_store = FakeServicePrincipalStore::default();
+    let created = provisioned_service(&service_store, "lms-core").await;
+    let app = service_app(
+        None,
+        Arc::new(RoleBasedAuthorizer),
+        FakeRoomStore::default(),
+        service_store,
+    );
+    let resp = app
+        .oneshot(bearer_request(
+            "/v1/admin/service-principals",
+            Method::GET,
+            &created.api_key,
+        ))
+        .await
+        .expect("response");
+    assert_eq!(resp.status(), StatusCode::FORBIDDEN);
+}
+
+#[tokio::test]
+async fn service_principal_creates_a_room_and_becomes_manager() {
+    let service_store = FakeServicePrincipalStore::default();
+    let created = provisioned_service(&service_store, "lms-core").await;
+    let rooms = FakeRoomStore::default();
+    let app = service_app(
+        None,
+        Arc::new(AllowAuthenticated),
+        rooms.clone(),
+        service_store,
+    );
+
+    let req = Request::builder()
+        .uri("/v1/rooms")
+        .method(Method::POST)
+        .header(header::AUTHORIZATION, format!("Bearer {}", created.api_key))
+        .header(header::CONTENT_TYPE, "application/json")
+        .body(Body::from(r#"{"title":"LMS Room"}"#))
+        .expect("request");
+    let resp = app.oneshot(req).await.expect("response");
+    assert_eq!(resp.status(), StatusCode::CREATED);
+    let expected_owner = created.principal.id.to_string();
+    let json = response_json(resp).await;
+    assert_eq!(
+        json.get("created_by").and_then(|value| value.as_str()),
+        Some(expected_owner.as_str())
+    );
+    let room_id = RoomId::from_uuid(
+        Uuid::parse_str(
+            json.get("id")
+                .and_then(|value| value.as_str())
+                .expect("room id"),
+        )
+        .expect("valid uuid"),
+    );
+    let membership = rooms
+        .get_member(room_id, created.principal.id)
+        .await
+        .expect("store")
+        .expect("the service principal is a member");
+    assert_eq!(membership.role, RoomRole::Manager);
 }

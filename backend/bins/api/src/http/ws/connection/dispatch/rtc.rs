@@ -16,7 +16,7 @@ pub(super) async fn handle_create_transport(
     let Some(room) = parse_room_or_send_error(c, rid.clone(), room_id).await else {
         return Ok(());
     };
-    match media.create_transport(room, principal.user_id).await {
+    match media.create_transport(room, principal.actor_id).await {
         Ok((tid, ice_p, ice_c, dtls_p)) => {
             send_ok(
                 c,
@@ -97,7 +97,7 @@ pub(super) async fn handle_produce(
         }
     };
     match media
-        .produce(room, principal.user_id, transport_id.clone(), kind, rtp)
+        .produce(room, principal.actor_id, transport_id.clone(), kind, rtp)
         .await
     {
         Ok(producer_id) => {
@@ -134,7 +134,7 @@ pub(super) async fn handle_consume(
     match media
         .consume(
             room,
-            principal.user_id,
+            principal.actor_id,
             producer_id.clone(),
             transport_id.clone(),
             rtp_cap,
