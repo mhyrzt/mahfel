@@ -34,6 +34,10 @@ pub struct Principal {
 pub enum Action {
     ViewOwnIdentity,
     CreateRoom,
+    /// System-wide administration (e.g., manage realm, view admin panel).
+    ManageSystem,
+    /// Classroom moderation (e.g., mute, remove members).
+    ModerateRoom,
 }
 
 /// Why an authorization attempt failed.
@@ -70,5 +74,137 @@ pub struct AllowAuthenticated;
 impl Authorizer for AllowAuthenticated {
     fn authorize(&self, _principal: &Principal, _action: Action) -> Result<(), AuthorizationError> {
         Ok(())
+    }
+}
+
+/// Role-based authorizer for global roles.
+///
+/// Classroom teacher vs student is per-room state and must not be derived from
+/// Keycloak realm roles. This authorizer only checks global `admin` and
+/// `moderator`; all other users are `member` (explicit or implicit) and are
+/// handled explicitly within the app via `room_memberships`.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct RoleBasedAuthorizer;
+
+impl RoleBasedAuthorizer {
+    fn has_role(principal: &Principal, role: &str) -> bool {
+        principal.roles.iter().any(|r| r.eq_ignore_ascii_case(role))
+    }
+
+    fn is_admin(principal: &Principal) -> bool {
+        Self::has_role(principal, "admin")
+    }
+
+    fn is_moderator(principal: &Principal) -> bool {
+        Self::has_role(principal, "moderator")
+    }
+}
+
+impl Authorizer for RoleBasedAuthorizer {
+    fn authorize(&self, principal: &Principal, action: Action) -> Result<(), AuthorizationError> {
+        match action {
+            Action::ViewOwnIdentity | Action::CreateRoom => Ok(()),
+            Action::ManageSystem => {
+                if Self::is_admin(principal) {
+                    Ok(())
+                } else {
+                    Err(AuthorizationError::Denied)
+                }
+            }
+            Action::ModerateRoom => {
+                if Self::is_admin(principal) || Self::is_moderator(principal) {
+                    Ok(())
+                } else {
+                    Err(AuthorizationError::Denied)
+                }
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use mahfel_domain::UserId;
+    use uuid::Uuid;
+
+    fn principal_with_roles(roles: &[&str]) -> Principal {
+        Principal {
+            user_id: UserId::from_uuid(Uuid::nil()),
+            display_name: None,
+            avatar_url: None,
+            email: None,
+            email_verified: false,
+            username: None,
+            roles: roles.iter().map(|r| (*r).to_owned()).collect(),
+        }
+    }
+
+    #[test]
+    fn admin_can_manage_system_and_moderate() {
+        let admin = principal_with_roles(&["admin"]);
+        assert!(
+            RoleBasedAuthorizer
+                .authorize(&admin, Action::ManageSystem)
+                .is_ok()
+        );
+        assert!(
+            RoleBasedAuthorizer
+                .authorize(&admin, Action::ModerateRoom)
+                .is_ok()
+        );
+    }
+
+    #[test]
+    fn moderator_can_moderate_but_not_manage_system() {
+        let moderator = principal_with_roles(&["moderator"]);
+        assert!(
+            RoleBasedAuthorizer
+                .authorize(&moderator, Action::ModerateRoom)
+                .is_ok()
+        );
+        assert!(
+            RoleBasedAuthorizer
+                .authorize(&moderator, Action::ManageSystem)
+                .is_err()
+        );
+    }
+
+    #[test]
+    fn member_can_only_view_and_create() {
+        let member = principal_with_roles(&["member"]);
+        let implicit = principal_with_roles(&[]);
+        for principal in [member, implicit] {
+            assert!(
+                RoleBasedAuthorizer
+                    .authorize(&principal, Action::ViewOwnIdentity)
+                    .is_ok()
+            );
+            assert!(
+                RoleBasedAuthorizer
+                    .authorize(&principal, Action::CreateRoom)
+                    .is_ok()
+            );
+            assert!(
+                RoleBasedAuthorizer
+                    .authorize(&principal, Action::ManageSystem)
+                    .is_err()
+            );
+            assert!(
+                RoleBasedAuthorizer
+                    .authorize(&principal, Action::ModerateRoom)
+                    .is_err()
+            );
+        }
+    }
+
+    #[test]
+    fn deny_by_default_for_unknown_action_roles() {
+        let member = principal_with_roles(&["member"]);
+        assert!(
+            RoleBasedAuthorizer
+                .authorize(&member, Action::ModerateRoom)
+                .is_err()
+        );
     }
 }

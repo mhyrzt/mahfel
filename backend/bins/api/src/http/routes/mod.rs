@@ -1,3 +1,4 @@
+pub(crate) mod admin;
 pub(crate) mod echo;
 pub(crate) mod health;
 pub(crate) mod identity;
@@ -31,6 +32,7 @@ pub(crate) fn router<R: RoomStoreState>(state: AppState<R>) -> Router {
         .merge(health::route::<R>())
         .merge(echo::route::<R>())
         .merge(identity::route::<R>())
+        .merge(admin::route::<R>())
         .merge(rooms::route::<R>())
         .merge(ws::route::<R>())
         .route("/openapi.json", get(openapi))

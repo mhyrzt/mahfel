@@ -4,7 +4,7 @@ use crate::settings;
 use anyhow::Result;
 use axum::Router;
 use mahfel_application::{
-    ports::{AllowAuthenticated, UserAttributeWriter},
+    ports::{RoleBasedAuthorizer, UserAttributeWriter},
     users::IdentityProvisioner,
 };
 use mahfel_config::Settings;
@@ -46,7 +46,7 @@ pub(super) fn app(
         service: SERVICE,
         version: VERSION,
         node_id: node_id.to_string(),
-        auth: http::auth::AuthState::new(Arc::new(AllowAuthenticated)),
+        auth: http::auth::AuthState::new(Arc::new(RoleBasedAuthorizer)),
         authentication,
         provisioner,
         linker,

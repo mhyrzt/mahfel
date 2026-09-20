@@ -660,6 +660,48 @@ async fn provision_returns_the_application_profile() {
 }
 
 #[tokio::test]
+async fn admin_ping_allows_admin_and_denies_member_and_moderator() {
+    use mahfel_application::ports::RoleBasedAuthorizer;
+
+    let admin = Principal {
+        user_id: principal().user_id,
+        display_name: Some("Admin".to_owned()),
+        avatar_url: None,
+        email: Some("admin@mahfel.local".to_owned()),
+        email_verified: true,
+        username: Some("admin".to_owned()),
+        roles: vec!["admin".to_owned()],
+    };
+    let moderator = Principal {
+        roles: vec!["moderator".to_owned()],
+        ..principal()
+    };
+    let member = principal();
+
+    let admin_app = api_router(state(Some(admin), Arc::new(RoleBasedAuthorizer)));
+    let req = Request::builder()
+        .uri("/v1/admin/ping")
+        .body(Body::empty())
+        .expect("request");
+    let resp = admin_app.oneshot(req).await.expect("response");
+    assert_eq!(resp.status(), StatusCode::OK);
+
+    for (principal, label) in [(moderator, "moderator"), (member, "member")] {
+        let app = api_router(state(Some(principal), Arc::new(RoleBasedAuthorizer)));
+        let req = Request::builder()
+            .uri("/v1/admin/ping")
+            .body(Body::empty())
+            .expect("request");
+        let resp = app.oneshot(req).await.expect("response");
+        assert_eq!(
+            resp.status(),
+            StatusCode::FORBIDDEN,
+            "{label} must be denied for admin ping"
+        );
+    }
+}
+
+#[tokio::test]
 async fn cors_preflight_allows_configured_origin_and_exposes_request_id() {
     let origin = HeaderValue::from_static("http://localhost:3000");
     let app = api_router(state(None, Arc::new(AllowAuthenticated))).layer(cors_layer(origin));

@@ -13,10 +13,18 @@
   "ssoSessionMaxLifespan": 36000,
   "roles": {
     "realm": [
-      { "name": "admin", "description": "Mahfel administration" },
-      { "name": "teacher", "description": "Instructor capabilities" },
-      { "name": "student", "description": "Learner capabilities" },
-      { "name": "moderator", "description": "Moderation capabilities" }
+      {
+        "name": "admin",
+        "description": "Mahfel administration"
+      },
+      {
+        "name": "moderator",
+        "description": "Moderation and classroom management"
+      },
+      {
+        "name": "member",
+        "description": "Default classroom member"
+      }
     ]
   },
   "clients": [
@@ -32,9 +40,17 @@
       "implicitFlowEnabled": false,
       "directAccessGrantsEnabled": false,
       "serviceAccountsEnabled": false,
-      "redirectUris": ["https://api.mahfel.localhost/v1/auth/oidc/callback"],
-      "webOrigins": ["https://api.mahfel.localhost"],
-      "defaultClientScopes": ["profile", "email", "roles"],
+      "redirectUris": [
+        "https://api.mahfel.localhost/v1/auth/oidc/callback"
+      ],
+      "webOrigins": [
+        "https://api.mahfel.localhost"
+      ],
+      "defaultClientScopes": [
+        "profile",
+        "email",
+        "roles"
+      ],
       "attributes": {
         "pkce.code.challenge.method": "S256"
       }
@@ -51,9 +67,19 @@
       "implicitFlowEnabled": false,
       "directAccessGrantsEnabled": false,
       "serviceAccountsEnabled": false,
-      "redirectUris": ["https://mahfel.localhost/*", "http://127.0.0.1:3000/*"],
-      "webOrigins": ["https://mahfel.localhost", "http://127.0.0.1:3000"],
-      "defaultClientScopes": ["profile", "email", "roles"],
+      "redirectUris": [
+        "https://mahfel.localhost/*",
+        "http://127.0.0.1:3000/*"
+      ],
+      "webOrigins": [
+        "https://mahfel.localhost",
+        "http://127.0.0.1:3000"
+      ],
+      "defaultClientScopes": [
+        "profile",
+        "email",
+        "roles"
+      ],
       "protocolMappers": [
         {
           "name": "mahfel-api-audience",
@@ -140,8 +166,16 @@
       "firstName": "Shinji",
       "lastName": "Ikari",
       "requiredActions": [],
-      "credentials": [{ "type": "password", "value": "password", "temporary": false }],
-      "realmRoles": ["student"]
+      "credentials": [
+        {
+          "type": "password",
+          "value": "password",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "member"
+      ]
     },
     {
       "id": "00000000-0000-4000-8000-000000000002",
@@ -152,8 +186,16 @@
       "firstName": "Asuka",
       "lastName": "Langley",
       "requiredActions": [],
-      "credentials": [{ "type": "password", "value": "password", "temporary": false }],
-      "realmRoles": ["student"]
+      "credentials": [
+        {
+          "type": "password",
+          "value": "password",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "member"
+      ]
     },
     {
       "id": "00000000-0000-4000-8000-000000000003",
@@ -164,8 +206,16 @@
       "firstName": "Rei",
       "lastName": "Ayanami",
       "requiredActions": [],
-      "credentials": [{ "type": "password", "value": "password", "temporary": false }],
-      "realmRoles": ["student"]
+      "credentials": [
+        {
+          "type": "password",
+          "value": "password",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "member"
+      ]
     },
     {
       "id": "00000000-0000-4000-8000-000000000004",
@@ -176,8 +226,16 @@
       "firstName": "Misato",
       "lastName": "Katsuragi",
       "requiredActions": [],
-      "credentials": [{ "type": "password", "value": "password", "temporary": false }],
-      "realmRoles": ["teacher"]
+      "credentials": [
+        {
+          "type": "password",
+          "value": "password",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "member"
+      ]
     },
     {
       "id": "00000000-0000-4000-8000-000000000005",
@@ -188,8 +246,16 @@
       "firstName": "Ritsuko",
       "lastName": "Akagi",
       "requiredActions": [],
-      "credentials": [{ "type": "password", "value": "password", "temporary": false }],
-      "realmRoles": ["moderator"]
+      "credentials": [
+        {
+          "type": "password",
+          "value": "password",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "moderator"
+      ]
     },
     {
       "id": "00000000-0000-4000-8000-000000000006",
@@ -200,15 +266,28 @@
       "firstName": "Mahfel",
       "lastName": "Admin",
       "requiredActions": [],
-      "credentials": [{ "type": "password", "value": "password", "temporary": false }],
-      "realmRoles": ["admin"]
+      "credentials": [
+        {
+          "type": "password",
+          "value": "password",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "admin"
+      ]
     },
     {
       "username": "service-account-mahfel-admin",
       "enabled": true,
       "serviceAccountClientId": "mahfel-admin",
       "clientRoles": {
-        "realm-management": ["manage-users", "view-users", "query-users", "view-realm"]
+        "realm-management": [
+          "manage-users",
+          "view-users",
+          "query-users",
+          "view-realm"
+        ]
       }
     }
   ]

@@ -8,7 +8,9 @@ pub mod session_store;
 pub mod user_attribute;
 pub mod user_store;
 
-pub use authorization::{Action, AllowAuthenticated, AuthorizationError, Authorizer, Principal};
+pub use authorization::{
+    Action, AllowAuthenticated, AuthorizationError, Authorizer, Principal, RoleBasedAuthorizer,
+};
 pub use coordination::{CoordinationError, CoordinationStore};
 pub use event_publisher::{DomainEvent, EventPublisher, PublishError};
 pub use identity_store::{IdentityProfile, IdentityStore, ProvisionedIdentity};
