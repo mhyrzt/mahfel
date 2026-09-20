@@ -12,8 +12,6 @@ migrate_on_start = true
 
 [api]
 media_grpc_url = "http://127.0.0.1:50051"
-# Local-only development identity, applied by `mahfel-api seed`.
-development_principal_user_id = "00000000-0000-0000-0000-000000000001"
 
 [oidc]
 issuer_url = "https://auth.mahfel.localhost/realms/rastai"

@@ -1,5 +1,12 @@
-use crate::http::{auth::AuthState, ws::WsState};
-use mahfel_application::ports::RoomStore;
+use crate::http::{
+    auth::{AuthState, RequestAuthenticator},
+    ws::WsState,
+};
+use mahfel_application::{
+    ports::{RoomStore, UserAttributeWriter},
+    users::IdentityProvisioner,
+};
+use std::sync::Arc;
 
 /// Store bound required by the API transport.
 ///
@@ -17,6 +24,9 @@ pub struct AppState<R> {
     pub version: &'static str,
     pub node_id: String,
     pub auth: AuthState,
+    pub authentication: Arc<dyn RequestAuthenticator>,
+    pub provisioner: Arc<dyn IdentityProvisioner>,
+    pub linker: Arc<dyn UserAttributeWriter>,
     pub rooms: R,
     pub realtime: WsState,
 }

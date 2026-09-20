@@ -1,6 +1,5 @@
-use super::{
-    auth::UpgradeAuthenticator, config::WsConfig, metrics::WsMetrics, registry::ConnectionRegistry,
-};
+use super::{config::WsConfig, metrics::WsMetrics, registry::ConnectionRegistry};
+use crate::http::auth::RequestAuthenticator;
 use std::sync::Arc;
 use tokio::sync::watch;
 
@@ -10,14 +9,14 @@ pub struct WsState {
     pub registry: ConnectionRegistry,
     pub config: WsConfig,
     pub metrics: WsMetrics,
-    pub authenticator: Arc<dyn UpgradeAuthenticator>,
+    pub authenticator: Arc<dyn RequestAuthenticator>,
     pub shutdown: watch::Receiver<bool>,
 }
 
 impl WsState {
     #[must_use]
     pub fn new(
-        authenticator: Arc<dyn UpgradeAuthenticator>,
+        authenticator: Arc<dyn RequestAuthenticator>,
         config: WsConfig,
         metrics: WsMetrics,
         shutdown: watch::Receiver<bool>,

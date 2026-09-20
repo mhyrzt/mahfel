@@ -1,4 +1,3 @@
-mod auth;
 mod config;
 mod connection;
 mod envelope;
@@ -6,7 +5,6 @@ mod metrics;
 mod registry;
 mod state;
 
-pub use auth::{DevAuthenticator, UpgradeAuthenticator};
 pub use config::WsConfig;
 pub use metrics::WsMetrics;
 pub use state::WsState;
@@ -39,12 +37,17 @@ async fn upgrade<R: RoomStoreState>(
     let realtime = state.realtime.clone();
 
     let header_principal = match bearer_token(&headers) {
-        Some(token) => Some(
-            realtime
+        Some(token) => {
+            let claims = realtime
                 .authenticator
-                .authenticate(Some(token))
-                .map_err(|_| ApiError::unauthorized("authentication required"))?,
-        ),
+                .verify(Some(token))
+                .await
+                .map_err(|_| ApiError::unauthorized("authentication required"))?;
+            Some(
+                crate::http::auth::principal_from_claims(&claims)
+                    .map_err(|_| ApiError::forbidden("account is not provisioned"))?,
+            )
+        }
         None => None,
     };
 

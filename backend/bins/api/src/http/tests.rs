@@ -1,19 +1,26 @@
 use super::{
     AppState, api_router,
-    auth::AuthState,
+    auth::{AuthState, AuthenticationError, RequestAuthenticator, TokenAuthentication},
     cors_layer,
-    ws::{DevAuthenticator, WsConfig, WsMetrics, WsState},
+    ws::{WsConfig, WsMetrics, WsState},
 };
 use axum::{
     Router,
     body::Body,
     http::{HeaderValue, Method, Request, StatusCode, header},
 };
-use futures_util::{SinkExt, StreamExt};
+use futures_util::{SinkExt, StreamExt, future::BoxFuture};
 use mahfel_application::ports::{
-    Action, AllowAuthenticated, AuthorizationError, Authorizer, Principal, RoomStore, StoreError,
+    Action, AllowAuthenticated, AttributeError, AuthorizationError, Authorizer, Principal,
+    ProvisionedIdentity, RoomStore, StoreError, UserAttributeWriter,
 };
-use mahfel_domain::{Room, RoomId, RoomMember, RoomRole, RoomTitle, RoomVisibility, UserId};
+use mahfel_application::users::{IdentityProvisioner, SyncIdentity, SyncIdentityError};
+use mahfel_auth::AuthenticatedIdentity;
+use mahfel_auth::{TokenVerifier, TokenVerifierConfig};
+use mahfel_domain::{
+    DisplayName, Identity, Issuer, Room, RoomId, RoomMember, RoomRole, RoomTitle, RoomVisibility,
+    Subject, User, UserId, UserStatus,
+};
 use prometheus::Encoder;
 use std::{
     net::SocketAddr,
@@ -198,11 +205,112 @@ impl RoomStore for FakeRoomStore {
     }
 }
 
+/// Test double: yields a fixed principal, or rejects when none is configured.
+#[derive(Clone)]
+struct StubAuthenticator {
+    principal: Option<Principal>,
+    provisioned: bool,
+}
+
+impl StubAuthenticator {
+    fn new(principal: Option<Principal>) -> Self {
+        Self {
+            principal,
+            provisioned: true,
+        }
+    }
+
+    fn unprovisioned(principal: Option<Principal>) -> Self {
+        Self {
+            principal,
+            provisioned: false,
+        }
+    }
+}
+
+impl RequestAuthenticator for StubAuthenticator {
+    fn verify<'a>(
+        &'a self,
+        _token: Option<&'a str>,
+    ) -> BoxFuture<'a, Result<AuthenticatedIdentity, AuthenticationError>> {
+        let result = self
+            .principal
+            .clone()
+            .map(|principal| AuthenticatedIdentity {
+                subject: principal.user_id.to_string(),
+                issuer: "https://auth.test/realms/rastai".to_owned(),
+                app_user_id: self.provisioned.then(|| principal.user_id.to_string()),
+                email: principal.email.clone(),
+                email_verified: principal.email_verified,
+                username: principal.username.clone(),
+                display_name: principal.display_name.clone(),
+                avatar_url: principal.avatar_url.clone(),
+                roles: principal.roles.clone(),
+            })
+            .ok_or(AuthenticationError::MissingToken);
+        Box::pin(async move { result })
+    }
+}
+
+/// Test double that reflects the claims back into a local user.
+struct StubProvisioner;
+
+impl IdentityProvisioner for StubProvisioner {
+    fn provision<'a>(
+        &'a self,
+        command: SyncIdentity,
+    ) -> BoxFuture<'a, Result<ProvisionedIdentity, SyncIdentityError>> {
+        let SyncIdentity {
+            issuer,
+            subject,
+            email_verified,
+            ..
+        } = command;
+        let user_id = Uuid::parse_str(&subject)
+            .map(UserId::from_uuid)
+            .unwrap_or_default();
+        let now = OffsetDateTime::now_utc();
+        let user = User {
+            id: user_id,
+            display_name: DisplayName::new("Test User".to_owned()).expect("valid name"),
+            status: UserStatus::Active,
+            avatar_url: None,
+            created_at: now,
+            updated_at: now,
+        };
+        let identity = Identity::create(
+            user_id,
+            Issuer::new(issuer).expect("valid issuer"),
+            Subject::new(subject).expect("valid subject"),
+            None,
+            None,
+            email_verified,
+            None,
+            now,
+        );
+        Box::pin(async move { Ok(ProvisionedIdentity { user, identity }) })
+    }
+}
+
+/// Test double that accepts every identity link.
+struct StubLinker;
+
+impl UserAttributeWriter for StubLinker {
+    fn set_user_attribute<'a>(
+        &'a self,
+        _user_id: &'a str,
+        _name: &'a str,
+        _value: &'a str,
+    ) -> BoxFuture<'a, Result<(), AttributeError>> {
+        Box::pin(async { Ok(()) })
+    }
+}
+
 fn ws_state(principal: Option<Principal>) -> WsState {
     let (_shutdown_tx, shutdown_rx) = watch::channel(false);
     let metrics = WsMetrics::register(&prometheus::Registry::new()).expect("register ws metrics");
     WsState::new(
-        Arc::new(DevAuthenticator::new(principal)),
+        Arc::new(StubAuthenticator::new(principal)),
         WsConfig::default(),
         metrics,
         shutdown_rx,
@@ -210,20 +318,48 @@ fn ws_state(principal: Option<Principal>) -> WsState {
 }
 
 fn state(principal: Option<Principal>, authorizer: Arc<dyn Authorizer>) -> AppState<FakeRoomStore> {
-    let auth = AuthState::new(principal.clone(), authorizer);
+    state_with(principal, authorizer, true)
+}
+
+fn state_unprovisioned(
+    principal: Option<Principal>,
+    authorizer: Arc<dyn Authorizer>,
+) -> AppState<FakeRoomStore> {
+    state_with(principal, authorizer, false)
+}
+
+fn state_with(
+    principal: Option<Principal>,
+    authorizer: Arc<dyn Authorizer>,
+    provisioned: bool,
+) -> AppState<FakeRoomStore> {
+    let realtime = ws_state(principal.clone());
     AppState {
         service: "mahfel-api-test",
         version: "0.1.0",
         node_id: "node-test".to_owned(),
-        auth,
+        auth: AuthState::new(authorizer),
+        authentication: Arc::new(if provisioned {
+            StubAuthenticator::new(principal)
+        } else {
+            StubAuthenticator::unprovisioned(principal)
+        }),
+        provisioner: Arc::new(StubProvisioner),
+        linker: Arc::new(StubLinker),
         rooms: FakeRoomStore::default(),
-        realtime: ws_state(principal),
+        realtime,
     }
 }
 
 fn principal_with(value: &str) -> Principal {
     Principal {
         user_id: UserId::from_uuid(Uuid::parse_str(value).expect("valid uuid")),
+        display_name: Some("Test User".to_owned()),
+        avatar_url: None,
+        email: Some("test@mahfel.local".to_owned()),
+        email_verified: true,
+        username: Some("test".to_owned()),
+        roles: Vec::new(),
     }
 }
 
@@ -249,7 +385,10 @@ fn authenticated_room_app(principal: Principal, store: FakeRoomStore) -> Router 
         service: "mahfel-api-test",
         version: "0.1.0",
         node_id: "node-test".to_owned(),
-        auth: AuthState::new(Some(principal), Arc::new(AllowAuthenticated)),
+        auth: AuthState::new(Arc::new(AllowAuthenticated)),
+        authentication: Arc::new(StubAuthenticator::new(Some(principal))),
+        provisioner: Arc::new(StubProvisioner),
+        linker: Arc::new(StubLinker),
         rooms: store,
         realtime,
     })
@@ -430,7 +569,7 @@ async fn unversioned_unknown_route_returns_404_envelope() {
 #[tokio::test]
 async fn identity_requires_authentication() {
     let req = Request::builder()
-        .uri("/v1/me")
+        .uri("/v1/auth/me")
         .body(Body::empty())
         .expect("request");
     let resp = app().oneshot(req).await.expect("response");
@@ -444,7 +583,7 @@ async fn identity_requires_authentication() {
 #[tokio::test]
 async fn identity_returns_the_authenticated_principal() {
     let req = Request::builder()
-        .uri("/v1/me")
+        .uri("/v1/auth/me")
         .body(Body::empty())
         .expect("request");
     let resp = authenticated_app().oneshot(req).await.expect("response");
@@ -455,13 +594,18 @@ async fn identity_returns_the_authenticated_principal() {
         json.get("user_id").and_then(|v| v.as_str()),
         Some("00000000-0000-0000-0000-000000000009")
     );
+    assert_eq!(
+        json.get("email").and_then(|v| v.as_str()),
+        Some("test@mahfel.local")
+    );
+    assert_eq!(json.get("email_verified"), Some(&serde_json::json!(true)));
 }
 
 #[tokio::test]
 async fn identity_is_denied_when_policy_denies() {
     let app = api_router(state(Some(principal()), Arc::new(DenyAll)));
     let req = Request::builder()
-        .uri("/v1/me")
+        .uri("/v1/auth/me")
         .body(Body::empty())
         .expect("request");
     let resp = app.oneshot(req).await.expect("response");
@@ -469,6 +613,50 @@ async fn identity_is_denied_when_policy_denies() {
     assert_eq!(resp.status(), StatusCode::FORBIDDEN);
     let json = response_json(resp).await;
     assert_eq!(error_code(&json), Some("forbidden"));
+}
+
+#[tokio::test]
+async fn identity_rejects_a_token_without_a_linked_user() {
+    // A verified token that has not been provisioned must not reach handlers.
+    let app = api_router(state_unprovisioned(
+        Some(principal()),
+        Arc::new(AllowAuthenticated),
+    ));
+    let req = Request::builder()
+        .uri("/v1/auth/me")
+        .body(Body::empty())
+        .expect("request");
+    let resp = app.oneshot(req).await.expect("response");
+
+    assert_eq!(resp.status(), StatusCode::FORBIDDEN);
+    let json = response_json(resp).await;
+    assert_eq!(error_code(&json), Some("forbidden"));
+}
+
+#[tokio::test]
+async fn provision_returns_the_application_profile() {
+    // Provisioning must remain reachable before the user is linked.
+    let app = api_router(state_unprovisioned(
+        Some(principal()),
+        Arc::new(AllowAuthenticated),
+    ));
+    let req = Request::builder()
+        .method(Method::POST)
+        .uri("/v1/auth/provision")
+        .body(Body::empty())
+        .expect("request");
+    let resp = app.oneshot(req).await.expect("response");
+
+    assert_eq!(resp.status(), StatusCode::OK);
+    let json = response_json(resp).await;
+    assert_eq!(
+        json.get("user_id").and_then(|v| v.as_str()),
+        Some("00000000-0000-0000-0000-000000000009")
+    );
+    assert_eq!(
+        json.get("email").and_then(|v| v.as_str()),
+        Some("test@mahfel.local")
+    );
 }
 
 #[tokio::test]
@@ -909,7 +1097,7 @@ async fn serve_ws(principal: Option<Principal>, config: WsConfig) -> WsHarness {
     let metrics = WsMetrics::register(&registry).expect("register ws metrics");
     let (shutdown_tx, shutdown_rx) = watch::channel(false);
     let realtime = WsState::new(
-        Arc::new(DevAuthenticator::new(principal.clone())),
+        Arc::new(StubAuthenticator::new(principal.clone())),
         config,
         metrics,
         shutdown_rx.clone(),
@@ -918,7 +1106,10 @@ async fn serve_ws(principal: Option<Principal>, config: WsConfig) -> WsHarness {
         service: "mahfel-api-test",
         version: "0.1.0",
         node_id: "node-test".to_owned(),
-        auth: AuthState::new(principal, Arc::new(AllowAuthenticated)),
+        auth: AuthState::new(Arc::new(AllowAuthenticated)),
+        authentication: Arc::new(StubAuthenticator::new(principal)),
+        provisioner: Arc::new(StubProvisioner),
+        linker: Arc::new(StubLinker),
         rooms: FakeRoomStore::default(),
         realtime,
     };
@@ -990,6 +1181,175 @@ async fn wait_for_metric(registry: &prometheus::Registry, needle: &str) {
         tokio::time::sleep(Duration::from_millis(10)).await;
     }
     panic!("metric not observed: {needle}");
+}
+
+// --- Real-token WS helpers (TASK-121) ---
+
+const WS_ISSUER_AUDIENCE: &str = "mahfel-api";
+const WS_KEY_ID: &str = "test-key";
+const WS_TEST_KEY_PEM: &str = "-----BEGIN PRIVATE KEY-----\nMIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQDbmVO19GITNOuj\nVpKeftrusY3jZjR+z1kOVwNwkM0avBU82CEGyPozUaQ4/eOtjOB6QOeTzayew3KC\nVAH6Oj4nivrrUrF6iATLWDFyXqjnDC3lbNV85bVRdhNeozNXYHYxxrhgExoxiJwK\n1FOKFXLNsOg+Hu2/UHlqNu0Y47Of7S+7lCJ+xCbxvRF8o6JSVimaHdP1y4ESwBZF\nqzyxBKogPBWpRNbBehLVCTbdrIVunot/ONEFiNuposcKjh0GDJB4Ng/4WSZenAGC\njCoO26y5N27NdARErCYj047qlUteCTUBm/bs8EdsqVqmx3ODdOhsqkqiHw8htSW+\nhL9vS7FnAgMBAAECggEAU1Om9BA7dtZJ47zh/cpdAN3W3UbW/JdpT4us/nWznkVo\nOaI5Rf3VEswT6JxOXHhsZXdjaC5PJh87wEBoT67yDscp10mVls0uJIremGta4/E3\nKStXBwGS/8oyJ2L+BFXSA6lIJQyaj9kqfOF8oZTp7ysFtSy/Qi0jJS6aYStl6XS+\n6KGrSLmArXIuzNZ3/byOunBWQWbfsxSNitRiFXDqsxfpA0cbsj4adb3gpQl919jB\naZ5Fi8VzYPqP7kOE0APuI85SmWxPhX1vXbbmwqCA/JWPzXnnxU0KR+k1Npsqbg6a\nITvO0VLYHY56fQi1tFY77JepT2XQwbDPUipy1T3foQKBgQD2hQrkZ/VkupH/6NZ6\nTw8n0IMQOLyxomEQ4Lj0Ugizj7KbGyEN8w+6CSU84y9VclR/trW7laa3FMr++bC8\nGY7wkONZFsdsbtLkLSlU9LILPKdAOcbBQDJaOZip5ll07JU+TMTZQpE0KfHDDCjH\n4RmMKzlslpBmaY3WWDR/rz8EpQKBgQDkC0CwVO+vp8JPjze3BRViJytU1G9cKcpd\nO2t1W/KINYIQ0eqkBV5l7wLq1ht8JmMRpa3gLHHxdIoxouKzM3kSqvPGkoUTO2Cj\nf5HPnCBJmk7paKD6Y4FBA4SsRqYlp+uKfmzLlleQ7hIkEK8H5ur8CTzsTV4mhX08\nrKrex9MkGwKBgCETPp/gltsZ8SbNvaERZG4qGrudcSvAJpfWHtqg+wvkdsk6vZea\nifyi530g2iPzwASWphFyBblAr++/3oeOQlBikC5O0RjqUZ9Ns+LzJcQ+Mg568gDR\ntS/H1ITPJCd86pU+RZcEyGigTBCoW/xdZkkZL44zMVKcTOx6TyjmgWUFAoGBAOHo\nT9Ye3i7Z9sFP9HanX46TlPZ9WDAp6iHACm0BgFr0/vtgqJyCAQjj5LT1E9dCQ+Qo\nh/5KqTn0JC6V2RSDSk528fXmElSB/vMZHj5XwRiI9+F71/UT++iG7rinaFJnbgwN\nwANS1T5qyafWqz4dwO2azTKeVkW8+drQhpkZxY2/AoGBAO8wvaUA+yeaUof6/QFx\niwz7RIX6QlztIcV6rQBXmbsS4zHdQ1aCMCMctatqozztewJk0qa8dRRm8KNjNbLr\nnCg+0ezO+qF2AI+7WAaaicScxpJkW7WUXFVW3wIdKyFStuAXzY7JIH6biTxgUU1W\n4fZV7NStTEG5uoe0960K55+T\n-----END PRIVATE KEY-----";
+const WS_MODULUS: &str = "25lTtfRiEzTro1aSnn7a7rGN42Y0fs9ZDlcDcJDNGrwVPNghBsj6M1GkOP3jrYzgekDnk82snsNyglQB-jo-J4r661KxeogEy1gxcl6o5wwt5WzVfOW1UXYTXqMzV2B2Mca4YBMaMYicCtRTihVyzbDoPh7tv1B5ajbtGOOzn-0vu5QifsQm8b0RfKOiUlYpmh3T9cuBEsAWRas8sQSqIDwVqUTWwXoS1Qk23ayFbp6LfzjRBYjbqaLHCo4dBgyQeDYP-FkmXpwBgowqDtusuTduzXQERKwmI9OO6pVLXgk1AZv27PBHbKlapsdzg3TobKpKoh8PIbUlvoS_b0uxZw";
+
+struct RealIssuer {
+    url: String,
+    _task: JoinHandle<()>,
+}
+
+async fn start_real_issuer() -> RealIssuer {
+    let listener = TcpListener::bind("127.0.0.1:0").await.expect("bind issuer");
+    let addr = listener.local_addr().expect("issuer addr");
+    let url = format!("http://{addr}");
+    let discovery_url = url.clone();
+    let discovery = axum::Router::new().route(
+        "/.well-known/openid-configuration",
+        axum::routing::get(move || {
+            let url = discovery_url.clone();
+            async move {
+                axum::Json(serde_json::json!({
+                    "issuer": url,
+                    "jwks_uri": format!("{url}/jwks"),
+                }))
+            }
+        }),
+    );
+    let jwks = axum::Router::new().route(
+        "/jwks",
+        axum::routing::get(move || async move {
+            axum::Json(serde_json::json!({
+                "keys": [{
+                    "kty": "RSA",
+                    "kid": WS_KEY_ID,
+                    "alg": "RS256",
+                    "use": "sig",
+                    "n": WS_MODULUS,
+                    "e": "AQAB",
+                }]
+            }))
+        }),
+    );
+    let app = discovery.merge(jwks);
+    let task = tokio::spawn(async move {
+        let _ = axum::serve(listener, app).await;
+    });
+    RealIssuer { url, _task: task }
+}
+
+fn ws_mint(claims: serde_json::Value) -> String {
+    let mut header = jsonwebtoken::Header::new(jsonwebtoken::Algorithm::RS256);
+    header.kid = Some(WS_KEY_ID.to_owned());
+    let key =
+        jsonwebtoken::EncodingKey::from_rsa_pem(WS_TEST_KEY_PEM.as_bytes()).expect("test key");
+    jsonwebtoken::encode(&header, &claims, &key).expect("mint")
+}
+
+fn ws_claims(issuer: &str, user_id: &str, offset_seconds: i64) -> serde_json::Value {
+    let now = time::OffsetDateTime::now_utc().unix_timestamp() + offset_seconds;
+    serde_json::json!({
+        "iss": issuer,
+        "aud": WS_ISSUER_AUDIENCE,
+        "sub": user_id,
+        "app_user_id": user_id,
+        "email": "test@mahfel.local",
+        "email_verified": true,
+        "preferred_username": "test",
+        "name": "Test User",
+        "iat": now,
+        "nbf": now,
+        "exp": now + 300,
+    })
+}
+
+fn ws_claims_unprovisioned(issuer: &str, offset_seconds: i64) -> serde_json::Value {
+    let now = time::OffsetDateTime::now_utc().unix_timestamp() + offset_seconds;
+    serde_json::json!({
+        "iss": issuer,
+        "aud": WS_ISSUER_AUDIENCE,
+        "sub": "00000000-0000-0000-0000-000000000099",
+        "email": "test@mahfel.local",
+        "email_verified": true,
+        "preferred_username": "test",
+        "name": "Test User",
+        "iat": now,
+        "nbf": now,
+        "exp": now + 300,
+    })
+}
+
+fn ws_verifier(issuer: &RealIssuer) -> TokenVerifier {
+    let mut cfg = TokenVerifierConfig::new(issuer.url.clone(), WS_ISSUER_AUDIENCE);
+    cfg.leeway = Duration::from_secs(1);
+    TokenVerifier::new(cfg)
+}
+
+async fn serve_ws_with_verifier(verifier: TokenVerifier, config: WsConfig) -> WsHarness {
+    let registry = prometheus::Registry::new();
+    let metrics = WsMetrics::register(&registry).expect("register ws metrics");
+    let (shutdown_tx, shutdown_rx) = watch::channel(false);
+    let auth: Arc<dyn RequestAuthenticator> = Arc::new(TokenAuthentication::new(verifier));
+    let realtime = WsState::new(Arc::clone(&auth), config, metrics, shutdown_rx.clone());
+    let state = AppState {
+        service: "mahfel-api-test",
+        version: "0.1.0",
+        node_id: "node-test".to_owned(),
+        auth: AuthState::new(Arc::new(AllowAuthenticated)),
+        authentication: auth,
+        provisioner: Arc::new(StubProvisioner),
+        linker: Arc::new(StubLinker),
+        rooms: FakeRoomStore::default(),
+        realtime,
+    };
+    let listener = TcpListener::bind("127.0.0.1:0").await.expect("bind");
+    let addr = listener.local_addr().expect("addr");
+    let task = tokio::spawn(mahfel_telemetry::serve_http(
+        listener,
+        api_router(state),
+        shutdown_rx,
+    ));
+    WsHarness {
+        addr,
+        shutdown: shutdown_tx,
+        registry,
+        _task: task,
+    }
+}
+
+async fn connect_with_header(
+    addr: SocketAddr,
+    token: Option<&str>,
+) -> Result<ClientSocket, tokio_tungstenite::tungstenite::Error> {
+    use tokio_tungstenite::tungstenite::http::Request as HttpRequest;
+    let uri = format!("ws://{addr}/v1/ws");
+    let mut builder = HttpRequest::builder().uri(uri.as_str());
+    if let Some(tok) = token {
+        builder = builder.header(header::AUTHORIZATION.as_str(), format!("Bearer {tok}"));
+    }
+    // Tungstenite derives Sec-WebSocket-Key etc. if absent; we just need a valid
+    // HTTP request with WS upgrade semantics. Passing empty body is fine for
+    // IntoClientRequest.
+    let req = builder
+        .header(header::HOST.as_str(), addr.to_string())
+        .header(header::CONNECTION.as_str(), "Upgrade")
+        .header(header::UPGRADE.as_str(), "websocket")
+        .header(header::SEC_WEBSOCKET_VERSION.as_str(), "13")
+        .header(
+            header::SEC_WEBSOCKET_KEY.as_str(),
+            "dGhlIHNhbXBsZSBub25jZQ==",
+        )
+        .body(())
+        .expect("ws request");
+    let (socket, _) = connect_async(req).await?;
+    Ok(socket)
+}
+
+fn ws_tamper_signature(token: &str) -> String {
+    use base64::Engine;
+    let mut parts: Vec<String> = token.split('.').map(|s| s.to_owned()).collect();
+    let mut sig = base64::engine::general_purpose::URL_SAFE_NO_PAD
+        .decode(&parts[2])
+        .expect("decode sig");
+    sig[0] ^= 0x01;
+    parts[2] = base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(&sig);
+    parts.join(".")
 }
 
 #[tokio::test]
@@ -1146,4 +1506,211 @@ async fn websocket_rejects_clients_at_capacity() {
     let rejected = connect_async(format!("ws://{}/v1/ws", harness.addr)).await;
     assert!(rejected.is_err(), "second connection must be rejected");
     wait_for_metric(&harness.registry, "websocket_connections_rejected_total 1").await;
+}
+
+// Real-token WS integration tests (TASK-121)
+
+#[tokio::test]
+async fn ws_header_auth_with_valid_token_succeeds() {
+    let issuer = start_real_issuer().await;
+    let user_id = "00000000-0000-0000-0000-000000000021";
+    let token = ws_mint(ws_claims(&issuer.url, user_id, 0));
+    let harness = serve_ws_with_verifier(ws_verifier(&issuer), WsConfig::default()).await;
+    let mut socket = connect_with_header(harness.addr, Some(&token))
+        .await
+        .expect("header auth must succeed");
+
+    let welcome = tokio::time::timeout(Duration::from_secs(2), next(&mut socket))
+        .await
+        .expect("welcome timeout");
+    assert!(
+        welcome.to_text().expect("text").contains("welcome"),
+        "header-auth must yield welcome without an auth frame"
+    );
+    send(
+        &mut socket,
+        r#"{"v":1,"type":"echo","text":"hello-header"}"#,
+    )
+    .await;
+    let echo = tokio::time::timeout(Duration::from_secs(2), next(&mut socket))
+        .await
+        .expect("echo timeout");
+    assert!(echo.to_text().expect("text").contains(r#""type":"echo""#));
+    assert!(echo.to_text().expect("text").contains("hello-header"));
+}
+
+#[tokio::test]
+async fn ws_header_auth_with_invalid_sig_rejected() {
+    let issuer = start_real_issuer().await;
+    let token = ws_tamper_signature(&ws_mint(ws_claims(
+        &issuer.url,
+        "00000000-0000-0000-0000-000000000022",
+        0,
+    )));
+    let harness = serve_ws_with_verifier(ws_verifier(&issuer), WsConfig::default()).await;
+    let result = connect_with_header(harness.addr, Some(&token)).await;
+    assert!(
+        result.is_err(),
+        "invalid signature over header must be rejected"
+    );
+    if let Err(tokio_tungstenite::tungstenite::Error::Http(resp)) = result {
+        assert_eq!(
+            resp.status(),
+            401,
+            "invalid signature must map to 401 at upgrade"
+        );
+    }
+}
+
+#[tokio::test]
+async fn ws_message_auth_with_valid_token_succeeds() {
+    let issuer = start_real_issuer().await;
+    let user_id = "00000000-0000-0000-0000-000000000023";
+    let token = ws_mint(ws_claims(&issuer.url, user_id, 0));
+    let harness = serve_ws_with_verifier(ws_verifier(&issuer), WsConfig::default()).await;
+    let mut socket = connect(harness.addr).await;
+    let frame = serde_json::json!({"v":1,"type":"auth","token": token}).to_string();
+    send(&mut socket, &frame).await;
+    let welcome = tokio::time::timeout(Duration::from_secs(2), next(&mut socket))
+        .await
+        .expect("welcome timeout");
+    assert!(welcome.to_text().expect("text").contains("welcome"));
+    send(&mut socket, r#"{"v":1,"type":"echo","text":"hello-msg"}"#).await;
+    let echo = tokio::time::timeout(Duration::from_secs(2), next(&mut socket))
+        .await
+        .expect("echo timeout");
+    assert!(echo.to_text().expect("text").contains("hello-msg"));
+}
+
+#[tokio::test]
+async fn ws_message_auth_with_expired_token_rejected() {
+    let issuer = start_real_issuer().await;
+    let token = ws_mint(ws_claims(
+        &issuer.url,
+        "00000000-0000-0000-0000-000000000024",
+        -600,
+    ));
+    let harness = serve_ws_with_verifier(ws_verifier(&issuer), WsConfig::default()).await;
+    let mut socket = connect(harness.addr).await;
+    let frame = serde_json::json!({"v":1,"type":"auth","token": token}).to_string();
+    send(&mut socket, &frame).await;
+
+    let mut closed = false;
+    let mut code_ok = false;
+    let deadline = tokio::time::timeout(Duration::from_secs(2), async {
+        loop {
+            match socket.next().await {
+                Some(Ok(ClientWsMessage::Close(frame))) => {
+                    closed = true;
+                    if let Some(f) = frame {
+                        if u16::from(f.code) == 4401 {
+                            code_ok = true;
+                        }
+                    }
+                    break;
+                }
+                Some(Ok(_)) => continue,
+                Some(Err(_)) | None => {
+                    closed = true;
+                    break;
+                }
+            }
+        }
+    })
+    .await;
+    assert!(deadline.is_ok(), "must close within timeout");
+    assert!(closed, "expired token must close connection");
+    assert!(code_ok, "expired token must close with 4401");
+    wait_for_metric(
+        &harness.registry,
+        r#"websocket_disconnects_total{reason="unauthorized"} 1"#,
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn ws_rejects_unprovisioned_token() {
+    let issuer = start_real_issuer().await;
+    let token = ws_mint(ws_claims_unprovisioned(&issuer.url, 0));
+    let harness = serve_ws_with_verifier(ws_verifier(&issuer), WsConfig::default()).await;
+    let mut socket = connect(harness.addr).await;
+    let frame = serde_json::json!({"v":1,"type":"auth","token": token}).to_string();
+    send(&mut socket, &frame).await;
+
+    let mut closed = false;
+    let mut code_ok = false;
+    tokio::time::timeout(Duration::from_secs(2), async {
+        loop {
+            match socket.next().await {
+                Some(Ok(ClientWsMessage::Close(frame))) => {
+                    closed = true;
+                    if let Some(f) = frame
+                        && u16::from(f.code) == 4401
+                    {
+                        code_ok = true;
+                    }
+                    break;
+                }
+                Some(Ok(_)) => continue,
+                Some(Err(_)) | None => {
+                    closed = true;
+                    break;
+                }
+            }
+        }
+    })
+    .await
+    .expect("close timeout");
+    assert!(closed, "unprovisioned token must close");
+    assert!(code_ok, "unprovisioned token must close with 4401");
+    wait_for_metric(
+        &harness.registry,
+        r#"websocket_disconnects_total{reason="unauthorized"} 1"#,
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn ws_auth_times_out_if_no_frame() {
+    let issuer = start_real_issuer().await;
+    let config = WsConfig {
+        auth_timeout: Duration::from_millis(150),
+        heartbeat_interval: Duration::from_secs(10),
+        heartbeat_timeout: Duration::from_secs(30),
+        ..WsConfig::default()
+    };
+    let harness = serve_ws_with_verifier(ws_verifier(&issuer), config).await;
+    let mut socket = connect(harness.addr).await;
+
+    let mut closed = false;
+    let mut code_ok = false;
+    tokio::time::timeout(Duration::from_secs(2), async {
+        loop {
+            match socket.next().await {
+                Some(Ok(ClientWsMessage::Close(frame))) => {
+                    closed = true;
+                    if let Some(f) = frame
+                        && u16::from(f.code) == 4401
+                    {
+                        code_ok = true;
+                    }
+                    break;
+                }
+                Some(Ok(_)) => continue,
+                Some(Err(_)) | None => {
+                    closed = true;
+                    break;
+                }
+            }
+        }
+    })
+    .await
+    .expect("timeout waiting for auth timeout close");
+    assert!(closed, "connection must close when no auth frame is sent");
+    assert!(code_ok, "auth timeout must close with 4401");
+    wait_for_metric(
+        &harness.registry,
+        r#"websocket_disconnects_total{reason="unauthorized"} 1"#,
+    )
+    .await;
 }

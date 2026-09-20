@@ -13,6 +13,7 @@ mahfel-application = { path = "../../crates/application" }
 mahfel-auth = { path = "../../crates/auth" }
 mahfel-config = { path = "../../crates/config" }
 mahfel-domain = { path = "../../crates/domain" }
+mahfel-keycloak = { path = "../../crates/keycloak" }
 mahfel-media-client = { path = "../../crates/media-client" }
 mahfel-postgres = { path = "../../crates/postgres" }
 mahfel-redis = { path = "../../crates/redis" }
@@ -31,6 +32,8 @@ utoipa-scalar = { version = "0.3", features = ["axum"] }
 uuid.workspace = true
 
 [dev-dependencies]
+base64 = "0.22"
+jsonwebtoken = "9"
 time.workspace = true
 tokio-tungstenite = "0.29"
 

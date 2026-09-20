@@ -1,15 +1,17 @@
 use super::{
     CLOSE_GOING_AWAY, CLOSE_HEARTBEAT_TIMEOUT, SocketStream, dispatch, writer::Connection,
 };
-use crate::http::ws::{
-    auth::{CLOSE_UNAUTHORIZED, UpgradeAuthenticator},
-    envelope::{self, ClientMessage, ServerMessage},
-    metrics::DisconnectReason,
-    registry::{ConnectionRegistry, Outbound},
+use crate::http::{
+    auth::{AuthenticationError, RequestAuthenticator, principal_from_claims},
+    ws::{
+        envelope::{self, ClientMessage, ServerMessage},
+        metrics::DisconnectReason,
+        registry::{ConnectionRegistry, Outbound},
+    },
 };
 use axum::extract::ws::Message;
 use futures_util::StreamExt;
-use mahfel_application::ports::{AuthorizationError, Principal};
+use mahfel_application::ports::Principal;
 use std::time::{Duration, Instant};
 use tokio::{
     sync::{mpsc, watch},
@@ -17,12 +19,15 @@ use tokio::{
 };
 use uuid::Uuid;
 
+/// Close code used when a connection is not authenticated in time.
+pub(super) const CLOSE_UNAUTHORIZED: u16 = 4401;
+
 /// Authenticate, register, and run the receive loop for one connection.
 pub(super) async fn run(
     connection: &mut Connection,
     mut stream: SocketStream,
     registry: &ConnectionRegistry,
-    authenticator: &dyn UpgradeAuthenticator,
+    authenticator: &dyn RequestAuthenticator,
     mut shutdown: watch::Receiver<bool>,
     header_principal: Option<Principal>,
 ) -> DisconnectReason {
@@ -133,7 +138,7 @@ async fn receive_loop(
 /// Wait for the client's `auth` frame within `within`.
 async fn authenticate_first(
     stream: &mut SocketStream,
-    authenticator: &dyn UpgradeAuthenticator,
+    authenticator: &dyn RequestAuthenticator,
     within: Duration,
 ) -> Result<Principal, DisconnectReason> {
     let attempt = async {
@@ -141,16 +146,17 @@ async fn authenticate_first(
             match stream.next().await {
                 Some(Ok(Message::Text(text))) => match envelope::parse(text.as_str()) {
                     Ok(ClientMessage::Auth { token }) => {
-                        return authenticator.authenticate(token.as_deref());
+                        let claims = authenticator.verify(token.as_deref()).await?;
+                        return principal_from_claims(&claims);
                     }
-                    Ok(_) | Err(_) => return Err(AuthorizationError::Unauthenticated),
+                    Ok(_) | Err(_) => return Err(AuthenticationError::MissingToken),
                 },
                 Some(Ok(Message::Ping(_))) | Some(Ok(Message::Pong(_))) => {}
                 Some(Ok(Message::Close(_))) | None => {
-                    return Err(AuthorizationError::Unauthenticated);
+                    return Err(AuthenticationError::MissingToken);
                 }
-                Some(Ok(Message::Binary(_))) => return Err(AuthorizationError::Unauthenticated),
-                Some(Err(_)) => return Err(AuthorizationError::Unauthenticated),
+                Some(Ok(Message::Binary(_))) => return Err(AuthenticationError::MissingToken),
+                Some(Err(_)) => return Err(AuthenticationError::MissingToken),
             }
         }
     };

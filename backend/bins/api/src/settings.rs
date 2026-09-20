@@ -1,12 +1,11 @@
 use anyhow::{Context, Result};
 use axum::http::HeaderValue;
-use mahfel_application::ports::Principal;
+use mahfel_auth::TokenVerifierConfig;
 use mahfel_config::Settings;
-use mahfel_domain::UserId;
+use mahfel_keycloak::KeycloakAdminSettings;
 use mahfel_postgres::{ConnectionSettings, PoolSettings};
 use mahfel_redis::RedisConnectionSettings;
 use std::time::Duration;
-use uuid::Uuid;
 
 pub(crate) fn pool(settings: &Settings) -> PoolSettings {
     PoolSettings {
@@ -47,18 +46,21 @@ pub(crate) fn allowed_origin(settings: &Settings) -> Result<HeaderValue> {
         .context("parse configured browser origin")
 }
 
-/// Local-only development principal, if configured.
-pub(crate) fn development_principal(settings: &Settings) -> Result<Option<Principal>> {
-    settings
-        .api
-        .development_principal_user_id
-        .as_deref()
-        .filter(|value| !value.trim().is_empty())
-        .map(|value| {
-            value.parse::<Uuid>().map(|id| Principal {
-                user_id: UserId::from_uuid(id),
-            })
-        })
-        .transpose()
-        .context("parse development principal user id")
+/// Verification configuration for the token Keycloak mints for `mahfel-api`.
+pub(crate) fn jwt(settings: &Settings) -> TokenVerifierConfig {
+    TokenVerifierConfig::new(
+        settings.oidc.issuer_url.clone(),
+        settings.oidc.client_id.clone(),
+    )
+}
+
+/// Keycloak Admin API settings for linking local users to identities.
+pub(crate) fn keycloak(settings: &Settings) -> KeycloakAdminSettings {
+    KeycloakAdminSettings {
+        base_url: settings.keycloak.base_url.clone(),
+        realm: settings.keycloak.realm.clone(),
+        client_id: settings.keycloak.admin_client_id.clone(),
+        client_secret: settings.keycloak.admin_client_secret.clone(),
+        http_timeout: Duration::from_secs(5),
+    }
 }

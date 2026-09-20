@@ -8,14 +8,15 @@ use utoipa::OpenApi;
     info(
         title = "Mahfel API",
         version = env!("CARGO_PKG_VERSION"),
-        description = "Control-plane REST API. Requests are authenticated with a bearer \
-                       credential; the local development principal is configured server-side."
+        description = "Control-plane REST API. Requests are authenticated with a Keycloak access \
+                       token that the API verifies as a resource server (ADR 0019)."
     ),
     paths(
         super::status::status,
         super::health::health,
         super::echo::list,
         super::echo::create,
+        super::identity::provision,
         super::identity::me,
         super::rooms::create::create,
         super::rooms::list::list_rooms,
@@ -29,7 +30,7 @@ use utoipa::OpenApi;
     components(schemas(
         super::status::StatusResponse,
         super::health::HealthResponse,
-        super::identity::IdentityResponse,
+        super::identity::ProfileResponse,
         super::echo::EchoPayload,
         crate::http::pagination::PaginationMeta,
         crate::http::pagination::Paginated<super::echo::EchoPayload>,
@@ -52,7 +53,8 @@ pub(crate) const REST_PATH_TEMPLATES: &[&str] = &[
     "/v1/status",
     "/v1/health",
     "/v1/echo",
-    "/v1/me",
+    "/v1/auth/provision",
+    "/v1/auth/me",
     "/v1/rooms",
     "/v1/rooms/{room_id}",
     "/v1/rooms/{room_id}/join",

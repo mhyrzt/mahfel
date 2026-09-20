@@ -36,7 +36,6 @@ services:
       MAHFEL_REDIS__URL: redis://redis:6379
       MAHFEL_API__MEDIA_GRPC_URL: http://mahfel-media:50051
       MAHFEL_API__ALLOWED_ORIGIN: https://mahfel.localhost
-      MAHFEL_API__DEVELOPMENT_PRINCIPAL_USER_ID: ${MAHFEL_API__DEVELOPMENT_PRINCIPAL_USER_ID:-00000000-0000-0000-0000-000000000001}
       MAHFEL_TELEMETRY__LOG_FILTER: ${MAHFEL_LOG_FILTER:-info,mahfel=debug,tower_http=info}
     ports:
       - "127.0.0.1:8080:8080"

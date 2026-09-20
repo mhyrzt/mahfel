@@ -3,7 +3,10 @@ use crate::http;
 use crate::settings;
 use anyhow::Result;
 use axum::Router;
-use mahfel_application::ports::AllowAuthenticated;
+use mahfel_application::{
+    ports::{AllowAuthenticated, UserAttributeWriter},
+    users::IdentityProvisioner,
+};
 use mahfel_config::Settings;
 use mahfel_domain::NodeId;
 use mahfel_postgres::PostgresStores;
@@ -19,10 +22,21 @@ pub(super) fn app(
     shutdown: watch::Receiver<bool>,
 ) -> Result<Router> {
     let origin = settings::allowed_origin(settings)?;
-    let principal = settings::development_principal(settings)?;
     let stores = PostgresStores::new(database.pool.clone());
+
+    // One verifier serves both HTTP extraction and WebSocket upgrades.
+    let authentication: std::sync::Arc<dyn http::auth::RequestAuthenticator> =
+        Arc::new(http::auth::TokenAuthentication::new(
+            mahfel_auth::TokenVerifier::new(settings::jwt(settings)),
+        ));
+    // Provisioning is the only path that touches identity storage; linking
+    // writes the local user id onto the Keycloak identity.
+    let provisioner: Arc<dyn IdentityProvisioner> = Arc::new(stores.identities.clone());
+    let linker: Arc<dyn UserAttributeWriter> = Arc::new(mahfel_keycloak::KeycloakAdmin::new(
+        settings::keycloak(settings),
+    ));
     let realtime = http::ws::WsState::new(
-        Arc::new(http::ws::DevAuthenticator::new(principal.clone())),
+        Arc::clone(&authentication),
         http::ws::WsConfig::from(&settings.api.ws),
         telemetry.ws_metrics.clone(),
         shutdown,
@@ -32,7 +46,10 @@ pub(super) fn app(
         service: SERVICE,
         version: VERSION,
         node_id: node_id.to_string(),
-        auth: http::auth::AuthState::new(principal, Arc::new(AllowAuthenticated)),
+        auth: http::auth::AuthState::new(Arc::new(AllowAuthenticated)),
+        authentication,
+        provisioner,
+        linker,
         rooms: stores.rooms,
         realtime,
     };
