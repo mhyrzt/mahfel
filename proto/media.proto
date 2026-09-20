@@ -89,10 +89,16 @@ message ConsumeRequest {
   string room_id = 1;
   string participant_id = 2;
   string producer_id = 3;
+  string transport_id = 4;
+  // JSON-encoded RtpCapabilities from mediasoup-client Device.rtpCapabilities
+  string rtp_capabilities = 5;
 }
 
 message ConsumeResponse {
   string consumer_id = 1;
+  // JSON-encoded RtpParameters for the consumer
+  string rtp_parameters = 2;
+  bool paused = 3;
 }
 
 message PauseConsumerRequest {

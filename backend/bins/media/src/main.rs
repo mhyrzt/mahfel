@@ -51,13 +51,14 @@ impl MediaControl for MediaControlService {
         let active_rooms = u64::try_from(self.media.room_count().await).unwrap_or(u64::MAX);
         let transports = u64::try_from(self.media.transport_count().await).unwrap_or(u64::MAX);
         let producers = u64::try_from(self.media.producer_count().await).unwrap_or(u64::MAX);
+        let consumers = u64::try_from(self.media.consumer_count().await).unwrap_or(u64::MAX);
         Ok(Response::new(GetNodeStatsResponse {
             active_workers: u32::try_from(self.media.active_workers()).unwrap_or(u32::MAX),
             active_rooms,
             participants: 0,
             transports,
             producers,
-            consumers: 0,
+            consumers,
         }))
     }
 
@@ -191,21 +192,101 @@ impl MediaControl for MediaControlService {
     }
     async fn consume(
         &self,
-        _: Request<ConsumeRequest>,
+        request: Request<ConsumeRequest>,
     ) -> Result<Response<ConsumeResponse>, Status> {
-        planned()
+        let inner = request.into_inner();
+        let room_id = inner.room_id.trim().to_owned();
+        let participant_id = inner.participant_id.trim().to_owned();
+        let producer_id = inner.producer_id.trim().to_owned();
+        let transport_id = inner.transport_id.trim().to_owned();
+        let rtp_capabilities = inner.rtp_capabilities.trim().to_owned();
+        if room_id.is_empty()
+            || participant_id.is_empty()
+            || producer_id.is_empty()
+            || transport_id.is_empty()
+            || rtp_capabilities.is_empty()
+        {
+            return Err(Status::invalid_argument(
+                "room_id, participant_id, producer_id, transport_id and rtp_capabilities must not be empty",
+            ));
+        }
+        let (consumer_id, rtp_parameters, paused) = self
+            .media
+            .create_consumer(
+                &room_id,
+                &transport_id,
+                &participant_id,
+                &producer_id,
+                &rtp_capabilities,
+            )
+            .await
+            .map_err(|e| match e {
+                mahfel_rtc::RtcError::RoomNotFound(_)
+                | mahfel_rtc::RtcError::TransportNotFound(_)
+                | mahfel_rtc::RtcError::ProducerNotFound(_) => Status::not_found(e.to_string()),
+                mahfel_rtc::RtcError::RtpCapabilities(_) => Status::invalid_argument(e.to_string()),
+                _ => {
+                    tracing::error!(%room_id, %producer_id, error=%e, "consume failed");
+                    Status::internal("consumer creation failed")
+                }
+            })?;
+        Ok(Response::new(ConsumeResponse {
+            consumer_id,
+            rtp_parameters,
+            paused,
+        }))
     }
+
     async fn pause_consumer(
         &self,
-        _: Request<PauseConsumerRequest>,
+        request: Request<PauseConsumerRequest>,
     ) -> Result<Response<PauseConsumerResponse>, Status> {
-        planned()
+        let inner = request.into_inner();
+        let room_id = inner.room_id.trim().to_owned();
+        let consumer_id = inner.consumer_id.trim().to_owned();
+        if room_id.is_empty() || consumer_id.is_empty() {
+            return Err(Status::invalid_argument(
+                "room_id and consumer_id must not be empty",
+            ));
+        }
+        self.media
+            .pause_consumer(&room_id, &consumer_id)
+            .await
+            .map_err(|e| match e {
+                mahfel_rtc::RtcError::ConsumerNotFound(_)
+                | mahfel_rtc::RtcError::RoomNotFound(_) => Status::not_found(e.to_string()),
+                _ => {
+                    tracing::error!(%room_id, %consumer_id, error=%e, "pause_consumer failed");
+                    Status::internal("pause failed")
+                }
+            })?;
+        Ok(Response::new(PauseConsumerResponse {}))
     }
+
     async fn resume_consumer(
         &self,
-        _: Request<ResumeConsumerRequest>,
+        request: Request<ResumeConsumerRequest>,
     ) -> Result<Response<ResumeConsumerResponse>, Status> {
-        planned()
+        let inner = request.into_inner();
+        let room_id = inner.room_id.trim().to_owned();
+        let consumer_id = inner.consumer_id.trim().to_owned();
+        if room_id.is_empty() || consumer_id.is_empty() {
+            return Err(Status::invalid_argument(
+                "room_id and consumer_id must not be empty",
+            ));
+        }
+        self.media
+            .resume_consumer(&room_id, &consumer_id)
+            .await
+            .map_err(|e| match e {
+                mahfel_rtc::RtcError::ConsumerNotFound(_)
+                | mahfel_rtc::RtcError::RoomNotFound(_) => Status::not_found(e.to_string()),
+                _ => {
+                    tracing::error!(%room_id, %consumer_id, error=%e, "resume_consumer failed");
+                    Status::internal("resume failed")
+                }
+            })?;
+        Ok(Response::new(ResumeConsumerResponse {}))
     }
     async fn close_participant(
         &self,
@@ -275,10 +356,16 @@ async fn main() -> Result<()> {
         "Number of active producers",
     ))?;
     registry.register(Box::new(active_producers_gauge.clone()))?;
+    let active_consumers_gauge = IntGauge::with_opts(Opts::new(
+        "media_active_consumers",
+        "Number of active consumers",
+    ))?;
+    registry.register(Box::new(active_consumers_gauge.clone()))?;
     active_workers_gauge.set(i64::try_from(media.active_workers()).unwrap_or(0));
     active_rooms_gauge.set(i64::try_from(media.room_count().await).unwrap_or(0));
     active_transports_gauge.set(i64::try_from(media.transport_count().await).unwrap_or(0));
     active_producers_gauge.set(i64::try_from(media.producer_count().await).unwrap_or(0));
+    active_consumers_gauge.set(i64::try_from(media.consumer_count().await).unwrap_or(0));
 
     let expected_workers = media.active_workers();
     let health_probe = health.clone();
@@ -288,6 +375,7 @@ async fn main() -> Result<()> {
     let rooms_gauge_probe = active_rooms_gauge.clone();
     let transports_gauge_probe = active_transports_gauge.clone();
     let producers_gauge_probe = active_producers_gauge.clone();
+    let consumers_gauge_probe = active_consumers_gauge.clone();
 
     health.set_check("grpc", true).await;
     // Initial readiness requires at least one active worker.
@@ -319,6 +407,8 @@ async fn main() -> Result<()> {
                             .set(i64::try_from(media.transport_count().await).unwrap_or(0));
                         producers_gauge_probe
                             .set(i64::try_from(media.producer_count().await).unwrap_or(0));
+                        consumers_gauge_probe
+                            .set(i64::try_from(media.consumer_count().await).unwrap_or(0));
                         if active < last_active {
                             let delta = last_active - active;
                             failures_probe.inc_by(f64::from(u32::try_from(delta).unwrap_or(0)));

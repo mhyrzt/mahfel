@@ -4,10 +4,10 @@ pub use codecs::media_codecs;
 
 use mediasoup::{
     prelude::{
-        DtlsParameters, IceCandidate, IceParameters, ListenInfo, MediaKind, Producer,
-        ProducerOptions, Protocol, Router, RtpParameters, Transport, WebRtcServer,
-        WebRtcServerListenInfos, WebRtcServerOptions, WebRtcTransport, WebRtcTransportOptions,
-        WebRtcTransportRemoteParameters,
+        Consumer, ConsumerOptions, DtlsParameters, IceCandidate, IceParameters, ListenInfo,
+        MediaKind, Producer, ProducerOptions, Protocol, Router, RtpCapabilities, RtpParameters,
+        Transport, WebRtcServer, WebRtcServerListenInfos, WebRtcServerOptions, WebRtcTransport,
+        WebRtcTransportOptions, WebRtcTransportRemoteParameters,
     },
     router::RouterOptions,
     worker::{CreateRouterError, Worker, WorkerSettings},
@@ -46,6 +46,7 @@ pub struct MediaRuntime {
     routers: Arc<RwLock<HashMap<String, RouterEntry>>>,
     transports: Arc<RwLock<HashMap<String, TransportEntry>>>,
     producers: Arc<RwLock<HashMap<String, ProducerEntry>>>,
+    consumers: Arc<RwLock<HashMap<String, ConsumerEntry>>>,
     next_worker: Arc<AtomicUsize>,
 }
 
@@ -66,6 +67,15 @@ struct ProducerEntry {
     producer: Producer,
     room_id: String,
     transport_id: String,
+    participant_id: String,
+}
+
+#[allow(dead_code)]
+struct ConsumerEntry {
+    consumer: Consumer,
+    room_id: String,
+    transport_id: String,
+    producer_id: String,
     participant_id: String,
 }
 
@@ -105,6 +115,12 @@ pub enum RtcError {
     Producer(String),
     #[error("producer not found: {0}")]
     ProducerNotFound(String),
+    #[error("invalid RTP capabilities: {0}")]
+    RtpCapabilities(String),
+    #[error("consumer creation failed: {0}")]
+    Consumer(String),
+    #[error("consumer not found: {0}")]
+    ConsumerNotFound(String),
 }
 
 impl MediaRuntime {
@@ -180,6 +196,7 @@ impl MediaRuntime {
             routers: Arc::new(RwLock::new(HashMap::new())),
             transports: Arc::new(RwLock::new(HashMap::new())),
             producers: Arc::new(RwLock::new(HashMap::new())),
+            consumers: Arc::new(RwLock::new(HashMap::new())),
             next_worker: Arc::new(AtomicUsize::new(0)),
         })
     }
@@ -208,6 +225,10 @@ impl MediaRuntime {
 
     pub async fn producer_count(&self) -> usize {
         self.producers.read().await.len()
+    }
+
+    pub async fn consumer_count(&self) -> usize {
+        self.consumers.read().await.len()
     }
 
     /// Idempotent create: returns true if newly created, false if already existed.
@@ -242,11 +263,13 @@ impl MediaRuntime {
             routers.remove(room_id)
         };
         if entry.is_some() {
-            // Cleanup transports and producers belonging to this room.
+            // Cleanup transports, producers and consumers belonging to this room.
             let mut transports = self.transports.write().await;
             transports.retain(|_, v| v.room_id != room_id);
             let mut producers = self.producers.write().await;
             producers.retain(|_, v| v.room_id != room_id);
+            let mut consumers = self.consumers.write().await;
+            consumers.retain(|_, v| v.room_id != room_id);
             true
         } else {
             false
@@ -386,5 +409,117 @@ impl MediaRuntime {
             .await
             .insert(producer_id.clone(), entry);
         Ok(producer_id)
+    }
+
+    /// Create a consumer paused-first. Validates producer, transport and RTP capabilities.
+    pub async fn create_consumer(
+        &self,
+        room_id: &str,
+        transport_id: &str,
+        participant_id: &str,
+        producer_id: &str,
+        rtp_capabilities_json: &str,
+    ) -> Result<(String, String, bool), RtcError> {
+        let rtp_capabilities: RtpCapabilities = serde_json::from_str(rtp_capabilities_json)
+            .map_err(|e| RtcError::RtpCapabilities(e.to_string()))?;
+
+        // Validate room exists
+        let router = {
+            let routers = self.routers.read().await;
+            let entry = routers
+                .get(room_id)
+                .ok_or_else(|| RtcError::RoomNotFound(room_id.to_owned()))?;
+            entry.router.clone()
+        };
+        // Validate producer exists and belongs to same room
+        {
+            let producers = self.producers.read().await;
+            let pentry = producers
+                .get(producer_id)
+                .ok_or_else(|| RtcError::ProducerNotFound(producer_id.to_owned()))?;
+            if pentry.room_id != room_id {
+                return Err(RtcError::ProducerNotFound(producer_id.to_owned()));
+            }
+            // Check can consume
+            let producer_id_typed: mediasoup::prelude::ProducerId = producer_id
+                .parse()
+                .map_err(|_| RtcError::ProducerNotFound(producer_id.to_owned()))?;
+            if !router.can_consume(&producer_id_typed, &rtp_capabilities) {
+                return Err(RtcError::Consumer(
+                    "cannot consume with given RTP capabilities".to_owned(),
+                ));
+            }
+        }
+        // Validate transport
+        let transport = {
+            let transports = self.transports.read().await;
+            let entry = transports
+                .get(transport_id)
+                .ok_or_else(|| RtcError::TransportNotFound(transport_id.to_owned()))?;
+            if entry.room_id != room_id || entry.participant_id != participant_id {
+                return Err(RtcError::TransportNotFound(transport_id.to_owned()));
+            }
+            entry.transport.clone()
+        };
+
+        let producer_id_typed: mediasoup::prelude::ProducerId = producer_id
+            .parse()
+            .map_err(|_| RtcError::ProducerNotFound(producer_id.to_owned()))?;
+        let mut options = ConsumerOptions::new(producer_id_typed, rtp_capabilities);
+        options.paused = true;
+
+        let consumer = transport
+            .consume(options)
+            .await
+            .map_err(|e| RtcError::Consumer(e.to_string()))?;
+
+        let rtp_parameters_json = serde_json::to_string(consumer.rtp_parameters())
+            .map_err(|e| RtcError::Consumer(e.to_string()))?;
+        let paused = consumer.paused();
+        let consumer_id = consumer.id().to_string();
+        let entry = ConsumerEntry {
+            consumer,
+            room_id: room_id.to_owned(),
+            transport_id: transport_id.to_owned(),
+            producer_id: producer_id.to_owned(),
+            participant_id: participant_id.to_owned(),
+        };
+        self.consumers
+            .write()
+            .await
+            .insert(consumer_id.clone(), entry);
+        Ok((consumer_id, rtp_parameters_json, paused))
+    }
+
+    pub async fn pause_consumer(&self, room_id: &str, consumer_id: &str) -> Result<(), RtcError> {
+        let consumers = self.consumers.read().await;
+        let entry = consumers
+            .get(consumer_id)
+            .ok_or_else(|| RtcError::ConsumerNotFound(consumer_id.to_owned()))?;
+        if entry.room_id != room_id {
+            return Err(RtcError::ConsumerNotFound(consumer_id.to_owned()));
+        }
+        entry
+            .consumer
+            .pause()
+            .await
+            .map_err(|e| RtcError::Consumer(e.to_string()))?;
+        Ok(())
+    }
+
+    pub async fn resume_consumer(&self, room_id: &str, consumer_id: &str) -> Result<(), RtcError> {
+        let consumers = self.consumers.read().await;
+        let entry = consumers
+            .get(consumer_id)
+            .ok_or_else(|| RtcError::ConsumerNotFound(consumer_id.to_owned()))?;
+        if entry.room_id != room_id {
+            return Err(RtcError::ConsumerNotFound(consumer_id.to_owned()));
+        }
+        entry
+            .consumer
+            .resume()
+            .await
+            .map_err(|e| RtcError::Consumer(e.to_string()))?;
+        Ok(())
     }
 }
