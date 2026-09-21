@@ -54,6 +54,27 @@ below, and connected time is recorded durably in `mahfel.participation_intervals
 opens an interval, a leave or any transport disconnect closes it, and ending a session sweeps any
 interval still open so none outlives its session.
 
+## Invite links
+
+```mermaid
+sequenceDiagram
+  participant M as Manager browser
+  participant A as mahfel-api
+  participant P as PostgreSQL
+  M->>A: POST /v1/rooms/{room_id}/invite-links
+  A->>P: Require manager membership of the room
+  A->>P: Insert link (generated code, unique index decides)
+  A-->>M: 201 link with the canonical code
+  M->>A: POST /v1/invite-links/{link_id}/rotate
+  A->>P: Revoke previous and insert replacement in one transaction
+  A-->>M: 200 replacement link
+```
+
+Management is capability-gated for the target and audited. A code is a bearer capability, so its
+expiry and revocation are enforced on redemption rather than stored as a derived flag, and the code
+never appears in logs or metric labels (ADR 0021). Redemption and the confirmation flow that follows
+it belong to M4-14 (TASK-130).
+
 ## Session join
 
 ```mermaid

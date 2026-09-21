@@ -158,6 +158,48 @@ and audited. The capability model is the seam for these checks, and the transpor
 `GET /v1/sessions/{session_id}/participants/{participant_id}/participation`, and
 `POST /v1/participation/intervals/{interval_id}/correct`.
 
+### Invite links
+
+An invite link is a short, readable code that shares an entry path the way a meeting product does:
+paste a code, get in. It is a revocable bearer capability (ADR 0021), not a second access system.
+
+- **One namespace, one target.** `mahfel.invite_links` holds room links and session links in one
+  table, so a code resolves deterministically. A link targets exactly one room or one session, which
+  the domain models as a closed enum and the schema mirrors with a matching CHECK.
+- **The code is a capability, not a secret.** Codes are `xxx-yyyy-zzz` — ten lowercase letters — and
+  are stored plaintext because redemption looks them up directly. Protection comes from rate
+  limiting, bounded attempts, non-enumerating errors, audit, and log hygiene. Codes never appear in
+  structured logs, traces, or metric labels. Generation is rejection-sampled so every letter keeps
+  equal probability, and uniqueness is the database's job, with a bounded retry that reports
+  exhaustion rather than looping.
+- **Redemption normalizes before lookup.** Case and separators are discarded, so a mixed-case paste
+  or a code with spaces resolves to the same canonical value.
+- **Expiry is derived, not stored.** A link's redeemability is decided by the clock against
+  `expires_at` plus its status, so there is no sweep to run and no window where a stale status flag
+  is trusted. `Revoked` and `Expired` are both rejected on the redemption path, not only in the UI.
+- **Revocation is terminal; rotation is atomic.** Revoking twice is a conflict and never moves the
+  revocation time. Rotation revokes the previous row and inserts the replacement in one transaction,
+  so a reader observes exactly one live code. The previous row is retained, so the history shows what
+  was retired and when.
+- **Management is manager-gated.** Create, list, revoke, and rotate require management authority for
+  the target, resolved from the caller's own membership. A session link is authorized through its
+  room: the engine's model is that a session is managed by whoever manages its room.
+- **Attempts are counted in Redis.** The limiter is a fixed window per principal and per source
+  address, counted with `INCR` + `EXPIRE` behind the coordination port. It lives in Redis because the
+  window must be shared across replicas and is replaceable coordination state, not a business fact.
+  Identifiers reach the key space only as a digest, so the namespace cannot be read as a directory of
+  actors or addresses.
+
+`target_id` is deliberately not a foreign key: the target may be a room or a session, and link rows
+outlive their target's operational lifetime. Resolution looks the target up and fails closed when it
+is gone. Reaping stale links is intentionally deferred; the invariant is that a link with a missing
+target is never redeemable.
+
+Management endpoints are `POST`/`GET /v1/rooms/{room_id}/invite-links`,
+`POST`/`GET /v1/sessions/{session_id}/invite-links`, `POST /v1/invite-links/{link_id}/revoke`, and
+`POST /v1/invite-links/{link_id}/rotate`. Redemption and the confirmation flow that follows it are
+M4-14 (TASK-130).
+
 ## `mahfel-media`
 
 The Rust media plane hosts Tokio, the mediasoup Rust bindings, native mediasoup workers, routers,
