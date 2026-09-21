@@ -6,6 +6,7 @@
 //! here. This crate depends only on `mahfel-domain`.
 
 pub mod error;
+pub mod participation;
 pub mod policy;
 pub mod ports;
 pub mod rooms;

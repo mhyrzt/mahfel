@@ -3,6 +3,8 @@ pub(crate) mod echo;
 pub(crate) mod health;
 pub(crate) mod identity;
 pub(crate) mod openapi;
+pub(crate) mod participation;
+pub(crate) mod rfc3339;
 pub(crate) mod rooms;
 pub(crate) mod sessions;
 pub(crate) mod status;
@@ -32,6 +34,7 @@ pub(crate) fn router(state: AppState) -> Router {
         .merge(admin::route())
         .merge(rooms::route())
         .merge(sessions::route())
+        .merge(participation::route())
         .merge(ws::route())
         .merge(crate::http::turn::route())
         .route("/openapi.json", get(openapi))

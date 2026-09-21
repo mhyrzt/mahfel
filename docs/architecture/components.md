@@ -130,6 +130,34 @@ model. The durable identity, uniqueness, and history guarantees hold regardless 
 M1-06 (TASK-7) delivered the Redis coordination adapter but never wired connection state onto it;
 the fanout decision and the connection hub are M5-03.
 
+### Participation records
+
+Connected time is durable, not derived from ephemeral presence. `mahfel.participation_intervals`
+holds one row per connected stretch for a participant, keyed by `(participant_id, session_id,
+actor_id)` and referencing the durable participant rather than a transport.
+
+- **Intervals are append-only.** A correction does not overwrite the original; it marks the original
+  `superseded_by` a replacement and records a `correction_reason` from a closed set, so the original
+  measurement and the reason it changed both survive. Superseded intervals are excluded from totals,
+  and superseding an open interval also closes it, so it cannot satisfy the one-open-interval rule.
+- **At most one open interval per participant.** A partial unique index on `(participant_id) WHERE
+  ended_at IS NULL` makes this a database invariant, so a duplicated connect or a racing join
+  collides instead of recording two open stretches. Intervals for one participant therefore never
+  overlap.
+- **The reconnect policy is no grace.** A disconnect closes the interval immediately, and a reconnect
+  opens a new one against the same durable participant. Records fragment across a flaky connection,
+  but the aggregate is exact and there is no clock-skew window or expiry job to get wrong.
+- **No interval outlives its session.** Ending a session sweeps every open interval in it, stopping
+  the clock at the session end. Abrupt disconnects are covered because the WebSocket teardown closes
+  the interval on every exit path, not only a graceful `leave`.
+
+Queries are manager-scoped for a session summary and self-scoped for a participant's own history, so
+a client can show its own connected time without seeing anyone else's. Corrections are manager-only
+and audited. The capability model is the seam for these checks, and the transport endpoints are
+`GET /v1/sessions/{session_id}/participation`,
+`GET /v1/sessions/{session_id}/participants/{participant_id}/participation`, and
+`POST /v1/participation/intervals/{interval_id}/correct`.
+
 ## `mahfel-media`
 
 The Rust media plane hosts Tokio, the mediasoup Rust bindings, native mediasoup workers, routers,

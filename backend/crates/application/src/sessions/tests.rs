@@ -3,10 +3,13 @@ use super::{
     ScheduleSession, StartSession, cancel_session, end_session, get_session, join_session,
     leave_session, list_sessions, schedule_session, start_session,
 };
-use crate::ports::{BoxFuture, ParticipantStore, RoomStore, SessionStore, StoreError};
+use crate::ports::{
+    BoxFuture, ParticipantStore, ParticipationStore, RoomStore, SessionStore, StoreError,
+};
 use mahfel_domain::{
-    ActorId, Participant, ParticipantId, ParticipantStatus, Room, RoomId, RoomMember, RoomRole,
-    RoomTitle, RoomVisibility, Session, SessionError, SessionId, SessionStatus,
+    ActorId, IntervalId, Participant, ParticipantId, ParticipantStatus, ParticipationInterval,
+    Room, RoomId, RoomMember, RoomRole, RoomTitle, RoomVisibility, Session, SessionError,
+    SessionId, SessionStatus,
 };
 use std::sync::{Arc, Mutex};
 use time::OffsetDateTime;
@@ -255,6 +258,140 @@ fn scheduled(room_id: RoomId) -> Session {
     Session::schedule(room_id, None, OffsetDateTime::now_utc())
 }
 
+/// In-memory [`ParticipationStore`] mirroring the two database invariants the
+/// use cases rely on: at most one open interval per participant, and a
+/// correction that retains the superseded row.
+#[derive(Clone, Default)]
+struct FakeParticipationStore {
+    intervals: Arc<Mutex<Vec<ParticipationInterval>>>,
+}
+
+impl FakeParticipationStore {
+    fn intervals_for(&self, participant_id: ParticipantId) -> Vec<ParticipationInterval> {
+        self.intervals
+            .lock()
+            .expect("lock")
+            .iter()
+            .filter(|interval| interval.participant_id == participant_id)
+            .cloned()
+            .collect()
+    }
+}
+
+impl ParticipationStore for FakeParticipationStore {
+    fn open_interval<'a>(
+        &'a self,
+        interval: &'a ParticipationInterval,
+    ) -> BoxFuture<'a, Result<(), StoreError>> {
+        Box::pin(async move {
+            let mut intervals = self.intervals.lock().expect("lock");
+            if intervals.iter().any(|existing| {
+                existing.participant_id == interval.participant_id && existing.is_open()
+            }) {
+                return Err(StoreError::Conflict("already open".to_owned()));
+            }
+            intervals.push(interval.clone());
+            Ok(())
+        })
+    }
+
+    fn close_open_interval(
+        &self,
+        participant_id: ParticipantId,
+        ended_at: OffsetDateTime,
+    ) -> BoxFuture<'_, Result<Option<IntervalId>, StoreError>> {
+        Box::pin(async move {
+            let mut intervals = self.intervals.lock().expect("lock");
+            match intervals
+                .iter_mut()
+                .find(|interval| interval.participant_id == participant_id && interval.is_open())
+            {
+                Some(interval) => {
+                    interval.ended_at = Some(ended_at);
+                    Ok(Some(interval.id))
+                }
+                None => Ok(None),
+            }
+        })
+    }
+
+    fn close_open_intervals_for_session(
+        &self,
+        session_id: SessionId,
+        ended_at: OffsetDateTime,
+    ) -> BoxFuture<'_, Result<u64, StoreError>> {
+        Box::pin(async move {
+            let mut intervals = self.intervals.lock().expect("lock");
+            let mut closed = 0_u64;
+            for interval in intervals.iter_mut() {
+                if interval.session_id == session_id && interval.is_open() {
+                    interval.ended_at = Some(ended_at);
+                    closed += 1;
+                }
+            }
+            Ok(closed)
+        })
+    }
+
+    fn get(
+        &self,
+        id: IntervalId,
+    ) -> BoxFuture<'_, Result<Option<ParticipationInterval>, StoreError>> {
+        Box::pin(async move {
+            Ok(self
+                .intervals
+                .lock()
+                .expect("lock")
+                .iter()
+                .find(|interval| interval.id == id)
+                .cloned())
+        })
+    }
+
+    fn list_for_participant(
+        &self,
+        participant_id: ParticipantId,
+    ) -> BoxFuture<'_, Result<Vec<ParticipationInterval>, StoreError>> {
+        Box::pin(async move { Ok(self.intervals_for(participant_id)) })
+    }
+
+    fn list_for_session(
+        &self,
+        session_id: SessionId,
+    ) -> BoxFuture<'_, Result<Vec<ParticipationInterval>, StoreError>> {
+        Box::pin(async move {
+            Ok(self
+                .intervals
+                .lock()
+                .expect("lock")
+                .iter()
+                .filter(|interval| interval.session_id == session_id)
+                .cloned()
+                .collect())
+        })
+    }
+
+    fn supersede_interval<'a>(
+        &'a self,
+        original: &'a ParticipationInterval,
+        replacement: &'a ParticipationInterval,
+    ) -> BoxFuture<'a, Result<(), StoreError>> {
+        Box::pin(async move {
+            let mut intervals = self.intervals.lock().expect("lock");
+            let slot = intervals
+                .iter_mut()
+                .find(|interval| interval.id == original.id)
+                .ok_or_else(|| StoreError::NotFound(original.id.to_string()))?;
+            if slot.is_superseded() {
+                return Err(StoreError::Conflict("already superseded".to_owned()));
+            }
+            *slot = original.clone();
+            intervals.push(replacement.clone());
+            Ok(())
+        })
+    }
+}
+
 /// In-memory [`ParticipantStore`] mirroring the partial unique index that keeps
 /// one active participant per `(session, actor)`.
 #[derive(Clone, Default)]
@@ -345,6 +482,7 @@ fn live_fixture() -> (
     FakeRoomStore,
     FakeSessionStore,
     FakeParticipantStore,
+    FakeParticipationStore,
     Room,
     Session,
     ActorId,
@@ -352,20 +490,30 @@ fn live_fixture() -> (
     let rooms = FakeRoomStore::default();
     let sessions = FakeSessionStore::default();
     let participants = FakeParticipantStore::default();
+    let participation = FakeParticipationStore::default();
     let owner = actor();
     let room = rooms.seed_room(owner);
     let mut session = scheduled(room.id);
     session.start(OffsetDateTime::now_utc()).expect("start");
     sessions.seed(session.clone());
-    (rooms, sessions, participants, room, session, owner)
+    (
+        rooms,
+        sessions,
+        participants,
+        participation,
+        room,
+        session,
+        owner,
+    )
 }
 
 #[tokio::test]
 async fn reconnect_reuses_the_same_participant() {
-    let (rooms, sessions, participants, _room, session, owner) = live_fixture();
+    let (rooms, sessions, participants, participation, _room, session, owner) = live_fixture();
 
     let first = join_session(
         &participants,
+        &participation,
         &sessions,
         &rooms,
         JoinSession {
@@ -378,6 +526,7 @@ async fn reconnect_reuses_the_same_participant() {
 
     let second = join_session(
         &participants,
+        &participation,
         &sessions,
         &rooms,
         JoinSession {
@@ -402,12 +551,13 @@ async fn reconnect_reuses_the_same_participant() {
 
 #[tokio::test]
 async fn join_is_deny_by_default_for_non_members_of_private_rooms() {
-    let (rooms, sessions, participants, _room, session, owner) = live_fixture();
+    let (rooms, sessions, participants, participation, _room, session, owner) = live_fixture();
     let _ = owner;
     let outsider = actor();
 
     let denied = join_session(
         &participants,
+        &participation,
         &sessions,
         &rooms,
         JoinSession {
@@ -427,6 +577,7 @@ async fn non_members_may_join_public_rooms() {
     let rooms = FakeRoomStore::default();
     let sessions = FakeSessionStore::default();
     let participants = FakeParticipantStore::default();
+    let participation = FakeParticipationStore::default();
     let owner = actor();
     let room = rooms.seed_room_with_visibility(owner, RoomVisibility::Public);
     let mut session = scheduled(room.id);
@@ -435,6 +586,7 @@ async fn non_members_may_join_public_rooms() {
 
     let joined = join_session(
         &participants,
+        &participation,
         &sessions,
         &rooms,
         JoinSession {
@@ -452,6 +604,7 @@ async fn join_requires_a_live_session() {
     let rooms = FakeRoomStore::default();
     let sessions = FakeSessionStore::default();
     let participants = FakeParticipantStore::default();
+    let participation = FakeParticipationStore::default();
     let owner = actor();
     let room = rooms.seed_room(owner);
     let session = scheduled(room.id);
@@ -459,6 +612,7 @@ async fn join_requires_a_live_session() {
 
     let denied = join_session(
         &participants,
+        &participation,
         &sessions,
         &rooms,
         JoinSession {
@@ -472,9 +626,10 @@ async fn join_requires_a_live_session() {
 
 #[tokio::test]
 async fn leave_is_terminal_and_the_actor_can_rejoin() {
-    let (rooms, sessions, participants, _room, session, owner) = live_fixture();
+    let (rooms, sessions, participants, participation, _room, session, owner) = live_fixture();
     let joined = join_session(
         &participants,
+        &participation,
         &sessions,
         &rooms,
         JoinSession {
@@ -487,6 +642,7 @@ async fn leave_is_terminal_and_the_actor_can_rejoin() {
 
     leave_session(
         &participants,
+        &participation,
         LeaveSession {
             actor: owner,
             participant_id: joined.id,
@@ -506,6 +662,7 @@ async fn leave_is_terminal_and_the_actor_can_rejoin() {
 
     let rejoined = join_session(
         &participants,
+        &participation,
         &sessions,
         &rooms,
         JoinSession {
@@ -521,9 +678,10 @@ async fn leave_is_terminal_and_the_actor_can_rejoin() {
 
 #[tokio::test]
 async fn leaving_another_actors_participant_is_not_found() {
-    let (rooms, sessions, participants, _room, session, owner) = live_fixture();
+    let (rooms, sessions, participants, participation, _room, session, owner) = live_fixture();
     let joined = join_session(
         &participants,
+        &participation,
         &sessions,
         &rooms,
         JoinSession {
@@ -536,6 +694,7 @@ async fn leaving_another_actors_participant_is_not_found() {
 
     let denied = leave_session(
         &participants,
+        &participation,
         LeaveSession {
             actor: actor(),
             participant_id: joined.id,
@@ -593,6 +752,7 @@ async fn non_manager_is_denied_and_non_member_is_hidden() {
 async fn invalid_transition_is_rejected_without_state_change() {
     let rooms = FakeRoomStore::default();
     let sessions = FakeSessionStore::default();
+    let participation = FakeParticipationStore::default();
     let owner = actor();
     let room = rooms.seed_room(owner);
 
@@ -603,6 +763,7 @@ async fn invalid_transition_is_rejected_without_state_change() {
     let ended = end_session(
         &sessions,
         &rooms,
+        &participation,
         EndSession {
             actor: owner,
             session_id: session.id,
@@ -653,6 +814,7 @@ async fn invalid_transition_is_rejected_without_state_change() {
 async fn manager_can_schedule_start_end_and_cancel() {
     let rooms = FakeRoomStore::default();
     let sessions = FakeSessionStore::default();
+    let participation = FakeParticipationStore::default();
     let owner = actor();
     let room = rooms.seed_room(owner);
 
@@ -684,6 +846,7 @@ async fn manager_can_schedule_start_end_and_cancel() {
     let ended = end_session(
         &sessions,
         &rooms,
+        &participation,
         EndSession {
             actor: owner,
             session_id: live.id,

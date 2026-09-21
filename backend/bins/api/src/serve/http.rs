@@ -53,6 +53,8 @@ pub(super) fn app(
         Arc::new(stores.sessions.clone());
     let participants: Arc<dyn mahfel_application::ports::ParticipantStore> =
         Arc::new(stores.participants.clone());
+    let participation: Arc<dyn mahfel_application::ports::ParticipationStore> =
+        Arc::new(stores.participation.clone());
     let realtime = http::ws::WsState::new(
         Arc::clone(&authentication),
         http::ws::WsConfig::from(&settings.api.ws),
@@ -60,6 +62,7 @@ pub(super) fn app(
         Arc::clone(&media),
         http::ws::ParticipationStores {
             participants: Arc::clone(&participants),
+            participation: Arc::clone(&participation),
             sessions: Arc::clone(&sessions),
             rooms: Arc::clone(&rooms),
         },
@@ -78,6 +81,7 @@ pub(super) fn app(
         linker,
         rooms,
         sessions,
+        participation,
         realtime,
         turn: settings.turn.clone(),
     };

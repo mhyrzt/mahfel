@@ -73,6 +73,26 @@ pub(super) async fn run(
         state,
     )
     .await;
+
+    // A transport can vanish without a `leave` frame: a dropped socket, a
+    // heartbeat timeout, a write failure, or a server shutdown. Close the
+    // durable interval here so connected time is recorded for every exit path,
+    // not only a graceful leave (AC 5). `leave` already closed it when the
+    // client left explicitly, and closing is idempotent.
+    if let Some((_, participant_id)) = registry.participation(id)
+        && let Err(error) = state
+            .stores
+            .participation
+            .close_open_interval(participant_id, time::OffsetDateTime::now_utc())
+            .await
+    {
+        tracing::warn!(
+            ?error,
+            participant_id = %participant_id,
+            "failed to close participation interval on disconnect"
+        );
+    }
+
     drop(registration);
     // The loop only ends by returning an error; an `Ok` completion is
     // unreachable and mapped defensively.
