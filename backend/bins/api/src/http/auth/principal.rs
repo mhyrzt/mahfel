@@ -1,15 +1,15 @@
 use super::verification::AuthenticationError;
 use mahfel_application::ports::Principal;
-use mahfel_auth::AuthenticatedIdentity;
+use mahfel_auth::{AuthenticatedIdentity, PrincipalKind};
 use mahfel_domain::{ActorId, ActorKind};
 use uuid::Uuid;
 
 /// Build the principal from verified claims.
 ///
 /// The local actor id comes from `app_user_id`, which provisioning injects into
-/// the token. The optional `app_principal_kind` claim selects the actor kind;
-/// an absent or unknown value is treated as `user`, so a malformed claim cannot
-/// widen access. There is no database lookup here.
+/// the token. The actor kind comes from [`AuthenticatedIdentity::kind`], which
+/// already normalizes an absent or unknown `app_principal_kind` to `user`, so a
+/// malformed claim cannot widen access. There is no database lookup here.
 pub fn principal_from_claims(
     claims: &AuthenticatedIdentity,
 ) -> Result<Principal, AuthenticationError> {
@@ -19,9 +19,9 @@ pub fn principal_from_claims(
         .and_then(|value| Uuid::parse_str(value).ok())
         .map(ActorId::from_uuid)
         .ok_or(AuthenticationError::NotProvisioned)?;
-    let kind = match claims.app_principal_kind.as_deref() {
-        Some("service") => ActorKind::Service,
-        _ => ActorKind::User,
+    let kind = match claims.kind() {
+        PrincipalKind::Service => ActorKind::Service,
+        PrincipalKind::User => ActorKind::User,
     };
     Ok(Principal {
         actor_id,

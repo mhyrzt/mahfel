@@ -59,15 +59,10 @@ where
 }
 
 fn principal_from_service(principal: ServicePrincipal) -> Principal {
-    let display_name = principal
-        .display_name
-        .as_ref()
-        .map(|name| name.as_str().to_owned())
-        .or_else(|| Some(principal.name.as_str().to_owned()));
     Principal {
+        display_name: Some(principal.display_name().to_string()),
         actor_id: principal.id,
         kind: ActorKind::Service,
-        display_name,
         avatar_url: None,
         email: None,
         email_verified: false,

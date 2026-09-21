@@ -5,6 +5,8 @@
 //! administrator token can. Raw API keys are returned once, on create and
 //! rotate, and are never logged.
 
+pub(crate) mod dto;
+
 use crate::http::{
     auth::{self, Authenticated},
     error::{ApiError, api_error_from},
@@ -17,14 +19,15 @@ use axum::{
     http::StatusCode,
     routing::{delete, get, post},
 };
+use dto::{
+    CreateServicePrincipalRequest, CreatedServicePrincipalResponse,
+    RotatedServicePrincipalKeyResponse, ServicePrincipalResponse,
+};
 use mahfel_application::ports::Action;
 use mahfel_application::service_principals::{
     CreateServicePrincipal, CreateServicePrincipalError, ListServicePrincipalsError,
     RevokeServicePrincipalError, RotateServicePrincipalKey, RotateServicePrincipalKeyError,
 };
-use mahfel_domain::ServicePrincipal;
-use serde::{Deserialize, Serialize};
-use utoipa::ToSchema;
 use uuid::Uuid;
 
 api_error_from!(
@@ -33,52 +36,6 @@ api_error_from!(
     RotateServicePrincipalKeyError,
     RevokeServicePrincipalError,
 );
-
-#[derive(Debug, Deserialize, ToSchema)]
-pub(crate) struct CreateServicePrincipalRequest {
-    pub(crate) name: String,
-    #[serde(default)]
-    pub(crate) display_name: Option<String>,
-}
-
-#[derive(Debug, Serialize, ToSchema)]
-pub(crate) struct ServicePrincipalResponse {
-    pub(crate) id: String,
-    pub(crate) name: String,
-    pub(crate) display_name: Option<String>,
-    pub(crate) status: String,
-}
-
-impl ServicePrincipalResponse {
-    fn from_principal(principal: &ServicePrincipal) -> Self {
-        Self {
-            id: principal.id.to_string(),
-            name: principal.name.as_str().to_owned(),
-            display_name: principal
-                .display_name
-                .as_ref()
-                .map(|name| name.as_str().to_owned()),
-            status: principal.status.as_str().to_owned(),
-        }
-    }
-}
-
-#[derive(Serialize, ToSchema)]
-pub(crate) struct CreatedServicePrincipalResponse {
-    pub(crate) id: String,
-    pub(crate) name: String,
-    pub(crate) display_name: Option<String>,
-    pub(crate) status: String,
-    /// Raw API key, returned exactly once and never stored in the clear.
-    pub(crate) api_key: String,
-}
-
-#[derive(Serialize, ToSchema)]
-pub(crate) struct RotatedServicePrincipalKeyResponse {
-    pub(crate) id: String,
-    /// New raw API key, returned exactly once and never stored in the clear.
-    pub(crate) api_key: String,
-}
 
 #[utoipa::path(
     post,
@@ -106,18 +63,10 @@ pub(crate) async fn create<R: RoomStoreState>(
             display_name: body.display_name,
         })
         .await?;
-    let response = CreatedServicePrincipalResponse {
-        id: created.principal.id.to_string(),
-        name: created.principal.name.as_str().to_owned(),
-        display_name: created
-            .principal
-            .display_name
-            .as_ref()
-            .map(|name| name.as_str().to_owned()),
-        status: created.principal.status.as_str().to_owned(),
-        api_key: created.api_key,
-    };
-    Ok((StatusCode::CREATED, Json(response)))
+    Ok((
+        StatusCode::CREATED,
+        Json(CreatedServicePrincipalResponse::from(created)),
+    ))
 }
 
 #[utoipa::path(
@@ -139,7 +88,7 @@ pub(crate) async fn list<R: RoomStoreState>(
     Ok(Json(
         principals
             .iter()
-            .map(ServicePrincipalResponse::from_principal)
+            .map(ServicePrincipalResponse::from)
             .collect(),
     ))
 }
@@ -169,10 +118,7 @@ pub(crate) async fn rotate<R: RoomStoreState>(
             id: mahfel_domain::ActorId::from_uuid(id),
         })
         .await?;
-    Ok(Json(RotatedServicePrincipalKeyResponse {
-        id: rotated.principal.id.to_string(),
-        api_key: rotated.api_key,
-    }))
+    Ok(Json(RotatedServicePrincipalKeyResponse::from(rotated)))
 }
 
 #[utoipa::path(

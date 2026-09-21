@@ -88,6 +88,15 @@ impl ServicePrincipal {
     pub fn is_active(&self) -> bool {
         self.status == ServicePrincipalStatus::Active
     }
+
+    /// The operator-facing label for this principal.
+    ///
+    /// Prefers the human-readable `display_name` and falls back to the unique
+    /// `name`, so callers never have to reimplement the precedence.
+    #[must_use]
+    pub fn display_name(&self) -> &DisplayName {
+        self.display_name.as_ref().unwrap_or(&self.name)
+    }
 }
 
 status_conversion!(ActorKind, "actor", { User => "user", Service => "service" });
@@ -137,5 +146,18 @@ mod tests {
             principal.revoke(now).expect_err("already revoked"),
             ServicePrincipalError::AlreadyRevoked
         );
+    }
+
+    #[test]
+    fn display_name_prefers_label_and_falls_back_to_name() {
+        let labelled = principal();
+        assert_eq!(labelled.display_name().as_str(), "LMS Core");
+
+        let unlabelled = ServicePrincipal::create(
+            DisplayName::new("lms-core".to_owned()).expect("valid name"),
+            None,
+            OffsetDateTime::now_utc(),
+        );
+        assert_eq!(unlabelled.display_name().as_str(), "lms-core");
     }
 }

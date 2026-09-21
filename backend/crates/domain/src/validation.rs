@@ -49,6 +49,12 @@ impl DisplayName {
     }
 }
 
+impl std::fmt::Display for DisplayName {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str(&self.0)
+    }
+}
+
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct RoomTitle(String);

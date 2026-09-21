@@ -33,6 +33,32 @@ pub struct AuthenticatedIdentity {
     pub roles: Vec<String>,
 }
 
+/// The acting principal's kind, as normalized from the provider claims.
+///
+/// Education- and transport-agnostic: authorization consumes this instead of
+/// re-parsing the raw claim string.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub enum PrincipalKind {
+    #[default]
+    User,
+    Service,
+}
+
+impl AuthenticatedIdentity {
+    /// The principal kind this token asserts.
+    ///
+    /// An absent claim, or a value that is not `user` or `service`, resolves to
+    /// [`PrincipalKind::User`] so a malformed claim can never widen access to a
+    /// machine actor.
+    #[must_use]
+    pub fn kind(&self) -> PrincipalKind {
+        match self.app_principal_kind.as_deref() {
+            Some("service") => PrincipalKind::Service,
+            _ => PrincipalKind::User,
+        }
+    }
+}
+
 #[derive(Debug, Error)]
 pub enum ClaimsError {
     #[error("OIDC claims do not contain a subject")]
@@ -156,6 +182,7 @@ pub fn normalize_claims(claims: &Value) -> Result<AuthenticatedIdentity, ClaimsE
 
 #[cfg(test)]
 mod tests {
+    use super::PrincipalKind;
     use super::normalize_claims;
     use serde_json::json;
 
@@ -241,5 +268,36 @@ mod tests {
         }))
         .expect("valid claims");
         assert!(unknown.app_principal_kind.is_none());
+        assert_eq!(unknown.kind(), PrincipalKind::User);
+    }
+
+    #[test]
+    fn kind_defaults_to_user_and_only_accepts_service() {
+        let absent = normalize_claims(&json!({ "sub": "teacher" })).expect("valid claims");
+        assert_eq!(absent.kind(), PrincipalKind::User);
+
+        let explicit_user =
+            normalize_claims(&json!({ "sub": "teacher", "app_principal_kind": "user" }))
+                .expect("valid claims");
+        assert_eq!(explicit_user.kind(), PrincipalKind::User);
+
+        let service = normalize_claims(&json!({
+            "sub": "lms-core",
+            "app_principal_kind": "service"
+        }))
+        .expect("valid claims");
+        assert_eq!(service.kind(), PrincipalKind::Service);
+
+        // A malformed claim must never resolve to a machine actor.
+        for hostile in ["admin", "SERVICE", "Service", "", "service "] {
+            let identity =
+                normalize_claims(&json!({ "sub": "teacher", "app_principal_kind": hostile }))
+                    .expect("valid claims");
+            assert_eq!(
+                identity.kind(),
+                PrincipalKind::User,
+                "malformed kind {hostile:?} must not widen access"
+            );
+        }
     }
 }
