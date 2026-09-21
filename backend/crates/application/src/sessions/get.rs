@@ -51,8 +51,8 @@ pub async fn get_session<R, S>(
     command: GetSession,
 ) -> Result<Session, GetSessionError>
 where
-    R: SessionStore,
-    S: RoomStore,
+    R: SessionStore + ?Sized,
+    S: RoomStore + ?Sized,
 {
     let session = sessions
         .get(command.session_id)

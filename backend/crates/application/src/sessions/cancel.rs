@@ -55,8 +55,8 @@ pub async fn cancel_session<R, S>(
     command: CancelSession,
 ) -> Result<Session, CancelSessionError>
 where
-    R: SessionStore,
-    S: RoomStore,
+    R: SessionStore + ?Sized,
+    S: RoomStore + ?Sized,
 {
     let mut session = sessions
         .get(command.session_id)

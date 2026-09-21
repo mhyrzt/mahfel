@@ -2,7 +2,7 @@ use super::{
     CancelSession, EndSession, GetSession, ListSessions, ScheduleSession, StartSession,
     cancel_session, end_session, get_session, list_sessions, schedule_session, start_session,
 };
-use crate::ports::{RoomStore, SessionStore, StoreError};
+use crate::ports::{BoxFuture, RoomStore, SessionStore, StoreError};
 use mahfel_domain::{
     ActorId, Room, RoomId, RoomMember, RoomRole, RoomTitle, RoomVisibility, Session, SessionError,
     SessionId, SessionStatus,
@@ -46,95 +46,117 @@ impl FakeRoomStore {
 }
 
 impl RoomStore for FakeRoomStore {
-    async fn get(&self, id: RoomId) -> Result<Option<Room>, StoreError> {
-        Ok(self
-            .rooms
-            .lock()
-            .expect("lock")
-            .iter()
-            .find(|room| room.id == id)
-            .cloned())
+    fn get(&self, id: RoomId) -> BoxFuture<'_, Result<Option<Room>, StoreError>> {
+        Box::pin(async move {
+            Ok(self
+                .rooms
+                .lock()
+                .expect("lock")
+                .iter()
+                .find(|room| room.id == id)
+                .cloned())
+        })
     }
 
-    async fn insert(&self, room: &Room) -> Result<(), StoreError> {
-        self.rooms.lock().expect("lock").push(room.clone());
-        Ok(())
+    fn insert<'a>(&'a self, room: &'a Room) -> BoxFuture<'a, Result<(), StoreError>> {
+        Box::pin(async move {
+            self.rooms.lock().expect("lock").push(room.clone());
+            Ok(())
+        })
     }
 
-    async fn save(&self, room: &Room) -> Result<(), StoreError> {
-        let mut rooms = self.rooms.lock().expect("lock");
-        let slot = rooms
-            .iter_mut()
-            .find(|existing| existing.id == room.id)
-            .ok_or_else(|| StoreError::NotFound(room.id.to_string()))?;
-        *slot = room.clone();
-        Ok(())
+    fn save<'a>(&'a self, room: &'a Room) -> BoxFuture<'a, Result<(), StoreError>> {
+        Box::pin(async move {
+            let mut rooms = self.rooms.lock().expect("lock");
+            let slot = rooms
+                .iter_mut()
+                .find(|existing| existing.id == room.id)
+                .ok_or_else(|| StoreError::NotFound(room.id.to_string()))?;
+            *slot = room.clone();
+            Ok(())
+        })
     }
 
-    async fn create_with_manager(
-        &self,
-        room: &Room,
-        manager: &RoomMember,
-    ) -> Result<(), StoreError> {
-        self.rooms.lock().expect("lock").push(room.clone());
-        self.members.lock().expect("lock").push(manager.clone());
-        Ok(())
+    fn create_with_manager<'a>(
+        &'a self,
+        room: &'a Room,
+        manager: &'a RoomMember,
+    ) -> BoxFuture<'a, Result<(), StoreError>> {
+        Box::pin(async move {
+            self.rooms.lock().expect("lock").push(room.clone());
+            self.members.lock().expect("lock").push(manager.clone());
+            Ok(())
+        })
     }
 
-    async fn list_for_member(
+    fn list_for_member(
         &self,
         actor_id: ActorId,
         _limit: u64,
         _offset: u64,
-    ) -> Result<Vec<Room>, StoreError> {
-        let rooms = self.rooms.lock().expect("lock");
-        let members = self.members.lock().expect("lock");
-        Ok(rooms
-            .iter()
-            .filter(|room| {
-                members
-                    .iter()
-                    .any(|member| member.room_id == room.id && member.actor_id == actor_id)
-            })
-            .cloned()
-            .collect())
+    ) -> BoxFuture<'_, Result<Vec<Room>, StoreError>> {
+        Box::pin(async move {
+            let rooms = self.rooms.lock().expect("lock");
+            let members = self.members.lock().expect("lock");
+            Ok(rooms
+                .iter()
+                .filter(|room| {
+                    members
+                        .iter()
+                        .any(|member| member.room_id == room.id && member.actor_id == actor_id)
+                })
+                .cloned()
+                .collect())
+        })
     }
 
-    async fn get_member(
+    fn get_member(
         &self,
         room_id: RoomId,
         actor_id: ActorId,
-    ) -> Result<Option<RoomMember>, StoreError> {
-        Ok(self
-            .members
-            .lock()
-            .expect("lock")
-            .iter()
-            .find(|member| member.room_id == room_id && member.actor_id == actor_id)
-            .cloned())
+    ) -> BoxFuture<'_, Result<Option<RoomMember>, StoreError>> {
+        Box::pin(async move {
+            Ok(self
+                .members
+                .lock()
+                .expect("lock")
+                .iter()
+                .find(|member| member.room_id == room_id && member.actor_id == actor_id)
+                .cloned())
+        })
     }
 
-    async fn list_members(&self, room_id: RoomId) -> Result<Vec<RoomMember>, StoreError> {
-        Ok(self
-            .members
-            .lock()
-            .expect("lock")
-            .iter()
-            .filter(|member| member.room_id == room_id)
-            .cloned()
-            .collect())
+    fn list_members(&self, room_id: RoomId) -> BoxFuture<'_, Result<Vec<RoomMember>, StoreError>> {
+        Box::pin(async move {
+            Ok(self
+                .members
+                .lock()
+                .expect("lock")
+                .iter()
+                .filter(|member| member.room_id == room_id)
+                .cloned()
+                .collect())
+        })
     }
 
-    async fn add_member(&self, member: &RoomMember) -> Result<(), StoreError> {
-        self.members.lock().expect("lock").push(member.clone());
-        Ok(())
+    fn add_member<'a>(&'a self, member: &'a RoomMember) -> BoxFuture<'a, Result<(), StoreError>> {
+        Box::pin(async move {
+            self.members.lock().expect("lock").push(member.clone());
+            Ok(())
+        })
     }
 
-    async fn remove_member(&self, room_id: RoomId, actor_id: ActorId) -> Result<bool, StoreError> {
-        let mut members = self.members.lock().expect("lock");
-        let before = members.len();
-        members.retain(|member| !(member.room_id == room_id && member.actor_id == actor_id));
-        Ok(members.len() < before)
+    fn remove_member(
+        &self,
+        room_id: RoomId,
+        actor_id: ActorId,
+    ) -> BoxFuture<'_, Result<bool, StoreError>> {
+        Box::pin(async move {
+            let mut members = self.members.lock().expect("lock");
+            let before = members.len();
+            members.retain(|member| !(member.room_id == room_id && member.actor_id == actor_id));
+            Ok(members.len() < before)
+        })
     }
 }
 
@@ -167,47 +189,56 @@ impl FakeSessionStore {
 }
 
 impl SessionStore for FakeSessionStore {
-    async fn get(&self, id: SessionId) -> Result<Option<Session>, StoreError> {
-        Ok(self
-            .sessions
-            .lock()
-            .expect("lock")
-            .iter()
-            .find(|session| session.id == id)
-            .cloned())
+    fn get(&self, id: SessionId) -> BoxFuture<'_, Result<Option<Session>, StoreError>> {
+        Box::pin(async move {
+            Ok(self
+                .sessions
+                .lock()
+                .expect("lock")
+                .iter()
+                .find(|session| session.id == id)
+                .cloned())
+        })
     }
 
-    async fn insert(&self, session: &Session) -> Result<(), StoreError> {
-        if session.status == SessionStatus::Live && self.has_live(session.room_id, None) {
-            return Err(StoreError::Conflict("live session exists".to_owned()));
-        }
-        self.sessions.lock().expect("lock").push(session.clone());
-        Ok(())
+    fn insert<'a>(&'a self, session: &'a Session) -> BoxFuture<'a, Result<(), StoreError>> {
+        Box::pin(async move {
+            if session.status == SessionStatus::Live && self.has_live(session.room_id, None) {
+                return Err(StoreError::Conflict("live session exists".to_owned()));
+            }
+            self.sessions.lock().expect("lock").push(session.clone());
+            Ok(())
+        })
     }
 
-    async fn save(&self, session: &Session) -> Result<(), StoreError> {
-        if session.status == SessionStatus::Live && self.has_live(session.room_id, Some(session.id))
-        {
-            return Err(StoreError::Conflict("live session exists".to_owned()));
-        }
-        let mut sessions = self.sessions.lock().expect("lock");
-        let slot = sessions
-            .iter_mut()
-            .find(|existing| existing.id == session.id)
-            .ok_or_else(|| StoreError::NotFound(session.id.to_string()))?;
-        *slot = session.clone();
-        Ok(())
+    fn save<'a>(&'a self, session: &'a Session) -> BoxFuture<'a, Result<(), StoreError>> {
+        Box::pin(async move {
+            if session.status == SessionStatus::Live
+                && self.has_live(session.room_id, Some(session.id))
+            {
+                return Err(StoreError::Conflict("live session exists".to_owned()));
+            }
+            let mut sessions = self.sessions.lock().expect("lock");
+            let slot = sessions
+                .iter_mut()
+                .find(|existing| existing.id == session.id)
+                .ok_or_else(|| StoreError::NotFound(session.id.to_string()))?;
+            *slot = session.clone();
+            Ok(())
+        })
     }
 
-    async fn list_for_room(&self, room_id: RoomId) -> Result<Vec<Session>, StoreError> {
-        Ok(self
-            .sessions
-            .lock()
-            .expect("lock")
-            .iter()
-            .filter(|session| session.room_id == room_id)
-            .cloned()
-            .collect())
+    fn list_for_room(&self, room_id: RoomId) -> BoxFuture<'_, Result<Vec<Session>, StoreError>> {
+        Box::pin(async move {
+            Ok(self
+                .sessions
+                .lock()
+                .expect("lock")
+                .iter()
+                .filter(|session| session.room_id == room_id)
+                .cloned()
+                .collect())
+        })
     }
 }
 

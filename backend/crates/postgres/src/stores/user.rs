@@ -1,6 +1,6 @@
 use crate::DatabaseError;
 use crate::stores::store_error;
-use mahfel_application::ports::{StoreError, UserStore};
+use mahfel_application::ports::{BoxFuture, StoreError, UserStore};
 use mahfel_domain::{ActorId, AvatarUrl, DisplayName, User};
 use sqlx::{FromRow, PgPool};
 use time::OffsetDateTime;
@@ -29,68 +29,74 @@ pub(crate) struct UserRow {
 }
 
 impl UserStore for PostgresUserStore {
-    async fn get(&self, id: ActorId) -> Result<Option<User>, StoreError> {
-        let row = sqlx::query_as::<_, UserRow>(
-            "SELECT id, display_name, status, created_at, updated_at, avatar_url \
-             FROM mahfel.users WHERE id = $1",
-        )
-        .bind(id.as_uuid())
-        .fetch_optional(&self.pool)
-        .await
-        .map_err(store_error)?;
+    fn get(&self, id: ActorId) -> BoxFuture<'_, Result<Option<User>, StoreError>> {
+        Box::pin(async move {
+            let row = sqlx::query_as::<_, UserRow>(
+                "SELECT id, display_name, status, created_at, updated_at, avatar_url \
+                 FROM mahfel.users WHERE id = $1",
+            )
+            .bind(id.as_uuid())
+            .fetch_optional(&self.pool)
+            .await
+            .map_err(store_error)?;
 
-        row.map(|row| User::try_from(row).map_err(store_error))
-            .transpose()
+            row.map(|row| User::try_from(row).map_err(store_error))
+                .transpose()
+        })
     }
 
-    async fn insert(&self, user: &User) -> Result<(), StoreError> {
-        // A user and its actor row share an id and must be created together so
-        // no user can exist without a matching actor.
-        let mut transaction = self.pool.begin().await.map_err(store_error)?;
-        sqlx::query(
-            "INSERT INTO mahfel.actors (id, kind, created_at, updated_at) \
-             VALUES ($1, 'user', $2, $2)",
-        )
-        .bind(user.id.as_uuid())
-        .bind(user.created_at)
-        .execute(&mut *transaction)
-        .await
-        .map_err(store_error)?;
-        sqlx::query(
-            "INSERT INTO mahfel.users (id, display_name, status, created_at, updated_at, avatar_url) \
-             VALUES ($1, $2, $3, $4, $4, $5)",
-        )
-        .bind(user.id.as_uuid())
-        .bind(user.display_name.as_str())
-        .bind(user.status.as_str())
-        .bind(user.created_at)
-        .bind(user.avatar_url.as_ref().map(AvatarUrl::as_str))
-        .execute(&mut *transaction)
-        .await
-        .map_err(store_error)?;
-        transaction.commit().await.map_err(store_error)?;
-        Ok(())
+    fn insert<'a>(&'a self, user: &'a User) -> BoxFuture<'a, Result<(), StoreError>> {
+        Box::pin(async move {
+            // A user and its actor row share an id and must be created together so
+            // no user can exist without a matching actor.
+            let mut transaction = self.pool.begin().await.map_err(store_error)?;
+            sqlx::query(
+                "INSERT INTO mahfel.actors (id, kind, created_at, updated_at) \
+                 VALUES ($1, 'user', $2, $2)",
+            )
+            .bind(user.id.as_uuid())
+            .bind(user.created_at)
+            .execute(&mut *transaction)
+            .await
+            .map_err(store_error)?;
+            sqlx::query(
+                "INSERT INTO mahfel.users (id, display_name, status, created_at, updated_at, avatar_url) \
+                 VALUES ($1, $2, $3, $4, $4, $5)",
+            )
+            .bind(user.id.as_uuid())
+            .bind(user.display_name.as_str())
+            .bind(user.status.as_str())
+            .bind(user.created_at)
+            .bind(user.avatar_url.as_ref().map(AvatarUrl::as_str))
+            .execute(&mut *transaction)
+            .await
+            .map_err(store_error)?;
+            transaction.commit().await.map_err(store_error)?;
+            Ok(())
+        })
     }
 
-    async fn save(&self, user: &User) -> Result<(), StoreError> {
-        let result = sqlx::query(
-            "UPDATE mahfel.users \
-             SET display_name = $2, status = $3, updated_at = $4, avatar_url = $5 \
-             WHERE id = $1",
-        )
-        .bind(user.id.as_uuid())
-        .bind(user.display_name.as_str())
-        .bind(user.status.as_str())
-        .bind(user.updated_at)
-        .bind(user.avatar_url.as_ref().map(AvatarUrl::as_str))
-        .execute(&self.pool)
-        .await
-        .map_err(store_error)?;
+    fn save<'a>(&'a self, user: &'a User) -> BoxFuture<'a, Result<(), StoreError>> {
+        Box::pin(async move {
+            let result = sqlx::query(
+                "UPDATE mahfel.users \
+                 SET display_name = $2, status = $3, updated_at = $4, avatar_url = $5 \
+                 WHERE id = $1",
+            )
+            .bind(user.id.as_uuid())
+            .bind(user.display_name.as_str())
+            .bind(user.status.as_str())
+            .bind(user.updated_at)
+            .bind(user.avatar_url.as_ref().map(AvatarUrl::as_str))
+            .execute(&self.pool)
+            .await
+            .map_err(store_error)?;
 
-        if result.rows_affected() == 0 {
-            return Err(StoreError::NotFound(user.id.to_string()));
-        }
-        Ok(())
+            if result.rows_affected() == 0 {
+                return Err(StoreError::NotFound(user.id.to_string()));
+            }
+            Ok(())
+        })
     }
 }
 

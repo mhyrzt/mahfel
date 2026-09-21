@@ -39,7 +39,7 @@ pub(crate) async fn require_manager<R>(
     actor: ActorId,
 ) -> Result<Room, ManagerGuardError>
 where
-    R: RoomStore,
+    R: RoomStore + ?Sized,
 {
     let room = rooms
         .get(room_id)

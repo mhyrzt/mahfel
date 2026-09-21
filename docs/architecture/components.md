@@ -51,8 +51,10 @@ and `/v1/sessions/{session_id}/{start,end,cancel}`); service principals particip
 managers of the rooms they own, and every lifecycle action writes a structured audit log. Reading a
 room's sessions is manager-scoped in this task and moves to the capability model in M4-04. Domain
 types remain independent of SQLx; the `mahfel-postgres` adapters (`Postgres*Store`) implement the
-application ports and own SQL mapping. Authentication identities, permissions, participation records,
-and chat remain separate later milestones.
+application ports and own SQL mapping. Ports return boxed futures and are dyn-compatible, so the
+transport holds one `Arc<dyn Port>` per capability rather than a generic parameter per store
+(ADR 0023). Authentication identities, permissions, participation records, and chat remain separate
+later milestones.
 
 Authorization is deny-by-default behind an `Authorizer` seam in `mahfel-application`: the transport
 attaches a `Principal`, the policy decides coarse actions, and room-scoped membership checks live in

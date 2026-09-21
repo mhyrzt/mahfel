@@ -55,8 +55,8 @@ pub async fn start_session<R, S>(
     command: StartSession,
 ) -> Result<Session, StartSessionError>
 where
-    R: SessionStore,
-    S: RoomStore,
+    R: SessionStore + ?Sized,
+    S: RoomStore + ?Sized,
 {
     let mut session = sessions
         .get(command.session_id)

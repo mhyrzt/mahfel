@@ -34,7 +34,7 @@ impl ApplicationError for JoinRoomError {
 /// `NotFound`. An archived room is closed to new members.
 pub async fn join_room<R>(rooms: &R, id: RoomId, actor: ActorId) -> Result<Room, JoinRoomError>
 where
-    R: RoomStore,
+    R: RoomStore + ?Sized,
 {
     let room = rooms.get(id).await?.ok_or(JoinRoomError::NotFound)?;
     if rooms.get_member(id, actor).await?.is_some() {

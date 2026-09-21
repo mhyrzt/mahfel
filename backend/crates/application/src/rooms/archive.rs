@@ -45,7 +45,7 @@ pub async fn archive_room<R>(
     actor: ActorId,
 ) -> Result<Room, ArchiveRoomError>
 where
-    R: RoomStore,
+    R: RoomStore + ?Sized,
 {
     let mut room = super::require_manager(rooms, room_id, actor).await?;
     room.archive(OffsetDateTime::now_utc())?;

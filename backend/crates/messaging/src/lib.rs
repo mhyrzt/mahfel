@@ -1,5 +1,5 @@
 use lapin::{BasicProperties, Connection, ConnectionProperties, options::BasicPublishOptions};
-use mahfel_application::ports::{DomainEvent, EventPublisher, PublishError};
+use mahfel_application::ports::{BoxFuture, DomainEvent, EventPublisher, PublishError};
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -32,28 +32,30 @@ impl RabbitMqEventPublisher {
 }
 
 impl EventPublisher for RabbitMqEventPublisher {
-    async fn publish(&self, event: DomainEvent) -> Result<(), PublishError> {
-        let channel = self
-            .connection
-            .create_channel()
-            .await
-            .map_err(PublishError::transport)?;
+    fn publish(&self, event: DomainEvent) -> BoxFuture<'_, Result<(), PublishError>> {
+        Box::pin(async move {
+            let channel = self
+                .connection
+                .create_channel()
+                .await
+                .map_err(PublishError::transport)?;
 
-        let payload = serde_json::to_vec(&event).map_err(PublishError::transport)?;
+            let payload = serde_json::to_vec(&event).map_err(PublishError::transport)?;
 
-        channel
-            .basic_publish(
-                "mahfel.events".into(),
-                event.kind.as_str().into(),
-                BasicPublishOptions::default(),
-                &payload,
-                BasicProperties::default(),
-            )
-            .await
-            .map_err(PublishError::transport)?
-            .await
-            .map_err(PublishError::transport)?;
+            channel
+                .basic_publish(
+                    "mahfel.events".into(),
+                    event.kind.as_str().into(),
+                    BasicPublishOptions::default(),
+                    &payload,
+                    BasicProperties::default(),
+                )
+                .await
+                .map_err(PublishError::transport)?
+                .await
+                .map_err(PublishError::transport)?;
 
-        Ok(())
+            Ok(())
+        })
     }
 }

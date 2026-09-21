@@ -1,3 +1,4 @@
+use super::BoxFuture;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use uuid::Uuid;
@@ -31,9 +32,8 @@ impl PublishError {
     }
 }
 
+/// Publishes domain events. Methods return [`BoxFuture`] so the port is
+/// dyn-compatible.
 pub trait EventPublisher: Send + Sync {
-    fn publish(
-        &self,
-        event: DomainEvent,
-    ) -> impl std::future::Future<Output = Result<(), PublishError>> + Send;
+    fn publish(&self, event: DomainEvent) -> BoxFuture<'_, Result<(), PublishError>>;
 }

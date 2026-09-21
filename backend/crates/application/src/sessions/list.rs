@@ -52,8 +52,8 @@ pub async fn list_sessions<R, S>(
     command: ListSessions,
 ) -> Result<Vec<Session>, ListSessionsError>
 where
-    R: SessionStore,
-    S: RoomStore,
+    R: SessionStore + ?Sized,
+    S: RoomStore + ?Sized,
 {
     require_manager(rooms, command.room_id, command.actor).await?;
     Ok(sessions.list_for_room(command.room_id).await?)

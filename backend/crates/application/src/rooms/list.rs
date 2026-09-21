@@ -26,7 +26,7 @@ pub async fn list_joined<R>(
     offset: u64,
 ) -> Result<Vec<Room>, ListRoomsError>
 where
-    R: RoomStore,
+    R: RoomStore + ?Sized,
 {
     Ok(rooms.list_for_member(actor, limit, offset).await?)
 }

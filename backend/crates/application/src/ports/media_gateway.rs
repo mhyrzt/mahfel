@@ -1,3 +1,4 @@
+use super::BoxFuture;
 use mahfel_domain::RoomId;
 use thiserror::Error;
 
@@ -15,13 +16,10 @@ impl MediaGatewayError {
     }
 }
 
+/// Media-plane control. Methods return [`BoxFuture`] so the port is
+/// dyn-compatible.
 pub trait MediaGateway: Send + Sync {
-    fn create_room(
-        &self,
-        room: RoomId,
-    ) -> impl std::future::Future<Output = Result<(), MediaGatewayError>> + Send;
-    fn close_room(
-        &self,
-        room: RoomId,
-    ) -> impl std::future::Future<Output = Result<(), MediaGatewayError>> + Send;
+    fn create_room(&self, room: RoomId) -> BoxFuture<'_, Result<(), MediaGatewayError>>;
+
+    fn close_room(&self, room: RoomId) -> BoxFuture<'_, Result<(), MediaGatewayError>>;
 }

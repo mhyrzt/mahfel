@@ -33,7 +33,7 @@ impl ApplicationError for CreateRoomError {
 /// Create a room and make its creator the first manager, atomically.
 pub async fn create_room<R>(rooms: &R, command: CreateRoom) -> Result<Room, CreateRoomError>
 where
-    R: RoomStore,
+    R: RoomStore + ?Sized,
 {
     let title = RoomTitle::new(command.title)?;
     let now = OffsetDateTime::now_utc();

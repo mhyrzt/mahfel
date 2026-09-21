@@ -56,8 +56,8 @@ pub async fn schedule_session<R, S>(
     command: ScheduleSession,
 ) -> Result<Session, ScheduleSessionError>
 where
-    R: SessionStore,
-    S: RoomStore,
+    R: SessionStore + ?Sized,
+    S: RoomStore + ?Sized,
 {
     require_manager(rooms, command.room_id, command.actor).await?;
     let session = Session::schedule(

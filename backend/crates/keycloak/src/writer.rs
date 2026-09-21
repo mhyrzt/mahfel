@@ -1,6 +1,5 @@
 use crate::KeycloakAdmin;
-use mahfel_application::ports::{AttributeError, UserAttributeWriter};
-use std::{future::Future, pin::Pin};
+use mahfel_application::ports::{AttributeError, BoxFuture, UserAttributeWriter};
 
 impl From<crate::error::KeycloakError> for AttributeError {
     fn from(error: crate::error::KeycloakError) -> Self {
@@ -19,7 +18,7 @@ impl UserAttributeWriter for KeycloakAdmin {
         user_id: &'a str,
         name: &'a str,
         value: &'a str,
-    ) -> Pin<Box<dyn Future<Output = Result<(), AttributeError>> + Send + 'a>> {
+    ) -> BoxFuture<'a, Result<(), AttributeError>> {
         Box::pin(async move {
             KeycloakAdmin::set_user_attribute(self, user_id, name, value)
                 .await

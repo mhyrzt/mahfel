@@ -55,8 +55,8 @@ pub async fn end_session<R, S>(
     command: EndSession,
 ) -> Result<Session, EndSessionError>
 where
-    R: SessionStore,
-    S: RoomStore,
+    R: SessionStore + ?Sized,
+    S: RoomStore + ?Sized,
 {
     let mut session = sessions
         .get(command.session_id)

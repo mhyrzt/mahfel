@@ -27,7 +27,7 @@ pub async fn get_room<R>(
     actor: ActorId,
 ) -> Result<Option<Room>, GetRoomError>
 where
-    R: RoomStore,
+    R: RoomStore + ?Sized,
 {
     let Some(room) = rooms.get(id).await? else {
         return Ok(None);

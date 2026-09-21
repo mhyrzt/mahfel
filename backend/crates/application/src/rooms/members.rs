@@ -52,7 +52,7 @@ pub async fn add_member<R>(
     role: RoomRole,
 ) -> Result<RoomMember, AddMemberError>
 where
-    R: RoomStore,
+    R: RoomStore + ?Sized,
 {
     super::require_manager(rooms, room_id, actor).await?;
     let member = RoomMember::new(room_id, target, role, OffsetDateTime::now_utc());
@@ -107,7 +107,7 @@ pub async fn remove_member<R>(
     target: ActorId,
 ) -> Result<(), RemoveMemberError>
 where
-    R: RoomStore,
+    R: RoomStore + ?Sized,
 {
     super::require_manager(rooms, room_id, actor).await?;
     let members = rooms.list_members(room_id).await?;

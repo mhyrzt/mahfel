@@ -56,7 +56,7 @@ pub async fn update_settings<R>(
     command: UpdateRoom,
 ) -> Result<Room, UpdateRoomError>
 where
-    R: RoomStore,
+    R: RoomStore + ?Sized,
 {
     let mut room = super::require_manager(rooms, room_id, actor).await?;
     let now = OffsetDateTime::now_utc();

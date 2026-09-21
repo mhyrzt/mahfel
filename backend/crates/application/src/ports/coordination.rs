@@ -4,8 +4,9 @@
 //! and an outage must surface as [`CoordinationError::Unavailable`] so callers
 //! degrade instead of treating the request as malformed.
 
+use super::BoxFuture;
 use crate::error::{ApplicationError, ErrorKind};
-use std::{future::Future, time::Duration};
+use std::time::Duration;
 use thiserror::Error;
 
 /// Ephemeral coordination failure.
@@ -33,29 +34,28 @@ impl ApplicationError for CoordinationError {
 ///
 /// Keys are namespaced by the adapter; values are opaque bytes. The port stays
 /// deliberately small — subscribe stream semantics are adapter-specific until a
-/// consumer needs a substitution seam.
+/// consumer needs a substitution seam. Methods return [`BoxFuture`] so the port
+/// is dyn-compatible.
 pub trait CoordinationStore: Send + Sync {
     /// Store a value that expires after `ttl`.
-    fn set_with_ttl(
-        &self,
-        key: &str,
-        value: &[u8],
+    fn set_with_ttl<'a>(
+        &'a self,
+        key: &'a str,
+        value: &'a [u8],
         ttl: Duration,
-    ) -> impl Future<Output = Result<(), CoordinationError>> + Send;
+    ) -> BoxFuture<'a, Result<(), CoordinationError>>;
 
     /// Read a value, if present and unexpired.
-    fn get(
-        &self,
-        key: &str,
-    ) -> impl Future<Output = Result<Option<Vec<u8>>, CoordinationError>> + Send;
+    fn get<'a>(&'a self, key: &'a str)
+    -> BoxFuture<'a, Result<Option<Vec<u8>>, CoordinationError>>;
 
     /// Remove a value.
-    fn delete(&self, key: &str) -> impl Future<Output = Result<(), CoordinationError>> + Send;
+    fn delete<'a>(&'a self, key: &'a str) -> BoxFuture<'a, Result<(), CoordinationError>>;
 
     /// Publish a payload to a fan-out channel.
-    fn publish(
-        &self,
-        channel: &str,
-        payload: &[u8],
-    ) -> impl Future<Output = Result<(), CoordinationError>> + Send;
+    fn publish<'a>(
+        &'a self,
+        channel: &'a str,
+        payload: &'a [u8],
+    ) -> BoxFuture<'a, Result<(), CoordinationError>>;
 }
