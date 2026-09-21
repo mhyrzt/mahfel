@@ -8,6 +8,7 @@
 mod actor;
 mod identity;
 mod ids;
+mod invite;
 mod participant;
 mod participation;
 mod room;
@@ -21,6 +22,10 @@ pub use actor::{
 };
 pub use identity::{Identity, IdentityId};
 pub use ids::NodeId;
+pub use invite::{
+    DEFAULT_EXPIRY_DAYS, InviteCode, InviteLink, InviteLinkError, InviteLinkId, InviteLinkStatus,
+    InviteTarget, InviteTargetKind, MAX_EXPIRY_DAYS,
+};
 pub use participant::{Participant, ParticipantError, ParticipantId, ParticipantStatus};
 pub use participation::{
     CorrectionReason, IntervalError, IntervalId, ParticipationInterval, intervals_overlap,
