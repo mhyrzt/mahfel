@@ -1,4 +1,4 @@
-use crate::http::state::{AppState, RoomStoreState};
+use crate::http::state::AppState;
 use axum::{Json, Router, extract::State, routing::get};
 use serde::Serialize;
 use utoipa::ToSchema;
@@ -10,8 +10,8 @@ pub(crate) struct StatusResponse {
     node_id: String,
 }
 
-pub(crate) fn route<R: RoomStoreState>() -> Router<AppState<R>> {
-    Router::new().route("/status", get(status::<R>))
+pub(crate) fn route() -> Router<AppState> {
+    Router::new().route("/status", get(status))
 }
 
 #[utoipa::path(
@@ -20,9 +20,7 @@ pub(crate) fn route<R: RoomStoreState>() -> Router<AppState<R>> {
     tag = "status",
     responses((status = 200, description = "Service status", body = StatusResponse)),
 )]
-pub(crate) async fn status<R: RoomStoreState>(
-    State(state): State<AppState<R>>,
-) -> Json<StatusResponse> {
+pub(crate) async fn status(State(state): State<AppState>) -> Json<StatusResponse> {
     Json(StatusResponse {
         service: state.service,
         version: state.version,

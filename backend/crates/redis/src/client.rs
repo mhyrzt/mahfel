@@ -2,7 +2,7 @@ use crate::{
     error::RedisError, keys::Keys, metrics::RedisMetrics, settings::RedisConnectionSettings,
 };
 use futures_util::StreamExt;
-use mahfel_application::ports::{CoordinationError, CoordinationStore};
+use mahfel_application::ports::{BoxFuture, CoordinationError, CoordinationStore};
 use redis::aio::ConnectionManager;
 use std::time::Duration;
 use tokio::{sync::mpsc, time::timeout};
@@ -116,69 +116,84 @@ impl RedisCoordination {
 }
 
 impl CoordinationStore for RedisCoordination {
-    async fn set_with_ttl(
-        &self,
-        key: &str,
-        value: &[u8],
+    fn set_with_ttl<'a>(
+        &'a self,
+        key: &'a str,
+        value: &'a [u8],
         ttl: Duration,
-    ) -> Result<(), CoordinationError> {
-        let mut connection = self.manager.clone();
-        let milliseconds = u64::try_from(ttl.as_millis()).unwrap_or(u64::MAX);
-        let result = timeout(
-            self.command_timeout,
-            redis::cmd("SET")
-                .arg(key)
-                .arg(value)
-                .arg("PX")
-                .arg(milliseconds)
-                .query_async::<String>(&mut connection),
-        )
-        .await;
-        self.finish(result)
-            .map(|_| ())
-            .map_err(CoordinationError::from)
+    ) -> BoxFuture<'a, Result<(), CoordinationError>> {
+        Box::pin(async move {
+            let mut connection = self.manager.clone();
+            let milliseconds = u64::try_from(ttl.as_millis()).unwrap_or(u64::MAX);
+            let result = timeout(
+                self.command_timeout,
+                redis::cmd("SET")
+                    .arg(key)
+                    .arg(value)
+                    .arg("PX")
+                    .arg(milliseconds)
+                    .query_async::<String>(&mut connection),
+            )
+            .await;
+            self.finish(result)
+                .map(|_| ())
+                .map_err(CoordinationError::from)
+        })
     }
 
-    async fn get(&self, key: &str) -> Result<Option<Vec<u8>>, CoordinationError> {
-        let mut connection = self.manager.clone();
-        let result = timeout(
-            self.command_timeout,
-            redis::cmd("GET")
-                .arg(key)
-                .query_async::<Option<Vec<u8>>>(&mut connection),
-        )
-        .await;
-        self.finish(result).map_err(CoordinationError::from)
+    fn get<'a>(
+        &'a self,
+        key: &'a str,
+    ) -> BoxFuture<'a, Result<Option<Vec<u8>>, CoordinationError>> {
+        Box::pin(async move {
+            let mut connection = self.manager.clone();
+            let result = timeout(
+                self.command_timeout,
+                redis::cmd("GET")
+                    .arg(key)
+                    .query_async::<Option<Vec<u8>>>(&mut connection),
+            )
+            .await;
+            self.finish(result).map_err(CoordinationError::from)
+        })
     }
 
-    async fn delete(&self, key: &str) -> Result<(), CoordinationError> {
-        let mut connection = self.manager.clone();
-        let result = timeout(
-            self.command_timeout,
-            redis::cmd("DEL")
-                .arg(key)
-                .query_async::<i64>(&mut connection),
-        )
-        .await;
-        self.finish(result)
-            .map(|_| ())
-            .map_err(CoordinationError::from)
+    fn delete<'a>(&'a self, key: &'a str) -> BoxFuture<'a, Result<(), CoordinationError>> {
+        Box::pin(async move {
+            let mut connection = self.manager.clone();
+            let result = timeout(
+                self.command_timeout,
+                redis::cmd("DEL")
+                    .arg(key)
+                    .query_async::<i64>(&mut connection),
+            )
+            .await;
+            self.finish(result)
+                .map(|_| ())
+                .map_err(CoordinationError::from)
+        })
     }
 
-    async fn publish(&self, channel: &str, payload: &[u8]) -> Result<(), CoordinationError> {
-        let mut connection = self.manager.clone();
-        let result = timeout(
-            self.command_timeout,
-            redis::cmd("PUBLISH")
-                .arg(channel)
-                .arg(payload)
-                .query_async::<i64>(&mut connection),
-        )
-        .await;
-        let outcome = self.finish(result);
-        if outcome.is_ok() {
-            self.metrics.message_published();
-        }
-        outcome.map(|_| ()).map_err(CoordinationError::from)
+    fn publish<'a>(
+        &'a self,
+        channel: &'a str,
+        payload: &'a [u8],
+    ) -> BoxFuture<'a, Result<(), CoordinationError>> {
+        Box::pin(async move {
+            let mut connection = self.manager.clone();
+            let result = timeout(
+                self.command_timeout,
+                redis::cmd("PUBLISH")
+                    .arg(channel)
+                    .arg(payload)
+                    .query_async::<i64>(&mut connection),
+            )
+            .await;
+            let outcome = self.finish(result);
+            if outcome.is_ok() {
+                self.metrics.message_published();
+            }
+            outcome.map(|_| ()).map_err(CoordinationError::from)
+        })
     }
 }

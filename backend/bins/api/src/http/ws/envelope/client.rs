@@ -18,6 +18,12 @@ pub enum ClientMessage {
     Broadcast {
         text: String,
     },
+    // --- Session participation (M4-02) ---
+    /// A reconnect resolves to the same participant as an earlier join.
+    Join {
+        session_id: String,
+    },
+    Leave {},
     // --- RTC signaling (M3-06) ---
     CreateTransport {
         room_id: String,

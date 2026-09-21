@@ -1,6 +1,6 @@
 //! Administrative management of service principals.
 //!
-//! Every endpoint requires [`Action::ManageSystem`]. A service principal holds
+//! Every endpoint requires [`Capability::ManageSystem`]. A service principal holds
 //! no global roles, so it can never manage other principals; only an
 //! administrator token can. Raw API keys are returned once, on create and
 //! rotate, and are never logged.
@@ -11,7 +11,7 @@ use crate::http::{
     auth::{self, Authenticated},
     error::{ApiError, api_error_from},
     extractor::{ValidatedJson, ValidatedPath},
-    state::{AppState, RoomStoreState},
+    state::AppState,
 };
 use axum::{
     Json, Router,
@@ -23,7 +23,7 @@ use dto::{
     CreateServicePrincipalRequest, CreatedServicePrincipalResponse,
     RotatedServicePrincipalKeyResponse, ServicePrincipalResponse,
 };
-use mahfel_application::ports::Action;
+use mahfel_application::ports::Capability;
 use mahfel_application::service_principals::{
     CreateServicePrincipal, CreateServicePrincipalError, ListServicePrincipalsError,
     RevokeServicePrincipalError, RotateServicePrincipalKey, RotateServicePrincipalKeyError,
@@ -50,12 +50,12 @@ api_error_from!(
         (status = 422, description = "Invalid name"),
     ),
 )]
-pub(crate) async fn create<R: RoomStoreState>(
-    State(state): State<AppState<R>>,
+pub(crate) async fn create(
+    State(state): State<AppState>,
     Authenticated(principal): Authenticated,
     ValidatedJson(body): ValidatedJson<CreateServicePrincipalRequest>,
 ) -> Result<(StatusCode, Json<CreatedServicePrincipalResponse>), ApiError> {
-    auth::authorize(&state, &principal, Action::ManageSystem)?;
+    auth::authorize_global(&state, &principal, Capability::ManageSystem)?;
     let created = state
         .service_principals
         .create(CreateServicePrincipal {
@@ -79,11 +79,11 @@ pub(crate) async fn create<R: RoomStoreState>(
         (status = 403, description = "Permission denied"),
     ),
 )]
-pub(crate) async fn list<R: RoomStoreState>(
-    State(state): State<AppState<R>>,
+pub(crate) async fn list(
+    State(state): State<AppState>,
     Authenticated(principal): Authenticated,
 ) -> Result<Json<Vec<ServicePrincipalResponse>>, ApiError> {
-    auth::authorize(&state, &principal, Action::ManageSystem)?;
+    auth::authorize_global(&state, &principal, Capability::ManageSystem)?;
     let principals = state.service_principals.list().await?;
     Ok(Json(
         principals
@@ -106,12 +106,12 @@ pub(crate) async fn list<R: RoomStoreState>(
         (status = 409, description = "Service principal is revoked"),
     ),
 )]
-pub(crate) async fn rotate<R: RoomStoreState>(
-    State(state): State<AppState<R>>,
+pub(crate) async fn rotate(
+    State(state): State<AppState>,
     Authenticated(principal): Authenticated,
     ValidatedPath(id): ValidatedPath<Uuid>,
 ) -> Result<Json<RotatedServicePrincipalKeyResponse>, ApiError> {
-    auth::authorize(&state, &principal, Action::ManageSystem)?;
+    auth::authorize_global(&state, &principal, Capability::ManageSystem)?;
     let rotated = state
         .service_principals
         .rotate(RotateServicePrincipalKey {
@@ -133,12 +133,12 @@ pub(crate) async fn rotate<R: RoomStoreState>(
         (status = 404, description = "Service principal not found"),
     ),
 )]
-pub(crate) async fn revoke<R: RoomStoreState>(
-    State(state): State<AppState<R>>,
+pub(crate) async fn revoke(
+    State(state): State<AppState>,
     Authenticated(principal): Authenticated,
     ValidatedPath(id): ValidatedPath<Uuid>,
 ) -> Result<StatusCode, ApiError> {
-    auth::authorize(&state, &principal, Action::ManageSystem)?;
+    auth::authorize_global(&state, &principal, Capability::ManageSystem)?;
     state
         .service_principals
         .revoke(mahfel_domain::ActorId::from_uuid(id))
@@ -146,12 +146,9 @@ pub(crate) async fn revoke<R: RoomStoreState>(
     Ok(StatusCode::NO_CONTENT)
 }
 
-pub(crate) fn route<R: RoomStoreState>() -> Router<AppState<R>> {
+pub(crate) fn route() -> Router<AppState> {
     Router::new()
-        .route(
-            "/admin/service-principals",
-            get(list::<R>).post(create::<R>),
-        )
-        .route("/admin/service-principals/{id}/rotate", post(rotate::<R>))
-        .route("/admin/service-principals/{id}", delete(revoke::<R>))
+        .route("/admin/service-principals", get(list).post(create))
+        .route("/admin/service-principals/{id}/rotate", post(rotate))
+        .route("/admin/service-principals/{id}", delete(revoke))
 }

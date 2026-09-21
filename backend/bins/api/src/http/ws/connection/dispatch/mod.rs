@@ -1,4 +1,5 @@
 pub(crate) mod helpers;
+mod participant;
 mod rtc;
 
 pub use helpers::protocol_error;
@@ -8,9 +9,9 @@ use crate::http::ws::{
     envelope::{self, ClientMessage, ProtocolError, ServerMessage},
     metrics::DisconnectReason,
     registry::ConnectionRegistry,
+    state::WsState,
 };
 use mahfel_application::ports::Principal;
-use mahfel_media_client::GrpcMediaGateway;
 use uuid::Uuid;
 
 pub(super) async fn handle_text(
@@ -19,8 +20,9 @@ pub(super) async fn handle_text(
     id: Uuid,
     text: &str,
     principal: &Principal,
-    media: &GrpcMediaGateway,
+    state: &WsState,
 ) -> Result<(), DisconnectReason> {
+    let media = state.media.as_ref();
     let envelope = match envelope::parse_envelope(text) {
         Ok(env) => env,
         Err(ProtocolError::UnsupportedVersion(v)) => {
@@ -49,6 +51,12 @@ pub(super) async fn handle_text(
             Ok(())
         }
         ClientMessage::Auth { .. } => Ok(()),
+        ClientMessage::Join { session_id } => {
+            participant::handle_join(connection, registry, id, &session_id, principal, state).await
+        }
+        ClientMessage::Leave {} => {
+            participant::handle_leave(connection, registry, id, principal, state).await
+        }
         ClientMessage::CreateTransport { room_id } => {
             rtc::handle_create_transport(connection, rid, kind, &room_id, principal, media).await
         }

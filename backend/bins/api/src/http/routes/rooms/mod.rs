@@ -8,27 +8,21 @@ pub(crate) mod list;
 pub(crate) mod members;
 pub(crate) mod update;
 
-use crate::http::state::{AppState, RoomStoreState};
+use crate::http::state::AppState;
 use axum::{
     Router,
     routing::{delete, get, post},
 };
 
-pub(crate) fn route<R: RoomStoreState>() -> Router<AppState<R>> {
+pub(crate) fn route() -> Router<AppState> {
     Router::new()
-        .route(
-            "/rooms",
-            get(list::list_rooms::<R>).post(create::create::<R>),
-        )
-        .route(
-            "/rooms/{room_id}",
-            get(get::get_room::<R>).patch(update::update::<R>),
-        )
-        .route("/rooms/{room_id}/join", post(join::join::<R>))
-        .route("/rooms/{room_id}/archive", post(archive::archive::<R>))
-        .route("/rooms/{room_id}/members", post(members::add::<R>))
+        .route("/rooms", get(list::list_rooms).post(create::create))
+        .route("/rooms/{room_id}", get(get::get_room).patch(update::update))
+        .route("/rooms/{room_id}/join", post(join::join))
+        .route("/rooms/{room_id}/archive", post(archive::archive))
+        .route("/rooms/{room_id}/members", post(members::add))
         .route(
             "/rooms/{room_id}/members/{user_id}",
-            delete(members::remove::<R>),
+            delete(members::remove),
         )
 }

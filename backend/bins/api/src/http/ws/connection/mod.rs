@@ -40,14 +40,11 @@ pub(super) async fn run(
     _guard: ConnectionGuard,
     header_principal: Option<Principal>,
 ) {
-    let WsState {
-        registry,
-        config,
-        metrics,
-        authenticator,
-        media,
-        shutdown,
-    } = state;
+    let config = state.config.clone();
+    let metrics = state.metrics.clone();
+    let registry = state.registry.clone();
+    let authenticator = state.authenticator.clone();
+    let shutdown = state.shutdown.clone();
     let (sink, stream) = socket.split();
     let mut connection = Connection::new(sink, config, metrics.clone());
 
@@ -58,7 +55,7 @@ pub(super) async fn run(
         stream,
         &registry,
         authenticator.as_ref(),
-        &media,
+        &state,
         shutdown,
         header_principal,
     )

@@ -1,9 +1,6 @@
 use super::dto::SessionResponse;
 use crate::http::{
-    auth::Authenticated,
-    error::ApiError,
-    extractor::ValidatedPath,
-    state::{AppState, RoomStoreState},
+    auth::Authenticated, error::ApiError, extractor::ValidatedPath, state::AppState,
 };
 use axum::{Json, extract::State};
 use mahfel_application::sessions::{EndSession, end_session};
@@ -23,14 +20,14 @@ use uuid::Uuid;
         (status = 409, description = "Invalid transition"),
     ),
 )]
-pub(crate) async fn end<R: RoomStoreState>(
-    State(state): State<AppState<R>>,
+pub(crate) async fn end(
+    State(state): State<AppState>,
     Authenticated(principal): Authenticated,
     ValidatedPath(session_id): ValidatedPath<Uuid>,
 ) -> Result<Json<SessionResponse>, ApiError> {
     let session = end_session(
-        &state.sessions,
-        &state.rooms,
+        state.sessions.as_ref(),
+        state.rooms.as_ref(),
         EndSession {
             actor: principal.actor_id,
             session_id: SessionId::from_uuid(session_id),

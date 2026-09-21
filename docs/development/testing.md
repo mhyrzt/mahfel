@@ -83,9 +83,21 @@ administrator (ADR 0022). Session tests cover lifecycle transitions, the one-liv
 invariant under a concurrent start race, manager-only ownership, and the `409` mapping for an invalid
 transition or a second live session.
 
-Integration tests in this environment may run against an already-migrated local database through
-`MAHFEL_TEST_DATABASE_URL` when the Docker socket is unavailable to Testcontainers; state that
-limitation explicitly rather than claiming the Testcontainers path passed.
+Integration tests use Testcontainers and start disposable PostgreSQL, Redis, and Keycloak instances.
+Run them with `MAHFEL_TESTCONTAINERS=1`, or per-suite with `just backend test-database` and the
+`test-integration` recipe. The Postgres suites also accept an already-migrated local database through
+`MAHFEL_TEST_DATABASE_URL`, and the Redis suite accepts `MAHFEL_TEST_REDIS_URL`, for environments where
+the Docker socket is unavailable to Testcontainers; without either setting the suite prints a skip
+notice and returns success, so do not read a green run as proof the database path executed.
+
+When a suite supports both, prefer the Testcontainers path: it provisions a throwaway instance and
+cannot touch shared state. Note that PostgreSQL logs `database system is ready to accept connections`
+before it can complete a client authentication handshake, so the Postgres suites probe with a real
+connection (`wait_until_ready`) rather than trusting that log line or sleeping a fixed amount.
+
+A pre-existing failure in `mahfel-auth`'s `keycloak_tokens_verify_and_reject_tampering` is unrelated
+to database or session work: the test mutates the final base64 character of a signature and expects
+`InvalidSignature`, which does not hold against the pinned Keycloak image.
 
 SQL migrations use SQLFluff with the PostgreSQL dialect. `just backend sql-lint` checks migration
 files and `just backend sql-fmt` applies SQLFluff formatting. The backend `lint` recipe includes the

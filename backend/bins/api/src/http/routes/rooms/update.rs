@@ -3,7 +3,7 @@ use crate::http::{
     auth::Authenticated,
     error::ApiError,
     extractor::{ValidatedJson, ValidatedPath},
-    state::{AppState, RoomStoreState},
+    state::AppState,
 };
 use axum::{Json, extract::State};
 use mahfel_application::rooms::{UpdateRoom, update_settings};
@@ -25,14 +25,14 @@ use uuid::Uuid;
         (status = 422, description = "Invalid room title"),
     ),
 )]
-pub(crate) async fn update<R: RoomStoreState>(
-    State(state): State<AppState<R>>,
+pub(crate) async fn update(
+    State(state): State<AppState>,
     Authenticated(principal): Authenticated,
     ValidatedPath(room_id): ValidatedPath<Uuid>,
     ValidatedJson(body): ValidatedJson<UpdateRoomRequest>,
 ) -> Result<Json<RoomResponse>, ApiError> {
     let room = update_settings(
-        &state.rooms,
+        state.rooms.as_ref(),
         RoomId::from_uuid(room_id),
         principal.actor_id,
         UpdateRoom {

@@ -1,6 +1,6 @@
 use crate::DatabaseError;
 use crate::stores::{sqlx_store_error, store_error};
-use mahfel_application::ports::{RoomStore, StoreError};
+use mahfel_application::ports::{BoxFuture, RoomStore, StoreError};
 use mahfel_domain::{ActorId, Room, RoomId, RoomMember, RoomRole, RoomTitle};
 use sqlx::{FromRow, PgPool};
 use time::OffsetDateTime;
@@ -40,222 +40,246 @@ struct RoomMemberRow {
 }
 
 impl RoomStore for PostgresRoomStore {
-    async fn get(&self, id: RoomId) -> Result<Option<Room>, StoreError> {
-        let row = sqlx::query_as::<_, RoomRow>(
-            "SELECT id, title, created_by, visibility, status, created_at, updated_at \
-             FROM mahfel.rooms WHERE id = $1",
-        )
-        .bind(id.as_uuid())
-        .fetch_optional(&self.pool)
-        .await
-        .map_err(sqlx_store_error)?;
+    fn get(&self, id: RoomId) -> BoxFuture<'_, Result<Option<Room>, StoreError>> {
+        Box::pin(async move {
+            let row = sqlx::query_as::<_, RoomRow>(
+                "SELECT id, title, created_by, visibility, status, created_at, updated_at \
+                 FROM mahfel.rooms WHERE id = $1",
+            )
+            .bind(id.as_uuid())
+            .fetch_optional(&self.pool)
+            .await
+            .map_err(sqlx_store_error)?;
 
-        row.map(|row| Room::try_from(row).map_err(store_error))
-            .transpose()
+            row.map(|row| Room::try_from(row).map_err(store_error))
+                .transpose()
+        })
     }
 
-    async fn insert(&self, room: &Room) -> Result<(), StoreError> {
-        sqlx::query(
-            "INSERT INTO mahfel.rooms \
-             (id, title, created_by, visibility, status, created_at, updated_at) \
-             VALUES ($1, $2, $3, $4, $5, $6, $6)",
-        )
-        .bind(room.id.as_uuid())
-        .bind(room.title.as_str())
-        .bind(room.created_by.as_uuid())
-        .bind(room.visibility.as_str())
-        .bind(room.status.as_str())
-        .bind(room.created_at)
-        .execute(&self.pool)
-        .await
-        .map_err(sqlx_store_error)?;
-        Ok(())
+    fn insert<'a>(&'a self, room: &'a Room) -> BoxFuture<'a, Result<(), StoreError>> {
+        Box::pin(async move {
+            sqlx::query(
+                "INSERT INTO mahfel.rooms \
+                 (id, title, created_by, visibility, status, created_at, updated_at) \
+                 VALUES ($1, $2, $3, $4, $5, $6, $6)",
+            )
+            .bind(room.id.as_uuid())
+            .bind(room.title.as_str())
+            .bind(room.created_by.as_uuid())
+            .bind(room.visibility.as_str())
+            .bind(room.status.as_str())
+            .bind(room.created_at)
+            .execute(&self.pool)
+            .await
+            .map_err(sqlx_store_error)?;
+            Ok(())
+        })
     }
 
-    async fn save(&self, room: &Room) -> Result<(), StoreError> {
-        let result = sqlx::query(
-            "UPDATE mahfel.rooms \
-             SET title = $2, visibility = $3, status = $4, updated_at = $5 \
-             WHERE id = $1",
-        )
-        .bind(room.id.as_uuid())
-        .bind(room.title.as_str())
-        .bind(room.visibility.as_str())
-        .bind(room.status.as_str())
-        .bind(room.updated_at)
-        .execute(&self.pool)
-        .await
-        .map_err(sqlx_store_error)?;
+    fn save<'a>(&'a self, room: &'a Room) -> BoxFuture<'a, Result<(), StoreError>> {
+        Box::pin(async move {
+            let result = sqlx::query(
+                "UPDATE mahfel.rooms \
+                 SET title = $2, visibility = $3, status = $4, updated_at = $5 \
+                 WHERE id = $1",
+            )
+            .bind(room.id.as_uuid())
+            .bind(room.title.as_str())
+            .bind(room.visibility.as_str())
+            .bind(room.status.as_str())
+            .bind(room.updated_at)
+            .execute(&self.pool)
+            .await
+            .map_err(sqlx_store_error)?;
 
-        if result.rows_affected() == 0 {
-            return Err(StoreError::NotFound(room.id.to_string()));
-        }
-        Ok(())
+            if result.rows_affected() == 0 {
+                return Err(StoreError::NotFound(room.id.to_string()));
+            }
+            Ok(())
+        })
     }
 
-    async fn create_with_manager(
-        &self,
-        room: &Room,
-        manager: &RoomMember,
-    ) -> Result<(), StoreError> {
-        let mut tx = self.pool.begin().await.map_err(sqlx_store_error)?;
-        sqlx::query(
-            "INSERT INTO mahfel.rooms \
-             (id, title, created_by, visibility, status, created_at, updated_at) \
-             VALUES ($1, $2, $3, $4, $5, $6, $6)",
-        )
-        .bind(room.id.as_uuid())
-        .bind(room.title.as_str())
-        .bind(room.created_by.as_uuid())
-        .bind(room.visibility.as_str())
-        .bind(room.status.as_str())
-        .bind(room.created_at)
-        .execute(&mut *tx)
-        .await
-        .map_err(sqlx_store_error)?;
-        insert_membership(&mut tx, manager).await?;
-        tx.commit().await.map_err(sqlx_store_error)?;
-        Ok(())
+    fn create_with_manager<'a>(
+        &'a self,
+        room: &'a Room,
+        manager: &'a RoomMember,
+    ) -> BoxFuture<'a, Result<(), StoreError>> {
+        Box::pin(async move {
+            let mut tx = self.pool.begin().await.map_err(sqlx_store_error)?;
+            sqlx::query(
+                "INSERT INTO mahfel.rooms \
+                 (id, title, created_by, visibility, status, created_at, updated_at) \
+                 VALUES ($1, $2, $3, $4, $5, $6, $6)",
+            )
+            .bind(room.id.as_uuid())
+            .bind(room.title.as_str())
+            .bind(room.created_by.as_uuid())
+            .bind(room.visibility.as_str())
+            .bind(room.status.as_str())
+            .bind(room.created_at)
+            .execute(&mut *tx)
+            .await
+            .map_err(sqlx_store_error)?;
+            insert_membership(&mut tx, manager).await?;
+            tx.commit().await.map_err(sqlx_store_error)?;
+            Ok(())
+        })
     }
 
-    async fn list_for_member(
+    fn list_for_member(
         &self,
         actor_id: ActorId,
         limit: u64,
         offset: u64,
-    ) -> Result<Vec<Room>, StoreError> {
-        let rows = sqlx::query_as::<_, RoomRow>(
-            "SELECT r.id, r.title, r.created_by, r.visibility, r.status, \
-                    r.created_at, r.updated_at \
-             FROM mahfel.rooms r \
-             JOIN mahfel.room_memberships m ON m.room_id = r.id \
-             WHERE m.actor_id = $1 \
-             ORDER BY r.created_at DESC, r.id \
-             LIMIT $2 OFFSET $3",
-        )
-        .bind(actor_id.as_uuid())
-        .bind(i64::try_from(limit).unwrap_or(i64::MAX))
-        .bind(i64::try_from(offset).unwrap_or(i64::MAX))
-        .fetch_all(&self.pool)
-        .await
-        .map_err(sqlx_store_error)?;
+    ) -> BoxFuture<'_, Result<Vec<Room>, StoreError>> {
+        Box::pin(async move {
+            let rows = sqlx::query_as::<_, RoomRow>(
+                "SELECT r.id, r.title, r.created_by, r.visibility, r.status, \
+                        r.created_at, r.updated_at \
+                 FROM mahfel.rooms r \
+                 JOIN mahfel.room_memberships m ON m.room_id = r.id \
+                 WHERE m.actor_id = $1 \
+                 ORDER BY r.created_at DESC, r.id \
+                 LIMIT $2 OFFSET $3",
+            )
+            .bind(actor_id.as_uuid())
+            .bind(i64::try_from(limit).unwrap_or(i64::MAX))
+            .bind(i64::try_from(offset).unwrap_or(i64::MAX))
+            .fetch_all(&self.pool)
+            .await
+            .map_err(sqlx_store_error)?;
 
-        rows.into_iter()
-            .map(|row| Room::try_from(row).map_err(store_error))
-            .collect()
+            rows.into_iter()
+                .map(|row| Room::try_from(row).map_err(store_error))
+                .collect()
+        })
     }
 
-    async fn get_member(
+    fn get_member(
         &self,
         room_id: RoomId,
         actor_id: ActorId,
-    ) -> Result<Option<RoomMember>, StoreError> {
-        let row = sqlx::query_as::<_, RoomMemberRow>(
-            "SELECT room_id, actor_id, member_role, created_at, updated_at \
-             FROM mahfel.room_memberships WHERE room_id = $1 AND actor_id = $2",
-        )
-        .bind(room_id.as_uuid())
-        .bind(actor_id.as_uuid())
-        .fetch_optional(&self.pool)
-        .await
-        .map_err(sqlx_store_error)?;
-
-        row.map(|row| RoomMember::try_from(row).map_err(store_error))
-            .transpose()
-    }
-
-    async fn list_members(&self, room_id: RoomId) -> Result<Vec<RoomMember>, StoreError> {
-        let rows = sqlx::query_as::<_, RoomMemberRow>(
-            "SELECT room_id, actor_id, member_role, created_at, updated_at \
-             FROM mahfel.room_memberships WHERE room_id = $1 \
-             ORDER BY created_at, actor_id",
-        )
-        .bind(room_id.as_uuid())
-        .fetch_all(&self.pool)
-        .await
-        .map_err(sqlx_store_error)?;
-
-        rows.into_iter()
-            .map(|row| RoomMember::try_from(row).map_err(store_error))
-            .collect()
-    }
-
-    async fn add_member(&self, member: &RoomMember) -> Result<(), StoreError> {
-        let result = sqlx::query(
-            "INSERT INTO mahfel.room_memberships \
-             (room_id, actor_id, member_role, created_at, updated_at) \
-             VALUES ($1, $2, $3, $4, $4) \
-             ON CONFLICT (room_id, actor_id) DO NOTHING",
-        )
-        .bind(member.room_id.as_uuid())
-        .bind(member.actor_id.as_uuid())
-        .bind(member.role.as_str())
-        .bind(member.created_at)
-        .execute(&self.pool)
-        .await
-        .map_err(sqlx_store_error)?;
-
-        if result.rows_affected() == 0 {
-            return Err(StoreError::Conflict(format!(
-                "user {} is already a member of room {}",
-                member.actor_id, member.room_id
-            )));
-        }
-        Ok(())
-    }
-
-    async fn remove_member(&self, room_id: RoomId, actor_id: ActorId) -> Result<bool, StoreError> {
-        // Serialize membership changes for the room by locking its row, so the
-        // manager count and the delete observe one consistent snapshot. The
-        // domain check in the use case is defense in depth, not the guard.
-        let mut tx = self.pool.begin().await.map_err(sqlx_store_error)?;
-        let lock =
-            sqlx::query_scalar::<_, Uuid>("SELECT id FROM mahfel.rooms WHERE id = $1 FOR UPDATE")
-                .bind(room_id.as_uuid())
-                .fetch_optional(&mut *tx)
-                .await
-                .map_err(sqlx_store_error)?;
-        if lock.is_none() {
-            return Ok(false);
-        }
-
-        let target = sqlx::query_as::<_, RoomMemberRow>(
-            "SELECT room_id, actor_id, member_role, created_at, updated_at \
-             FROM mahfel.room_memberships WHERE room_id = $1 AND actor_id = $2",
-        )
-        .bind(room_id.as_uuid())
-        .bind(actor_id.as_uuid())
-        .fetch_optional(&mut *tx)
-        .await
-        .map_err(sqlx_store_error)?;
-        let Some(target) = target else {
-            return Ok(false);
-        };
-        let target = RoomMember::try_from(target).map_err(store_error)?;
-
-        if target.role == RoomRole::Manager {
-            let managers = sqlx::query_scalar::<_, i64>(
-                "SELECT COUNT(*) FROM mahfel.room_memberships \
-                 WHERE room_id = $1 AND member_role = 'manager'",
+    ) -> BoxFuture<'_, Result<Option<RoomMember>, StoreError>> {
+        Box::pin(async move {
+            let row = sqlx::query_as::<_, RoomMemberRow>(
+                "SELECT room_id, actor_id, member_role, created_at, updated_at \
+                 FROM mahfel.room_memberships WHERE room_id = $1 AND actor_id = $2",
             )
             .bind(room_id.as_uuid())
-            .fetch_one(&mut *tx)
+            .bind(actor_id.as_uuid())
+            .fetch_optional(&self.pool)
             .await
             .map_err(sqlx_store_error)?;
-            if managers <= 1 {
+
+            row.map(|row| RoomMember::try_from(row).map_err(store_error))
+                .transpose()
+        })
+    }
+
+    fn list_members(&self, room_id: RoomId) -> BoxFuture<'_, Result<Vec<RoomMember>, StoreError>> {
+        Box::pin(async move {
+            let rows = sqlx::query_as::<_, RoomMemberRow>(
+                "SELECT room_id, actor_id, member_role, created_at, updated_at \
+                 FROM mahfel.room_memberships WHERE room_id = $1 \
+                 ORDER BY created_at, actor_id",
+            )
+            .bind(room_id.as_uuid())
+            .fetch_all(&self.pool)
+            .await
+            .map_err(sqlx_store_error)?;
+
+            rows.into_iter()
+                .map(|row| RoomMember::try_from(row).map_err(store_error))
+                .collect()
+        })
+    }
+
+    fn add_member<'a>(&'a self, member: &'a RoomMember) -> BoxFuture<'a, Result<(), StoreError>> {
+        Box::pin(async move {
+            let result = sqlx::query(
+                "INSERT INTO mahfel.room_memberships \
+                 (room_id, actor_id, member_role, created_at, updated_at) \
+                 VALUES ($1, $2, $3, $4, $4) \
+                 ON CONFLICT (room_id, actor_id) DO NOTHING",
+            )
+            .bind(member.room_id.as_uuid())
+            .bind(member.actor_id.as_uuid())
+            .bind(member.role.as_str())
+            .bind(member.created_at)
+            .execute(&self.pool)
+            .await
+            .map_err(sqlx_store_error)?;
+
+            if result.rows_affected() == 0 {
+                return Err(StoreError::Conflict(format!(
+                    "user {} is already a member of room {}",
+                    member.actor_id, member.room_id
+                )));
+            }
+            Ok(())
+        })
+    }
+
+    fn remove_member(
+        &self,
+        room_id: RoomId,
+        actor_id: ActorId,
+    ) -> BoxFuture<'_, Result<bool, StoreError>> {
+        Box::pin(async move {
+            // Serialize membership changes for the room by locking its row, so the
+            // manager count and the delete observe one consistent snapshot. The
+            // domain check in the use case is defense in depth, not the guard.
+            let mut tx = self.pool.begin().await.map_err(sqlx_store_error)?;
+            let lock = sqlx::query_scalar::<_, Uuid>(
+                "SELECT id FROM mahfel.rooms WHERE id = $1 FOR UPDATE",
+            )
+            .bind(room_id.as_uuid())
+            .fetch_optional(&mut *tx)
+            .await
+            .map_err(sqlx_store_error)?;
+            if lock.is_none() {
                 return Ok(false);
             }
-        }
 
-        let result =
-            sqlx::query("DELETE FROM mahfel.room_memberships WHERE room_id = $1 AND actor_id = $2")
+            let target = sqlx::query_as::<_, RoomMemberRow>(
+                "SELECT room_id, actor_id, member_role, created_at, updated_at \
+                 FROM mahfel.room_memberships WHERE room_id = $1 AND actor_id = $2",
+            )
+            .bind(room_id.as_uuid())
+            .bind(actor_id.as_uuid())
+            .fetch_optional(&mut *tx)
+            .await
+            .map_err(sqlx_store_error)?;
+            let Some(target) = target else {
+                return Ok(false);
+            };
+            let target = RoomMember::try_from(target).map_err(store_error)?;
+
+            if target.role == RoomRole::Manager {
+                let managers = sqlx::query_scalar::<_, i64>(
+                    "SELECT COUNT(*) FROM mahfel.room_memberships \
+                     WHERE room_id = $1 AND member_role = 'manager'",
+                )
                 .bind(room_id.as_uuid())
-                .bind(actor_id.as_uuid())
-                .execute(&mut *tx)
+                .fetch_one(&mut *tx)
                 .await
                 .map_err(sqlx_store_error)?;
-        tx.commit().await.map_err(sqlx_store_error)?;
-        Ok(result.rows_affected() > 0)
+                if managers <= 1 {
+                    return Ok(false);
+                }
+            }
+
+            let result = sqlx::query(
+                "DELETE FROM mahfel.room_memberships WHERE room_id = $1 AND actor_id = $2",
+            )
+            .bind(room_id.as_uuid())
+            .bind(actor_id.as_uuid())
+            .execute(&mut *tx)
+            .await
+            .map_err(sqlx_store_error)?;
+            tx.commit().await.map_err(sqlx_store_error)?;
+            Ok(result.rows_affected() > 0)
+        })
     }
 }
 

@@ -15,7 +15,7 @@ mod service_key;
 mod verification;
 
 pub use extract::{Authenticated, VerifiedToken};
-pub use policy::{AuthState, authorize};
+pub use policy::{AuthState, authorize_global, capabilities_in_room};
 pub use principal::principal_from_claims;
 pub use service_key::{ServiceKeyAuthenticator, StoreServiceKeyAuthenticator};
 pub use verification::{AuthenticationError, RequestAuthenticator, TokenAuthentication};

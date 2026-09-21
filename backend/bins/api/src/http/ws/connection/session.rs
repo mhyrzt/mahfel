@@ -7,12 +7,12 @@ use crate::http::{
         envelope::{self, ClientMessage, ServerMessage},
         metrics::DisconnectReason,
         registry::{ConnectionRegistry, Outbound},
+        state::WsState,
     },
 };
 use axum::extract::ws::Message;
 use futures_util::StreamExt;
 use mahfel_application::ports::Principal;
-use mahfel_media_client::GrpcMediaGateway;
 use std::time::{Duration, Instant};
 use tokio::{
     sync::{mpsc, watch},
@@ -29,7 +29,7 @@ pub(super) async fn run(
     mut stream: SocketStream,
     registry: &ConnectionRegistry,
     authenticator: &dyn RequestAuthenticator,
-    media: &GrpcMediaGateway,
+    state: &WsState,
     mut shutdown: watch::Receiver<bool>,
     header_principal: Option<Principal>,
 ) -> DisconnectReason {
@@ -52,7 +52,7 @@ pub(super) async fn run(
     let id = Uuid::new_v4();
     let capacity = connection.config().outbound_capacity;
     let (tx, mut rx) = mpsc::channel::<Outbound>(capacity);
-    let registration = registry.register(id, tx);
+    let registration = registry.register(id, principal.actor_id, tx);
     tracing::debug!(user_id = %principal.actor_id, connection_id = %registration.id(), "websocket connected");
 
     let welcome = ServerMessage::Welcome {
@@ -70,7 +70,7 @@ pub(super) async fn run(
         &mut rx,
         id,
         &principal,
-        media,
+        state,
     )
     .await;
     drop(registration);
@@ -89,7 +89,7 @@ async fn receive_loop(
     rx: &mut mpsc::Receiver<Outbound>,
     id: Uuid,
     principal: &Principal,
-    media: &GrpcMediaGateway,
+    state: &WsState,
 ) -> Result<(), DisconnectReason> {
     let mut heartbeat = interval(connection.config().heartbeat_interval);
     heartbeat.set_missed_tick_behavior(MissedTickBehavior::Delay);
@@ -128,7 +128,7 @@ async fn receive_loop(
                 Some(Ok(Message::Text(text))) => {
                     last_seen = Instant::now();
                     connection.record_received();
-                    dispatch::handle_text(connection, registry, id, text.as_str(), principal, media)
+                    dispatch::handle_text(connection, registry, id, text.as_str(), principal, state)
                         .await?;
                 }
             },

@@ -186,9 +186,14 @@ crates/postgres/src/
 
 ### Generics and trait objects
 
-- Application ports return `impl Future`, so they are not dyn-compatible. Bind the composition
-  surface with a generic parameter (`AppState<R: RoomStoreState>`) instead of boxing futures.
-- Prefer a small bound trait (a trait alias) over repeating long `where` clauses at every call site.
+- Application ports return `BoxFuture` (see `ports::futures`), which makes them dyn-compatible. A
+  transport holds one `Arc<dyn Port>` per capability (`AppState { rooms: Arc<dyn RoomStore>, ... }`)
+  instead of threading a generic parameter per store through every route signature.
+- A port method with any borrowed argument besides `&self` must declare an explicit lifetime tying
+  all of them to the returned future (`fn get<'a>(&'a self, key: &'a str) -> BoxFuture<'a, T>`);
+  `BoxFuture<'_, T>` does not compile when more than one reference is borrowed.
+- Use-case functions stay generic over the port (`R: RoomStore + ?Sized`) so they accept both a
+  concrete adapter and `&dyn Port`; `?Sized` is required for the trait-object case.
 
 ### Duplication
 
