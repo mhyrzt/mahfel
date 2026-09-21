@@ -1,4 +1,4 @@
-use crate::http::state::{AppState, RoomStoreState};
+use crate::http::state::AppState;
 use axum::{Json, Router, routing::get};
 use serde::Serialize;
 use utoipa::ToSchema;
@@ -18,6 +18,6 @@ pub(crate) async fn health() -> Json<HealthResponse> {
     Json(HealthResponse { status: "ok" })
 }
 
-pub(crate) fn route<R: RoomStoreState>() -> Router<AppState<R>> {
+pub(crate) fn route() -> Router<AppState> {
     Router::new().route("/health", get(health))
 }

@@ -1,10 +1,7 @@
 use super::dto::RoomResponse;
 use crate::http::{
-    auth::Authenticated,
-    error::ApiError,
-    extractor::ValidatedPagination,
-    pagination::Paginated,
-    state::{AppState, RoomStoreState},
+    auth::Authenticated, error::ApiError, extractor::ValidatedPagination, pagination::Paginated,
+    state::AppState,
 };
 use axum::{Json, extract::State};
 use mahfel_application::rooms::list_joined;
@@ -22,13 +19,13 @@ use mahfel_application::rooms::list_joined;
         (status = 401, description = "Authentication required"),
     ),
 )]
-pub(crate) async fn list_rooms<R: RoomStoreState>(
-    State(state): State<AppState<R>>,
+pub(crate) async fn list_rooms(
+    State(state): State<AppState>,
     Authenticated(principal): Authenticated,
     ValidatedPagination(pagination): ValidatedPagination,
 ) -> Result<Json<Paginated<RoomResponse>>, ApiError> {
     let rooms = list_joined(
-        &state.rooms,
+        state.rooms.as_ref(),
         principal.actor_id,
         pagination.limit(),
         pagination.offset(),

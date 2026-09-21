@@ -35,6 +35,46 @@ pub enum RoomRole {
     Member,
 }
 
+/// Room-scoped capability a membership may grant.
+///
+/// The vocabulary a vertical maps onto (ADR 0020): education's teacher is
+/// [`RoomRole::Manager`] and a student is [`RoomRole::Member`], so no vertical
+/// role name enters the domain. This is the authoritative role-to-capability
+/// mapping; the transport-facing capability set is it plus the global grants.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum RoleCapability {
+    /// Manage members and settings.
+    Manage,
+    /// Moderate participants of a session in the room.
+    Moderate,
+    /// Participate in a session.
+    Participate,
+    /// Enter a session in the room.
+    JoinSession,
+    /// Manage a session's lifecycle in the room.
+    ManageSession,
+}
+
+impl RoleCapability {
+    /// Capabilities a membership of `role` grants in its room.
+    ///
+    /// Deny-by-default: the returned set is exhaustive, and any capability not
+    /// listed is not granted.
+    #[must_use]
+    pub const fn for_role(role: RoomRole) -> &'static [Self] {
+        match role {
+            RoomRole::Manager => &[
+                Self::Manage,
+                Self::Moderate,
+                Self::Participate,
+                Self::JoinSession,
+                Self::ManageSession,
+            ],
+            RoomRole::Member => &[Self::Participate, Self::JoinSession],
+        }
+    }
+}
+
 #[derive(Clone, Debug, Error, Eq, PartialEq)]
 pub enum RoomError {
     #[error("room is already archived")]
@@ -181,6 +221,19 @@ mod tests {
             visibility,
             OffsetDateTime::now_utc(),
         )
+    }
+
+    #[test]
+    fn role_capabilities_are_deny_by_default() {
+        let manager = RoleCapability::for_role(RoomRole::Manager);
+        assert!(manager.contains(&RoleCapability::ManageSession));
+        assert!(manager.contains(&RoleCapability::Moderate));
+
+        let member = RoleCapability::for_role(RoomRole::Member);
+        assert!(member.contains(&RoleCapability::Participate));
+        assert!(member.contains(&RoleCapability::JoinSession));
+        assert!(!member.contains(&RoleCapability::Moderate));
+        assert!(!member.contains(&RoleCapability::ManageSession));
     }
 
     #[test]

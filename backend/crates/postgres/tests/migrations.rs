@@ -55,7 +55,30 @@ async fn migrations_provision_a_disposable_database() -> Result<(), Box<dyn Erro
         .await?;
     let port = postgres.get_host_port_ipv4(5432).await?;
     let admin_url = format!("postgres://mahfel:mahfel-test@127.0.0.1:{port}/postgres");
+    wait_until_ready(&admin_url).await?;
     verify_disposable_database(&admin_url).await
+}
+
+/// Wait until the container accepts an authenticated connection.
+///
+/// The `ready to accept connections` log line is emitted before the auth
+/// backend can complete a handshake, so connecting immediately can be reset by
+/// the server. Probe with a real pool instead of sleeping a fixed amount.
+async fn wait_until_ready(admin_url: &str) -> Result<(), Box<dyn Error>> {
+    let deadline = std::time::Instant::now() + Duration::from_secs(30);
+    loop {
+        match PgPool::connect(admin_url).await {
+            Ok(pool) => {
+                pool.close().await;
+                return Ok(());
+            }
+            Err(error) if std::time::Instant::now() < deadline => {
+                eprintln!("postgres not ready yet: {error}");
+                tokio::time::sleep(Duration::from_millis(250)).await;
+            }
+            Err(error) => return Err(error.into()),
+        }
+    }
 }
 
 async fn verify_disposable_database(admin_url: &str) -> Result<(), Box<dyn Error>> {
@@ -102,7 +125,7 @@ async fn verify_migrations_and_stores(
     let migration_count = sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM _sqlx_migrations")
         .fetch_one(pool)
         .await?;
-    assert_eq!(migration_count, 5, "each migration must be recorded once");
+    assert_eq!(migration_count, 6, "each migration must be recorded once");
 
     let migration_tables = sqlx::query_scalar::<_, i64>(
         "SELECT COUNT(*) FROM pg_class WHERE relname = '_sqlx_migrations'",

@@ -8,6 +8,7 @@
 mod actor;
 mod identity;
 mod ids;
+mod participant;
 mod room;
 mod session;
 mod status;
@@ -19,9 +20,10 @@ pub use actor::{
 };
 pub use identity::{Identity, IdentityId};
 pub use ids::NodeId;
+pub use participant::{Participant, ParticipantError, ParticipantId, ParticipantStatus};
 pub use room::{
-    MembershipError, Room, RoomError, RoomId, RoomMember, RoomRole, RoomStatus, RoomVisibility,
-    ensure_member_removable,
+    MembershipError, RoleCapability, Room, RoomError, RoomId, RoomMember, RoomRole, RoomStatus,
+    RoomVisibility, ensure_member_removable,
 };
 pub use session::{Session, SessionError, SessionId, SessionStatus};
 pub use status::InvalidStatus;

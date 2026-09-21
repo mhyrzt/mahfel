@@ -3,7 +3,7 @@ use crate::http::{
     auth::Authenticated,
     error::ApiError,
     extractor::{ValidatedJson, ValidatedPath},
-    state::{AppState, RoomStoreState},
+    state::AppState,
 };
 use axum::{Json, extract::State, http::StatusCode};
 use mahfel_application::sessions::{ScheduleSession, schedule_session};
@@ -24,15 +24,15 @@ use uuid::Uuid;
         (status = 409, description = "A live session already exists for the room"),
     ),
 )]
-pub(crate) async fn schedule<R: RoomStoreState>(
-    State(state): State<AppState<R>>,
+pub(crate) async fn schedule(
+    State(state): State<AppState>,
     Authenticated(principal): Authenticated,
     ValidatedPath(room_id): ValidatedPath<Uuid>,
     ValidatedJson(body): ValidatedJson<CreateSessionRequest>,
 ) -> Result<(StatusCode, Json<SessionResponse>), ApiError> {
     let session = schedule_session(
-        &state.sessions,
-        &state.rooms,
+        state.sessions.as_ref(),
+        state.rooms.as_ref(),
         ScheduleSession {
             actor: principal.actor_id,
             room_id: RoomId::from_uuid(room_id),

@@ -1,9 +1,6 @@
 use super::dto::SessionResponse;
 use crate::http::{
-    auth::Authenticated,
-    error::ApiError,
-    extractor::ValidatedPath,
-    state::{AppState, RoomStoreState},
+    auth::Authenticated, error::ApiError, extractor::ValidatedPath, state::AppState,
 };
 use axum::{Json, extract::State};
 use mahfel_application::sessions::{StartSession, start_session};
@@ -23,14 +20,14 @@ use uuid::Uuid;
         (status = 409, description = "Invalid transition or a live session already exists"),
     ),
 )]
-pub(crate) async fn start<R: RoomStoreState>(
-    State(state): State<AppState<R>>,
+pub(crate) async fn start(
+    State(state): State<AppState>,
     Authenticated(principal): Authenticated,
     ValidatedPath(session_id): ValidatedPath<Uuid>,
 ) -> Result<Json<SessionResponse>, ApiError> {
     let session = start_session(
-        &state.sessions,
-        &state.rooms,
+        state.sessions.as_ref(),
+        state.rooms.as_ref(),
         StartSession {
             actor: principal.actor_id,
             session_id: SessionId::from_uuid(session_id),

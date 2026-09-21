@@ -1,7 +1,7 @@
 use super::{
     principal_from_claims, service_key::is_service_key, verification::AuthenticationError,
 };
-use crate::http::{error::ApiError, state::RoomStoreState};
+use crate::http::error::ApiError;
 use axum::{
     extract::FromRequestParts,
     http::{HeaderValue, header, request::Parts},
@@ -26,15 +26,12 @@ fn rejection(error: AuthenticationError) -> ApiError {
 /// a token has no linked application user.
 pub struct Authenticated(pub Principal);
 
-impl<R> FromRequestParts<crate::http::state::AppState<R>> for Authenticated
-where
-    R: RoomStoreState,
-{
+impl FromRequestParts<crate::http::state::AppState> for Authenticated {
     type Rejection = ApiError;
 
     async fn from_request_parts(
         parts: &mut Parts,
-        state: &crate::http::state::AppState<R>,
+        state: &crate::http::state::AppState,
     ) -> Result<Self, Self::Rejection> {
         let token = bearer_token(parts.headers.get(header::AUTHORIZATION));
         let principal = match token {
@@ -61,15 +58,12 @@ where
 /// Used by `/v1/auth/provision`, which is the request that links the identity.
 pub struct VerifiedToken(pub AuthenticatedIdentity);
 
-impl<R> FromRequestParts<crate::http::state::AppState<R>> for VerifiedToken
-where
-    R: RoomStoreState,
-{
+impl FromRequestParts<crate::http::state::AppState> for VerifiedToken {
     type Rejection = ApiError;
 
     async fn from_request_parts(
         parts: &mut Parts,
-        state: &crate::http::state::AppState<R>,
+        state: &crate::http::state::AppState,
     ) -> Result<Self, Self::Rejection> {
         let token = bearer_token(parts.headers.get(header::AUTHORIZATION));
         state

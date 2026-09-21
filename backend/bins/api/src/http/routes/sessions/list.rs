@@ -1,9 +1,6 @@
 use super::dto::SessionResponse;
 use crate::http::{
-    auth::Authenticated,
-    error::ApiError,
-    extractor::ValidatedPath,
-    state::{AppState, RoomStoreState},
+    auth::Authenticated, error::ApiError, extractor::ValidatedPath, state::AppState,
 };
 use axum::{Json, extract::State};
 use mahfel_application::sessions::{ListSessions, list_sessions as run_list_sessions};
@@ -25,14 +22,14 @@ use uuid::Uuid;
         (status = 404, description = "Room does not exist or the caller is not a member"),
     ),
 )]
-pub(crate) async fn list_sessions<R: RoomStoreState>(
-    State(state): State<AppState<R>>,
+pub(crate) async fn list_sessions(
+    State(state): State<AppState>,
     Authenticated(principal): Authenticated,
     ValidatedPath(room_id): ValidatedPath<Uuid>,
 ) -> Result<Json<Vec<SessionResponse>>, ApiError> {
     let sessions = run_list_sessions(
-        &state.sessions,
-        &state.rooms,
+        state.sessions.as_ref(),
+        state.rooms.as_ref(),
         ListSessions {
             actor: principal.actor_id,
             room_id: RoomId::from_uuid(room_id),

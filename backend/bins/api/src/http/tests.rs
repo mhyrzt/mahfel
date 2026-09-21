@@ -6,19 +6,19 @@ use super::{
     },
     cors_layer,
     service_principals::{ServicePrincipalAdmin, StoreServicePrincipalAdmin},
-    state::SessionStoreRef,
-    ws::{WsConfig, WsMetrics, WsState},
+    ws::{ParticipationStores, WsConfig, WsMetrics, WsState},
 };
 use axum::{
     Router,
     body::Body,
     http::{HeaderValue, Method, Request, StatusCode, header},
 };
-use futures_util::{SinkExt, StreamExt, future::BoxFuture};
+use futures_util::{SinkExt, StreamExt};
+use mahfel_application::policy::ServerCapabilityResolver;
 use mahfel_application::ports::{
-    Action, AllowAuthenticated, AttributeError, AuthorizationError, Authorizer, Principal,
-    ProvisionedIdentity, RoleBasedAuthorizer, RoomStore, ServicePrincipalStore, SessionStore,
-    StoreError, UserAttributeWriter,
+    AttributeError, BoxFuture, Capability, CapabilityContext, CapabilityResolver, CapabilitySet,
+    ParticipantStore, Principal, ProvisionedIdentity, RoomStore, ServicePrincipalStore,
+    SessionStore, StoreError, UserAttributeWriter,
 };
 use mahfel_application::service_principals::{CreateServicePrincipal, create_service_principal};
 use mahfel_application::users::{IdentityProvisioner, SyncIdentity, SyncIdentityError};
@@ -26,9 +26,9 @@ use mahfel_auth::AuthenticatedIdentity;
 use mahfel_auth::{TokenVerifier, TokenVerifierConfig};
 use mahfel_config::TurnSettings;
 use mahfel_domain::{
-    ActorId, ActorKind, DisplayName, Identity, Issuer, Room, RoomId, RoomMember, RoomRole,
-    RoomTitle, RoomVisibility, ServicePrincipal, ServicePrincipalStatus, Session, SessionId,
-    SessionStatus, Subject, User, UserStatus,
+    ActorId, ActorKind, DisplayName, Identity, Issuer, Participant, ParticipantId, Room, RoomId,
+    RoomMember, RoomRole, RoomTitle, RoomVisibility, ServicePrincipal, ServicePrincipalStatus,
+    Session, SessionId, SessionStatus, Subject, User, UserStatus,
 };
 use mahfel_media_client::GrpcMediaGateway;
 use prometheus::Encoder;
@@ -88,130 +88,152 @@ impl FakeRoomStore {
 }
 
 impl RoomStore for FakeRoomStore {
-    async fn get(&self, id: RoomId) -> Result<Option<Room>, StoreError> {
-        Ok(self
-            .inner
-            .lock()
-            .expect("fake store lock")
-            .rooms
-            .iter()
-            .find(|room| room.id == id)
-            .cloned())
+    fn get(&self, id: RoomId) -> BoxFuture<'_, Result<Option<Room>, StoreError>> {
+        Box::pin(async move {
+            Ok(self
+                .inner
+                .lock()
+                .expect("fake store lock")
+                .rooms
+                .iter()
+                .find(|room| room.id == id)
+                .cloned())
+        })
     }
 
-    async fn insert(&self, room: &Room) -> Result<(), StoreError> {
-        self.inner
-            .lock()
-            .expect("fake store lock")
-            .rooms
-            .push(room.clone());
-        Ok(())
+    fn insert<'a>(&'a self, room: &'a Room) -> BoxFuture<'a, Result<(), StoreError>> {
+        Box::pin(async move {
+            self.inner
+                .lock()
+                .expect("fake store lock")
+                .rooms
+                .push(room.clone());
+            Ok(())
+        })
     }
 
-    async fn save(&self, room: &Room) -> Result<(), StoreError> {
-        let mut inner = self.inner.lock().expect("fake store lock");
-        let slot = inner
-            .rooms
-            .iter_mut()
-            .find(|existing| existing.id == room.id)
-            .ok_or_else(|| StoreError::NotFound(room.id.to_string()))?;
-        *slot = room.clone();
-        Ok(())
+    fn save<'a>(&'a self, room: &'a Room) -> BoxFuture<'a, Result<(), StoreError>> {
+        Box::pin(async move {
+            let mut inner = self.inner.lock().expect("fake store lock");
+            let slot = inner
+                .rooms
+                .iter_mut()
+                .find(|existing| existing.id == room.id)
+                .ok_or_else(|| StoreError::NotFound(room.id.to_string()))?;
+            *slot = room.clone();
+            Ok(())
+        })
     }
 
-    async fn create_with_manager(
-        &self,
-        room: &Room,
-        manager: &RoomMember,
-    ) -> Result<(), StoreError> {
-        let mut inner = self.inner.lock().expect("fake store lock");
-        inner.rooms.push(room.clone());
-        inner.members.push(manager.clone());
-        Ok(())
+    fn create_with_manager<'a>(
+        &'a self,
+        room: &'a Room,
+        manager: &'a RoomMember,
+    ) -> BoxFuture<'a, Result<(), StoreError>> {
+        Box::pin(async move {
+            let mut inner = self.inner.lock().expect("fake store lock");
+            inner.rooms.push(room.clone());
+            inner.members.push(manager.clone());
+            Ok(())
+        })
     }
 
-    async fn list_for_member(
+    fn list_for_member(
         &self,
         user_id: ActorId,
         limit: u64,
         offset: u64,
-    ) -> Result<Vec<Room>, StoreError> {
-        let inner = self.inner.lock().expect("fake store lock");
-        let mut rooms: Vec<Room> = inner
-            .rooms
-            .iter()
-            .filter(|room| {
-                inner
-                    .members
-                    .iter()
-                    .any(|member| member.room_id == room.id && member.actor_id == user_id)
-            })
-            .cloned()
-            .collect();
-        rooms.sort_by(|left, right| {
-            right
-                .created_at
-                .cmp(&left.created_at)
-                .then_with(|| left.id.as_uuid().cmp(&right.id.as_uuid()))
-        });
-        Ok(rooms
-            .into_iter()
-            .skip(offset as usize)
-            .take(limit as usize)
-            .collect())
+    ) -> BoxFuture<'_, Result<Vec<Room>, StoreError>> {
+        Box::pin(async move {
+            let inner = self.inner.lock().expect("fake store lock");
+            let mut rooms: Vec<Room> = inner
+                .rooms
+                .iter()
+                .filter(|room| {
+                    inner
+                        .members
+                        .iter()
+                        .any(|member| member.room_id == room.id && member.actor_id == user_id)
+                })
+                .cloned()
+                .collect();
+            rooms.sort_by(|left, right| {
+                right
+                    .created_at
+                    .cmp(&left.created_at)
+                    .then_with(|| left.id.as_uuid().cmp(&right.id.as_uuid()))
+            });
+            Ok(rooms
+                .into_iter()
+                .skip(offset as usize)
+                .take(limit as usize)
+                .collect())
+        })
     }
 
-    async fn get_member(
+    fn get_member(
         &self,
         room_id: RoomId,
         user_id: ActorId,
-    ) -> Result<Option<RoomMember>, StoreError> {
-        Ok(self
-            .inner
-            .lock()
-            .expect("fake store lock")
-            .members
-            .iter()
-            .find(|member| member.room_id == room_id && member.actor_id == user_id)
-            .cloned())
+    ) -> BoxFuture<'_, Result<Option<RoomMember>, StoreError>> {
+        Box::pin(async move {
+            Ok(self
+                .inner
+                .lock()
+                .expect("fake store lock")
+                .members
+                .iter()
+                .find(|member| member.room_id == room_id && member.actor_id == user_id)
+                .cloned())
+        })
     }
 
-    async fn list_members(&self, room_id: RoomId) -> Result<Vec<RoomMember>, StoreError> {
-        Ok(self
-            .inner
-            .lock()
-            .expect("fake store lock")
-            .members
-            .iter()
-            .filter(|member| member.room_id == room_id)
-            .cloned()
-            .collect())
+    fn list_members(&self, room_id: RoomId) -> BoxFuture<'_, Result<Vec<RoomMember>, StoreError>> {
+        Box::pin(async move {
+            Ok(self
+                .inner
+                .lock()
+                .expect("fake store lock")
+                .members
+                .iter()
+                .filter(|member| member.room_id == room_id)
+                .cloned()
+                .collect())
+        })
     }
 
-    async fn add_member(&self, member: &RoomMember) -> Result<(), StoreError> {
-        let mut inner = self.inner.lock().expect("fake store lock");
-        if inner.members.iter().any(|existing| {
-            existing.room_id == member.room_id && existing.actor_id == member.actor_id
-        }) {
-            return Err(StoreError::Conflict("already a member".to_owned()));
-        }
-        inner.members.push(member.clone());
-        Ok(())
+    fn add_member<'a>(&'a self, member: &'a RoomMember) -> BoxFuture<'a, Result<(), StoreError>> {
+        Box::pin(async move {
+            let mut inner = self.inner.lock().expect("fake store lock");
+            if inner.members.iter().any(|existing| {
+                existing.room_id == member.room_id && existing.actor_id == member.actor_id
+            }) {
+                return Err(StoreError::Conflict("already a member".to_owned()));
+            }
+            inner.members.push(member.clone());
+            Ok(())
+        })
     }
 
-    async fn remove_member(&self, room_id: RoomId, user_id: ActorId) -> Result<bool, StoreError> {
-        let mut inner = self.inner.lock().expect("fake store lock");
-        let managers = inner
-            .members
-            .iter()
-            .filter(|member| member.room_id == room_id && member.role == RoomRole::Manager)
-            .count();
-        let before = inner.members.len();
-        inner.members.retain(|member| {
-            let is_target = member.room_id == room_id && member.actor_id == user_id;
-            !is_target || (member.role == RoomRole::Manager && managers <= 1)
-        });
-        Ok(inner.members.len() < before)
+    fn remove_member(
+        &self,
+        room_id: RoomId,
+        user_id: ActorId,
+    ) -> BoxFuture<'_, Result<bool, StoreError>> {
+        Box::pin(async move {
+            let mut inner = self.inner.lock().expect("fake store lock");
+            let managers = inner
+                .members
+                .iter()
+                .filter(|member| member.room_id == room_id && member.role == RoomRole::Manager)
+                .count();
+            let before = inner.members.len();
+            inner.members.retain(|member| {
+                let is_target = member.room_id == room_id && member.actor_id == user_id;
+                !is_target || (member.role == RoomRole::Manager && managers <= 1)
+            });
+            Ok(inner.members.len() < before)
+        })
     }
 }
 
@@ -241,50 +263,59 @@ impl FakeSessionStore {
 }
 
 impl SessionStore for FakeSessionStore {
-    async fn get(&self, id: SessionId) -> Result<Option<Session>, StoreError> {
-        Ok(self
-            .sessions
-            .lock()
-            .expect("fake store lock")
-            .iter()
-            .find(|session| session.id == id)
-            .cloned())
+    fn get(&self, id: SessionId) -> BoxFuture<'_, Result<Option<Session>, StoreError>> {
+        Box::pin(async move {
+            Ok(self
+                .sessions
+                .lock()
+                .expect("fake store lock")
+                .iter()
+                .find(|session| session.id == id)
+                .cloned())
+        })
     }
 
-    async fn insert(&self, session: &Session) -> Result<(), StoreError> {
-        if session.status == SessionStatus::Live && self.has_live(session.room_id, None) {
-            return Err(StoreError::Conflict("live session exists".to_owned()));
-        }
-        self.sessions
-            .lock()
-            .expect("fake store lock")
-            .push(session.clone());
-        Ok(())
+    fn insert<'a>(&'a self, session: &'a Session) -> BoxFuture<'a, Result<(), StoreError>> {
+        Box::pin(async move {
+            if session.status == SessionStatus::Live && self.has_live(session.room_id, None) {
+                return Err(StoreError::Conflict("live session exists".to_owned()));
+            }
+            self.sessions
+                .lock()
+                .expect("fake store lock")
+                .push(session.clone());
+            Ok(())
+        })
     }
 
-    async fn save(&self, session: &Session) -> Result<(), StoreError> {
-        if session.status == SessionStatus::Live && self.has_live(session.room_id, Some(session.id))
-        {
-            return Err(StoreError::Conflict("live session exists".to_owned()));
-        }
-        let mut sessions = self.sessions.lock().expect("fake store lock");
-        let slot = sessions
-            .iter_mut()
-            .find(|existing| existing.id == session.id)
-            .ok_or_else(|| StoreError::NotFound(session.id.to_string()))?;
-        *slot = session.clone();
-        Ok(())
+    fn save<'a>(&'a self, session: &'a Session) -> BoxFuture<'a, Result<(), StoreError>> {
+        Box::pin(async move {
+            if session.status == SessionStatus::Live
+                && self.has_live(session.room_id, Some(session.id))
+            {
+                return Err(StoreError::Conflict("live session exists".to_owned()));
+            }
+            let mut sessions = self.sessions.lock().expect("fake store lock");
+            let slot = sessions
+                .iter_mut()
+                .find(|existing| existing.id == session.id)
+                .ok_or_else(|| StoreError::NotFound(session.id.to_string()))?;
+            *slot = session.clone();
+            Ok(())
+        })
     }
 
-    async fn list_for_room(&self, room_id: RoomId) -> Result<Vec<Session>, StoreError> {
-        Ok(self
-            .sessions
-            .lock()
-            .expect("fake store lock")
-            .iter()
-            .filter(|session| session.room_id == room_id)
-            .cloned()
-            .collect())
+    fn list_for_room(&self, room_id: RoomId) -> BoxFuture<'_, Result<Vec<Session>, StoreError>> {
+        Box::pin(async move {
+            Ok(self
+                .sessions
+                .lock()
+                .expect("fake store lock")
+                .iter()
+                .filter(|session| session.room_id == room_id)
+                .cloned()
+                .collect())
+        })
     }
 }
 
@@ -301,84 +332,100 @@ struct FakeServicePrincipalInner {
 }
 
 impl ServicePrincipalStore for FakeServicePrincipalStore {
-    async fn create(
-        &self,
-        principal: &ServicePrincipal,
-        api_key_hash: &str,
-    ) -> Result<(), StoreError> {
-        let mut inner = self.inner.lock().expect("fake store lock");
-        if inner
-            .principals
-            .iter()
-            .any(|other| other.name == principal.name)
-        {
-            return Err(StoreError::Conflict("duplicate name".to_owned()));
-        }
-        inner.principals.push(principal.clone());
-        inner
-            .active_keys
-            .insert(api_key_hash.to_owned(), principal.id);
-        Ok(())
+    fn create<'a>(
+        &'a self,
+        principal: &'a ServicePrincipal,
+        api_key_hash: &'a str,
+    ) -> BoxFuture<'a, Result<(), StoreError>> {
+        Box::pin(async move {
+            let mut inner = self.inner.lock().expect("fake store lock");
+            if inner
+                .principals
+                .iter()
+                .any(|other| other.name == principal.name)
+            {
+                return Err(StoreError::Conflict("duplicate name".to_owned()));
+            }
+            inner.principals.push(principal.clone());
+            inner
+                .active_keys
+                .insert(api_key_hash.to_owned(), principal.id);
+            Ok(())
+        })
     }
 
-    async fn get(&self, id: ActorId) -> Result<Option<ServicePrincipal>, StoreError> {
-        Ok(self
-            .inner
-            .lock()
-            .expect("fake store lock")
-            .principals
-            .iter()
-            .find(|principal| principal.id == id)
-            .cloned())
+    fn get(&self, id: ActorId) -> BoxFuture<'_, Result<Option<ServicePrincipal>, StoreError>> {
+        Box::pin(async move {
+            Ok(self
+                .inner
+                .lock()
+                .expect("fake store lock")
+                .principals
+                .iter()
+                .find(|principal| principal.id == id)
+                .cloned())
+        })
     }
 
-    async fn list(&self) -> Result<Vec<ServicePrincipal>, StoreError> {
-        Ok(self
-            .inner
-            .lock()
-            .expect("fake store lock")
-            .principals
-            .clone())
+    fn list(&self) -> BoxFuture<'_, Result<Vec<ServicePrincipal>, StoreError>> {
+        Box::pin(async move {
+            Ok(self
+                .inner
+                .lock()
+                .expect("fake store lock")
+                .principals
+                .clone())
+        })
     }
 
-    async fn revoke(&self, id: ActorId) -> Result<(), StoreError> {
-        let mut inner = self.inner.lock().expect("fake store lock");
-        let Some(principal) = inner.principals.iter_mut().find(|p| p.id == id) else {
-            return Err(StoreError::NotFound(id.to_string()));
-        };
-        principal.status = ServicePrincipalStatus::Revoked;
-        inner.active_keys.retain(|_, owner| *owner != id);
-        Ok(())
+    fn revoke(&self, id: ActorId) -> BoxFuture<'_, Result<(), StoreError>> {
+        Box::pin(async move {
+            let mut inner = self.inner.lock().expect("fake store lock");
+            let Some(principal) = inner.principals.iter_mut().find(|p| p.id == id) else {
+                return Err(StoreError::NotFound(id.to_string()));
+            };
+            principal.status = ServicePrincipalStatus::Revoked;
+            inner.active_keys.retain(|_, owner| *owner != id);
+            Ok(())
+        })
     }
 
-    async fn rotate_key(&self, id: ActorId, api_key_hash: &str) -> Result<(), StoreError> {
-        let mut inner = self.inner.lock().expect("fake store lock");
-        let Some(principal) = inner.principals.iter().find(|p| p.id == id) else {
-            return Err(StoreError::NotFound(id.to_string()));
-        };
-        if principal.status != ServicePrincipalStatus::Active {
-            return Err(StoreError::NotFound(id.to_string()));
-        }
-        inner.active_keys.retain(|_, owner| *owner != id);
-        inner.active_keys.insert(api_key_hash.to_owned(), id);
-        Ok(())
+    fn rotate_key<'a>(
+        &'a self,
+        id: ActorId,
+        api_key_hash: &'a str,
+    ) -> BoxFuture<'a, Result<(), StoreError>> {
+        Box::pin(async move {
+            let mut inner = self.inner.lock().expect("fake store lock");
+            let Some(principal) = inner.principals.iter().find(|p| p.id == id) else {
+                return Err(StoreError::NotFound(id.to_string()));
+            };
+            if principal.status != ServicePrincipalStatus::Active {
+                return Err(StoreError::NotFound(id.to_string()));
+            }
+            inner.active_keys.retain(|_, owner| *owner != id);
+            inner.active_keys.insert(api_key_hash.to_owned(), id);
+            Ok(())
+        })
     }
 
-    async fn find_active_by_key_hash(
-        &self,
-        api_key_hash: &str,
-    ) -> Result<Option<ServicePrincipal>, StoreError> {
-        let inner = self.inner.lock().expect("fake store lock");
-        let Some(id) = inner.active_keys.get(api_key_hash).copied() else {
-            return Ok(None);
-        };
-        Ok(inner
-            .principals
-            .iter()
-            .find(|principal| {
-                principal.id == id && principal.status == ServicePrincipalStatus::Active
-            })
-            .cloned())
+    fn find_active_by_key_hash<'a>(
+        &'a self,
+        api_key_hash: &'a str,
+    ) -> BoxFuture<'a, Result<Option<ServicePrincipal>, StoreError>> {
+        Box::pin(async move {
+            let inner = self.inner.lock().expect("fake store lock");
+            let Some(id) = inner.active_keys.get(api_key_hash).copied() else {
+                return Ok(None);
+            };
+            Ok(inner
+                .principals
+                .iter()
+                .find(|principal| {
+                    principal.id == id && principal.status == ServicePrincipalStatus::Active
+                })
+                .cloned())
+        })
     }
 }
 
@@ -503,6 +550,91 @@ impl UserAttributeWriter for StubLinker {
     }
 }
 
+/// In-memory [`ParticipantStore`] mirroring the partial unique index that keeps
+/// one active participant per `(session, actor)`.
+#[derive(Clone, Default)]
+struct FakeParticipantStore {
+    participants: Arc<Mutex<Vec<Participant>>>,
+}
+
+impl FakeParticipantStore {
+    fn active(&self, session_id: SessionId, actor_id: ActorId) -> Option<Participant> {
+        self.participants
+            .lock()
+            .expect("fake store lock")
+            .iter()
+            .find(|p| p.session_id == session_id && p.actor_id == actor_id && p.is_active())
+            .cloned()
+    }
+}
+
+impl ParticipantStore for FakeParticipantStore {
+    fn get(&self, id: ParticipantId) -> BoxFuture<'_, Result<Option<Participant>, StoreError>> {
+        Box::pin(async move {
+            Ok(self
+                .participants
+                .lock()
+                .expect("fake store lock")
+                .iter()
+                .find(|p| p.id == id)
+                .cloned())
+        })
+    }
+
+    fn get_active(
+        &self,
+        session_id: SessionId,
+        actor_id: ActorId,
+    ) -> BoxFuture<'_, Result<Option<Participant>, StoreError>> {
+        Box::pin(async move { Ok(self.active(session_id, actor_id)) })
+    }
+
+    fn insert<'a>(&'a self, participant: &'a Participant) -> BoxFuture<'a, Result<(), StoreError>> {
+        Box::pin(async move {
+            if participant.is_active()
+                && self
+                    .active(participant.session_id, participant.actor_id)
+                    .is_some()
+            {
+                return Err(StoreError::Conflict("already active".to_owned()));
+            }
+            self.participants
+                .lock()
+                .expect("fake store lock")
+                .push(participant.clone());
+            Ok(())
+        })
+    }
+
+    fn save<'a>(&'a self, participant: &'a Participant) -> BoxFuture<'a, Result<(), StoreError>> {
+        Box::pin(async move {
+            let mut participants = self.participants.lock().expect("fake store lock");
+            let slot = participants
+                .iter_mut()
+                .find(|existing| existing.id == participant.id)
+                .ok_or_else(|| StoreError::NotFound(participant.id.to_string()))?;
+            *slot = participant.clone();
+            Ok(())
+        })
+    }
+
+    fn list_for_session(
+        &self,
+        session_id: SessionId,
+    ) -> BoxFuture<'_, Result<Vec<Participant>, StoreError>> {
+        Box::pin(async move {
+            Ok(self
+                .participants
+                .lock()
+                .expect("fake store lock")
+                .iter()
+                .filter(|p| p.session_id == session_id)
+                .cloned()
+                .collect())
+        })
+    }
+}
+
 fn ws_state(principal: Option<Principal>) -> WsState {
     let (_shutdown_tx, shutdown_rx) = watch::channel(false);
     let metrics = WsMetrics::register(&prometheus::Registry::new()).expect("register ws metrics");
@@ -511,26 +643,31 @@ fn ws_state(principal: Option<Principal>) -> WsState {
         WsConfig::default(),
         metrics,
         Arc::new(GrpcMediaGateway::lazy("http://localhost:50051".to_owned()).expect("media")),
+        ParticipationStores {
+            participants: Arc::new(FakeParticipantStore::default()),
+            sessions: Arc::new(FakeSessionStore::default()),
+            rooms: Arc::new(FakeRoomStore::default()),
+        },
         shutdown_rx,
     )
 }
 
-fn state(principal: Option<Principal>, authorizer: Arc<dyn Authorizer>) -> AppState<FakeRoomStore> {
+fn state(principal: Option<Principal>, authorizer: Arc<dyn CapabilityResolver>) -> AppState {
     state_with(principal, authorizer, true)
 }
 
 fn state_unprovisioned(
     principal: Option<Principal>,
-    authorizer: Arc<dyn Authorizer>,
-) -> AppState<FakeRoomStore> {
+    authorizer: Arc<dyn CapabilityResolver>,
+) -> AppState {
     state_with(principal, authorizer, false)
 }
 
 fn state_with(
     principal: Option<Principal>,
-    authorizer: Arc<dyn Authorizer>,
+    authorizer: Arc<dyn CapabilityResolver>,
     provisioned: bool,
-) -> AppState<FakeRoomStore> {
+) -> AppState {
     let realtime = ws_state(principal.clone());
     let (service_auth, service_principals) = service_seams(FakeServicePrincipalStore::default());
     AppState {
@@ -547,8 +684,8 @@ fn state_with(
         service_principals,
         provisioner: Arc::new(StubProvisioner),
         linker: Arc::new(StubLinker),
-        rooms: FakeRoomStore::default(),
-        sessions: SessionStoreRef::new(FakeSessionStore::default()),
+        rooms: Arc::new(FakeRoomStore::default()),
+        sessions: Arc::new(FakeSessionStore::default()),
         realtime,
         turn: turn_settings(),
     }
@@ -585,11 +722,11 @@ fn turn_settings() -> TurnSettings {
 }
 
 fn app() -> Router {
-    api_router(state(None, Arc::new(AllowAuthenticated)))
+    api_router(state(None, Arc::new(AllowAll)))
 }
 
 fn authenticated_app() -> Router {
-    api_router(state(Some(principal()), Arc::new(AllowAuthenticated)))
+    api_router(state(Some(principal()), Arc::new(AllowAll)))
 }
 
 fn authenticated_room_app(principal: Principal, store: FakeRoomStore) -> Router {
@@ -599,24 +736,45 @@ fn authenticated_room_app(principal: Principal, store: FakeRoomStore) -> Router 
         service: "mahfel-api-test",
         version: "0.1.0",
         node_id: "node-test".to_owned(),
-        auth: AuthState::new(Arc::new(AllowAuthenticated)),
+        auth: AuthState::new(Arc::new(AllowAll)),
         authentication: Arc::new(StubAuthenticator::new(Some(principal))),
         service_auth,
         service_principals,
         provisioner: Arc::new(StubProvisioner),
         linker: Arc::new(StubLinker),
-        rooms: store,
-        sessions: SessionStoreRef::new(FakeSessionStore::default()),
+        rooms: Arc::new(store),
+        sessions: Arc::new(FakeSessionStore::default()),
         realtime,
         turn: turn_settings(),
     })
 }
 
+/// Always permits. Tests that are not about authorization use this so policy
+/// behaviour is not coupled to every unrelated assertion.
+struct AllowAll;
+
+impl CapabilityResolver for AllowAll {
+    fn resolve(&self, _principal: &Principal, _context: CapabilityContext) -> CapabilitySet {
+        CapabilitySet::new(vec![
+            Capability::ManageSystem,
+            Capability::CreateRoom,
+            Capability::ViewOwnIdentity,
+            Capability::Join,
+            Capability::PublishMedia,
+            Capability::ShareScreen,
+            Capability::MuteOthers,
+            Capability::RemoveParticipant,
+            Capability::AdmitParticipant,
+            Capability::ManageSession,
+        ])
+    }
+}
+
 struct DenyAll;
 
-impl Authorizer for DenyAll {
-    fn authorize(&self, _principal: &Principal, _action: Action) -> Result<(), AuthorizationError> {
-        Err(AuthorizationError::Denied)
+impl CapabilityResolver for DenyAll {
+    fn resolve(&self, _principal: &Principal, _context: CapabilityContext) -> CapabilitySet {
+        CapabilitySet::none()
     }
 }
 
@@ -836,10 +994,7 @@ async fn identity_is_denied_when_policy_denies() {
 #[tokio::test]
 async fn identity_rejects_a_token_without_a_linked_user() {
     // A verified token that has not been provisioned must not reach handlers.
-    let app = api_router(state_unprovisioned(
-        Some(principal()),
-        Arc::new(AllowAuthenticated),
-    ));
+    let app = api_router(state_unprovisioned(Some(principal()), Arc::new(AllowAll)));
     let req = Request::builder()
         .uri("/v1/auth/me")
         .body(Body::empty())
@@ -854,10 +1009,7 @@ async fn identity_rejects_a_token_without_a_linked_user() {
 #[tokio::test]
 async fn provision_returns_the_application_profile() {
     // Provisioning must remain reachable before the user is linked.
-    let app = api_router(state_unprovisioned(
-        Some(principal()),
-        Arc::new(AllowAuthenticated),
-    ));
+    let app = api_router(state_unprovisioned(Some(principal()), Arc::new(AllowAll)));
     let req = Request::builder()
         .method(Method::POST)
         .uri("/v1/auth/provision")
@@ -879,8 +1031,6 @@ async fn provision_returns_the_application_profile() {
 
 #[tokio::test]
 async fn admin_ping_allows_admin_and_denies_member_and_moderator() {
-    use mahfel_application::ports::RoleBasedAuthorizer;
-
     let admin = Principal {
         actor_id: principal().actor_id,
         kind: mahfel_domain::ActorKind::User,
@@ -897,7 +1047,7 @@ async fn admin_ping_allows_admin_and_denies_member_and_moderator() {
     };
     let member = principal();
 
-    let admin_app = api_router(state(Some(admin), Arc::new(RoleBasedAuthorizer)));
+    let admin_app = api_router(state(Some(admin), Arc::new(ServerCapabilityResolver)));
     let req = Request::builder()
         .uri("/v1/admin/ping")
         .body(Body::empty())
@@ -906,7 +1056,7 @@ async fn admin_ping_allows_admin_and_denies_member_and_moderator() {
     assert_eq!(resp.status(), StatusCode::OK);
 
     for (principal, label) in [(moderator, "moderator"), (member, "member")] {
-        let app = api_router(state(Some(principal), Arc::new(RoleBasedAuthorizer)));
+        let app = api_router(state(Some(principal), Arc::new(ServerCapabilityResolver)));
         let req = Request::builder()
             .uri("/v1/admin/ping")
             .body(Body::empty())
@@ -923,7 +1073,7 @@ async fn admin_ping_allows_admin_and_denies_member_and_moderator() {
 #[tokio::test]
 async fn cors_preflight_allows_configured_origin_and_exposes_request_id() {
     let origin = HeaderValue::from_static("http://localhost:3000");
-    let app = api_router(state(None, Arc::new(AllowAuthenticated))).layer(cors_layer(origin));
+    let app = api_router(state(None, Arc::new(AllowAll))).layer(cors_layer(origin));
 
     let req = Request::builder()
         .uri("/v1/status")
@@ -1358,14 +1508,14 @@ fn session_app(
         service: "mahfel-api-test",
         version: "0.1.0",
         node_id: "node-test".to_owned(),
-        auth: AuthState::new(Arc::new(AllowAuthenticated)),
+        auth: AuthState::new(Arc::new(AllowAll)),
         authentication: Arc::new(StubAuthenticator::new(principal)),
         service_auth,
         service_principals,
         provisioner: Arc::new(StubProvisioner),
         linker: Arc::new(StubLinker),
-        rooms,
-        sessions: SessionStoreRef::new(sessions),
+        rooms: Arc::new(rooms),
+        sessions: Arc::new(sessions),
         realtime,
         turn: turn_settings(),
     })
@@ -1544,6 +1694,124 @@ async fn session_routes_require_authentication() {
     assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
 }
 
+// --- Session capability introspection (TASK-124) ---
+
+/// Router whose authorization uses the real policy, so the capability endpoint
+/// answers from resolved membership rather than a test fake.
+fn policy_session_app(
+    principal: Option<Principal>,
+    rooms: FakeRoomStore,
+    sessions: FakeSessionStore,
+) -> Router {
+    let realtime = ws_state(principal.clone());
+    let (service_auth, service_principals) = service_seams(FakeServicePrincipalStore::default());
+    api_router(AppState {
+        service: "mahfel-api-test",
+        version: "0.1.0",
+        node_id: "node-test".to_owned(),
+        auth: AuthState::new(Arc::new(ServerCapabilityResolver)),
+        authentication: Arc::new(StubAuthenticator::new(principal)),
+        service_auth,
+        service_principals,
+        provisioner: Arc::new(StubProvisioner),
+        linker: Arc::new(StubLinker),
+        rooms: Arc::new(rooms),
+        sessions: Arc::new(sessions),
+        realtime,
+        turn: turn_settings(),
+    })
+}
+
+fn capabilities_of(json: &serde_json::Value) -> Vec<String> {
+    json.get("capabilities")
+        .and_then(|value| value.as_array())
+        .expect("capabilities array")
+        .iter()
+        .map(|value| value.as_str().expect("capability name").to_owned())
+        .collect()
+}
+
+#[tokio::test]
+async fn manager_introspects_the_full_room_capability_set() {
+    let rooms = FakeRoomStore::default();
+    let manager = principal();
+    let room = rooms.seed_room("Algebra", manager.actor_id, RoomVisibility::InviteOnly);
+    let sessions = FakeSessionStore::default();
+    let session = Session::schedule(room.id, None, OffsetDateTime::now_utc());
+    sessions.seed(session.clone());
+    let app = policy_session_app(Some(manager), rooms, sessions);
+
+    let resp = send_json(
+        &app,
+        Method::GET,
+        &format!("/v1/sessions/{}/capabilities", session.id),
+        "",
+    )
+    .await;
+
+    assert_eq!(resp.status(), StatusCode::OK);
+    let capabilities = capabilities_of(&response_json(resp).await);
+    assert!(capabilities.contains(&"manage_session".to_owned()));
+    assert!(capabilities.contains(&"mute_others".to_owned()));
+    assert!(
+        !capabilities.contains(&"manage_system".to_owned()),
+        "a room manager is not a system administrator"
+    );
+}
+
+#[tokio::test]
+async fn member_introspection_excludes_moderation() {
+    let rooms = FakeRoomStore::default();
+    let room = rooms.seed_room("Algebra", principal().actor_id, RoomVisibility::InviteOnly);
+    let member = other_principal();
+    rooms.add_raw_member(room.id, member.actor_id, RoomRole::Member);
+    let sessions = FakeSessionStore::default();
+    let session = Session::schedule(room.id, None, OffsetDateTime::now_utc());
+    sessions.seed(session.clone());
+    let app = policy_session_app(Some(member), rooms, sessions);
+
+    let resp = send_json(
+        &app,
+        Method::GET,
+        &format!("/v1/sessions/{}/capabilities", session.id),
+        "",
+    )
+    .await;
+
+    let status = resp.status();
+    let body = response_body_string(resp).await;
+    assert_eq!(status, StatusCode::OK, "body: {body}");
+    let capabilities =
+        capabilities_of(&serde_json::from_str(&body).expect("capabilities response is JSON"));
+    assert!(capabilities.contains(&"publish_media".to_owned()));
+    assert!(!capabilities.contains(&"manage_session".to_owned()));
+    assert!(!capabilities.contains(&"remove_participant".to_owned()));
+}
+
+#[tokio::test]
+async fn a_non_member_cannot_introspect_a_private_session() {
+    let rooms = FakeRoomStore::default();
+    let room = rooms.seed_room("Algebra", principal().actor_id, RoomVisibility::InviteOnly);
+    let sessions = FakeSessionStore::default();
+    let session = Session::schedule(room.id, None, OffsetDateTime::now_utc());
+    sessions.seed(session.clone());
+    let app = policy_session_app(Some(other_principal()), rooms, sessions);
+
+    let resp = send_json(
+        &app,
+        Method::GET,
+        &format!("/v1/sessions/{}/capabilities", session.id),
+        "",
+    )
+    .await;
+
+    assert_eq!(
+        resp.status(),
+        StatusCode::NOT_FOUND,
+        "a caller without access must not learn the session exists"
+    );
+}
+
 type ClientSocket = WebSocketStream<MaybeTlsStream<TcpStream>>;
 
 struct WsHarness {
@@ -1562,6 +1830,11 @@ async fn serve_ws(principal: Option<Principal>, config: WsConfig) -> WsHarness {
         config,
         metrics,
         Arc::new(GrpcMediaGateway::lazy("http://localhost:50051".to_owned()).expect("media")),
+        ParticipationStores {
+            participants: Arc::new(FakeParticipantStore::default()),
+            sessions: Arc::new(FakeSessionStore::default()),
+            rooms: Arc::new(FakeRoomStore::default()),
+        },
         shutdown_rx.clone(),
     );
     let (service_auth, service_principals) = service_seams(FakeServicePrincipalStore::default());
@@ -1569,14 +1842,14 @@ async fn serve_ws(principal: Option<Principal>, config: WsConfig) -> WsHarness {
         service: "mahfel-api-test",
         version: "0.1.0",
         node_id: "node-test".to_owned(),
-        auth: AuthState::new(Arc::new(AllowAuthenticated)),
+        auth: AuthState::new(Arc::new(AllowAll)),
         authentication: Arc::new(StubAuthenticator::new(principal)),
         service_auth,
         service_principals,
         provisioner: Arc::new(StubProvisioner),
         linker: Arc::new(StubLinker),
-        rooms: FakeRoomStore::default(),
-        sessions: SessionStoreRef::new(FakeSessionStore::default()),
+        rooms: Arc::new(FakeRoomStore::default()),
+        sessions: Arc::new(FakeSessionStore::default()),
         realtime,
         turn: turn_settings(),
     };
@@ -1758,6 +2031,11 @@ async fn serve_ws_with_verifier(verifier: TokenVerifier, config: WsConfig) -> Ws
         config,
         metrics,
         Arc::new(GrpcMediaGateway::lazy("http://localhost:50051".to_owned()).expect("media")),
+        ParticipationStores {
+            participants: Arc::new(FakeParticipantStore::default()),
+            sessions: Arc::new(FakeSessionStore::default()),
+            rooms: Arc::new(FakeRoomStore::default()),
+        },
         shutdown_rx.clone(),
     );
     let (service_auth, service_principals) = service_seams(FakeServicePrincipalStore::default());
@@ -1765,14 +2043,14 @@ async fn serve_ws_with_verifier(verifier: TokenVerifier, config: WsConfig) -> Ws
         service: "mahfel-api-test",
         version: "0.1.0",
         node_id: "node-test".to_owned(),
-        auth: AuthState::new(Arc::new(AllowAuthenticated)),
+        auth: AuthState::new(Arc::new(AllowAll)),
         authentication: auth,
         service_auth,
         service_principals,
         provisioner: Arc::new(StubProvisioner),
         linker: Arc::new(StubLinker),
-        rooms: FakeRoomStore::default(),
-        sessions: SessionStoreRef::new(FakeSessionStore::default()),
+        rooms: Arc::new(FakeRoomStore::default()),
+        sessions: Arc::new(FakeSessionStore::default()),
         realtime,
         turn: turn_settings(),
     };
@@ -2198,7 +2476,7 @@ async fn ws_auth_times_out_if_no_frame() {
 /// Router with shared service principal seams and a supplied room store.
 fn service_app(
     principal: Option<Principal>,
-    authorizer: Arc<dyn Authorizer>,
+    authorizer: Arc<dyn CapabilityResolver>,
     rooms: FakeRoomStore,
     service_store: FakeServicePrincipalStore,
 ) -> Router {
@@ -2214,8 +2492,8 @@ fn service_app(
         service_principals,
         provisioner: Arc::new(StubProvisioner),
         linker: Arc::new(StubLinker),
-        rooms,
-        sessions: SessionStoreRef::new(FakeSessionStore::default()),
+        rooms: Arc::new(rooms),
+        sessions: Arc::new(FakeSessionStore::default()),
         realtime,
         turn: turn_settings(),
     })
@@ -2251,7 +2529,7 @@ async fn service_api_key_authenticates_as_a_service_principal() {
     let created = provisioned_service(&service_store, "lms-core").await;
     let app = service_app(
         None,
-        Arc::new(AllowAuthenticated),
+        Arc::new(AllowAll),
         FakeRoomStore::default(),
         service_store.clone(),
     );
@@ -2281,7 +2559,7 @@ async fn revoked_service_api_key_is_rejected() {
 
     let app = service_app(
         None,
-        Arc::new(AllowAuthenticated),
+        Arc::new(AllowAll),
         FakeRoomStore::default(),
         service_store,
     );
@@ -2296,7 +2574,7 @@ async fn revoked_service_api_key_is_rejected() {
 async fn unknown_service_api_key_is_rejected() {
     let app = service_app(
         None,
-        Arc::new(AllowAuthenticated),
+        Arc::new(AllowAll),
         FakeRoomStore::default(),
         FakeServicePrincipalStore::default(),
     );
@@ -2327,7 +2605,7 @@ async fn admin_service_principals_require_manage_system() {
 
     let admin_app = service_app(
         Some(admin),
-        Arc::new(RoleBasedAuthorizer),
+        Arc::new(ServerCapabilityResolver),
         FakeRoomStore::default(),
         service_store.clone(),
     );
@@ -2355,7 +2633,7 @@ async fn admin_service_principals_require_manage_system() {
     for (principal, label) in [(principal(), "member"), (moderator, "moderator")] {
         let app = service_app(
             Some(principal),
-            Arc::new(RoleBasedAuthorizer),
+            Arc::new(ServerCapabilityResolver),
             FakeRoomStore::default(),
             service_store.clone(),
         );
@@ -2382,7 +2660,7 @@ async fn service_principal_cannot_manage_service_principals() {
     let created = provisioned_service(&service_store, "lms-core").await;
     let app = service_app(
         None,
-        Arc::new(RoleBasedAuthorizer),
+        Arc::new(ServerCapabilityResolver),
         FakeRoomStore::default(),
         service_store,
     );
@@ -2402,12 +2680,7 @@ async fn service_principal_creates_a_room_and_becomes_manager() {
     let service_store = FakeServicePrincipalStore::default();
     let created = provisioned_service(&service_store, "lms-core").await;
     let rooms = FakeRoomStore::default();
-    let app = service_app(
-        None,
-        Arc::new(AllowAuthenticated),
-        rooms.clone(),
-        service_store,
-    );
+    let app = service_app(None, Arc::new(AllowAll), rooms.clone(), service_store);
 
     let req = Request::builder()
         .uri("/v1/rooms")
@@ -2438,4 +2711,233 @@ async fn service_principal_creates_a_room_and_becomes_manager() {
         .expect("store")
         .expect("the service principal is a member");
     assert_eq!(membership.role, RoomRole::Manager);
+}
+
+/// Like [`serve_ws`], but with the stores seeded so participation frames can
+/// resolve a real room, session, and participant.
+async fn serve_ws_with(
+    principal: Option<Principal>,
+    rooms: FakeRoomStore,
+    sessions: FakeSessionStore,
+    participants: FakeParticipantStore,
+) -> WsHarness {
+    let registry = prometheus::Registry::new();
+    let metrics = WsMetrics::register(&registry).expect("register ws metrics");
+    let (shutdown_tx, shutdown_rx) = watch::channel(false);
+    let realtime = WsState::new(
+        Arc::new(StubAuthenticator::new(principal.clone())),
+        WsConfig::default(),
+        metrics,
+        Arc::new(GrpcMediaGateway::lazy("http://localhost:50051".to_owned()).expect("media")),
+        ParticipationStores {
+            participants: Arc::new(participants),
+            sessions: Arc::new(sessions),
+            rooms: Arc::new(rooms),
+        },
+        shutdown_rx.clone(),
+    );
+    let (service_auth, service_principals) = service_seams(FakeServicePrincipalStore::default());
+    let state = AppState {
+        service: "mahfel-api-test",
+        version: "0.1.0",
+        node_id: "node-test".to_owned(),
+        auth: AuthState::new(Arc::new(AllowAll)),
+        authentication: Arc::new(StubAuthenticator::new(principal)),
+        service_auth,
+        service_principals,
+        provisioner: Arc::new(StubProvisioner),
+        linker: Arc::new(StubLinker),
+        rooms: Arc::new(FakeRoomStore::default()),
+        sessions: Arc::new(FakeSessionStore::default()),
+        realtime,
+        turn: turn_settings(),
+    };
+    let listener = TcpListener::bind("127.0.0.1:0").await.expect("bind");
+    let addr = listener.local_addr().expect("listener address");
+    let task = tokio::spawn(mahfel_telemetry::serve_http(
+        listener,
+        api_router(state),
+        shutdown_rx,
+    ));
+    WsHarness {
+        addr,
+        shutdown: shutdown_tx,
+        registry,
+        _task: task,
+    }
+}
+
+/// A live session owned by `principal()`, plus the stores that hold it.
+fn participation_fixture() -> (
+    FakeRoomStore,
+    FakeSessionStore,
+    FakeParticipantStore,
+    Session,
+) {
+    let rooms = FakeRoomStore::default();
+    let room = rooms.seed_room("Algebra", principal().actor_id, RoomVisibility::InviteOnly);
+    let sessions = FakeSessionStore::default();
+    let mut session = Session::schedule(room.id, None, OffsetDateTime::now_utc());
+    session.start(OffsetDateTime::now_utc()).expect("start");
+    sessions.seed(session.clone());
+    (rooms, sessions, FakeParticipantStore::default(), session)
+}
+
+#[tokio::test]
+async fn websocket_join_resolves_a_participant_and_reconnect_reuses_it() {
+    let (rooms, sessions, participants, session) = participation_fixture();
+    let harness = serve_ws_with(Some(principal()), rooms, sessions, participants).await;
+
+    let mut first = connect(harness.addr).await;
+    authenticate(&mut first).await;
+    send(
+        &mut first,
+        &format!(r#"{{"v":1,"type":"join","session_id":"{}"}}"#, session.id),
+    )
+    .await;
+    let joined = next(&mut first).await;
+    let joined_text = joined.to_text().expect("text").to_owned();
+    assert!(
+        joined_text.contains(r#""type":"joined""#),
+        "join must be acknowledged: {joined_text}"
+    );
+    let participant_id = joined_text
+        .split(r#""participant_id":""#)
+        .nth(1)
+        .and_then(|rest| rest.split('"').next())
+        .expect("participant id present")
+        .to_owned();
+
+    // A second transport for the same actor is a reconnect, not a new identity.
+    let mut second = connect(harness.addr).await;
+    authenticate(&mut second).await;
+    send(
+        &mut second,
+        &format!(r#"{{"v":1,"type":"join","session_id":"{}"}}"#, session.id),
+    )
+    .await;
+    let rejoined = next(&mut second).await;
+    let rejoined_text = rejoined.to_text().expect("text").to_owned();
+    let repeated = rejoined_text
+        .split(r#""participant_id":""#)
+        .nth(1)
+        .and_then(|rest| rest.split('"').next())
+        .expect("participant id present");
+
+    assert_eq!(
+        participant_id, repeated,
+        "reconnect must reuse the stable participant identity"
+    );
+}
+
+#[tokio::test]
+async fn websocket_join_is_rejected_for_a_non_member() {
+    let rooms = FakeRoomStore::default();
+    let room = rooms.seed_room("Algebra", ActorId::new(), RoomVisibility::InviteOnly);
+    let sessions = FakeSessionStore::default();
+    let mut session = Session::schedule(room.id, None, OffsetDateTime::now_utc());
+    session.start(OffsetDateTime::now_utc()).expect("start");
+    sessions.seed(session.clone());
+
+    let harness = serve_ws_with(
+        Some(principal()),
+        rooms,
+        sessions,
+        FakeParticipantStore::default(),
+    )
+    .await;
+    let mut socket = connect(harness.addr).await;
+    authenticate(&mut socket).await;
+    send(
+        &mut socket,
+        &format!(r#"{{"v":1,"type":"join","session_id":"{}"}}"#, session.id),
+    )
+    .await;
+
+    let rejected = next(&mut socket).await;
+    let text = rejected.to_text().expect("text").to_owned();
+    assert!(
+        text.contains(r#""type":"join_rejected""#),
+        "a non-member must be rejected: {text}"
+    );
+    assert!(
+        text.contains(r#""code":"forbidden""#),
+        "the rejection must not reveal room existence: {text}"
+    );
+}
+
+#[tokio::test]
+async fn websocket_leave_is_terminal_and_the_actor_can_rejoin() {
+    let (rooms, sessions, participants, session) = participation_fixture();
+    let harness = serve_ws_with(Some(principal()), rooms, sessions, participants).await;
+
+    let mut socket = connect(harness.addr).await;
+    authenticate(&mut socket).await;
+    send(
+        &mut socket,
+        &format!(r#"{{"v":1,"type":"join","session_id":"{}"}}"#, session.id),
+    )
+    .await;
+    let joined_text = next(&mut socket).await.to_text().expect("text").to_owned();
+    let first_id = joined_text
+        .split(r#""participant_id":""#)
+        .nth(1)
+        .and_then(|rest| rest.split('"').next())
+        .expect("participant id")
+        .to_owned();
+
+    send(&mut socket, r#"{"v":1,"type":"leave"}"#).await;
+    let left_text = next(&mut socket).await.to_text().expect("text").to_owned();
+    assert!(
+        left_text.contains(r#""type":"left""#),
+        "leave must be acknowledged: {left_text}"
+    );
+
+    // Rejoining is a new participation, because leaving is terminal.
+    send(
+        &mut socket,
+        &format!(r#"{{"v":1,"type":"join","session_id":"{}"}}"#, session.id),
+    )
+    .await;
+    let rejoined_text = next(&mut socket).await.to_text().expect("text").to_owned();
+    let second_id = rejoined_text
+        .split(r#""participant_id":""#)
+        .nth(1)
+        .and_then(|rest| rest.split('"').next())
+        .expect("participant id")
+        .to_owned();
+    assert_ne!(first_id, second_id, "a rejoin is a new participation");
+}
+
+#[tokio::test]
+async fn websocket_join_peers_see_the_roster_change() {
+    let (rooms, sessions, participants, session) = participation_fixture();
+    let harness = serve_ws_with(Some(principal()), rooms, sessions, participants).await;
+
+    let mut owner = connect(harness.addr).await;
+    authenticate(&mut owner).await;
+    send(
+        &mut owner,
+        &format!(r#"{{"v":1,"type":"join","session_id":"{}"}}"#, session.id),
+    )
+    .await;
+    let _ = next(&mut owner).await;
+
+    // A second authenticated principal joins the same session; the owner's
+    // connection must observe the roster change.
+    let mut peer = connect(harness.addr).await;
+    authenticate(&mut peer).await;
+    send(
+        &mut peer,
+        &format!(r#"{{"v":1,"type":"join","session_id":"{}"}}"#, session.id),
+    )
+    .await;
+    let _ = next(&mut peer).await;
+
+    let observed = next(&mut owner).await;
+    let text = observed.to_text().expect("text").to_owned();
+    assert!(
+        text.contains(r#""type":"participant_joined""#),
+        "an existing member must see the roster change: {text}"
+    );
 }

@@ -1,16 +1,4 @@
 use crate::http::error::api_error_from;
-use mahfel_application::rooms::{
-    AddMemberError, ArchiveRoomError, CreateRoomError, GetRoomError, JoinRoomError, ListRoomsError,
-    RemoveMemberError, UpdateRoomError,
-};
+use mahfel_application::rooms::RoomOperationError;
 
-api_error_from!(
-    CreateRoomError,
-    ListRoomsError,
-    GetRoomError,
-    JoinRoomError,
-    AddMemberError,
-    RemoveMemberError,
-    UpdateRoomError,
-    ArchiveRoomError,
-);
+api_error_from!(RoomOperationError);

@@ -34,3 +34,23 @@ pub trait ApplicationError: std::error::Error + Send + Sync + 'static {
     /// Semantic category of this failure.
     fn kind(&self) -> ErrorKind;
 }
+
+/// Why an access guard rejected an operation.
+///
+/// Every guard collapses "the target does not exist" and "the caller may not
+/// learn that it does" into [`GuardError::NotFound`], so a caller cannot probe
+/// for the existence of resources it is not permitted to see. The variant set
+/// is deliberately small: guards answer "may this caller proceed?", not "why
+/// did the operation fail?".
+///
+/// Guards are shared across use cases, so each operation error converts a
+/// denial into its own type with a small `From` impl.
+#[derive(Debug, thiserror::Error)]
+pub(crate) enum GuardError {
+    #[error("not found")]
+    NotFound,
+    #[error("permission denied")]
+    Forbidden,
+    #[error("storage failure: {0}")]
+    Store(#[from] crate::ports::StoreError),
+}

@@ -1,4 +1,4 @@
-use super::StoreError;
+use super::{BoxFuture, StoreError};
 use mahfel_domain::{ActorId, Room, RoomId, RoomMember};
 
 /// Persistence for the room aggregate: the room itself and its memberships.
@@ -6,26 +6,22 @@ use mahfel_domain::{ActorId, Room, RoomId, RoomMember};
 /// Rooms and memberships share one port because creating a room must persist
 /// the creator's manager membership atomically, and membership changes are
 /// room-scoped invariants.
+///
+/// Methods return [`BoxFuture`] so the port is dyn-compatible and the
+/// composition root can hold one `Arc<dyn RoomStore>`.
 pub trait RoomStore: Send + Sync {
-    fn get(
-        &self,
-        id: RoomId,
-    ) -> impl std::future::Future<Output = Result<Option<Room>, StoreError>> + Send;
+    fn get(&self, id: RoomId) -> BoxFuture<'_, Result<Option<Room>, StoreError>>;
 
-    fn insert(
-        &self,
-        room: &Room,
-    ) -> impl std::future::Future<Output = Result<(), StoreError>> + Send;
+    fn insert<'a>(&'a self, room: &'a Room) -> BoxFuture<'a, Result<(), StoreError>>;
 
-    fn save(&self, room: &Room)
-    -> impl std::future::Future<Output = Result<(), StoreError>> + Send;
+    fn save<'a>(&'a self, room: &'a Room) -> BoxFuture<'a, Result<(), StoreError>>;
 
     /// Persist a room and its creator's manager membership in one transaction.
-    fn create_with_manager(
-        &self,
-        room: &Room,
-        manager: &RoomMember,
-    ) -> impl std::future::Future<Output = Result<(), StoreError>> + Send;
+    fn create_with_manager<'a>(
+        &'a self,
+        room: &'a Room,
+        manager: &'a RoomMember,
+    ) -> BoxFuture<'a, Result<(), StoreError>>;
 
     /// Rooms the actor is a member of, newest first.
     fn list_for_member(
@@ -33,25 +29,19 @@ pub trait RoomStore: Send + Sync {
         actor_id: ActorId,
         limit: u64,
         offset: u64,
-    ) -> impl std::future::Future<Output = Result<Vec<Room>, StoreError>> + Send;
+    ) -> BoxFuture<'_, Result<Vec<Room>, StoreError>>;
 
     fn get_member(
         &self,
         room_id: RoomId,
         actor_id: ActorId,
-    ) -> impl std::future::Future<Output = Result<Option<RoomMember>, StoreError>> + Send;
+    ) -> BoxFuture<'_, Result<Option<RoomMember>, StoreError>>;
 
-    fn list_members(
-        &self,
-        room_id: RoomId,
-    ) -> impl std::future::Future<Output = Result<Vec<RoomMember>, StoreError>> + Send;
+    fn list_members(&self, room_id: RoomId) -> BoxFuture<'_, Result<Vec<RoomMember>, StoreError>>;
 
     /// Insert a membership. Returns [`StoreError::Conflict`] when the actor is
     /// already a member.
-    fn add_member(
-        &self,
-        member: &RoomMember,
-    ) -> impl std::future::Future<Output = Result<(), StoreError>> + Send;
+    fn add_member<'a>(&'a self, member: &'a RoomMember) -> BoxFuture<'a, Result<(), StoreError>>;
 
     /// Remove a membership, refusing to remove the last manager.
     ///
@@ -61,5 +51,5 @@ pub trait RoomStore: Send + Sync {
         &self,
         room_id: RoomId,
         actor_id: ActorId,
-    ) -> impl std::future::Future<Output = Result<bool, StoreError>> + Send;
+    ) -> BoxFuture<'_, Result<bool, StoreError>>;
 }

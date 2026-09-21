@@ -1,13 +1,19 @@
 //! Authorization seam.
 //!
 //! Identity is modelled separately from policy: [`Principal`] is an
-//! authenticated actor and [`Authorizer`] decides whether that actor may
-//! perform an [`Action`]. Policy is deny-by-default: a transport must not
-//! attach a principal without authentication, and an [`Authorizer`] must
-//! return an error unless an explicit rule grants access.
+//! authenticated actor and [`CapabilityResolver`] decides which
+//! [`Capability`] values that actor holds in a given context. Policy is
+//! deny-by-default: a transport must not attach a principal without
+//! authentication, and a resolver must return an empty set unless an explicit
+//! rule grants a capability.
+//!
+//! Capabilities replace a fixed role enum. Global roles, per-room membership,
+//! and the service-principal distinction all feed one resolution step, so a
+//! vertical maps its vocabulary onto capabilities instead of adding roles
+//! (ADR 0020).
 
 use crate::error::{ApplicationError, ErrorKind};
-use mahfel_domain::{ActorId, ActorKind};
+use mahfel_domain::{ActorId, ActorKind, RoomRole};
 use thiserror::Error;
 
 /// An authenticated actor.
@@ -31,18 +37,133 @@ pub struct Principal {
     pub roles: Vec<String>,
 }
 
-/// An operation a principal may attempt.
+/// An operation a principal may perform.
 ///
-/// Actions are added as use cases appear; the interim policy below does not
-/// yet distinguish between them.
+/// Capabilities are either global (they depend only on verified global roles)
+/// or room-scoped (they also depend on the caller's membership in one room).
+/// [`CapabilityContext`] carries exactly the input each kind needs, so no
+/// capability silently ignores context it was given.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Action {
-    ViewOwnIdentity,
-    CreateRoom,
-    /// System-wide administration (e.g., manage realm, view admin panel).
+pub enum Capability {
+    /// System-wide administration: realms, service principals, admin panel.
     ManageSystem,
-    /// Classroom moderation (e.g., mute, remove members).
-    ModerateRoom,
+    /// Create a room. Any authenticated actor may; ownership is a separate fact.
+    CreateRoom,
+    /// Read one's own identity. Never gated on room context.
+    ViewOwnIdentity,
+    /// Enter a session in a room the caller may see.
+    Join,
+    /// Send audio or video to the session.
+    PublishMedia,
+    /// Share a screen.
+    ShareScreen,
+    /// Mute another participant's published media.
+    MuteOthers,
+    /// Remove another participant from the session.
+    RemoveParticipant,
+    /// Admit or reject a caller waiting in the lobby.
+    AdmitParticipant,
+    /// Start, end, cancel, or schedule a session, and change its settings.
+    ManageSession,
+}
+
+impl Capability {
+    /// Whether this capability depends on room membership.
+    ///
+    /// Global capabilities are decided from verified roles alone; room-scoped
+    /// capabilities require the caller's membership in the room the operation
+    /// targets. Documented per capability so the split is not inferred.
+    #[must_use]
+    pub const fn is_room_scoped(self) -> bool {
+        matches!(
+            self,
+            Self::Join
+                | Self::PublishMedia
+                | Self::ShareScreen
+                | Self::MuteOthers
+                | Self::RemoveParticipant
+                | Self::AdmitParticipant
+                | Self::ManageSession
+        )
+    }
+
+    /// Stable name for documentation, telemetry, and API responses.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::ManageSystem => "manage_system",
+            Self::CreateRoom => "create_room",
+            Self::ViewOwnIdentity => "view_own_identity",
+            Self::Join => "join",
+            Self::PublishMedia => "publish_media",
+            Self::ShareScreen => "share_screen",
+            Self::MuteOthers => "mute_others",
+            Self::RemoveParticipant => "remove_participant",
+            Self::AdmitParticipant => "admit_participant",
+            Self::ManageSession => "manage_session",
+        }
+    }
+}
+
+/// What a capability is resolved against.
+///
+/// `membership` is the caller's role in the target room, or `None` when they
+/// have no membership. It is read only by room-scoped capabilities; a global
+/// capability resolves identically whether or not it is present.
+#[derive(Clone, Copy, Debug)]
+pub struct CapabilityContext {
+    pub membership: Option<RoomRole>,
+}
+
+impl CapabilityContext {
+    /// Context for a room-scoped check.
+    #[must_use]
+    pub const fn in_room(membership: Option<RoomRole>) -> Self {
+        Self { membership }
+    }
+
+    /// Context for a global check, which ignores membership entirely.
+    #[must_use]
+    pub const fn global() -> Self {
+        Self { membership: None }
+    }
+}
+
+/// The capabilities a principal holds in one context.
+///
+/// A resolved set, not a query: callers ask what was granted rather than
+/// re-deriving it, and an empty set means deny.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct CapabilitySet {
+    granted: Vec<Capability>,
+}
+
+impl CapabilitySet {
+    #[must_use]
+    pub fn new(granted: Vec<Capability>) -> Self {
+        Self { granted }
+    }
+
+    /// An empty set. Deny-by-default is the absence of a grant.
+    #[must_use]
+    pub fn none() -> Self {
+        Self::default()
+    }
+
+    #[must_use]
+    pub fn has(&self, capability: Capability) -> bool {
+        self.granted.contains(&capability)
+    }
+
+    /// Granted capabilities, in declaration order, for introspection.
+    pub fn iter(&self) -> impl Iterator<Item = Capability> + '_ {
+        self.granted.iter().copied()
+    }
+
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.granted.is_empty()
+    }
 }
 
 /// Why an authorization attempt failed.
@@ -63,70 +184,39 @@ impl ApplicationError for AuthorizationError {
     }
 }
 
-/// Policy interface. Implementations must deny unless a rule grants access.
-pub trait Authorizer: Send + Sync {
-    fn authorize(&self, principal: &Principal, action: Action) -> Result<(), AuthorizationError>;
+/// Resolves a principal to the capabilities it holds in a context.
+///
+/// Implementations must deny unless an explicit rule grants a capability, and
+/// must not branch on which transport called them: REST and WebSocket share
+/// one resolver so a control hidden in the UI and a request forged by hand are
+/// decided identically.
+pub trait CapabilityResolver: Send + Sync {
+    fn resolve(&self, principal: &Principal, context: CapabilityContext) -> CapabilitySet;
 }
 
-/// Interim policy: every authenticated principal may perform every action.
+/// Resolve capabilities and map a missing grant into a denial.
 ///
-/// This exists only until the classroom role model (M2-07) replaces it. It is
-/// intentionally permissive but never bypasses authentication, because a
-/// [`Principal`] can only be produced by an authenticated transport.
-#[derive(Clone, Copy, Debug, Default)]
-pub struct AllowAuthenticated;
+/// Callers that need the set itself (introspection) use the resolver directly.
+#[must_use]
+pub fn resolve_capabilities(
+    resolver: &dyn CapabilityResolver,
+    principal: &Principal,
+    context: CapabilityContext,
+) -> CapabilitySet {
+    resolver.resolve(principal, context)
+}
 
-impl Authorizer for AllowAuthenticated {
-    fn authorize(&self, _principal: &Principal, _action: Action) -> Result<(), AuthorizationError> {
+/// Fail unless the principal holds `capability` in `context`.
+pub fn require_capability(
+    resolver: &dyn CapabilityResolver,
+    principal: &Principal,
+    context: CapabilityContext,
+    capability: Capability,
+) -> Result<(), AuthorizationError> {
+    if resolver.resolve(principal, context).has(capability) {
         Ok(())
-    }
-}
-
-/// Role-based authorizer for global roles.
-///
-/// Global roles (`admin`, `moderator`) are attached to Keycloak-issued user
-/// tokens; all other actors are `member` (explicit or implicit) and are handled
-/// explicitly within the app via `room_memberships`. Service principals carry
-/// no global roles, so they may create and own rooms and hold room
-/// memberships, but they can never `ManageSystem` or globally `ModerateRoom`
-/// through this policy. Deny-by-default remains: an action is allowed only by
-/// the explicit rules below.
-#[derive(Clone, Copy, Debug, Default)]
-pub struct RoleBasedAuthorizer;
-
-impl RoleBasedAuthorizer {
-    fn has_role(principal: &Principal, role: &str) -> bool {
-        principal.roles.iter().any(|r| r.eq_ignore_ascii_case(role))
-    }
-
-    fn is_admin(principal: &Principal) -> bool {
-        Self::has_role(principal, "admin")
-    }
-
-    fn is_moderator(principal: &Principal) -> bool {
-        Self::has_role(principal, "moderator")
-    }
-}
-
-impl Authorizer for RoleBasedAuthorizer {
-    fn authorize(&self, principal: &Principal, action: Action) -> Result<(), AuthorizationError> {
-        match action {
-            Action::ViewOwnIdentity | Action::CreateRoom => Ok(()),
-            Action::ManageSystem => {
-                if Self::is_admin(principal) {
-                    Ok(())
-                } else {
-                    Err(AuthorizationError::Denied)
-                }
-            }
-            Action::ModerateRoom => {
-                if Self::is_admin(principal) || Self::is_moderator(principal) {
-                    Ok(())
-                } else {
-                    Err(AuthorizationError::Denied)
-                }
-            }
-        }
+    } else {
+        Err(AuthorizationError::Denied)
     }
 }
 
@@ -135,6 +225,29 @@ mod tests {
     use super::*;
     use mahfel_domain::{ActorId, ActorKind};
     use uuid::Uuid;
+
+    const ROOM_SCOPED: [Capability; 7] = [
+        Capability::Join,
+        Capability::PublishMedia,
+        Capability::ShareScreen,
+        Capability::MuteOthers,
+        Capability::RemoveParticipant,
+        Capability::AdmitParticipant,
+        Capability::ManageSession,
+    ];
+
+    const ALL: [Capability; 10] = [
+        Capability::ManageSystem,
+        Capability::CreateRoom,
+        Capability::ViewOwnIdentity,
+        Capability::Join,
+        Capability::PublishMedia,
+        Capability::ShareScreen,
+        Capability::MuteOthers,
+        Capability::RemoveParticipant,
+        Capability::AdmitParticipant,
+        Capability::ManageSession,
+    ];
 
     fn principal_with_roles(roles: &[&str]) -> Principal {
         Principal {
@@ -145,107 +258,186 @@ mod tests {
             email: None,
             email_verified: false,
             username: None,
-            roles: roles.iter().map(|r| (*r).to_owned()).collect(),
+            roles: roles.iter().map(|role| (*role).to_owned()).collect(),
         }
     }
 
-    fn service_principal_with_roles(roles: &[&str]) -> Principal {
+    fn service_principal() -> Principal {
         Principal {
             kind: ActorKind::Service,
-            ..principal_with_roles(roles)
+            roles: Vec::new(),
+            ..principal_with_roles(&[])
         }
     }
 
+    fn has(principal: &Principal, membership: Option<RoomRole>, capability: Capability) -> bool {
+        crate::policy::ServerCapabilityResolver
+            .resolve(principal, CapabilityContext::in_room(membership))
+            .has(capability)
+    }
+
     #[test]
-    fn admin_can_manage_system_and_moderate() {
+    fn capability_names_are_stable() {
+        for capability in ALL {
+            assert!(!capability.as_str().is_empty());
+        }
+        assert_eq!(Capability::ManageSession.as_str(), "manage_session");
+        assert!(!Capability::ManageSystem.is_room_scoped());
+        assert!(Capability::Join.is_room_scoped());
+    }
+
+    #[test]
+    fn admin_holds_every_capability() {
         let admin = principal_with_roles(&["admin"]);
-        assert!(
-            RoleBasedAuthorizer
-                .authorize(&admin, Action::ManageSystem)
-                .is_ok()
-        );
-        assert!(
-            RoleBasedAuthorizer
-                .authorize(&admin, Action::ModerateRoom)
-                .is_ok()
-        );
+        let granted =
+            crate::policy::ServerCapabilityResolver.resolve(&admin, CapabilityContext::global());
+        for capability in ALL {
+            assert!(granted.has(capability), "admin must hold {capability:?}");
+        }
     }
 
     #[test]
-    fn moderator_can_moderate_but_not_manage_system() {
-        let moderator = principal_with_roles(&["moderator"]);
-        assert!(
-            RoleBasedAuthorizer
-                .authorize(&moderator, Action::ModerateRoom)
-                .is_ok()
-        );
-        assert!(
-            RoleBasedAuthorizer
-                .authorize(&moderator, Action::ManageSystem)
-                .is_err()
-        );
-    }
-
-    #[test]
-    fn member_can_only_view_and_create() {
+    fn manager_holds_the_full_room_set_but_not_system_administration() {
         let member = principal_with_roles(&["member"]);
-        let implicit = principal_with_roles(&[]);
-        for principal in [member, implicit] {
+        assert!(has(
+            &member,
+            Some(RoomRole::Manager),
+            Capability::ManageSession
+        ));
+        for capability in ROOM_SCOPED {
             assert!(
-                RoleBasedAuthorizer
-                    .authorize(&principal, Action::ViewOwnIdentity)
-                    .is_ok()
+                has(&member, Some(RoomRole::Manager), capability),
+                "a manager must hold {capability:?}"
             );
+        }
+        assert!(!has(
+            &member,
+            Some(RoomRole::Manager),
+            Capability::ManageSystem
+        ));
+    }
+
+    #[test]
+    fn member_holds_only_participation_capabilities() {
+        let member = principal_with_roles(&["member"]);
+        assert!(has(&member, Some(RoomRole::Member), Capability::Join));
+        assert!(has(
+            &member,
+            Some(RoomRole::Member),
+            Capability::PublishMedia
+        ));
+        assert!(has(
+            &member,
+            Some(RoomRole::Member),
+            Capability::ShareScreen
+        ));
+        for denied in [
+            Capability::MuteOthers,
+            Capability::RemoveParticipant,
+            Capability::AdmitParticipant,
+            Capability::ManageSession,
+            Capability::ManageSystem,
+        ] {
             assert!(
-                RoleBasedAuthorizer
-                    .authorize(&principal, Action::CreateRoom)
-                    .is_ok()
-            );
-            assert!(
-                RoleBasedAuthorizer
-                    .authorize(&principal, Action::ManageSystem)
-                    .is_err()
-            );
-            assert!(
-                RoleBasedAuthorizer
-                    .authorize(&principal, Action::ModerateRoom)
-                    .is_err()
+                !has(&member, Some(RoomRole::Member), denied),
+                "a member must not hold {denied:?}"
             );
         }
     }
 
     #[test]
-    fn service_principal_can_create_but_cannot_manage_system_or_moderate() {
-        let service = service_principal_with_roles(&[]);
+    fn moderator_moderates_without_managing_sessions() {
+        let moderator = principal_with_roles(&["moderator"]);
+        assert!(has(&moderator, None, Capability::MuteOthers));
+        assert!(has(&moderator, None, Capability::RemoveParticipant));
+        assert!(has(&moderator, None, Capability::AdmitParticipant));
+        assert!(!has(&moderator, None, Capability::ManageSession));
+        assert!(!has(&moderator, None, Capability::ManageSystem));
+    }
+
+    #[test]
+    fn moderator_who_manages_a_room_also_manages_that_session() {
+        let moderator = principal_with_roles(&["moderator"]);
+        assert!(has(
+            &moderator,
+            Some(RoomRole::Manager),
+            Capability::ManageSession
+        ));
+    }
+
+    #[test]
+    fn service_principal_holds_no_global_administration() {
+        let service = service_principal();
+        assert!(has(&service, None, Capability::CreateRoom));
+        assert!(has(&service, None, Capability::ViewOwnIdentity));
+        assert!(!has(&service, None, Capability::ManageSystem));
+        assert!(!has(&service, None, Capability::MuteOthers));
+    }
+
+    #[test]
+    fn service_principal_managing_a_room_holds_the_room_set() {
+        let service = service_principal();
+        assert!(has(
+            &service,
+            Some(RoomRole::Manager),
+            Capability::ManageSession
+        ));
+        assert!(has(
+            &service,
+            Some(RoomRole::Manager),
+            Capability::RemoveParticipant
+        ));
+        assert!(!has(
+            &service,
+            Some(RoomRole::Manager),
+            Capability::ManageSystem
+        ));
+    }
+
+    #[test]
+    fn an_actor_without_membership_holds_only_global_grants() {
+        let actor = principal_with_roles(&[]);
+        assert!(has(&actor, None, Capability::CreateRoom));
+        assert!(has(&actor, None, Capability::ViewOwnIdentity));
+        for denied in ROOM_SCOPED {
+            assert!(
+                !has(&actor, None, denied),
+                "an outsider must not hold {denied:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn require_capability_denies_by_default() {
+        let actor = principal_with_roles(&[]);
         assert!(
-            RoleBasedAuthorizer
-                .authorize(&service, Action::ViewOwnIdentity)
-                .is_ok()
+            require_capability(
+                &crate::policy::ServerCapabilityResolver,
+                &actor,
+                CapabilityContext::global(),
+                Capability::CreateRoom
+            )
+            .is_ok()
         );
-        assert!(
-            RoleBasedAuthorizer
-                .authorize(&service, Action::CreateRoom)
-                .is_ok()
-        );
-        assert!(
-            RoleBasedAuthorizer
-                .authorize(&service, Action::ManageSystem)
-                .is_err()
-        );
-        assert!(
-            RoleBasedAuthorizer
-                .authorize(&service, Action::ModerateRoom)
-                .is_err()
+        assert_eq!(
+            require_capability(
+                &crate::policy::ServerCapabilityResolver,
+                &actor,
+                CapabilityContext::global(),
+                Capability::ManageSystem
+            ),
+            Err(AuthorizationError::Denied)
         );
     }
 
     #[test]
-    fn deny_by_default_for_unknown_action_roles() {
+    fn introspection_lists_only_granted_capabilities() {
         let member = principal_with_roles(&["member"]);
-        assert!(
-            RoleBasedAuthorizer
-                .authorize(&member, Action::ModerateRoom)
-                .is_err()
-        );
+        let granted = crate::policy::ServerCapabilityResolver
+            .resolve(&member, CapabilityContext::in_room(Some(RoomRole::Member)));
+        let names: Vec<&str> = granted.iter().map(Capability::as_str).collect();
+        assert!(names.contains(&"join"));
+        assert!(!names.contains(&"manage_session"));
+        assert!(!names.contains(&"manage_system"));
     }
 }

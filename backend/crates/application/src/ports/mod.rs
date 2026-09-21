@@ -1,8 +1,11 @@
 pub mod authorization;
 pub mod coordination;
 pub mod event_publisher;
+pub mod futures;
 pub mod identity_store;
 pub mod media_gateway;
+pub mod membership;
+pub mod participant_store;
 pub mod room_store;
 pub mod service_principal_store;
 pub mod session_store;
@@ -10,12 +13,16 @@ pub mod user_attribute;
 pub mod user_store;
 
 pub use authorization::{
-    Action, AllowAuthenticated, AuthorizationError, Authorizer, Principal, RoleBasedAuthorizer,
+    AuthorizationError, Capability, CapabilityContext, CapabilityResolver, CapabilitySet,
+    Principal, require_capability, resolve_capabilities,
 };
 pub use coordination::{CoordinationError, CoordinationStore};
 pub use event_publisher::{DomainEvent, EventPublisher, PublishError};
+pub use futures::BoxFuture;
 pub use identity_store::{IdentityProfile, IdentityStore, ProvisionedIdentity};
 pub use media_gateway::{MediaGateway, MediaGatewayError};
+pub use membership::{Membership, MembershipStore};
+pub use participant_store::ParticipantStore;
 pub use room_store::RoomStore;
 pub use service_principal_store::ServicePrincipalStore;
 pub use session_store::SessionStore;

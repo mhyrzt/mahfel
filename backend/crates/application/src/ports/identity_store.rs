@@ -1,6 +1,5 @@
-use super::StoreError;
+use super::{BoxFuture, StoreError};
 use mahfel_domain::{AvatarUrl, DisplayName, EmailAddress, Identity, Issuer, Subject, User};
-use std::future::Future;
 use time::OffsetDateTime;
 
 /// Provider-asserted profile fields carried alongside an identity.
@@ -25,20 +24,21 @@ pub struct ProvisionedIdentity {
 /// Resolves a provider identity to a durable local user.
 ///
 /// The store owns the atomic, conflict-safe upsert so concurrent first logins
-/// for the same `(issuer, subject)` converge on a single user.
+/// for the same `(issuer, subject)` converge on a single user. Methods return
+/// [`BoxFuture`] so the port is dyn-compatible.
 pub trait IdentityStore: Send + Sync {
-    fn resolve_or_provision(
-        &self,
-        issuer: &Issuer,
-        subject: &Subject,
-        display_name: &DisplayName,
-        profile: &IdentityProfile,
+    fn resolve_or_provision<'a>(
+        &'a self,
+        issuer: &'a Issuer,
+        subject: &'a Subject,
+        display_name: &'a DisplayName,
+        profile: &'a IdentityProfile,
         now: OffsetDateTime,
-    ) -> impl Future<Output = Result<ProvisionedIdentity, StoreError>> + Send;
+    ) -> BoxFuture<'a, Result<ProvisionedIdentity, StoreError>>;
 
-    fn find_by_identity(
-        &self,
-        issuer: &Issuer,
-        subject: &Subject,
-    ) -> impl Future<Output = Result<Option<ProvisionedIdentity>, StoreError>> + Send;
+    fn find_by_identity<'a>(
+        &'a self,
+        issuer: &'a Issuer,
+        subject: &'a Subject,
+    ) -> BoxFuture<'a, Result<Option<ProvisionedIdentity>, StoreError>>;
 }

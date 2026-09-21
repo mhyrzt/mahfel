@@ -1,7 +1,4 @@
-use crate::http::{
-    auth::Authenticated,
-    state::{AppState, RoomStoreState},
-};
+use crate::http::{auth::Authenticated, state::AppState};
 use axum::{Json, Router, extract::State, routing::get};
 use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64_STANDARD};
 use hmac::{Hmac, Mac};
@@ -33,8 +30,8 @@ pub struct TurnCredentialsResponse {
     ),
     security(("bearerAuth" = []))
 )]
-pub async fn turn_credentials<R: crate::http::state::RoomStoreState>(
-    State(state): State<AppState<R>>,
+pub async fn turn_credentials(
+    State(state): State<AppState>,
     Authenticated(principal): Authenticated,
 ) -> Json<TurnCredentialsResponse> {
     let ttl = state.turn.ttl_seconds;
@@ -53,8 +50,8 @@ pub async fn turn_credentials<R: crate::http::state::RoomStoreState>(
     })
 }
 
-pub(crate) fn route<R: RoomStoreState>() -> Router<AppState<R>> {
-    Router::new().route("/turn/credentials", get(turn_credentials::<R>))
+pub(crate) fn route() -> Router<AppState> {
+    Router::new().route("/turn/credentials", get(turn_credentials))
 }
 
 #[cfg(test)]

@@ -7,12 +7,9 @@ mod state;
 
 pub use config::WsConfig;
 pub use metrics::WsMetrics;
-pub use state::WsState;
+pub use state::{ParticipationStores, WsState};
 
-use crate::http::{
-    error::ApiError,
-    state::{AppState, RoomStoreState},
-};
+use crate::http::{error::ApiError, state::AppState};
 use axum::{
     Router,
     extract::{State, WebSocketUpgrade},
@@ -25,12 +22,12 @@ const AT_CAPACITY: &str = "realtime capacity reached";
 
 /// Versioned WebSocket route. The protocol version lives in the envelope, not
 /// the URL.
-pub(super) fn route<R: RoomStoreState>() -> Router<AppState<R>> {
-    Router::new().route("/ws", get(upgrade::<R>))
+pub(super) fn route() -> Router<AppState> {
+    Router::new().route("/ws", get(upgrade))
 }
 
-async fn upgrade<R: RoomStoreState>(
-    State(state): State<AppState<R>>,
+async fn upgrade(
+    State(state): State<AppState>,
     headers: HeaderMap,
     ws: WebSocketUpgrade,
 ) -> Result<Response, ApiError> {

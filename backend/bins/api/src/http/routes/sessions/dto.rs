@@ -1,3 +1,4 @@
+use mahfel_application::ports::CapabilitySet;
 use mahfel_domain::{Session, SessionStatus};
 use serde::{Deserialize, Serialize};
 use time::OffsetDateTime;
@@ -42,6 +43,24 @@ pub(crate) struct SessionResponse {
     pub(crate) ended_at: Option<OffsetDateTime>,
     pub(crate) created_at: OffsetDateTime,
     pub(crate) updated_at: OffsetDateTime,
+}
+
+#[derive(Debug, Serialize, ToSchema)]
+pub(crate) struct SessionCapabilitiesResponse {
+    /// Capability names the caller holds in the session's room. Absent means
+    /// denied, so an empty list is a complete answer.
+    pub(crate) capabilities: Vec<String>,
+}
+
+impl SessionCapabilitiesResponse {
+    pub(crate) fn from_set(capabilities: &CapabilitySet) -> Self {
+        Self {
+            capabilities: capabilities
+                .iter()
+                .map(|capability| capability.as_str().to_owned())
+                .collect(),
+        }
+    }
 }
 
 impl From<Session> for SessionResponse {
