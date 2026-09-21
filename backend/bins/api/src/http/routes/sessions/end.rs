@@ -28,6 +28,7 @@ pub(crate) async fn end(
     let session = end_session(
         state.sessions.as_ref(),
         state.rooms.as_ref(),
+        state.participation.as_ref(),
         EndSession {
             actor: principal.actor_id,
             session_id: SessionId::from_uuid(session_id),

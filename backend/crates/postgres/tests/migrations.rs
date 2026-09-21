@@ -125,7 +125,7 @@ async fn verify_migrations_and_stores(
     let migration_count = sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM _sqlx_migrations")
         .fetch_one(pool)
         .await?;
-    assert_eq!(migration_count, 6, "each migration must be recorded once");
+    assert_eq!(migration_count, 7, "each migration must be recorded once");
 
     let migration_tables = sqlx::query_scalar::<_, i64>(
         "SELECT COUNT(*) FROM pg_class WHERE relname = '_sqlx_migrations'",

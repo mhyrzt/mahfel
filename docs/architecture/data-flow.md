@@ -49,8 +49,10 @@ A session moves `scheduled` to `live` to `ended`, or `scheduled` to `cancelled`;
 transition is rejected with `409` and leaves the row unchanged. At most one session per room may be
 `live`; a partial unique index makes a concurrent second start fail with `409` instead of creating a
 second live session. Every accepted action writes a structured `audit` log line. Sessions are
-scheduled and controlled by room managers only; member-facing session join and participation records
-are later M4 work.
+scheduled and controlled by room managers only. Member-facing join lives in the session-join flow
+below, and connected time is recorded durably in `mahfel.participation_intervals` (M4-03): a join
+opens an interval, a leave or any transport disconnect closes it, and ending a session sweeps any
+interval still open so none outlives its session.
 
 ## Session join
 

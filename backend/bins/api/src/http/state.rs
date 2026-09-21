@@ -4,7 +4,7 @@ use crate::http::{
     ws::WsState,
 };
 use mahfel_application::{
-    ports::{RoomStore, SessionStore, UserAttributeWriter},
+    ports::{ParticipationStore, RoomStore, SessionStore, UserAttributeWriter},
     users::IdentityProvisioner,
 };
 use mahfel_config::TurnSettings;
@@ -29,6 +29,7 @@ pub struct AppState {
     pub linker: Arc<dyn UserAttributeWriter>,
     pub rooms: Arc<dyn RoomStore>,
     pub sessions: Arc<dyn SessionStore>,
+    pub participation: Arc<dyn ParticipationStore>,
     pub realtime: WsState,
     pub turn: TurnSettings,
 }

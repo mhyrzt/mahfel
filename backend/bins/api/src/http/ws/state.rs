@@ -1,6 +1,6 @@
 use super::{config::WsConfig, metrics::WsMetrics, registry::ConnectionRegistry};
 use crate::http::auth::RequestAuthenticator;
-use mahfel_application::ports::{ParticipantStore, RoomStore, SessionStore};
+use mahfel_application::ports::{ParticipantStore, ParticipationStore, RoomStore, SessionStore};
 use mahfel_media_client::GrpcMediaGateway;
 use std::sync::Arc;
 use tokio::sync::watch;
@@ -9,6 +9,7 @@ use tokio::sync::watch;
 #[derive(Clone)]
 pub struct ParticipationStores {
     pub participants: Arc<dyn ParticipantStore>,
+    pub participation: Arc<dyn ParticipationStore>,
     pub sessions: Arc<dyn SessionStore>,
     pub rooms: Arc<dyn RoomStore>,
 }

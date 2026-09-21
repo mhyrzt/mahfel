@@ -17,8 +17,8 @@ use futures_util::{SinkExt, StreamExt};
 use mahfel_application::policy::ServerCapabilityResolver;
 use mahfel_application::ports::{
     AttributeError, BoxFuture, Capability, CapabilityContext, CapabilityResolver, CapabilitySet,
-    ParticipantStore, Principal, ProvisionedIdentity, RoomStore, ServicePrincipalStore,
-    SessionStore, StoreError, UserAttributeWriter,
+    ParticipantStore, ParticipationStore, Principal, ProvisionedIdentity, RoomStore,
+    ServicePrincipalStore, SessionStore, StoreError, UserAttributeWriter,
 };
 use mahfel_application::service_principals::{CreateServicePrincipal, create_service_principal};
 use mahfel_application::users::{IdentityProvisioner, SyncIdentity, SyncIdentityError};
@@ -26,9 +26,10 @@ use mahfel_auth::AuthenticatedIdentity;
 use mahfel_auth::{TokenVerifier, TokenVerifierConfig};
 use mahfel_config::TurnSettings;
 use mahfel_domain::{
-    ActorId, ActorKind, DisplayName, Identity, Issuer, Participant, ParticipantId, Room, RoomId,
-    RoomMember, RoomRole, RoomTitle, RoomVisibility, ServicePrincipal, ServicePrincipalStatus,
-    Session, SessionId, SessionStatus, Subject, User, UserStatus,
+    ActorId, ActorKind, DisplayName, Identity, IntervalId, Issuer, Participant, ParticipantId,
+    ParticipationInterval, Room, RoomId, RoomMember, RoomRole, RoomTitle, RoomVisibility,
+    ServicePrincipal, ServicePrincipalStatus, Session, SessionId, SessionStatus, Subject, User,
+    UserStatus,
 };
 use mahfel_media_client::GrpcMediaGateway;
 use prometheus::Encoder;
@@ -635,6 +636,147 @@ impl ParticipantStore for FakeParticipantStore {
     }
 }
 
+/// In-memory [`ParticipationStore`] mirroring the database invariants that
+/// matter to the transport: at most one open interval per participant, and
+/// corrections that retain the superseded row.
+#[derive(Clone, Default)]
+struct FakeParticipationStore {
+    intervals: Arc<Mutex<Vec<ParticipationInterval>>>,
+}
+
+impl FakeParticipationStore {
+    fn seed(&self, interval: ParticipationInterval) {
+        self.intervals
+            .lock()
+            .expect("fake store lock")
+            .push(interval);
+    }
+
+    fn list_for_participant(&self, participant_id: ParticipantId) -> Vec<ParticipationInterval> {
+        self.intervals
+            .lock()
+            .expect("fake store lock")
+            .iter()
+            .filter(|interval| interval.participant_id == participant_id)
+            .cloned()
+            .collect()
+    }
+}
+
+impl ParticipationStore for FakeParticipationStore {
+    fn open_interval<'a>(
+        &'a self,
+        interval: &'a ParticipationInterval,
+    ) -> BoxFuture<'a, Result<(), StoreError>> {
+        Box::pin(async move {
+            let mut intervals = self.intervals.lock().expect("fake store lock");
+            if intervals.iter().any(|existing| {
+                existing.participant_id == interval.participant_id && existing.is_open()
+            }) {
+                return Err(StoreError::Conflict("already open".to_owned()));
+            }
+            intervals.push(interval.clone());
+            Ok(())
+        })
+    }
+
+    fn close_open_interval(
+        &self,
+        participant_id: ParticipantId,
+        ended_at: time::OffsetDateTime,
+    ) -> BoxFuture<'_, Result<Option<IntervalId>, StoreError>> {
+        Box::pin(async move {
+            let mut intervals = self.intervals.lock().expect("fake store lock");
+            let found = intervals
+                .iter_mut()
+                .find(|interval| interval.participant_id == participant_id && interval.is_open());
+            match found {
+                Some(interval) => {
+                    interval.ended_at = Some(ended_at);
+                    Ok(Some(interval.id))
+                }
+                None => Ok(None),
+            }
+        })
+    }
+
+    fn close_open_intervals_for_session(
+        &self,
+        session_id: SessionId,
+        ended_at: time::OffsetDateTime,
+    ) -> BoxFuture<'_, Result<u64, StoreError>> {
+        Box::pin(async move {
+            let mut intervals = self.intervals.lock().expect("fake store lock");
+            let mut closed = 0_u64;
+            for interval in intervals.iter_mut() {
+                if interval.session_id == session_id && interval.is_open() {
+                    interval.ended_at = Some(ended_at);
+                    closed += 1;
+                }
+            }
+            Ok(closed)
+        })
+    }
+
+    fn get(
+        &self,
+        id: IntervalId,
+    ) -> BoxFuture<'_, Result<Option<ParticipationInterval>, StoreError>> {
+        Box::pin(async move {
+            Ok(self
+                .intervals
+                .lock()
+                .expect("fake store lock")
+                .iter()
+                .find(|interval| interval.id == id)
+                .cloned())
+        })
+    }
+
+    fn list_for_participant(
+        &self,
+        participant_id: ParticipantId,
+    ) -> BoxFuture<'_, Result<Vec<ParticipationInterval>, StoreError>> {
+        Box::pin(async move { Ok(self.list_for_participant(participant_id)) })
+    }
+
+    fn list_for_session(
+        &self,
+        session_id: SessionId,
+    ) -> BoxFuture<'_, Result<Vec<ParticipationInterval>, StoreError>> {
+        Box::pin(async move {
+            Ok(self
+                .intervals
+                .lock()
+                .expect("fake store lock")
+                .iter()
+                .filter(|interval| interval.session_id == session_id)
+                .cloned()
+                .collect())
+        })
+    }
+
+    fn supersede_interval<'a>(
+        &'a self,
+        original: &'a ParticipationInterval,
+        replacement: &'a ParticipationInterval,
+    ) -> BoxFuture<'a, Result<(), StoreError>> {
+        Box::pin(async move {
+            let mut intervals = self.intervals.lock().expect("fake store lock");
+            let slot = intervals
+                .iter_mut()
+                .find(|interval| interval.id == original.id)
+                .ok_or_else(|| StoreError::NotFound(original.id.to_string()))?;
+            if slot.is_superseded() {
+                return Err(StoreError::Conflict("already superseded".to_owned()));
+            }
+            *slot = original.clone();
+            intervals.push(replacement.clone());
+            Ok(())
+        })
+    }
+}
+
 fn ws_state(principal: Option<Principal>) -> WsState {
     let (_shutdown_tx, shutdown_rx) = watch::channel(false);
     let metrics = WsMetrics::register(&prometheus::Registry::new()).expect("register ws metrics");
@@ -645,6 +787,7 @@ fn ws_state(principal: Option<Principal>) -> WsState {
         Arc::new(GrpcMediaGateway::lazy("http://localhost:50051".to_owned()).expect("media")),
         ParticipationStores {
             participants: Arc::new(FakeParticipantStore::default()),
+            participation: Arc::new(FakeParticipationStore::default()),
             sessions: Arc::new(FakeSessionStore::default()),
             rooms: Arc::new(FakeRoomStore::default()),
         },
@@ -686,6 +829,7 @@ fn state_with(
         linker: Arc::new(StubLinker),
         rooms: Arc::new(FakeRoomStore::default()),
         sessions: Arc::new(FakeSessionStore::default()),
+        participation: Arc::new(FakeParticipationStore::default()),
         realtime,
         turn: turn_settings(),
     }
@@ -744,6 +888,7 @@ fn authenticated_room_app(principal: Principal, store: FakeRoomStore) -> Router 
         linker: Arc::new(StubLinker),
         rooms: Arc::new(store),
         sessions: Arc::new(FakeSessionStore::default()),
+        participation: Arc::new(FakeParticipationStore::default()),
         realtime,
         turn: turn_settings(),
     })
@@ -1516,6 +1661,7 @@ fn session_app(
         linker: Arc::new(StubLinker),
         rooms: Arc::new(rooms),
         sessions: Arc::new(sessions),
+        participation: Arc::new(FakeParticipationStore::default()),
         realtime,
         turn: turn_settings(),
     })
@@ -1717,6 +1863,7 @@ fn policy_session_app(
         linker: Arc::new(StubLinker),
         rooms: Arc::new(rooms),
         sessions: Arc::new(sessions),
+        participation: Arc::new(FakeParticipationStore::default()),
         realtime,
         turn: turn_settings(),
     })
@@ -1832,6 +1979,7 @@ async fn serve_ws(principal: Option<Principal>, config: WsConfig) -> WsHarness {
         Arc::new(GrpcMediaGateway::lazy("http://localhost:50051".to_owned()).expect("media")),
         ParticipationStores {
             participants: Arc::new(FakeParticipantStore::default()),
+            participation: Arc::new(FakeParticipationStore::default()),
             sessions: Arc::new(FakeSessionStore::default()),
             rooms: Arc::new(FakeRoomStore::default()),
         },
@@ -1850,6 +1998,7 @@ async fn serve_ws(principal: Option<Principal>, config: WsConfig) -> WsHarness {
         linker: Arc::new(StubLinker),
         rooms: Arc::new(FakeRoomStore::default()),
         sessions: Arc::new(FakeSessionStore::default()),
+        participation: Arc::new(FakeParticipationStore::default()),
         realtime,
         turn: turn_settings(),
     };
@@ -2033,6 +2182,7 @@ async fn serve_ws_with_verifier(verifier: TokenVerifier, config: WsConfig) -> Ws
         Arc::new(GrpcMediaGateway::lazy("http://localhost:50051".to_owned()).expect("media")),
         ParticipationStores {
             participants: Arc::new(FakeParticipantStore::default()),
+            participation: Arc::new(FakeParticipationStore::default()),
             sessions: Arc::new(FakeSessionStore::default()),
             rooms: Arc::new(FakeRoomStore::default()),
         },
@@ -2051,6 +2201,7 @@ async fn serve_ws_with_verifier(verifier: TokenVerifier, config: WsConfig) -> Ws
         linker: Arc::new(StubLinker),
         rooms: Arc::new(FakeRoomStore::default()),
         sessions: Arc::new(FakeSessionStore::default()),
+        participation: Arc::new(FakeParticipationStore::default()),
         realtime,
         turn: turn_settings(),
     };
@@ -2494,6 +2645,7 @@ fn service_app(
         linker: Arc::new(StubLinker),
         rooms: Arc::new(rooms),
         sessions: Arc::new(FakeSessionStore::default()),
+        participation: Arc::new(FakeParticipationStore::default()),
         realtime,
         turn: turn_settings(),
     })
@@ -2731,6 +2883,7 @@ async fn serve_ws_with(
         Arc::new(GrpcMediaGateway::lazy("http://localhost:50051".to_owned()).expect("media")),
         ParticipationStores {
             participants: Arc::new(participants),
+            participation: Arc::new(FakeParticipationStore::default()),
             sessions: Arc::new(sessions),
             rooms: Arc::new(rooms),
         },
@@ -2749,6 +2902,7 @@ async fn serve_ws_with(
         linker: Arc::new(StubLinker),
         rooms: Arc::new(FakeRoomStore::default()),
         sessions: Arc::new(FakeSessionStore::default()),
+        participation: Arc::new(FakeParticipationStore::default()),
         realtime,
         turn: turn_settings(),
     };
@@ -2940,4 +3094,260 @@ async fn websocket_join_peers_see_the_roster_change() {
         text.contains(r#""type":"participant_joined""#),
         "an existing member must see the roster change: {text}"
     );
+}
+
+// --- Participation record transport tests (TASK-123) ---
+
+/// Router whose participation store the caller controls, so interval fixtures
+/// can be seeded directly.
+fn participation_app(
+    principal: Option<Principal>,
+    rooms: FakeRoomStore,
+    sessions: FakeSessionStore,
+    participation: FakeParticipationStore,
+) -> Router {
+    let realtime = ws_state(principal.clone());
+    let (service_auth, service_principals) = service_seams(FakeServicePrincipalStore::default());
+    api_router(AppState {
+        service: "mahfel-api-test",
+        version: "0.1.0",
+        node_id: "node-test".to_owned(),
+        auth: AuthState::new(Arc::new(ServerCapabilityResolver)),
+        authentication: Arc::new(StubAuthenticator::new(principal)),
+        service_auth,
+        service_principals,
+        provisioner: Arc::new(StubProvisioner),
+        linker: Arc::new(StubLinker),
+        rooms: Arc::new(rooms),
+        sessions: Arc::new(sessions),
+        participation: Arc::new(participation),
+        realtime,
+        turn: turn_settings(),
+    })
+}
+
+fn interval_at(
+    participant_id: ParticipantId,
+    session_id: SessionId,
+    actor_id: ActorId,
+    start_secs: i64,
+    end_secs: Option<i64>,
+) -> ParticipationInterval {
+    let start = OffsetDateTime::UNIX_EPOCH + time::Duration::seconds(start_secs);
+    let mut interval = ParticipationInterval::open(participant_id, session_id, actor_id, start);
+    if let Some(end) = end_secs {
+        let end = OffsetDateTime::UNIX_EPOCH + time::Duration::seconds(end);
+        interval.close(end).expect("close fixture interval");
+    }
+    interval
+}
+
+#[tokio::test]
+async fn a_manager_reads_session_participation() {
+    let rooms = FakeRoomStore::default();
+    let manager = principal();
+    let room = rooms.seed_room("Algebra", manager.actor_id, RoomVisibility::InviteOnly);
+    let sessions = FakeSessionStore::default();
+    let mut session = Session::schedule(room.id, None, OffsetDateTime::now_utc());
+    session.start(OffsetDateTime::now_utc()).expect("start");
+    sessions.seed(session.clone());
+
+    let participant = ParticipantId::new();
+    let participation = FakeParticipationStore::default();
+    participation.seed(interval_at(
+        participant,
+        session.id,
+        manager.actor_id,
+        0,
+        Some(60),
+    ));
+    let app = participation_app(Some(manager), rooms, sessions, participation);
+
+    let req = Request::builder()
+        .uri(format!("/v1/sessions/{}/participation", session.id))
+        .body(Body::empty())
+        .expect("request");
+    let resp = app.oneshot(req).await.expect("response");
+    assert_eq!(resp.status(), StatusCode::OK);
+    let json = response_json(resp).await;
+    let participants = json
+        .get("participants")
+        .and_then(|value| value.as_array())
+        .expect("participants array");
+    assert_eq!(participants.len(), 1);
+    assert_eq!(
+        participants[0]
+            .get("connected_seconds")
+            .and_then(|value| value.as_i64()),
+        Some(60)
+    );
+}
+
+#[tokio::test]
+async fn a_plain_member_cannot_read_session_participation() {
+    let rooms = FakeRoomStore::default();
+    let room = rooms.seed_room("Algebra", principal().actor_id, RoomVisibility::InviteOnly);
+    let member = other_principal();
+    rooms.add_raw_member(room.id, member.actor_id, RoomRole::Member);
+    let sessions = FakeSessionStore::default();
+    let session = Session::schedule(room.id, None, OffsetDateTime::now_utc());
+    sessions.seed(session.clone());
+    let app = participation_app(
+        Some(member),
+        rooms,
+        sessions,
+        FakeParticipationStore::default(),
+    );
+
+    let req = Request::builder()
+        .uri(format!("/v1/sessions/{}/participation", session.id))
+        .body(Body::empty())
+        .expect("request");
+    let resp = app.oneshot(req).await.expect("response");
+    assert_eq!(resp.status(), StatusCode::FORBIDDEN);
+}
+
+#[tokio::test]
+async fn a_participant_reads_its_own_intervals() {
+    let rooms = FakeRoomStore::default();
+    let actor = principal();
+    let room = rooms.seed_room("Algebra", actor.actor_id, RoomVisibility::InviteOnly);
+    let sessions = FakeSessionStore::default();
+    let session = Session::schedule(room.id, None, OffsetDateTime::now_utc());
+    sessions.seed(session.clone());
+
+    let participant = ParticipantId::new();
+    let participation = FakeParticipationStore::default();
+    participation.seed(interval_at(
+        participant,
+        session.id,
+        actor.actor_id,
+        0,
+        Some(30),
+    ));
+    let app = participation_app(Some(actor), rooms, sessions, participation);
+
+    let req = Request::builder()
+        .uri(format!(
+            "/v1/sessions/{}/participants/{}/participation",
+            session.id, participant
+        ))
+        .body(Body::empty())
+        .expect("request");
+    let resp = app.oneshot(req).await.expect("response");
+    assert_eq!(resp.status(), StatusCode::OK);
+    let json = response_json(resp).await;
+    assert_eq!(
+        json.get("connected_seconds")
+            .and_then(|value| value.as_i64()),
+        Some(30)
+    );
+}
+
+#[tokio::test]
+async fn a_manager_corrects_an_interval_and_history_is_retained() {
+    let rooms = FakeRoomStore::default();
+    let manager = principal();
+    let room = rooms.seed_room("Algebra", manager.actor_id, RoomVisibility::InviteOnly);
+    let sessions = FakeSessionStore::default();
+    let mut session = Session::schedule(room.id, None, OffsetDateTime::now_utc());
+    session.start(OffsetDateTime::now_utc()).expect("start");
+    session.end(OffsetDateTime::now_utc()).expect("end");
+    sessions.seed(session.clone());
+
+    let participant = ParticipantId::new();
+    let participation = FakeParticipationStore::default();
+    let original = interval_at(participant, session.id, manager.actor_id, 0, Some(10));
+    let original_id = original.id;
+    participation.seed(original);
+    let app = participation_app(Some(manager), rooms, sessions, participation);
+
+    let body = serde_json::json!({
+        "started_at": "1970-01-01T00:00:00Z",
+        "ended_at": "1970-01-01T00:02:00Z",
+        "reason": "wrong_end",
+    })
+    .to_string();
+    let resp = send_json(
+        &app,
+        Method::POST,
+        &format!("/v1/participation/intervals/{original_id}/correct"),
+        &body,
+    )
+    .await;
+
+    let status = resp.status();
+    let body_text = response_body_string(resp).await;
+    assert_eq!(status, StatusCode::OK, "body: {body_text}");
+    let json: serde_json::Value = serde_json::from_str(&body_text).expect("json");
+    assert_eq!(
+        json.get("connected_seconds")
+            .and_then(|value| value.as_i64()),
+        Some(120),
+        "the replacement carries the corrected duration"
+    );
+
+    // The original row survives, marked as superseded.
+    let req = Request::builder()
+        .uri(format!(
+            "/v1/sessions/{}/participants/{}/participation",
+            session.id, participant
+        ))
+        .body(Body::empty())
+        .expect("request");
+    let resp = app.oneshot(req).await.expect("response");
+    let json = response_json(resp).await;
+    let intervals = json
+        .get("intervals")
+        .and_then(|value| value.as_array())
+        .expect("intervals array");
+    assert_eq!(intervals.len(), 2, "history keeps both intervals");
+    let superseded = intervals
+        .iter()
+        .find(|interval| interval.get("superseded_by").is_some())
+        .expect("original is retained as superseded");
+    assert_eq!(
+        superseded.get("correction_reason").and_then(|v| v.as_str()),
+        Some("wrong_end")
+    );
+    assert_eq!(
+        json.get("connected_seconds")
+            .and_then(|value| value.as_i64()),
+        Some(120),
+        "a superseded interval must not also count"
+    );
+}
+
+#[tokio::test]
+async fn a_non_manager_cannot_correct_an_interval() {
+    let rooms = FakeRoomStore::default();
+    let room = rooms.seed_room("Algebra", principal().actor_id, RoomVisibility::InviteOnly);
+    let member = other_principal();
+    rooms.add_raw_member(room.id, member.actor_id, RoomRole::Member);
+    let sessions = FakeSessionStore::default();
+    let session = Session::schedule(room.id, None, OffsetDateTime::now_utc());
+    sessions.seed(session.clone());
+
+    let participant = ParticipantId::new();
+    let participation = FakeParticipationStore::default();
+    let original = interval_at(participant, session.id, member.actor_id, 0, Some(10));
+    let original_id = original.id;
+    participation.seed(original);
+    let app = participation_app(Some(member), rooms, sessions, participation);
+
+    let body = serde_json::json!({
+        "started_at": "1970-01-01T00:00:00Z",
+        "ended_at": "1970-01-01T00:02:00Z",
+        "reason": "manual_adjustment",
+    })
+    .to_string();
+    let resp = send_json(
+        &app,
+        Method::POST,
+        &format!("/v1/participation/intervals/{original_id}/correct"),
+        &body,
+    )
+    .await;
+
+    assert_eq!(resp.status(), StatusCode::FORBIDDEN);
 }

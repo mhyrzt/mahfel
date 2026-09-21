@@ -9,6 +9,7 @@ mod actor;
 mod identity;
 mod ids;
 mod participant;
+mod participation;
 mod room;
 mod session;
 mod status;
@@ -21,6 +22,10 @@ pub use actor::{
 pub use identity::{Identity, IdentityId};
 pub use ids::NodeId;
 pub use participant::{Participant, ParticipantError, ParticipantId, ParticipantStatus};
+pub use participation::{
+    CorrectionReason, IntervalError, IntervalId, ParticipationInterval, intervals_overlap,
+    total_connected_seconds,
+};
 pub use room::{
     MembershipError, RoleCapability, Room, RoomError, RoomId, RoomMember, RoomRole, RoomStatus,
     RoomVisibility, ensure_member_removable,

@@ -44,6 +44,7 @@ pub(super) async fn handle_join(
     // visibility, and M4-06 admission policy extends this same path.
     let participant = match join_session(
         state.stores.participants.as_ref(),
+        state.stores.participation.as_ref(),
         state.stores.sessions.as_ref(),
         state.stores.rooms.as_ref(),
         JoinSession {
@@ -101,6 +102,7 @@ pub(super) async fn handle_leave(
 
     let outcome = leave_session(
         state.stores.participants.as_ref(),
+        state.stores.participation.as_ref(),
         LeaveSession {
             actor: principal.actor_id,
             participant_id,
@@ -151,6 +153,6 @@ fn join_rejection_code(error: &SessionOperationError) -> &'static str {
         SessionOperationError::Conflict
         | SessionOperationError::Domain(_)
         | SessionOperationError::Participant(_) => "conflict",
-        SessionOperationError::Store(_) => "unavailable",
+        SessionOperationError::Store(_) | SessionOperationError::Participation(_) => "unavailable",
     }
 }

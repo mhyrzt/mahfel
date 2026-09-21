@@ -8,7 +8,7 @@
 
 use crate::error::{ApplicationError, ErrorKind, GuardError};
 use crate::ports::StoreError;
-use mahfel_domain::{ParticipantError, SessionError as DomainError};
+use mahfel_domain::{IntervalError, ParticipantError, SessionError as DomainError};
 use thiserror::Error;
 
 /// Why a session operation failed.
@@ -30,6 +30,11 @@ pub enum SessionOperationError {
     Domain(#[from] DomainError),
     #[error("invalid participant transition: {0}")]
     Participant(#[from] ParticipantError),
+    /// Participation-record failure while joining or leaving. The participant
+    /// operation itself succeeded or failed on its own terms; this reports a
+    /// durable recording problem, which is an internal failure, not a denial.
+    #[error("participation record failure: {0}")]
+    Participation(#[from] IntervalError),
     #[error("storage failure: {0}")]
     Store(#[from] StoreError),
 }
@@ -42,6 +47,7 @@ impl ApplicationError for SessionOperationError {
             Self::Conflict | Self::NotLive | Self::Domain(_) | Self::Participant(_) => {
                 ErrorKind::Conflict
             }
+            Self::Participation(_) => ErrorKind::Internal,
             Self::Store(_) => ErrorKind::Internal,
         }
     }
