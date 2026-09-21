@@ -1,4 +1,6 @@
-use super::{SERVICE, VERSION, database::Database, telemetry::Telemetry};
+use super::{
+    SERVICE, VERSION, coordination::Coordination, database::Database, telemetry::Telemetry,
+};
 use crate::http;
 use crate::settings;
 use anyhow::Result;
@@ -18,6 +20,7 @@ pub(super) fn app(
     settings: &Settings,
     node_id: &NodeId,
     database: &Database,
+    coordination: &Coordination,
     telemetry: &Telemetry,
     shutdown: watch::Receiver<bool>,
 ) -> Result<Router> {
@@ -55,6 +58,9 @@ pub(super) fn app(
         Arc::new(stores.participants.clone());
     let participation: Arc<dyn mahfel_application::ports::ParticipationStore> =
         Arc::new(stores.participation.clone());
+    let invites: Arc<dyn mahfel_application::ports::InviteStore> = Arc::new(stores.invites.clone());
+    let code_index: Arc<dyn mahfel_application::ports::CoordinationStore> =
+        Arc::new(coordination.store.clone());
     let realtime = http::ws::WsState::new(
         Arc::clone(&authentication),
         http::ws::WsConfig::from(&settings.api.ws),
@@ -66,6 +72,7 @@ pub(super) fn app(
             sessions: Arc::clone(&sessions),
             rooms: Arc::clone(&rooms),
         },
+        Arc::clone(&code_index),
         shutdown,
     );
 
@@ -82,6 +89,8 @@ pub(super) fn app(
         rooms,
         sessions,
         participation,
+        invites,
+        code_index,
         realtime,
         turn: settings.turn.clone(),
     };

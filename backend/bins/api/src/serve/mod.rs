@@ -33,6 +33,7 @@ pub(crate) async fn run(settings: Settings) -> Result<()> {
         &settings,
         &node_id,
         &database,
+        &coordination,
         &telemetry,
         shutdown_rx.clone(),
     )?;

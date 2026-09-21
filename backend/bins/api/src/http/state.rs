@@ -4,7 +4,10 @@ use crate::http::{
     ws::WsState,
 };
 use mahfel_application::{
-    ports::{ParticipationStore, RoomStore, SessionStore, UserAttributeWriter},
+    ports::{
+        CoordinationStore, InviteStore, ParticipationStore, RoomStore, SessionStore,
+        UserAttributeWriter,
+    },
     users::IdentityProvisioner,
 };
 use mahfel_config::TurnSettings;
@@ -30,6 +33,17 @@ pub struct AppState {
     pub rooms: Arc<dyn RoomStore>,
     pub sessions: Arc<dyn SessionStore>,
     pub participation: Arc<dyn ParticipationStore>,
+    pub invites: Arc<dyn InviteStore>,
+    /// Ephemeral counters behind invite-code rate limiting. Redis, because the
+    /// window must be shared across replicas and is replaceable state.
+    ///
+    /// Wired now and consumed by the redemption flow (M4-14), which is the only
+    /// caller of the limiter; nothing on this surface reads it yet.
+    #[expect(
+        dead_code,
+        reason = "held for the M4-14 redemption flow, which is the limiter's first caller"
+    )]
+    pub code_index: Arc<dyn CoordinationStore>,
     pub realtime: WsState,
     pub turn: TurnSettings,
 }

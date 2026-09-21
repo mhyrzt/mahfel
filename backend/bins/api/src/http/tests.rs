@@ -17,8 +17,9 @@ use futures_util::{SinkExt, StreamExt};
 use mahfel_application::policy::ServerCapabilityResolver;
 use mahfel_application::ports::{
     AttributeError, BoxFuture, Capability, CapabilityContext, CapabilityResolver, CapabilitySet,
-    ParticipantStore, ParticipationStore, Principal, ProvisionedIdentity, RoomStore,
-    ServicePrincipalStore, SessionStore, StoreError, UserAttributeWriter,
+    CoordinationError, CoordinationStore, InviteStore, ParticipantStore, ParticipationStore,
+    Principal, ProvisionedIdentity, RoomStore, ServicePrincipalStore, SessionStore, StoreError,
+    UserAttributeWriter,
 };
 use mahfel_application::service_principals::{CreateServicePrincipal, create_service_principal};
 use mahfel_application::users::{IdentityProvisioner, SyncIdentity, SyncIdentityError};
@@ -26,7 +27,8 @@ use mahfel_auth::AuthenticatedIdentity;
 use mahfel_auth::{TokenVerifier, TokenVerifierConfig};
 use mahfel_config::TurnSettings;
 use mahfel_domain::{
-    ActorId, ActorKind, DisplayName, Identity, IntervalId, Issuer, Participant, ParticipantId,
+    ActorId, ActorKind, DisplayName, Identity, IntervalId, InviteCode, InviteLink, InviteLinkId,
+    InviteLinkStatus, InviteTarget, InviteTargetKind, Issuer, Participant, ParticipantId,
     ParticipationInterval, Room, RoomId, RoomMember, RoomRole, RoomTitle, RoomVisibility,
     ServicePrincipal, ServicePrincipalStatus, Session, SessionId, SessionStatus, Subject, User,
     UserStatus,
@@ -777,6 +779,187 @@ impl ParticipationStore for FakeParticipationStore {
     }
 }
 
+/// Counting coordination double for the invite rate limiter.
+///
+/// Mirrors the Redis adapter's contract: the first increment creates the key,
+/// later ones count up. Expiry is not modelled because the limiter's window
+/// behavior is tested where the policy lives; here it only has to count.
+#[derive(Clone, Default)]
+struct FakeCoordination {
+    counts: Arc<Mutex<Vec<(String, u64)>>>,
+}
+
+impl CoordinationStore for FakeCoordination {
+    fn set_with_ttl<'a>(
+        &'a self,
+        _key: &'a str,
+        _value: &'a [u8],
+        _ttl: Duration,
+    ) -> BoxFuture<'a, Result<(), CoordinationError>> {
+        Box::pin(async move { Ok(()) })
+    }
+
+    fn get<'a>(
+        &'a self,
+        _key: &'a str,
+    ) -> BoxFuture<'a, Result<Option<Vec<u8>>, CoordinationError>> {
+        Box::pin(async move { Ok(None) })
+    }
+
+    fn delete<'a>(&'a self, _key: &'a str) -> BoxFuture<'a, Result<(), CoordinationError>> {
+        Box::pin(async move { Ok(()) })
+    }
+
+    fn publish<'a>(
+        &'a self,
+        _channel: &'a str,
+        _payload: &'a [u8],
+    ) -> BoxFuture<'a, Result<(), CoordinationError>> {
+        Box::pin(async move { Ok(()) })
+    }
+
+    fn increment_with_ttl<'a>(
+        &'a self,
+        key: &'a str,
+        _ttl: Duration,
+    ) -> BoxFuture<'a, Result<u64, CoordinationError>> {
+        Box::pin(async move {
+            let mut counts = self.counts.lock().expect("fake coordination lock");
+            match counts.iter_mut().find(|(candidate, _)| candidate == key) {
+                Some((_, count)) => {
+                    *count += 1;
+                    Ok(*count)
+                }
+                None => {
+                    counts.push((key.to_owned(), 1));
+                    Ok(1)
+                }
+            }
+        })
+    }
+}
+
+/// In-memory invite links, with the same uniqueness rule the unique index
+/// enforces.
+#[derive(Clone, Default)]
+struct FakeInviteStore {
+    links: Arc<Mutex<Vec<InviteLink>>>,
+}
+
+impl FakeInviteStore {
+    fn seed(&self, link: InviteLink) {
+        self.links.lock().expect("fake store lock").push(link);
+    }
+
+    fn links(&self) -> Vec<InviteLink> {
+        self.links.lock().expect("fake store lock").clone()
+    }
+}
+
+impl InviteStore for FakeInviteStore {
+    fn insert<'a>(&'a self, link: &'a InviteLink) -> BoxFuture<'a, Result<(), StoreError>> {
+        Box::pin(async move {
+            let mut links = self.links.lock().expect("fake store lock");
+            if links.iter().any(|existing| existing.code == link.code) {
+                return Err(StoreError::Conflict("code taken".to_owned()));
+            }
+            links.push(link.clone());
+            Ok(())
+        })
+    }
+
+    fn get_by_code(
+        &self,
+        code: InviteCode,
+    ) -> BoxFuture<'_, Result<Option<InviteLink>, StoreError>> {
+        Box::pin(async move {
+            Ok(self
+                .links
+                .lock()
+                .expect("fake store lock")
+                .iter()
+                .find(|link| link.code == code)
+                .cloned())
+        })
+    }
+
+    fn get(&self, id: InviteLinkId) -> BoxFuture<'_, Result<Option<InviteLink>, StoreError>> {
+        Box::pin(async move {
+            Ok(self
+                .links
+                .lock()
+                .expect("fake store lock")
+                .iter()
+                .find(|link| link.id == id)
+                .cloned())
+        })
+    }
+
+    fn list_for_target(
+        &self,
+        target_kind: InviteTargetKind,
+        target_id: Uuid,
+        limit: u32,
+    ) -> BoxFuture<'_, Result<Vec<InviteLink>, StoreError>> {
+        Box::pin(async move {
+            let mut links: Vec<InviteLink> = self
+                .links
+                .lock()
+                .expect("fake store lock")
+                .iter()
+                .filter(|link| link.target.kind() == target_kind && link.target.id() == target_id)
+                .cloned()
+                .collect();
+            links.sort_by_key(|link| std::cmp::Reverse(link.created_at));
+            links.truncate(limit as usize);
+            Ok(links)
+        })
+    }
+
+    fn revoke_if_active(
+        &self,
+        id: InviteLinkId,
+        revoked_at: time::OffsetDateTime,
+    ) -> BoxFuture<'_, Result<bool, StoreError>> {
+        Box::pin(async move {
+            let mut links = self.links.lock().expect("fake store lock");
+            let Some(link) = links.iter_mut().find(|link| link.id == id) else {
+                return Ok(false);
+            };
+            if link.status == InviteLinkStatus::Revoked {
+                return Ok(false);
+            }
+            link.status = InviteLinkStatus::Revoked;
+            link.revoked_at = Some(revoked_at);
+            Ok(true)
+        })
+    }
+
+    fn rotate<'a>(
+        &'a self,
+        previous: InviteLinkId,
+        revoked_at: time::OffsetDateTime,
+        replacement: &'a InviteLink,
+    ) -> BoxFuture<'a, Result<(), StoreError>> {
+        Box::pin(async move {
+            let mut links = self.links.lock().expect("fake store lock");
+            if links.iter().any(|link| link.code == replacement.code) {
+                return Err(StoreError::Conflict("code taken".to_owned()));
+            }
+            let Some(index) = links.iter().position(|link| link.id == previous) else {
+                return Err(StoreError::NotFound("no such link".to_owned()));
+            };
+            if links[index].status == InviteLinkStatus::Revoked {
+                return Err(StoreError::Conflict("already revoked".to_owned()));
+            }
+            links[index].status = InviteLinkStatus::Revoked;
+            links[index].revoked_at = Some(revoked_at);
+            links.push(replacement.clone());
+            Ok(())
+        })
+    }
+}
+
 fn ws_state(principal: Option<Principal>) -> WsState {
     let (_shutdown_tx, shutdown_rx) = watch::channel(false);
     let metrics = WsMetrics::register(&prometheus::Registry::new()).expect("register ws metrics");
@@ -791,6 +974,7 @@ fn ws_state(principal: Option<Principal>) -> WsState {
             sessions: Arc::new(FakeSessionStore::default()),
             rooms: Arc::new(FakeRoomStore::default()),
         },
+        Arc::new(FakeCoordination::default()),
         shutdown_rx,
     )
 }
@@ -830,6 +1014,8 @@ fn state_with(
         rooms: Arc::new(FakeRoomStore::default()),
         sessions: Arc::new(FakeSessionStore::default()),
         participation: Arc::new(FakeParticipationStore::default()),
+        invites: Arc::new(FakeInviteStore::default()),
+        code_index: Arc::new(FakeCoordination::default()),
         realtime,
         turn: turn_settings(),
     }
@@ -854,6 +1040,15 @@ fn principal() -> Principal {
 
 fn other_principal() -> Principal {
     principal_with("00000000-0000-0000-0000-000000000010")
+}
+
+/// A user principal for an actor the test already created, so authorization
+/// resolves against that actor's membership.
+fn principal_for(actor_id: ActorId) -> Principal {
+    Principal {
+        actor_id,
+        ..principal()
+    }
 }
 
 fn turn_settings() -> TurnSettings {
@@ -889,6 +1084,8 @@ fn authenticated_room_app(principal: Principal, store: FakeRoomStore) -> Router 
         rooms: Arc::new(store),
         sessions: Arc::new(FakeSessionStore::default()),
         participation: Arc::new(FakeParticipationStore::default()),
+        invites: Arc::new(FakeInviteStore::default()),
+        code_index: Arc::new(FakeCoordination::default()),
         realtime,
         turn: turn_settings(),
     })
@@ -1662,6 +1859,8 @@ fn session_app(
         rooms: Arc::new(rooms),
         sessions: Arc::new(sessions),
         participation: Arc::new(FakeParticipationStore::default()),
+        invites: Arc::new(FakeInviteStore::default()),
+        code_index: Arc::new(FakeCoordination::default()),
         realtime,
         turn: turn_settings(),
     })
@@ -1864,6 +2063,8 @@ fn policy_session_app(
         rooms: Arc::new(rooms),
         sessions: Arc::new(sessions),
         participation: Arc::new(FakeParticipationStore::default()),
+        invites: Arc::new(FakeInviteStore::default()),
+        code_index: Arc::new(FakeCoordination::default()),
         realtime,
         turn: turn_settings(),
     })
@@ -1983,6 +2184,7 @@ async fn serve_ws(principal: Option<Principal>, config: WsConfig) -> WsHarness {
             sessions: Arc::new(FakeSessionStore::default()),
             rooms: Arc::new(FakeRoomStore::default()),
         },
+        Arc::new(FakeCoordination::default()),
         shutdown_rx.clone(),
     );
     let (service_auth, service_principals) = service_seams(FakeServicePrincipalStore::default());
@@ -1999,6 +2201,8 @@ async fn serve_ws(principal: Option<Principal>, config: WsConfig) -> WsHarness {
         rooms: Arc::new(FakeRoomStore::default()),
         sessions: Arc::new(FakeSessionStore::default()),
         participation: Arc::new(FakeParticipationStore::default()),
+        invites: Arc::new(FakeInviteStore::default()),
+        code_index: Arc::new(FakeCoordination::default()),
         realtime,
         turn: turn_settings(),
     };
@@ -2186,6 +2390,7 @@ async fn serve_ws_with_verifier(verifier: TokenVerifier, config: WsConfig) -> Ws
             sessions: Arc::new(FakeSessionStore::default()),
             rooms: Arc::new(FakeRoomStore::default()),
         },
+        Arc::new(FakeCoordination::default()),
         shutdown_rx.clone(),
     );
     let (service_auth, service_principals) = service_seams(FakeServicePrincipalStore::default());
@@ -2202,6 +2407,8 @@ async fn serve_ws_with_verifier(verifier: TokenVerifier, config: WsConfig) -> Ws
         rooms: Arc::new(FakeRoomStore::default()),
         sessions: Arc::new(FakeSessionStore::default()),
         participation: Arc::new(FakeParticipationStore::default()),
+        invites: Arc::new(FakeInviteStore::default()),
+        code_index: Arc::new(FakeCoordination::default()),
         realtime,
         turn: turn_settings(),
     };
@@ -2646,6 +2853,8 @@ fn service_app(
         rooms: Arc::new(rooms),
         sessions: Arc::new(FakeSessionStore::default()),
         participation: Arc::new(FakeParticipationStore::default()),
+        invites: Arc::new(FakeInviteStore::default()),
+        code_index: Arc::new(FakeCoordination::default()),
         realtime,
         turn: turn_settings(),
     })
@@ -2887,6 +3096,7 @@ async fn serve_ws_with(
             sessions: Arc::new(sessions),
             rooms: Arc::new(rooms),
         },
+        Arc::new(FakeCoordination::default()),
         shutdown_rx.clone(),
     );
     let (service_auth, service_principals) = service_seams(FakeServicePrincipalStore::default());
@@ -2903,6 +3113,8 @@ async fn serve_ws_with(
         rooms: Arc::new(FakeRoomStore::default()),
         sessions: Arc::new(FakeSessionStore::default()),
         participation: Arc::new(FakeParticipationStore::default()),
+        invites: Arc::new(FakeInviteStore::default()),
+        code_index: Arc::new(FakeCoordination::default()),
         realtime,
         turn: turn_settings(),
     };
@@ -3121,6 +3333,8 @@ fn participation_app(
         rooms: Arc::new(rooms),
         sessions: Arc::new(sessions),
         participation: Arc::new(participation),
+        invites: Arc::new(FakeInviteStore::default()),
+        code_index: Arc::new(FakeCoordination::default()),
         realtime,
         turn: turn_settings(),
     })
@@ -3350,4 +3564,397 @@ async fn a_non_manager_cannot_correct_an_interval() {
     .await;
 
     assert_eq!(resp.status(), StatusCode::FORBIDDEN);
+}
+
+// --- Invite link transport tests (TASK-129) ---
+
+/// Router whose invite store the caller controls, so link fixtures and
+/// collision retries can be driven directly.
+fn invite_app(
+    principal: Option<Principal>,
+    rooms: FakeRoomStore,
+    sessions: FakeSessionStore,
+    invites: FakeInviteStore,
+) -> Router {
+    let realtime = ws_state(principal.clone());
+    let (service_auth, service_principals) = service_seams(FakeServicePrincipalStore::default());
+    api_router(AppState {
+        service: "mahfel-api-test",
+        version: "0.1.0",
+        node_id: "node-test".to_owned(),
+        auth: AuthState::new(Arc::new(ServerCapabilityResolver)),
+        authentication: Arc::new(StubAuthenticator::new(principal)),
+        service_auth,
+        service_principals,
+        provisioner: Arc::new(StubProvisioner),
+        linker: Arc::new(StubLinker),
+        rooms: Arc::new(rooms),
+        sessions: Arc::new(sessions),
+        participation: Arc::new(FakeParticipationStore::default()),
+        invites: Arc::new(invites),
+        code_index: Arc::new(FakeCoordination::default()),
+        realtime,
+        turn: turn_settings(),
+    })
+}
+
+/// A room with `manager` as its manager and `member` as a plain member.
+fn invite_fixture(manager: ActorId, member: ActorId) -> (FakeRoomStore, FakeSessionStore, Room) {
+    let rooms = FakeRoomStore::default();
+    let room = rooms.seed_room("Analytical Engines", manager, RoomVisibility::InviteOnly);
+    rooms.add_raw_member(room.id, member, RoomRole::Member);
+    let sessions = FakeSessionStore::default();
+    (rooms, sessions, room)
+}
+
+#[tokio::test]
+async fn a_manager_creates_a_room_invite_link() {
+    let manager = ActorId::new();
+    let member = ActorId::new();
+    let (rooms, sessions, room) = invite_fixture(manager, member);
+    let app = invite_app(
+        Some(principal_for(manager)),
+        rooms,
+        sessions,
+        FakeInviteStore::default(),
+    );
+
+    let resp = send_json(
+        &app,
+        Method::POST,
+        &format!("/v1/rooms/{}/invite-links", room.id),
+        "{}",
+    )
+    .await;
+    assert_eq!(resp.status(), StatusCode::CREATED);
+    let json = response_json(resp).await;
+    let code = json
+        .get("code")
+        .and_then(|value| value.as_str())
+        .expect("code present");
+    assert_eq!(code.len(), 10, "the canonical code is ten letters");
+    assert!(
+        code.chars().all(|c| c.is_ascii_lowercase()),
+        "codes are lowercase: {code}"
+    );
+    assert_eq!(
+        json.get("display_code").and_then(|value| value.as_str()),
+        Some(format!("{}-{}-{}", &code[0..3], &code[3..7], &code[7..10]).as_str())
+    );
+    assert_eq!(
+        json.get("target_kind").and_then(|value| value.as_str()),
+        Some("room")
+    );
+    assert_eq!(
+        json.get("redeemable").and_then(|value| value.as_bool()),
+        Some(true)
+    );
+}
+
+#[tokio::test]
+async fn a_manager_creates_a_session_invite_link() {
+    let manager = ActorId::new();
+    let member = ActorId::new();
+    let (rooms, sessions, room) = invite_fixture(manager, member);
+    let session = Session::schedule(room.id, None, OffsetDateTime::now_utc());
+    sessions.seed(session.clone());
+    let app = invite_app(
+        Some(principal_for(manager)),
+        rooms,
+        sessions,
+        FakeInviteStore::default(),
+    );
+
+    let resp = send_json(
+        &app,
+        Method::POST,
+        &format!("/v1/sessions/{}/invite-links", session.id),
+        "{}",
+    )
+    .await;
+    assert_eq!(resp.status(), StatusCode::CREATED);
+    let json = response_json(resp).await;
+    assert_eq!(
+        json.get("target_kind").and_then(|value| value.as_str()),
+        Some("session")
+    );
+    assert_eq!(
+        json.get("target_id").and_then(|value| value.as_str()),
+        Some(session.id.to_string().as_str())
+    );
+}
+
+#[tokio::test]
+async fn a_member_cannot_create_a_link() {
+    let manager = ActorId::new();
+    let member = ActorId::new();
+    let (rooms, sessions, room) = invite_fixture(manager, member);
+    let app = invite_app(
+        Some(principal_for(member)),
+        rooms,
+        sessions,
+        FakeInviteStore::default(),
+    );
+
+    let resp = send_json(
+        &app,
+        Method::POST,
+        &format!("/v1/rooms/{}/invite-links", room.id),
+        "{}",
+    )
+    .await;
+    assert_eq!(
+        resp.status(),
+        StatusCode::FORBIDDEN,
+        "a plain member must not issue a code"
+    );
+}
+
+#[tokio::test]
+async fn an_outsider_cannot_create_or_list_links() {
+    let manager = ActorId::new();
+    let member = ActorId::new();
+    let (rooms, sessions, room) = invite_fixture(manager, member);
+    let outsider = principal_for(ActorId::new());
+    let app = invite_app(Some(outsider), rooms, sessions, FakeInviteStore::default());
+
+    // A non-member gets the same 404 as a missing room, so the surface cannot
+    // be used to probe which rooms exist.
+    let created = send_json(
+        &app,
+        Method::POST,
+        &format!("/v1/rooms/{}/invite-links", room.id),
+        "{}",
+    )
+    .await;
+    assert_eq!(created.status(), StatusCode::NOT_FOUND);
+
+    let listed = send_json(
+        &app,
+        Method::GET,
+        &format!("/v1/rooms/{}/invite-links", room.id),
+        "",
+    )
+    .await;
+    assert_eq!(listed.status(), StatusCode::NOT_FOUND);
+}
+
+#[tokio::test]
+async fn link_expiry_is_bounded() {
+    let manager = ActorId::new();
+    let member = ActorId::new();
+    let (rooms, sessions, room) = invite_fixture(manager, member);
+    let app = invite_app(
+        Some(principal_for(manager)),
+        rooms,
+        sessions,
+        FakeInviteStore::default(),
+    );
+
+    for days in [0, -1, mahfel_domain::MAX_EXPIRY_DAYS + 1] {
+        let resp = send_json(
+            &app,
+            Method::POST,
+            &format!("/v1/rooms/{}/invite-links", room.id),
+            &format!(r#"{{"expiry_days":{days}}}"#),
+        )
+        .await;
+        assert_eq!(
+            resp.status(),
+            StatusCode::UNPROCESSABLE_ENTITY,
+            "{days} days must be refused"
+        );
+    }
+}
+
+#[tokio::test]
+async fn a_manager_lists_and_revokes_a_link() {
+    let manager = ActorId::new();
+    let member = ActorId::new();
+    let (rooms, sessions, room) = invite_fixture(manager, member);
+    let invites = FakeInviteStore::default();
+    let app = invite_app(
+        Some(principal_for(manager)),
+        rooms.clone(),
+        sessions,
+        invites.clone(),
+    );
+
+    let created = send_json(
+        &app,
+        Method::POST,
+        &format!("/v1/rooms/{}/invite-links", room.id),
+        "{}",
+    )
+    .await;
+    let json = response_json(created).await;
+    let id = json
+        .get("id")
+        .and_then(|value| value.as_str())
+        .expect("link id")
+        .to_owned();
+
+    let listed = send_json(
+        &app,
+        Method::GET,
+        &format!("/v1/rooms/{}/invite-links", room.id),
+        "",
+    )
+    .await;
+    assert_eq!(listed.status(), StatusCode::OK);
+    let json = response_json(listed).await;
+    assert_eq!(
+        json.get("links")
+            .and_then(|value| value.as_array())
+            .map(Vec::len),
+        Some(1)
+    );
+
+    let revoked = send_json(
+        &app,
+        Method::POST,
+        &format!("/v1/invite-links/{id}/revoke"),
+        "",
+    )
+    .await;
+    assert_eq!(revoked.status(), StatusCode::OK);
+    let json = response_json(revoked).await;
+    assert_eq!(
+        json.get("status").and_then(|value| value.as_str()),
+        Some("revoked")
+    );
+    assert_eq!(
+        json.get("redeemable").and_then(|value| value.as_bool()),
+        Some(false),
+        "a revoked link is not redeemable"
+    );
+
+    // Revocation is terminal.
+    let again = send_json(
+        &app,
+        Method::POST,
+        &format!("/v1/invite-links/{id}/revoke"),
+        "",
+    )
+    .await;
+    assert_eq!(again.status(), StatusCode::CONFLICT);
+}
+
+#[tokio::test]
+async fn rotating_a_link_replaces_the_code_and_retires_the_old_one() {
+    let manager = ActorId::new();
+    let member = ActorId::new();
+    let (rooms, sessions, room) = invite_fixture(manager, member);
+    let invites = FakeInviteStore::default();
+    let app = invite_app(
+        Some(principal_for(manager)),
+        rooms.clone(),
+        sessions,
+        invites.clone(),
+    );
+
+    let created = send_json(
+        &app,
+        Method::POST,
+        &format!("/v1/rooms/{}/invite-links", room.id),
+        "{}",
+    )
+    .await;
+    let json = response_json(created).await;
+    let original_id = json
+        .get("id")
+        .and_then(|value| value.as_str())
+        .expect("link id")
+        .to_owned();
+    let original_code = json
+        .get("code")
+        .and_then(|value| value.as_str())
+        .expect("code")
+        .to_owned();
+
+    let rotated = send_json(
+        &app,
+        Method::POST,
+        &format!("/v1/invite-links/{original_id}/rotate"),
+        "{}",
+    )
+    .await;
+    assert_eq!(rotated.status(), StatusCode::OK);
+    let json = response_json(rotated).await;
+    let replacement_code = json
+        .get("code")
+        .and_then(|value| value.as_str())
+        .expect("code");
+    assert_ne!(
+        replacement_code, original_code,
+        "a rotation must not reuse the code"
+    );
+    assert_eq!(
+        json.get("redeemable").and_then(|value| value.as_bool()),
+        Some(true)
+    );
+
+    // The retired link is retained and no longer redeemable.
+    let all = invites.links();
+    assert_eq!(all.len(), 2, "both generations are retained");
+    let retired = all
+        .iter()
+        .find(|link| link.code.as_str() == original_code)
+        .expect("retired link retained");
+    assert_eq!(retired.status, InviteLinkStatus::Revoked);
+    assert!(!retired.is_redeemable_at(OffsetDateTime::now_utc()));
+}
+
+#[tokio::test]
+async fn a_member_cannot_revoke_a_link_it_does_not_manage() {
+    let manager = ActorId::new();
+    let member = ActorId::new();
+    let (rooms, sessions, room) = invite_fixture(manager, member);
+    let invites = FakeInviteStore::default();
+    let now = OffsetDateTime::now_utc();
+    let link = InviteLink::issue(
+        InviteCode::generate(),
+        InviteTarget::Room(room.id),
+        manager,
+        7,
+        now,
+    )
+    .expect("issue");
+    invites.seed(link.clone());
+
+    // The member can see the room but does not manage it.
+    let app = invite_app(Some(principal_for(member)), rooms, sessions, invites);
+    let resp = send_json(
+        &app,
+        Method::POST,
+        &format!("/v1/invite-links/{}/revoke", link.id),
+        "",
+    )
+    .await;
+    // The member can see the room, so the guard reports a denial rather than
+    // pretending the link is absent. Link ids are unguessable, so this does not
+    // expose one: a caller cannot name a link it has not seen.
+    assert_eq!(resp.status(), StatusCode::FORBIDDEN);
+}
+
+#[tokio::test]
+async fn an_unknown_link_id_is_not_found() {
+    let manager = ActorId::new();
+    let member = ActorId::new();
+    let (rooms, sessions, _room) = invite_fixture(manager, member);
+    let app = invite_app(
+        Some(principal_for(manager)),
+        rooms,
+        sessions,
+        FakeInviteStore::default(),
+    );
+
+    let resp = send_json(
+        &app,
+        Method::POST,
+        &format!("/v1/invite-links/{}/revoke", Uuid::new_v4()),
+        "",
+    )
+    .await;
+    assert_eq!(resp.status(), StatusCode::NOT_FOUND);
 }
