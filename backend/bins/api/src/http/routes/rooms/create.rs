@@ -7,7 +7,7 @@ use crate::http::{
 };
 use axum::{Json, extract::State, http::StatusCode};
 use mahfel_application::{
-    ports::Action,
+    ports::Capability,
     rooms::{CreateRoom, create_room},
 };
 
@@ -27,7 +27,7 @@ pub(crate) async fn create(
     Authenticated(principal): Authenticated,
     ValidatedJson(body): ValidatedJson<CreateRoomRequest>,
 ) -> Result<(StatusCode, Json<RoomResponse>), ApiError> {
-    auth::authorize(&state, &principal, Action::CreateRoom)?;
+    auth::authorize_global(&state, &principal, Capability::CreateRoom)?;
     let room = create_room(
         state.rooms.as_ref(),
         CreateRoom {

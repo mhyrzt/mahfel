@@ -6,7 +6,7 @@ use crate::http::{
     state::AppState,
 };
 use axum::{Json, Router, extract::State, routing::get};
-use mahfel_application::ports::Action;
+use mahfel_application::ports::Capability;
 use serde::Serialize;
 use utoipa::ToSchema;
 
@@ -29,7 +29,7 @@ pub(crate) async fn ping(
     State(state): State<AppState>,
     Authenticated(principal): Authenticated,
 ) -> Result<Json<AdminResponse>, ApiError> {
-    auth::authorize(&state, &principal, Action::ManageSystem)?;
+    auth::authorize_global(&state, &principal, Capability::ManageSystem)?;
     Ok(Json(AdminResponse { ok: true }))
 }
 

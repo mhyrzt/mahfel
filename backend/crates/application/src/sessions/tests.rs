@@ -780,3 +780,51 @@ async fn manager_can_get_and_list_room_sessions() {
     .expect("get");
     assert_eq!(loaded, session);
 }
+
+#[tokio::test]
+async fn a_member_may_load_a_session_it_may_join() {
+    let rooms = FakeRoomStore::default();
+    let sessions = FakeSessionStore::default();
+    let owner = actor();
+    let room = rooms.seed_room(owner);
+    let member = actor();
+    rooms.add_member(room.id, member, RoomRole::Member);
+    let session = scheduled(room.id);
+    sessions.seed(session.clone());
+
+    let loaded = super::get_session_for_caller(
+        &sessions,
+        &rooms,
+        super::GetSessionForCaller {
+            actor: member,
+            session_id: session.id,
+        },
+    )
+    .await
+    .expect("a member may read a session it may join");
+    assert_eq!(loaded, session);
+}
+
+#[tokio::test]
+async fn an_outsider_cannot_load_a_private_session() {
+    let rooms = FakeRoomStore::default();
+    let sessions = FakeSessionStore::default();
+    let owner = actor();
+    let room = rooms.seed_room(owner);
+    let session = scheduled(room.id);
+    sessions.seed(session.clone());
+
+    let denied = super::get_session_for_caller(
+        &sessions,
+        &rooms,
+        super::GetSessionForCaller {
+            actor: actor(),
+            session_id: session.id,
+        },
+    )
+    .await;
+    assert!(
+        matches!(denied, Err(super::SessionOperationError::NotFound)),
+        "an outsider must not learn the session exists, got {denied:?}"
+    );
+}

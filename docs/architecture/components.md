@@ -49,18 +49,41 @@ per room may be `live` at a time, enforced by a partial unique index so concurre
 win. Scheduling, starting, ending, and cancelling are manager-only (`/v1/rooms/{room_id}/sessions`
 and `/v1/sessions/{session_id}/{start,end,cancel}`); service principals participate by being
 managers of the rooms they own, and every lifecycle action writes a structured audit log. Reading a
-room's sessions is manager-scoped in this task and moves to the capability model in M4-04. Domain
+room's sessions is manager-scoped, while a session a caller may join is readable when resolving its
+own capabilities (M4-04, `GET /v1/sessions/{session_id}/capabilities`). Domain
 types remain independent of SQLx; the `mahfel-postgres` adapters (`Postgres*Store`) implement the
 application ports and own SQL mapping. Ports return boxed futures and are dyn-compatible, so the
 transport holds one `Arc<dyn Port>` per capability rather than a generic parameter per store
 (ADR 0023). Authentication identities, permissions, participation records, and chat remain separate
 later milestones.
 
-Authorization is deny-by-default behind an `Authorizer` seam in `mahfel-application`: the transport
-attaches a `Principal`, the policy decides coarse actions, and room-scoped membership checks live in
-the room use cases. The interim policy grants any authenticated principal and is replaced by the
-role and capability model (M2-07, M4-04). Session vocabulary is generic collaboration, not education
-semantics (ADR 0020).
+Authorization is deny-by-default behind a capability seam in `mahfel-application`. One resolver maps a
+verified `Principal` plus a room context to a `CapabilitySet`, and both REST and WebSocket evaluate
+through it, so a control hidden in the UI and a request forged by hand are decided identically.
+Capabilities replace a fixed role enum: global roles, per-room membership, and the service-principal
+distinction all feed one resolution step, and a vertical maps its vocabulary onto capabilities
+instead of adding roles (ADR 0020). The capabilities are:
+
+| Capability | Meaning | Granted by |
+| --- | --- | --- |
+| `manage_system` | Realm, service principals, admin panel | Global `admin` role |
+| `create_room` | Create a room | Any authenticated actor |
+| `view_own_identity` | Read one's own profile | Any authenticated actor |
+| `join` | Enter a session | Room membership, or a public room |
+| `publish_media` | Send audio or video | Room membership |
+| `share_screen` | Share a screen | Room membership |
+| `mute_others` | Mute another participant | Room `manager`, or global `moderator` |
+| `remove_participant` | Remove another participant | Room `manager`, or global `moderator` |
+| `admit_participant` | Admit or reject a lobby waiter | Room `manager`, or global `moderator` |
+| `manage_session` | Schedule, start, end, cancel, reconfigure | Room `manager` or global `admin` |
+
+The domain owns the role-to-capability vocabulary: `RoleCapability::for_role` maps `manager` and
+`member` to their grants, and the resolver names the transport-facing capability each one
+corresponds to. Education maps onto this without new types — a teacher is a room `manager`, a
+student is a room `member`, and attendance is the durable participation record. A caller may
+introspect its own capabilities at `GET /v1/sessions/{session_id}/capabilities`; the response never
+describes another participant's privileges. Global system administration is a capability like any
+other, so there is no parallel role-based check.
 
 The realtime gateway at `/v1/ws` is a bounded connection boundary: a versioned JSON envelope, an
 authentication seam that denies by default, heartbeats, per-connection bounded queues with a write

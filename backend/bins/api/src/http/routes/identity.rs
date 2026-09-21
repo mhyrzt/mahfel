@@ -10,7 +10,7 @@ use axum::{
 };
 use mahfel_application::{
     ApplicationError,
-    ports::{Action, Principal, ProvisionedIdentity},
+    ports::{Capability, Principal, ProvisionedIdentity},
     users::SyncIdentity,
 };
 use mahfel_auth::AuthenticatedIdentity;
@@ -136,7 +136,7 @@ pub(crate) async fn me(
     State(state): State<AppState>,
     Authenticated(principal): Authenticated,
 ) -> Result<Json<ProfileResponse>, ApiError> {
-    auth::authorize(&state, &principal, Action::ViewOwnIdentity)?;
+    auth::authorize_global(&state, &principal, Capability::ViewOwnIdentity)?;
     Ok(Json(ProfileResponse::from_principal(&principal)))
 }
 

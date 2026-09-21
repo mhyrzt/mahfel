@@ -14,10 +14,11 @@ use axum::{
     http::{HeaderValue, Method, Request, StatusCode, header},
 };
 use futures_util::{SinkExt, StreamExt};
+use mahfel_application::policy::ServerCapabilityResolver;
 use mahfel_application::ports::{
-    Action, AllowAuthenticated, AttributeError, AuthorizationError, Authorizer, BoxFuture,
-    ParticipantStore, Principal, ProvisionedIdentity, RoleBasedAuthorizer, RoomStore,
-    ServicePrincipalStore, SessionStore, StoreError, UserAttributeWriter,
+    AttributeError, BoxFuture, Capability, CapabilityContext, CapabilityResolver, CapabilitySet,
+    ParticipantStore, Principal, ProvisionedIdentity, RoomStore, ServicePrincipalStore,
+    SessionStore, StoreError, UserAttributeWriter,
 };
 use mahfel_application::service_principals::{CreateServicePrincipal, create_service_principal};
 use mahfel_application::users::{IdentityProvisioner, SyncIdentity, SyncIdentityError};
@@ -651,17 +652,20 @@ fn ws_state(principal: Option<Principal>) -> WsState {
     )
 }
 
-fn state(principal: Option<Principal>, authorizer: Arc<dyn Authorizer>) -> AppState {
+fn state(principal: Option<Principal>, authorizer: Arc<dyn CapabilityResolver>) -> AppState {
     state_with(principal, authorizer, true)
 }
 
-fn state_unprovisioned(principal: Option<Principal>, authorizer: Arc<dyn Authorizer>) -> AppState {
+fn state_unprovisioned(
+    principal: Option<Principal>,
+    authorizer: Arc<dyn CapabilityResolver>,
+) -> AppState {
     state_with(principal, authorizer, false)
 }
 
 fn state_with(
     principal: Option<Principal>,
-    authorizer: Arc<dyn Authorizer>,
+    authorizer: Arc<dyn CapabilityResolver>,
     provisioned: bool,
 ) -> AppState {
     let realtime = ws_state(principal.clone());
@@ -718,11 +722,11 @@ fn turn_settings() -> TurnSettings {
 }
 
 fn app() -> Router {
-    api_router(state(None, Arc::new(AllowAuthenticated)))
+    api_router(state(None, Arc::new(AllowAll)))
 }
 
 fn authenticated_app() -> Router {
-    api_router(state(Some(principal()), Arc::new(AllowAuthenticated)))
+    api_router(state(Some(principal()), Arc::new(AllowAll)))
 }
 
 fn authenticated_room_app(principal: Principal, store: FakeRoomStore) -> Router {
@@ -732,7 +736,7 @@ fn authenticated_room_app(principal: Principal, store: FakeRoomStore) -> Router 
         service: "mahfel-api-test",
         version: "0.1.0",
         node_id: "node-test".to_owned(),
-        auth: AuthState::new(Arc::new(AllowAuthenticated)),
+        auth: AuthState::new(Arc::new(AllowAll)),
         authentication: Arc::new(StubAuthenticator::new(Some(principal))),
         service_auth,
         service_principals,
@@ -745,11 +749,32 @@ fn authenticated_room_app(principal: Principal, store: FakeRoomStore) -> Router 
     })
 }
 
+/// Always permits. Tests that are not about authorization use this so policy
+/// behaviour is not coupled to every unrelated assertion.
+struct AllowAll;
+
+impl CapabilityResolver for AllowAll {
+    fn resolve(&self, _principal: &Principal, _context: CapabilityContext) -> CapabilitySet {
+        CapabilitySet::new(vec![
+            Capability::ManageSystem,
+            Capability::CreateRoom,
+            Capability::ViewOwnIdentity,
+            Capability::Join,
+            Capability::PublishMedia,
+            Capability::ShareScreen,
+            Capability::MuteOthers,
+            Capability::RemoveParticipant,
+            Capability::AdmitParticipant,
+            Capability::ManageSession,
+        ])
+    }
+}
+
 struct DenyAll;
 
-impl Authorizer for DenyAll {
-    fn authorize(&self, _principal: &Principal, _action: Action) -> Result<(), AuthorizationError> {
-        Err(AuthorizationError::Denied)
+impl CapabilityResolver for DenyAll {
+    fn resolve(&self, _principal: &Principal, _context: CapabilityContext) -> CapabilitySet {
+        CapabilitySet::none()
     }
 }
 
@@ -969,10 +994,7 @@ async fn identity_is_denied_when_policy_denies() {
 #[tokio::test]
 async fn identity_rejects_a_token_without_a_linked_user() {
     // A verified token that has not been provisioned must not reach handlers.
-    let app = api_router(state_unprovisioned(
-        Some(principal()),
-        Arc::new(AllowAuthenticated),
-    ));
+    let app = api_router(state_unprovisioned(Some(principal()), Arc::new(AllowAll)));
     let req = Request::builder()
         .uri("/v1/auth/me")
         .body(Body::empty())
@@ -987,10 +1009,7 @@ async fn identity_rejects_a_token_without_a_linked_user() {
 #[tokio::test]
 async fn provision_returns_the_application_profile() {
     // Provisioning must remain reachable before the user is linked.
-    let app = api_router(state_unprovisioned(
-        Some(principal()),
-        Arc::new(AllowAuthenticated),
-    ));
+    let app = api_router(state_unprovisioned(Some(principal()), Arc::new(AllowAll)));
     let req = Request::builder()
         .method(Method::POST)
         .uri("/v1/auth/provision")
@@ -1012,8 +1031,6 @@ async fn provision_returns_the_application_profile() {
 
 #[tokio::test]
 async fn admin_ping_allows_admin_and_denies_member_and_moderator() {
-    use mahfel_application::ports::RoleBasedAuthorizer;
-
     let admin = Principal {
         actor_id: principal().actor_id,
         kind: mahfel_domain::ActorKind::User,
@@ -1030,7 +1047,7 @@ async fn admin_ping_allows_admin_and_denies_member_and_moderator() {
     };
     let member = principal();
 
-    let admin_app = api_router(state(Some(admin), Arc::new(RoleBasedAuthorizer)));
+    let admin_app = api_router(state(Some(admin), Arc::new(ServerCapabilityResolver)));
     let req = Request::builder()
         .uri("/v1/admin/ping")
         .body(Body::empty())
@@ -1039,7 +1056,7 @@ async fn admin_ping_allows_admin_and_denies_member_and_moderator() {
     assert_eq!(resp.status(), StatusCode::OK);
 
     for (principal, label) in [(moderator, "moderator"), (member, "member")] {
-        let app = api_router(state(Some(principal), Arc::new(RoleBasedAuthorizer)));
+        let app = api_router(state(Some(principal), Arc::new(ServerCapabilityResolver)));
         let req = Request::builder()
             .uri("/v1/admin/ping")
             .body(Body::empty())
@@ -1056,7 +1073,7 @@ async fn admin_ping_allows_admin_and_denies_member_and_moderator() {
 #[tokio::test]
 async fn cors_preflight_allows_configured_origin_and_exposes_request_id() {
     let origin = HeaderValue::from_static("http://localhost:3000");
-    let app = api_router(state(None, Arc::new(AllowAuthenticated))).layer(cors_layer(origin));
+    let app = api_router(state(None, Arc::new(AllowAll))).layer(cors_layer(origin));
 
     let req = Request::builder()
         .uri("/v1/status")
@@ -1491,7 +1508,7 @@ fn session_app(
         service: "mahfel-api-test",
         version: "0.1.0",
         node_id: "node-test".to_owned(),
-        auth: AuthState::new(Arc::new(AllowAuthenticated)),
+        auth: AuthState::new(Arc::new(AllowAll)),
         authentication: Arc::new(StubAuthenticator::new(principal)),
         service_auth,
         service_principals,
@@ -1677,6 +1694,124 @@ async fn session_routes_require_authentication() {
     assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
 }
 
+// --- Session capability introspection (TASK-124) ---
+
+/// Router whose authorization uses the real policy, so the capability endpoint
+/// answers from resolved membership rather than a test fake.
+fn policy_session_app(
+    principal: Option<Principal>,
+    rooms: FakeRoomStore,
+    sessions: FakeSessionStore,
+) -> Router {
+    let realtime = ws_state(principal.clone());
+    let (service_auth, service_principals) = service_seams(FakeServicePrincipalStore::default());
+    api_router(AppState {
+        service: "mahfel-api-test",
+        version: "0.1.0",
+        node_id: "node-test".to_owned(),
+        auth: AuthState::new(Arc::new(ServerCapabilityResolver)),
+        authentication: Arc::new(StubAuthenticator::new(principal)),
+        service_auth,
+        service_principals,
+        provisioner: Arc::new(StubProvisioner),
+        linker: Arc::new(StubLinker),
+        rooms: Arc::new(rooms),
+        sessions: Arc::new(sessions),
+        realtime,
+        turn: turn_settings(),
+    })
+}
+
+fn capabilities_of(json: &serde_json::Value) -> Vec<String> {
+    json.get("capabilities")
+        .and_then(|value| value.as_array())
+        .expect("capabilities array")
+        .iter()
+        .map(|value| value.as_str().expect("capability name").to_owned())
+        .collect()
+}
+
+#[tokio::test]
+async fn manager_introspects_the_full_room_capability_set() {
+    let rooms = FakeRoomStore::default();
+    let manager = principal();
+    let room = rooms.seed_room("Algebra", manager.actor_id, RoomVisibility::InviteOnly);
+    let sessions = FakeSessionStore::default();
+    let session = Session::schedule(room.id, None, OffsetDateTime::now_utc());
+    sessions.seed(session.clone());
+    let app = policy_session_app(Some(manager), rooms, sessions);
+
+    let resp = send_json(
+        &app,
+        Method::GET,
+        &format!("/v1/sessions/{}/capabilities", session.id),
+        "",
+    )
+    .await;
+
+    assert_eq!(resp.status(), StatusCode::OK);
+    let capabilities = capabilities_of(&response_json(resp).await);
+    assert!(capabilities.contains(&"manage_session".to_owned()));
+    assert!(capabilities.contains(&"mute_others".to_owned()));
+    assert!(
+        !capabilities.contains(&"manage_system".to_owned()),
+        "a room manager is not a system administrator"
+    );
+}
+
+#[tokio::test]
+async fn member_introspection_excludes_moderation() {
+    let rooms = FakeRoomStore::default();
+    let room = rooms.seed_room("Algebra", principal().actor_id, RoomVisibility::InviteOnly);
+    let member = other_principal();
+    rooms.add_raw_member(room.id, member.actor_id, RoomRole::Member);
+    let sessions = FakeSessionStore::default();
+    let session = Session::schedule(room.id, None, OffsetDateTime::now_utc());
+    sessions.seed(session.clone());
+    let app = policy_session_app(Some(member), rooms, sessions);
+
+    let resp = send_json(
+        &app,
+        Method::GET,
+        &format!("/v1/sessions/{}/capabilities", session.id),
+        "",
+    )
+    .await;
+
+    let status = resp.status();
+    let body = response_body_string(resp).await;
+    assert_eq!(status, StatusCode::OK, "body: {body}");
+    let capabilities =
+        capabilities_of(&serde_json::from_str(&body).expect("capabilities response is JSON"));
+    assert!(capabilities.contains(&"publish_media".to_owned()));
+    assert!(!capabilities.contains(&"manage_session".to_owned()));
+    assert!(!capabilities.contains(&"remove_participant".to_owned()));
+}
+
+#[tokio::test]
+async fn a_non_member_cannot_introspect_a_private_session() {
+    let rooms = FakeRoomStore::default();
+    let room = rooms.seed_room("Algebra", principal().actor_id, RoomVisibility::InviteOnly);
+    let sessions = FakeSessionStore::default();
+    let session = Session::schedule(room.id, None, OffsetDateTime::now_utc());
+    sessions.seed(session.clone());
+    let app = policy_session_app(Some(other_principal()), rooms, sessions);
+
+    let resp = send_json(
+        &app,
+        Method::GET,
+        &format!("/v1/sessions/{}/capabilities", session.id),
+        "",
+    )
+    .await;
+
+    assert_eq!(
+        resp.status(),
+        StatusCode::NOT_FOUND,
+        "a caller without access must not learn the session exists"
+    );
+}
+
 type ClientSocket = WebSocketStream<MaybeTlsStream<TcpStream>>;
 
 struct WsHarness {
@@ -1707,7 +1842,7 @@ async fn serve_ws(principal: Option<Principal>, config: WsConfig) -> WsHarness {
         service: "mahfel-api-test",
         version: "0.1.0",
         node_id: "node-test".to_owned(),
-        auth: AuthState::new(Arc::new(AllowAuthenticated)),
+        auth: AuthState::new(Arc::new(AllowAll)),
         authentication: Arc::new(StubAuthenticator::new(principal)),
         service_auth,
         service_principals,
@@ -1908,7 +2043,7 @@ async fn serve_ws_with_verifier(verifier: TokenVerifier, config: WsConfig) -> Ws
         service: "mahfel-api-test",
         version: "0.1.0",
         node_id: "node-test".to_owned(),
-        auth: AuthState::new(Arc::new(AllowAuthenticated)),
+        auth: AuthState::new(Arc::new(AllowAll)),
         authentication: auth,
         service_auth,
         service_principals,
@@ -2341,7 +2476,7 @@ async fn ws_auth_times_out_if_no_frame() {
 /// Router with shared service principal seams and a supplied room store.
 fn service_app(
     principal: Option<Principal>,
-    authorizer: Arc<dyn Authorizer>,
+    authorizer: Arc<dyn CapabilityResolver>,
     rooms: FakeRoomStore,
     service_store: FakeServicePrincipalStore,
 ) -> Router {
@@ -2394,7 +2529,7 @@ async fn service_api_key_authenticates_as_a_service_principal() {
     let created = provisioned_service(&service_store, "lms-core").await;
     let app = service_app(
         None,
-        Arc::new(AllowAuthenticated),
+        Arc::new(AllowAll),
         FakeRoomStore::default(),
         service_store.clone(),
     );
@@ -2424,7 +2559,7 @@ async fn revoked_service_api_key_is_rejected() {
 
     let app = service_app(
         None,
-        Arc::new(AllowAuthenticated),
+        Arc::new(AllowAll),
         FakeRoomStore::default(),
         service_store,
     );
@@ -2439,7 +2574,7 @@ async fn revoked_service_api_key_is_rejected() {
 async fn unknown_service_api_key_is_rejected() {
     let app = service_app(
         None,
-        Arc::new(AllowAuthenticated),
+        Arc::new(AllowAll),
         FakeRoomStore::default(),
         FakeServicePrincipalStore::default(),
     );
@@ -2470,7 +2605,7 @@ async fn admin_service_principals_require_manage_system() {
 
     let admin_app = service_app(
         Some(admin),
-        Arc::new(RoleBasedAuthorizer),
+        Arc::new(ServerCapabilityResolver),
         FakeRoomStore::default(),
         service_store.clone(),
     );
@@ -2498,7 +2633,7 @@ async fn admin_service_principals_require_manage_system() {
     for (principal, label) in [(principal(), "member"), (moderator, "moderator")] {
         let app = service_app(
             Some(principal),
-            Arc::new(RoleBasedAuthorizer),
+            Arc::new(ServerCapabilityResolver),
             FakeRoomStore::default(),
             service_store.clone(),
         );
@@ -2525,7 +2660,7 @@ async fn service_principal_cannot_manage_service_principals() {
     let created = provisioned_service(&service_store, "lms-core").await;
     let app = service_app(
         None,
-        Arc::new(RoleBasedAuthorizer),
+        Arc::new(ServerCapabilityResolver),
         FakeRoomStore::default(),
         service_store,
     );
@@ -2545,12 +2680,7 @@ async fn service_principal_creates_a_room_and_becomes_manager() {
     let service_store = FakeServicePrincipalStore::default();
     let created = provisioned_service(&service_store, "lms-core").await;
     let rooms = FakeRoomStore::default();
-    let app = service_app(
-        None,
-        Arc::new(AllowAuthenticated),
-        rooms.clone(),
-        service_store,
-    );
+    let app = service_app(None, Arc::new(AllowAll), rooms.clone(), service_store);
 
     let req = Request::builder()
         .uri("/v1/rooms")
@@ -2611,7 +2741,7 @@ async fn serve_ws_with(
         service: "mahfel-api-test",
         version: "0.1.0",
         node_id: "node-test".to_owned(),
-        auth: AuthState::new(Arc::new(AllowAuthenticated)),
+        auth: AuthState::new(Arc::new(AllowAll)),
         authentication: Arc::new(StubAuthenticator::new(principal)),
         service_auth,
         service_principals,
