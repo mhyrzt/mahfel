@@ -1,5 +1,5 @@
+use crate::actor::ActorId;
 use crate::ids::entity_id;
-use crate::user::UserId;
 use crate::validation::{AvatarUrl, DisplayName, EmailAddress, Issuer, Subject};
 use serde::{Deserialize, Serialize};
 use time::OffsetDateTime;
@@ -14,7 +14,7 @@ entity_id!(IdentityId);
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct Identity {
     pub id: IdentityId,
-    pub user_id: UserId,
+    pub user_id: ActorId,
     pub issuer: Issuer,
     pub subject: Subject,
     pub email: Option<EmailAddress>,
@@ -32,7 +32,7 @@ impl Identity {
         reason = "constructor mirrors the identity's stored columns"
     )]
     pub fn create(
-        user_id: UserId,
+        user_id: ActorId,
         issuer: Issuer,
         subject: Subject,
         display_name: Option<DisplayName>,
@@ -88,7 +88,7 @@ mod tests {
     fn identity() -> Identity {
         let now = OffsetDateTime::now_utc();
         Identity::create(
-            UserId::new(),
+            ActorId::new(),
             Issuer::new("https://auth.example/realms/rastai".to_owned()).expect("issuer"),
             Subject::new("subject-1".to_owned()).expect("subject"),
             Some(DisplayName::new("Ada".to_owned()).expect("name")),

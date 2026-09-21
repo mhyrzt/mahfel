@@ -1,4 +1,6 @@
-use super::{principal_from_claims, verification::AuthenticationError};
+use super::{
+    principal_from_claims, service_key::is_service_key, verification::AuthenticationError,
+};
 use crate::http::{error::ApiError, state::RoomStoreState};
 use axum::{
     extract::FromRequestParts,
@@ -11,14 +13,17 @@ use mahfel_auth::AuthenticatedIdentity;
 fn rejection(error: AuthenticationError) -> ApiError {
     match error {
         AuthenticationError::NotProvisioned => ApiError::forbidden("account is not provisioned"),
+        AuthenticationError::Internal => ApiError::unavailable("authentication unavailable"),
         _ => ApiError::unauthorized("authentication required"),
     }
 }
 
-/// Extractor that requires a verified, provisioned token.
+/// Extractor that requires a verified, provisioned token or service API key.
 ///
+/// A bearer credential that starts with `mhf_` is authenticated as a service
+/// principal; every other credential is verified as a Keycloak access token.
 /// Rejects with `401` when the credential is missing or invalid, and `403` when
-/// the token has no linked application user.
+/// a token has no linked application user.
 pub struct Authenticated(pub Principal);
 
 impl<R> FromRequestParts<crate::http::state::AppState<R>> for Authenticated
@@ -32,12 +37,22 @@ where
         state: &crate::http::state::AppState<R>,
     ) -> Result<Self, Self::Rejection> {
         let token = bearer_token(parts.headers.get(header::AUTHORIZATION));
-        let claims = state
-            .authentication
-            .verify(token)
-            .await
-            .map_err(rejection)?;
-        principal_from_claims(&claims).map(Self).map_err(rejection)
+        let principal = match token {
+            Some(credential) if is_service_key(credential) => state
+                .service_auth
+                .authenticate(credential)
+                .await
+                .map_err(rejection)?,
+            _ => {
+                let claims = state
+                    .authentication
+                    .verify(token)
+                    .await
+                    .map_err(rejection)?;
+                principal_from_claims(&claims).map_err(rejection)?
+            }
+        };
+        Ok(Self(principal))
     }
 }
 

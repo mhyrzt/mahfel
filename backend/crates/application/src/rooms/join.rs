@@ -1,6 +1,6 @@
 use crate::error::{ApplicationError, ErrorKind};
 use crate::ports::{RoomStore, StoreError};
-use mahfel_domain::{Room, RoomId, RoomMember, RoomRole, RoomStatus, RoomVisibility, UserId};
+use mahfel_domain::{ActorId, Room, RoomId, RoomMember, RoomRole, RoomStatus, RoomVisibility};
 use thiserror::Error;
 use time::OffsetDateTime;
 
@@ -32,7 +32,7 @@ impl ApplicationError for JoinRoomError {
 /// Idempotent: joining twice returns the same room. Invite-only rooms are
 /// reachable only through a manager adding the member, so joining one is a
 /// `NotFound`. An archived room is closed to new members.
-pub async fn join_room<R>(rooms: &R, id: RoomId, actor: UserId) -> Result<Room, JoinRoomError>
+pub async fn join_room<R>(rooms: &R, id: RoomId, actor: ActorId) -> Result<Room, JoinRoomError>
 where
     R: RoomStore,
 {

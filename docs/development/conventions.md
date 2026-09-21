@@ -63,3 +63,8 @@ share one contract:
   `Principal`; policy is then checked through the application `Authorizer` seam. Routes deny by
   default — with no configured identity, protected endpoints return `401`. Do not expose a route
   without a deliberate reason.
+- **Service principals.** A bearer credential that starts with `mhf_` is a Mahfel-issued service API
+  key and authenticates as a service principal; every other credential is verified as a Keycloak
+  access token (ADR 0022). Both paths build the same `Principal` with an `actor_id` and `kind`, so
+  downstream policy does not branch on the credential type. Raw API keys are returned only by the
+  admin create and rotate endpoints and must never be logged.

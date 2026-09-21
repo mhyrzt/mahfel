@@ -5,7 +5,7 @@ use uuid::Uuid;
 /// Define a UUID-backed entity identifier.
 ///
 /// Each aggregate invokes this next to the entity that owns the identifier,
-/// for example `entity_id!(UserId)` in `user.rs`. Paths are fully qualified so
+/// for example `entity_id!(ActorId)` in `actor.rs`. Paths are fully qualified so
 /// the invocation site needs only the macro. Identifiers are value objects:
 /// `Copy`, comparable, serialized transparently, and never constructed from
 /// arbitrary strings.

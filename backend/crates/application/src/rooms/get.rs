@@ -1,6 +1,6 @@
 use crate::error::{ApplicationError, ErrorKind};
 use crate::ports::{RoomStore, StoreError};
-use mahfel_domain::{Room, RoomId, UserId};
+use mahfel_domain::{ActorId, Room, RoomId};
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -21,7 +21,11 @@ impl ApplicationError for GetRoomError {
 ///
 /// A missing room and a non-member caller both return `None` so the transport
 /// cannot leak room existence.
-pub async fn get_room<R>(rooms: &R, id: RoomId, actor: UserId) -> Result<Option<Room>, GetRoomError>
+pub async fn get_room<R>(
+    rooms: &R,
+    id: RoomId,
+    actor: ActorId,
+) -> Result<Option<Room>, GetRoomError>
 where
     R: RoomStore,
 {

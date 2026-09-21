@@ -74,6 +74,19 @@ while `POST /v1/auth/provision` provisions the local user and writes the linking
 end to end). No API login or callback route exists; browser login is `mahfel-web`'s responsibility
 (ADR 0019).
 
+Service principal and actor tests cover both credential families. API-key generation and hashing are
+unit tested; the Postgres adapter is integration tested for create, authenticate, wrong key,
+rotation invalidating the previous key, revocation, duplicate-name conflict, and a service-owned room
+with its manager membership. API tests authenticate with a `mhf_` key, reject revoked keys and
+principals with `401`, and prove the admin endpoints deny members and moderators while allowing an
+administrator (ADR 0022). Session tests cover lifecycle transitions, the one-live-session-per-room
+invariant under a concurrent start race, manager-only ownership, and the `409` mapping for an invalid
+transition or a second live session.
+
+Integration tests in this environment may run against an already-migrated local database through
+`MAHFEL_TEST_DATABASE_URL` when the Docker socket is unavailable to Testcontainers; state that
+limitation explicitly rather than claiming the Testcontainers path passed.
+
 SQL migrations use SQLFluff with the PostgreSQL dialect. `just backend sql-lint` checks migration
 files and `just backend sql-fmt` applies SQLFluff formatting. The backend `lint` recipe includes the
 SQL lint check. SQLFluff is expected to be available in the developer environment or CI image.

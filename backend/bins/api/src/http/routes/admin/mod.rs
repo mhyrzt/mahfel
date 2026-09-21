@@ -1,3 +1,5 @@
+pub(crate) mod service_principals;
+
 use crate::http::{
     auth::{self, Authenticated},
     error::ApiError,
@@ -32,5 +34,7 @@ pub(crate) async fn ping<R: RoomStoreState>(
 }
 
 pub(crate) fn route<R: RoomStoreState>() -> Router<AppState<R>> {
-    Router::new().route("/admin/ping", get(ping::<R>))
+    Router::new()
+        .route("/admin/ping", get(ping::<R>))
+        .merge(service_principals::route::<R>())
 }

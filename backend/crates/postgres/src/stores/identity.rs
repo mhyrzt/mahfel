@@ -2,7 +2,7 @@ use crate::DatabaseError;
 use crate::stores::{store_error, user::UserRow};
 use mahfel_application::ports::{IdentityProfile, IdentityStore, ProvisionedIdentity, StoreError};
 use mahfel_domain::{
-    AvatarUrl, DisplayName, EmailAddress, Identity, IdentityId, Issuer, Subject, User, UserId,
+    ActorId, AvatarUrl, DisplayName, EmailAddress, Identity, IdentityId, Issuer, Subject, User,
 };
 use sqlx::{FromRow, PgPool};
 use time::OffsetDateTime;
@@ -55,7 +55,7 @@ impl TryFrom<IdentityRow> for Identity {
             .transpose()?;
         Ok(Self {
             id: IdentityId::from_uuid(row.id),
-            user_id: UserId::from_uuid(row.user_id),
+            user_id: ActorId::from_uuid(row.user_id),
             issuer: Issuer::new(row.issuer).map_err(|_| invalid("invalid identity issuer"))?,
             subject: Subject::new(row.subject).map_err(|_| invalid("invalid identity subject"))?,
             email,
@@ -96,6 +96,16 @@ impl IdentityStore for PostgresIdentityStore {
         // attempt back and the re-read adopts the winner.
         let mut transaction = self.pool.begin().await.map_err(store_error)?;
         let user = User::create(display_name.clone(), now);
+
+        sqlx::query(
+            "INSERT INTO mahfel.actors (id, kind, created_at, updated_at) \
+             VALUES ($1, 'user', $2, $2)",
+        )
+        .bind(user.id.as_uuid())
+        .bind(user.created_at)
+        .execute(&mut *transaction)
+        .await
+        .map_err(store_error)?;
 
         sqlx::query(
             "INSERT INTO mahfel.users (id, display_name, status, created_at, updated_at, avatar_url) \

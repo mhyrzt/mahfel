@@ -53,7 +53,7 @@ pub(super) async fn run(
     let capacity = connection.config().outbound_capacity;
     let (tx, mut rx) = mpsc::channel::<Outbound>(capacity);
     let registration = registry.register(id, tx);
-    tracing::debug!(user_id = %principal.user_id, connection_id = %registration.id(), "websocket connected");
+    tracing::debug!(user_id = %principal.actor_id, connection_id = %registration.id(), "websocket connected");
 
     let welcome = ServerMessage::Welcome {
         connection_id: registration.id().to_string(),

@@ -1,7 +1,7 @@
 use super::error::RtcError;
 use super::room::RoomMap;
 use super::transport::TransportMap;
-use mahfel_domain::{RoomId, UserId};
+use mahfel_domain::{ActorId, RoomId};
 use mediasoup::prelude::{MediaKind, Producer, ProducerOptions, RtpParameters, Transport};
 use std::{collections::HashMap, sync::Arc};
 use tokio::sync::RwLock;
@@ -11,7 +11,7 @@ pub(super) struct ProducerEntry {
     pub(super) producer: Producer,
     pub(super) room_id: RoomId,
     pub(super) transport_id: String,
-    pub(super) participant_id: UserId,
+    pub(super) participant_id: ActorId,
 }
 
 pub(super) type ProducerMap = Arc<RwLock<HashMap<String, ProducerEntry>>>;
@@ -23,7 +23,7 @@ pub(super) async fn create_producer(
     producers: &ProducerMap,
     room_id: RoomId,
     transport_id: &str,
-    participant_id: UserId,
+    participant_id: ActorId,
     kind: MediaKind,
     rtp_parameters_json: &str,
 ) -> Result<String, RtcError> {

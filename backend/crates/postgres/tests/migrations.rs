@@ -2,8 +2,8 @@ use mahfel_application::ports::{
     IdentityProfile, IdentityStore, RoomStore, SessionStore, StoreError, UserStore,
 };
 use mahfel_domain::{
-    AvatarUrl, ClassroomSession, DisplayName, EmailAddress, Issuer, Room, RoomMember, RoomRole,
-    RoomTitle, RoomVisibility, Subject, User, UserId,
+    ActorId, AvatarUrl, DisplayName, EmailAddress, Issuer, Room, RoomMember, RoomRole, RoomTitle,
+    RoomVisibility, Session, Subject, User,
 };
 use mahfel_postgres::{
     ConnectionSettings, PoolSettings, PostgresIdentityStore, PostgresRoomStore,
@@ -102,7 +102,7 @@ async fn verify_migrations_and_stores(
     let migration_count = sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM _sqlx_migrations")
         .fetch_one(pool)
         .await?;
-    assert_eq!(migration_count, 4, "each migration must be recorded once");
+    assert_eq!(migration_count, 5, "each migration must be recorded once");
 
     let migration_tables = sqlx::query_scalar::<_, i64>(
         "SELECT COUNT(*) FROM pg_class WHERE relname = '_sqlx_migrations'",
@@ -123,6 +123,74 @@ async fn verify_migrations_and_stores(
         namespace_exists,
         "migration must provision the Mahfel schema"
     );
+
+    // The unified actor model is present and membership is keyed by actor.
+    for table in ["actors", "service_principals", "service_api_keys"] {
+        let exists = sqlx::query_scalar::<_, bool>(
+            "SELECT EXISTS (SELECT 1 FROM pg_tables \
+             WHERE schemaname = 'mahfel' AND tablename = $1)",
+        )
+        .bind(table)
+        .fetch_one(pool)
+        .await?;
+        assert!(exists, "migration must create mahfel.{table}");
+    }
+
+    let membership_actor_column = sqlx::query_scalar::<_, bool>(
+        "SELECT EXISTS (SELECT 1 FROM information_schema.columns \
+         WHERE table_schema = 'mahfel' AND table_name = 'room_memberships' \
+         AND column_name = 'actor_id')",
+    )
+    .fetch_one(pool)
+    .await?;
+    assert!(
+        membership_actor_column,
+        "memberships must be keyed by actor_id"
+    );
+
+    // The live aggregate is generic: table `sessions`, not `classroom_sessions`.
+    let sessions_table = sqlx::query_scalar::<_, bool>(
+        "SELECT EXISTS (SELECT 1 FROM pg_tables \
+         WHERE schemaname = 'mahfel' AND tablename = 'sessions')",
+    )
+    .fetch_one(pool)
+    .await?;
+    assert!(sessions_table, "migration must create mahfel.sessions");
+
+    let legacy_sessions_table = sqlx::query_scalar::<_, bool>(
+        "SELECT EXISTS (SELECT 1 FROM pg_tables \
+         WHERE schemaname = 'mahfel' AND tablename = 'classroom_sessions')",
+    )
+    .fetch_one(pool)
+    .await?;
+    assert!(
+        !legacy_sessions_table,
+        "the education-flavored table name must be gone"
+    );
+
+    // At most one live session per room is a database invariant.
+    let live_index = sqlx::query_scalar::<_, bool>(
+        "SELECT EXISTS (SELECT 1 FROM pg_indexes \
+         WHERE schemaname = 'mahfel' AND tablename = 'sessions' \
+         AND indexname = 'sessions_one_live_per_room_idx')",
+    )
+    .fetch_one(pool)
+    .await?;
+    assert!(
+        live_index,
+        "migration must create the one-live-session-per-room partial index"
+    );
+
+    for index in ["sessions_room_id_idx", "sessions_status_idx"] {
+        let exists = sqlx::query_scalar::<_, bool>(
+            "SELECT EXISTS (SELECT 1 FROM pg_indexes \
+             WHERE schemaname = 'mahfel' AND tablename = 'sessions' AND indexname = $1)",
+        )
+        .bind(index)
+        .fetch_one(pool)
+        .await?;
+        assert!(exists, "migration must create index {index}");
+    }
 
     // PostgreSQL keeps microseconds; align the in-memory clock so round-trip
     // equality assertions compare the same instant.
@@ -148,8 +216,12 @@ async fn verify_migrations_and_stores(
     let manager = RoomMember::new(room.id, user.id, RoomRole::Manager, now);
     rooms.create_with_manager(&room, &manager).await?;
 
-    let session = ClassroomSession::schedule(room.id, None, now);
+    let session = Session::schedule(room.id, None, now);
     sessions.insert(&session).await?;
+    assert_eq!(
+        sessions.list_for_room(room.id).await?,
+        vec![session.clone()]
+    );
 
     assert_eq!(
         rooms.get_member(room.id, user.id).await?,
@@ -166,7 +238,7 @@ async fn verify_migrations_and_stores(
     let missing = rooms
         .add_member(&RoomMember::new(
             room.id,
-            UserId::new(),
+            ActorId::new(),
             RoomRole::Member,
             now,
         ))

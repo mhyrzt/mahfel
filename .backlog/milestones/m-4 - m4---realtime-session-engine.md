@@ -1,6 +1,6 @@
 ---
 id: m-4
-title: "M4 - Classroom and session engine"
+title: "M4 - Realtime session engine"
 ---
 
 ## Description

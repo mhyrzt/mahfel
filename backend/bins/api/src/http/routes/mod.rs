@@ -4,6 +4,7 @@ pub(crate) mod health;
 pub(crate) mod identity;
 pub(crate) mod openapi;
 pub(crate) mod rooms;
+pub(crate) mod sessions;
 pub(crate) mod status;
 
 pub(crate) use openapi::ApiDoc;
@@ -34,6 +35,7 @@ pub(crate) fn router<R: RoomStoreState>(state: AppState<R>) -> Router {
         .merge(identity::route::<R>())
         .merge(admin::route::<R>())
         .merge(rooms::route::<R>())
+        .merge(sessions::route::<R>())
         .merge(ws::route::<R>())
         .merge(crate::http::turn::route::<R>())
         .route("/openapi.json", get(openapi))

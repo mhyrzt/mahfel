@@ -26,7 +26,33 @@ sequenceDiagram
   A-->>W: Response
 ```
 
-## Classroom join
+## Session lifecycle
+
+```mermaid
+sequenceDiagram
+  participant C as Browser or service principal
+  participant A as mahfel-api
+  participant P as PostgreSQL
+  C->>A: POST /v1/rooms/{room_id}/sessions
+  A->>P: Require manager membership of the room
+  A->>P: Insert session (scheduled)
+  A-->>C: 201 session
+  C->>A: POST /v1/sessions/{session_id}/start
+  A->>P: Require manager membership, then update to live
+  A-->>C: 200 session (live)
+  C->>A: POST /v1/sessions/{session_id}/end
+  A->>P: Require manager membership, then update to ended
+  A-->>C: 200 session (ended)
+```
+
+A session moves `scheduled` to `live` to `ended`, or `scheduled` to `cancelled`; any other
+transition is rejected with `409` and leaves the row unchanged. At most one session per room may be
+`live`; a partial unique index makes a concurrent second start fail with `409` instead of creating a
+second live session. Every accepted action writes a structured `audit` log line. Sessions are
+scheduled and controlled by room managers only; member-facing session join and participation records
+are later M4 work.
+
+## Session join
 
 ```mermaid
 sequenceDiagram
@@ -35,7 +61,7 @@ sequenceDiagram
   participant P as PostgreSQL
   participant R as Redis
   participant M as mahfel-media
-  B->>A: Authenticate and request classroom join
+  B->>A: Authenticate and request session join
   A->>P: Authorize membership and role
   A->>R: Read or acquire room placement
   A->>M: gRPC ensure room on selected node
@@ -64,9 +90,9 @@ sequenceDiagram
 
 ```mermaid
 flowchart LR
-  A[Teacher browser] <-->|SRTP over UDP preferred| M[mahfel-media SFU]
-  B[Student browser] <-->|SRTP over UDP preferred| M
-  C[Student browser] <-->|SRTP over UDP preferred| M
+  A[Participant browser] <-->|SRTP over UDP preferred| M[mahfel-media SFU]
+  B[Participant browser] <-->|SRTP over UDP preferred| M
+  C[Participant browser] <-->|SRTP over UDP preferred| M
   API[mahfel-api] -. signaling only .-> M
 ```
 

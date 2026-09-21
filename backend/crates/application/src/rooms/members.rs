@@ -2,7 +2,7 @@ use super::ManagerGuardError;
 use crate::error::{ApplicationError, ErrorKind};
 use crate::ports::{RoomStore, StoreError};
 use mahfel_domain::{
-    MembershipError, RoomId, RoomMember, RoomRole, UserId, ensure_member_removable,
+    ActorId, MembershipError, RoomId, RoomMember, RoomRole, ensure_member_removable,
 };
 use thiserror::Error;
 use time::OffsetDateTime;
@@ -47,8 +47,8 @@ impl ApplicationError for AddMemberError {
 pub async fn add_member<R>(
     rooms: &R,
     room_id: RoomId,
-    actor: UserId,
-    target: UserId,
+    actor: ActorId,
+    target: ActorId,
     role: RoomRole,
 ) -> Result<RoomMember, AddMemberError>
 where
@@ -103,8 +103,8 @@ impl ApplicationError for RemoveMemberError {
 pub async fn remove_member<R>(
     rooms: &R,
     room_id: RoomId,
-    actor: UserId,
-    target: UserId,
+    actor: ActorId,
+    target: ActorId,
 ) -> Result<(), RemoveMemberError>
 where
     R: RoomStore,

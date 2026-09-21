@@ -46,7 +46,7 @@ frontend/
     ui/
   features/
     auth/
-    classroom/
+    sessions/
     meeting/
     chat/
     files/

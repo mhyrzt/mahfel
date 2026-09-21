@@ -1,7 +1,7 @@
 use crate::DatabaseError;
 use crate::stores::store_error;
 use mahfel_application::ports::{StoreError, UserStore};
-use mahfel_domain::{AvatarUrl, DisplayName, User, UserId};
+use mahfel_domain::{ActorId, AvatarUrl, DisplayName, User};
 use sqlx::{FromRow, PgPool};
 use time::OffsetDateTime;
 use uuid::Uuid;
@@ -29,7 +29,7 @@ pub(crate) struct UserRow {
 }
 
 impl UserStore for PostgresUserStore {
-    async fn get(&self, id: UserId) -> Result<Option<User>, StoreError> {
+    async fn get(&self, id: ActorId) -> Result<Option<User>, StoreError> {
         let row = sqlx::query_as::<_, UserRow>(
             "SELECT id, display_name, status, created_at, updated_at, avatar_url \
              FROM mahfel.users WHERE id = $1",
@@ -44,6 +44,18 @@ impl UserStore for PostgresUserStore {
     }
 
     async fn insert(&self, user: &User) -> Result<(), StoreError> {
+        // A user and its actor row share an id and must be created together so
+        // no user can exist without a matching actor.
+        let mut transaction = self.pool.begin().await.map_err(store_error)?;
+        sqlx::query(
+            "INSERT INTO mahfel.actors (id, kind, created_at, updated_at) \
+             VALUES ($1, 'user', $2, $2)",
+        )
+        .bind(user.id.as_uuid())
+        .bind(user.created_at)
+        .execute(&mut *transaction)
+        .await
+        .map_err(store_error)?;
         sqlx::query(
             "INSERT INTO mahfel.users (id, display_name, status, created_at, updated_at, avatar_url) \
              VALUES ($1, $2, $3, $4, $4, $5)",
@@ -53,9 +65,10 @@ impl UserStore for PostgresUserStore {
         .bind(user.status.as_str())
         .bind(user.created_at)
         .bind(user.avatar_url.as_ref().map(AvatarUrl::as_str))
-        .execute(&self.pool)
+        .execute(&mut *transaction)
         .await
         .map_err(store_error)?;
+        transaction.commit().await.map_err(store_error)?;
         Ok(())
     }
 
@@ -93,7 +106,7 @@ impl TryFrom<UserRow> for User {
             })
             .transpose()?;
         Ok(Self {
-            id: UserId::from_uuid(row.id),
+            id: ActorId::from_uuid(row.id),
             display_name: DisplayName::new(row.display_name.clone())
                 .map_err(|_| DatabaseError::InvalidStoredValue("invalid display name"))?,
             status: row.status.as_str().try_into()?,

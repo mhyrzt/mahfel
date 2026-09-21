@@ -7,7 +7,7 @@ use crate::http::{
 };
 use axum::{Json, extract::State, http::StatusCode};
 use mahfel_application::rooms::{add_member, remove_member};
-use mahfel_domain::{RoomId, UserId};
+use mahfel_domain::{ActorId, RoomId};
 use uuid::Uuid;
 
 #[utoipa::path(
@@ -33,8 +33,8 @@ pub(crate) async fn add<R: RoomStoreState>(
     let member = add_member(
         &state.rooms,
         RoomId::from_uuid(room_id),
-        principal.user_id,
-        UserId::from_uuid(body.user_id),
+        principal.actor_id,
+        ActorId::from_uuid(body.user_id),
         body.role.unwrap_or(RoomRoleDto::Member).into(),
     )
     .await?;
@@ -65,8 +65,8 @@ pub(crate) async fn remove<R: RoomStoreState>(
     remove_member(
         &state.rooms,
         RoomId::from_uuid(room_id),
-        principal.user_id,
-        UserId::from_uuid(user_id),
+        principal.actor_id,
+        ActorId::from_uuid(user_id),
     )
     .await?;
     Ok(StatusCode::NO_CONTENT)

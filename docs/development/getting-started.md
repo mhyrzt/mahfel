@@ -109,6 +109,11 @@ Host processes use `backend/config/local.toml` and environment overrides. The fr
 `frontend/.env.local`. Use direct loopback ports for this mode, or configure the Caddy upstream
 variables documented in [local deployment](../deployment/local.md) when HTTPS domains are needed.
 
+The local realm fixture seeds an administrator; bootstrapping a service principal locally is to log
+in through `mahfel-web` as that administrator, let `POST /v1/auth/provision` link the local user, then
+call `POST /v1/admin/service-principals` with the resulting access token. The raw API key is returned
+once and cannot be recovered (ADR 0022).
+
 For host development, infrastructure may be started separately and each application launched with
 `just frontend dev`, `just backend dev-api`, `just backend dev-media`, or `just backend dev-worker`. Host Rust processes load
 `backend/config/default.toml`, the selected `backend/config/{profile}.toml` profile, optional
@@ -134,6 +139,13 @@ docker compose run --rm mahfel-api migrate
 changes. Local Compose enables it for convenience; SQLx migration locking and its migration ledger
 make repeated startup safe. `just backend test-database` starts a disposable PostgreSQL Testcontainer and
 verifies the embedded migrations against a uniquely named database, then removes the container.
+
+Migration `0002` was amended in place to rename `classroom_sessions` to `sessions` and add the
+one-live-session-per-room index, because the schema has not been deployed beyond local development.
+SQLx records a checksum per applied migration, so an already-migrated local database reports a
+checksum mismatch for `0002`; reset the local database (`just compose-clean`, or drop and recreate
+the development database) and run `just backend migrate` again rather than editing the migration
+ledger.
 
 Common component gates are recipes under `just backend <recipe>` and `just frontend <recipe>`;
 `just docs` builds documentation, `just clean` removes generated local artifacts, and

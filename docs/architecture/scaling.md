@@ -22,7 +22,7 @@ flowchart TB
   M3 -->|draining: no new rooms| Registry
 ```
 
-The initial sizing hypothesis—300–400 mostly-listener students on a 4-vCPU/8-GB media replica—is a
+The initial sizing hypothesis—300–400 mostly-listener participants on a 4-vCPU/8-GB media replica—is a
 load-test starting point, not a capacity promise. CPU, memory, egress, packets per second, consumers,
 loss, RTT, and retransmissions must determine measured admission limits.
 

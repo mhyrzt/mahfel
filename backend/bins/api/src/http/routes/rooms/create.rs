@@ -36,7 +36,7 @@ pub(crate) async fn create<R: RoomStoreState>(
                 .visibility
                 .unwrap_or(RoomVisibilityDto::InviteOnly)
                 .into(),
-            created_by: principal.user_id,
+            created_by: principal.actor_id,
         },
     )
     .await?;

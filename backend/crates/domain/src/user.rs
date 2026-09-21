@@ -1,11 +1,9 @@
-use crate::ids::entity_id;
+use crate::actor::ActorId;
 use crate::status::status_conversion;
 use crate::validation::{AvatarUrl, DisplayName, ValidationError};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use time::OffsetDateTime;
-
-entity_id!(UserId);
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -26,7 +24,7 @@ pub enum UserError {
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct User {
-    pub id: UserId,
+    pub id: ActorId,
     pub display_name: DisplayName,
     pub status: UserStatus,
     pub avatar_url: Option<AvatarUrl>,
@@ -38,7 +36,7 @@ impl User {
     #[must_use]
     pub fn create(display_name: DisplayName, now: OffsetDateTime) -> Self {
         Self {
-            id: UserId::new(),
+            id: ActorId::new(),
             display_name,
             status: UserStatus::Active,
             avatar_url: None,

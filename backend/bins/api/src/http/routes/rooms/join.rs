@@ -27,6 +27,6 @@ pub(crate) async fn join<R: RoomStoreState>(
     Authenticated(principal): Authenticated,
     ValidatedPath(room_id): ValidatedPath<Uuid>,
 ) -> Result<Json<RoomResponse>, ApiError> {
-    let room = join_room(&state.rooms, RoomId::from_uuid(room_id), principal.user_id).await?;
+    let room = join_room(&state.rooms, RoomId::from_uuid(room_id), principal.actor_id).await?;
     Ok(Json(room.into()))
 }

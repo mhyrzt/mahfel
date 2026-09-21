@@ -1,12 +1,12 @@
 use super::gateway::GrpcMediaGateway;
-use mahfel_domain::{RoomId, UserId};
+use mahfel_domain::{ActorId, RoomId};
 use mahfel_rtc_protocol::media::{ConnectWebRtcTransportRequest, CreateWebRtcTransportRequest};
 
 impl GrpcMediaGateway {
     pub async fn create_transport(
         &self,
         room: RoomId,
-        participant_id: UserId,
+        participant_id: ActorId,
     ) -> Result<(String, String, String, String), tonic::Status> {
         let res = self
             .with_retry(|mut client| {

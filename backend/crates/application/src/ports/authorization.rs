@@ -7,13 +7,18 @@
 //! return an error unless an explicit rule grants access.
 
 use crate::error::{ApplicationError, ErrorKind};
-use mahfel_domain::UserId;
+use mahfel_domain::{ActorId, ActorKind};
 use thiserror::Error;
 
 /// An authenticated actor.
+///
+/// The actor may be a user or a service principal. `kind` is carried from the
+/// verified credential so policy can reason about a machine actor without a
+/// database lookup.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Principal {
-    pub user_id: UserId,
+    pub actor_id: ActorId,
+    pub kind: ActorKind,
     /// Local display name resolved at provisioning time.
     pub display_name: Option<String>,
     /// Resolved avatar link (user-owned first, provider claim second).
@@ -79,10 +84,13 @@ impl Authorizer for AllowAuthenticated {
 
 /// Role-based authorizer for global roles.
 ///
-/// Classroom teacher vs student is per-room state and must not be derived from
-/// Keycloak realm roles. This authorizer only checks global `admin` and
-/// `moderator`; all other users are `member` (explicit or implicit) and are
-/// handled explicitly within the app via `room_memberships`.
+/// Global roles (`admin`, `moderator`) are attached to Keycloak-issued user
+/// tokens; all other actors are `member` (explicit or implicit) and are handled
+/// explicitly within the app via `room_memberships`. Service principals carry
+/// no global roles, so they may create and own rooms and hold room
+/// memberships, but they can never `ManageSystem` or globally `ModerateRoom`
+/// through this policy. Deny-by-default remains: an action is allowed only by
+/// the explicit rules below.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct RoleBasedAuthorizer;
 
@@ -125,18 +133,26 @@ impl Authorizer for RoleBasedAuthorizer {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use mahfel_domain::UserId;
+    use mahfel_domain::{ActorId, ActorKind};
     use uuid::Uuid;
 
     fn principal_with_roles(roles: &[&str]) -> Principal {
         Principal {
-            user_id: UserId::from_uuid(Uuid::nil()),
+            actor_id: ActorId::from_uuid(Uuid::nil()),
+            kind: ActorKind::User,
             display_name: None,
             avatar_url: None,
             email: None,
             email_verified: false,
             username: None,
             roles: roles.iter().map(|r| (*r).to_owned()).collect(),
+        }
+    }
+
+    fn service_principal_with_roles(roles: &[&str]) -> Principal {
+        Principal {
+            kind: ActorKind::Service,
+            ..principal_with_roles(roles)
         }
     }
 
@@ -196,6 +212,31 @@ mod tests {
                     .is_err()
             );
         }
+    }
+
+    #[test]
+    fn service_principal_can_create_but_cannot_manage_system_or_moderate() {
+        let service = service_principal_with_roles(&[]);
+        assert!(
+            RoleBasedAuthorizer
+                .authorize(&service, Action::ViewOwnIdentity)
+                .is_ok()
+        );
+        assert!(
+            RoleBasedAuthorizer
+                .authorize(&service, Action::CreateRoom)
+                .is_ok()
+        );
+        assert!(
+            RoleBasedAuthorizer
+                .authorize(&service, Action::ManageSystem)
+                .is_err()
+        );
+        assert!(
+            RoleBasedAuthorizer
+                .authorize(&service, Action::ModerateRoom)
+                .is_err()
+        );
     }
 
     #[test]

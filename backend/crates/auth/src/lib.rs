@@ -10,8 +10,8 @@ mod jwks;
 mod verify;
 
 pub use claims::{
-    AuthenticatedIdentity, ClaimsError, DEFAULT_LEEWAY, DiscoveryDocument, TokenError,
-    normalize_claims,
+    AuthenticatedIdentity, ClaimsError, DEFAULT_LEEWAY, DiscoveryDocument, PrincipalKind,
+    TokenError, normalize_claims,
 };
 pub use jwks::{JwksCache, KeySet, SharedJwks, VerificationKey};
 pub use verify::{TokenVerifier, TokenVerifierConfig, unix_now};

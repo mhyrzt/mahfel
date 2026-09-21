@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use time::OffsetDateTime;
 
-entity_id!(ClassroomSessionId);
+entity_id!(SessionId);
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -26,9 +26,13 @@ pub enum SessionError {
     CannotCancel(&'static str),
 }
 
+/// A live occurrence of a [`Room`](crate::Room).
+///
+/// A session is the generic realtime lifecycle primitive (ADR 0020); the
+/// storage table is `mahfel.sessions`.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
-pub struct ClassroomSession {
-    pub id: ClassroomSessionId,
+pub struct Session {
+    pub id: SessionId,
     pub room_id: RoomId,
     pub status: SessionStatus,
     pub scheduled_start_at: Option<OffsetDateTime>,
@@ -38,7 +42,7 @@ pub struct ClassroomSession {
     pub updated_at: OffsetDateTime,
 }
 
-impl ClassroomSession {
+impl Session {
     #[must_use]
     pub fn schedule(
         room_id: RoomId,
@@ -46,7 +50,7 @@ impl ClassroomSession {
         now: OffsetDateTime,
     ) -> Self {
         Self {
-            id: ClassroomSessionId::new(),
+            id: SessionId::new(),
             room_id,
             status: SessionStatus::Scheduled,
             scheduled_start_at,
@@ -102,13 +106,19 @@ mod tests {
     fn status_storage_names_are_stable() {
         assert_eq!(SessionStatus::Scheduled.as_str(), "scheduled");
         assert_eq!(SessionStatus::Live.as_str(), "live");
+        assert_eq!(SessionStatus::Ended.as_str(), "ended");
+        assert_eq!(SessionStatus::Cancelled.as_str(), "cancelled");
+        assert_eq!(
+            SessionStatus::try_from("live").expect("known status"),
+            SessionStatus::Live
+        );
         assert!(SessionStatus::try_from("unknown").is_err());
     }
 
     #[test]
     fn lifecycle_is_state_checked() {
         let now = OffsetDateTime::now_utc();
-        let mut session = ClassroomSession::schedule(RoomId::new(), None, now);
+        let mut session = Session::schedule(RoomId::new(), None, now);
         assert_eq!(session.status, SessionStatus::Scheduled);
         assert!(session.end(now).is_err());
         assert!(session.start(now).is_ok());
@@ -122,10 +132,10 @@ mod tests {
     #[test]
     fn cancel_only_from_scheduled() {
         let now = OffsetDateTime::now_utc();
-        let mut session = ClassroomSession::schedule(RoomId::new(), None, now);
+        let mut session = Session::schedule(RoomId::new(), None, now);
         assert!(session.cancel(now).is_ok());
         assert_eq!(session.status, SessionStatus::Cancelled);
-        let mut live = ClassroomSession::schedule(RoomId::new(), None, now);
+        let mut live = Session::schedule(RoomId::new(), None, now);
         live.start(now).expect("start");
         assert!(live.cancel(now).is_err());
     }

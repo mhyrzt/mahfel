@@ -11,13 +11,13 @@ backend logic.
 ## `mahfel-api`
 
 The Rust control plane and authoritative application service. It owns REST, WebSocket signaling,
-identity integration, authorization, users, rooms and sessions, attendance, persistent chat, file
-metadata and presigning, collaborative-state orchestration, media-node scheduling, PostgreSQL
+identity integration, authorization, users, rooms and sessions, participation records, persistent
+chat, file metadata and presigning, collaborative-state orchestration, media-node scheduling, PostgreSQL
 persistence, Redis coordination, RabbitMQ publishing, and the gRPC media client.
 
-It exposes the versioned `/v1` control-plane API (status, identity, and room endpoints) plus a
-WebSocket gateway at `/v1/ws`. The REST contract is generated from the transport code and served as
-OpenAPI at `/v1/openapi.json`, with its interactive UI on the private operations listener
+It exposes the versioned `/v1` control-plane API (status, identity, room, and session endpoints)
+plus a WebSocket gateway at `/v1/ws`. The REST contract is generated from the transport code and
+served as OpenAPI at `/v1/openapi.json`, with its interactive UI on the private operations listener
 (ADR 0015). Higher-level product surfaces remain deliberately deferred.
 
 OIDC is provided by Keycloak for both local development and production (`auth.mahfel.localhost`
@@ -29,18 +29,36 @@ using the client-credentials grant of a dedicated service account rather than an
 administrator account. Identity linking, role mapping, and logout remain M2 implementation concerns;
 the local realm fixture is described in `deploy/keycloak/README.md`.
 
-The first control-plane persistence boundary is intentionally small: users, rooms, and classroom
-sessions have UUID identifiers, explicit lifecycle statuses, and UTC timestamps in PostgreSQL.
+The API also owns service principals: first-class machine actors that authenticate with
+Mahfel-issued opaque API keys (`mhf_` followed by hex, stored only as a SHA-256 digest) rather than
+Keycloak client credentials (ADR 0022). Users and service principals share one PostgreSQL id space
+(`mahfel.actors`), and rooms and memberships reference actors, so a service can own a room and hold a
+`manager` or `member` role without impersonating a user. Administrators provision, rotate, and
+revoke principals under `/v1/admin/service-principals`; the API-key path and the JWT path produce
+the same `Principal`, and service principals carry no global roles by default. `mahfel-media` and
+`mahfel-worker` do not own service principals or API keys.
+
+The first control-plane persistence boundary is intentionally small: actors (users and service
+principals), users, rooms, and sessions have UUID identifiers, explicit lifecycle statuses, and UTC
+timestamps in PostgreSQL.
 A room is a durable container with `public` or `invite_only` visibility and room-scoped memberships
 whose roles are `manager` and `member`. A room's identity is its id alone, so titles need not be
-unique. Domain types remain independent of SQLx; the `mahfel-postgres` adapters (`Postgres*Store`)
-implement the application ports and own SQL mapping. Authentication identities, permissions,
-attendance, and chat remain separate later milestones.
+unique. A `Session` (table `mahfel.sessions`) is a live occurrence of a room with an explicit state
+machine — `scheduled` to `live` to `ended`, or `scheduled` to `cancelled` — and at most one session
+per room may be `live` at a time, enforced by a partial unique index so concurrent starts cannot both
+win. Scheduling, starting, ending, and cancelling are manager-only (`/v1/rooms/{room_id}/sessions`
+and `/v1/sessions/{session_id}/{start,end,cancel}`); service principals participate by being
+managers of the rooms they own, and every lifecycle action writes a structured audit log. Reading a
+room's sessions is manager-scoped in this task and moves to the capability model in M4-04. Domain
+types remain independent of SQLx; the `mahfel-postgres` adapters (`Postgres*Store`) implement the
+application ports and own SQL mapping. Authentication identities, permissions, participation records,
+and chat remain separate later milestones.
 
 Authorization is deny-by-default behind an `Authorizer` seam in `mahfel-application`: the transport
 attaches a `Principal`, the policy decides coarse actions, and room-scoped membership checks live in
 the room use cases. The interim policy grants any authenticated principal and is replaced by the
-classroom role model (M2-07).
+role and capability model (M2-07, M4-04). Session vocabulary is generic collaboration, not education
+semantics (ADR 0020).
 
 The realtime gateway at `/v1/ws` is a bounded connection boundary: a versioned JSON envelope, an
 authentication seam that denies by default, heartbeats, per-connection bounded queues with a write

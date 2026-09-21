@@ -1,7 +1,7 @@
 use crate::error::{ApplicationError, ErrorKind};
 use crate::ports::{RoomStore, StoreError};
 use mahfel_domain::{
-    Room, RoomMember, RoomRole, RoomTitle, RoomVisibility, UserId, ValidationError,
+    ActorId, Room, RoomMember, RoomRole, RoomTitle, RoomVisibility, ValidationError,
 };
 use thiserror::Error;
 use time::OffsetDateTime;
@@ -10,7 +10,7 @@ use time::OffsetDateTime;
 pub struct CreateRoom {
     pub title: String,
     pub visibility: RoomVisibility,
-    pub created_by: UserId,
+    pub created_by: ActorId,
 }
 
 #[derive(Debug, Error)]

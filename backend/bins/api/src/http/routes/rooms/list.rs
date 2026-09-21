@@ -29,7 +29,7 @@ pub(crate) async fn list_rooms<R: RoomStoreState>(
 ) -> Result<Json<Paginated<RoomResponse>>, ApiError> {
     let rooms = list_joined(
         &state.rooms,
-        principal.user_id,
+        principal.actor_id,
         pagination.limit(),
         pagination.offset(),
     )

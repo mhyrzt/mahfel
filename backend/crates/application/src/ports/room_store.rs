@@ -1,5 +1,5 @@
 use super::StoreError;
-use mahfel_domain::{Room, RoomId, RoomMember, UserId};
+use mahfel_domain::{ActorId, Room, RoomId, RoomMember};
 
 /// Persistence for the room aggregate: the room itself and its memberships.
 ///
@@ -27,10 +27,10 @@ pub trait RoomStore: Send + Sync {
         manager: &RoomMember,
     ) -> impl std::future::Future<Output = Result<(), StoreError>> + Send;
 
-    /// Rooms the user is a member of, newest first.
+    /// Rooms the actor is a member of, newest first.
     fn list_for_member(
         &self,
-        user_id: UserId,
+        actor_id: ActorId,
         limit: u64,
         offset: u64,
     ) -> impl std::future::Future<Output = Result<Vec<Room>, StoreError>> + Send;
@@ -38,7 +38,7 @@ pub trait RoomStore: Send + Sync {
     fn get_member(
         &self,
         room_id: RoomId,
-        user_id: UserId,
+        actor_id: ActorId,
     ) -> impl std::future::Future<Output = Result<Option<RoomMember>, StoreError>> + Send;
 
     fn list_members(
@@ -46,7 +46,7 @@ pub trait RoomStore: Send + Sync {
         room_id: RoomId,
     ) -> impl std::future::Future<Output = Result<Vec<RoomMember>, StoreError>> + Send;
 
-    /// Insert a membership. Returns [`StoreError::Conflict`] when the user is
+    /// Insert a membership. Returns [`StoreError::Conflict`] when the actor is
     /// already a member.
     fn add_member(
         &self,
@@ -60,6 +60,6 @@ pub trait RoomStore: Send + Sync {
     fn remove_member(
         &self,
         room_id: RoomId,
-        user_id: UserId,
+        actor_id: ActorId,
     ) -> impl std::future::Future<Output = Result<bool, StoreError>> + Send;
 }

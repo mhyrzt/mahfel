@@ -1,10 +1,12 @@
 mod identity;
 mod room;
+mod service_principal;
 mod session;
 mod user;
 
 pub use identity::PostgresIdentityStore;
 pub use room::PostgresRoomStore;
+pub use service_principal::PostgresServicePrincipalStore;
 pub use session::PostgresSessionStore;
 pub use user::PostgresUserStore;
 
@@ -23,6 +25,7 @@ pub struct PostgresStores {
     pub identities: PostgresIdentityStore,
     pub rooms: PostgresRoomStore,
     pub sessions: PostgresSessionStore,
+    pub service_principals: PostgresServicePrincipalStore,
 }
 
 impl PostgresStores {
@@ -32,7 +35,8 @@ impl PostgresStores {
             users: PostgresUserStore::new(pool.clone()),
             identities: PostgresIdentityStore::new(pool.clone()),
             rooms: PostgresRoomStore::new(pool.clone()),
-            sessions: PostgresSessionStore::new(pool),
+            sessions: PostgresSessionStore::new(pool.clone()),
+            service_principals: PostgresServicePrincipalStore::new(pool),
         }
     }
 }
@@ -47,13 +51,17 @@ pub(crate) fn store_error(err: impl std::fmt::Display) -> StoreError {
 
 /// Map a `sqlx` failure, preserving known constraint failures as typed variants.
 ///
-/// A foreign-key violation (`23503`) means a referenced row is missing, which
-/// callers can turn into a client-visible not-found rather than a 500.
+/// A unique violation (`23505`) means a uniqueness invariant (for example the
+/// one-live-session-per-room partial index) was broken; a foreign-key
+/// violation (`23503`) means a referenced row is missing, which callers can
+/// turn into a client-visible not-found rather than a 500.
 pub(crate) fn sqlx_store_error(err: sqlx::Error) -> StoreError {
-    if let sqlx::Error::Database(database) = &err
-        && database.code().as_deref() == Some("23503")
-    {
-        return StoreError::MissingReference(err.to_string());
+    if let sqlx::Error::Database(database) = &err {
+        match database.code().as_deref() {
+            Some("23505") => return StoreError::Conflict(err.to_string()),
+            Some("23503") => return StoreError::MissingReference(err.to_string()),
+            _ => {}
+        }
     }
     StoreError::Unexpected(err.to_string())
 }
