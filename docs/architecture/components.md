@@ -64,8 +64,48 @@ semantics (ADR 0020).
 
 The realtime gateway at `/v1/ws` is a bounded connection boundary: a versioned JSON envelope, an
 authentication seam that denies by default, heartbeats, per-connection bounded queues with a write
-timeout, and a process-local fan-out registry. It carries test events only; signaling semantics,
-cross-replica delivery, and presence are later work.
+timeout, and a process-local fan-out registry. It carries RTC signaling and session participation
+frames.
+
+### Session participation and reconnect
+
+Participation separates durable identity from transport:
+
+- **Durable** (`mahfel.session_participants`, PostgreSQL). One row per `(session, actor)`, keyed by
+  actor so a room or session has one owner column regardless of whether the actor is a user or a
+  service principal. A partial unique index on `(session_id, actor_id) WHERE status = 'active'` makes
+  "at most one active participant" a database invariant, so a reconnect, a second device, or a racing
+  join cannot create a duplicate. Leaving is terminal, so history is append-only and the same actor
+  may participate again later.
+- **Ephemeral** (in-process `ConnectionRegistry`). How many transports an actor currently holds, and
+  which is newest, is volatile. A participant is present while at least one connection is live.
+
+The **multi-device policy** is: one participant identity per `(session, actor)`, and any number of
+concurrent connections. Joining from a second device reuses the durable participant rather than
+creating a new one, and the roster shows one entry. An operation that targets the participant (a mute
+or a removal, M4-05) must therefore resolve across every connection that actor holds, not one
+transport.
+
+#### Known limitations
+
+These apply only when more than one API replica runs before the realtime fanout work
+(M5-03, TASK-34) lands. On a single replica they do not arise.
+
+- **The generation guard is replica-local.** Each connection carries a monotonic generation per
+  `(session, actor)`, used to make a stale intent — a cleanup completing after a reconnect, or a
+  delayed frame — a no-op. It is meaningful only within one API replica, because the registry is
+  process-local and has no view of another replica's connections. Cross-replica ordering is not
+  solved here; it needs Redis pub/sub (ADR 0017) and belongs to the connection-hub work in M5-03.
+- **Roster fan-out is replica-local.** `participant_joined` / `participant_left` propagate only to
+  connections on the same replica. A session spanning replicas produces partial roster updates until
+  the M5-03 fanout hub exists.
+- **Presence is per-replica.** "At least one live connection" is counted within one replica, so a
+  participant with one device on replica A and one on replica B is counted once per replica.
+
+These are consequences of the existing single-replica registry boundary, not of the participation
+model. The durable identity, uniqueness, and history guarantees hold regardless of replica count.
+M1-06 (TASK-7) delivered the Redis coordination adapter but never wired connection state onto it;
+the fanout decision and the connection hub are M5-03.
 
 ## `mahfel-media`
 

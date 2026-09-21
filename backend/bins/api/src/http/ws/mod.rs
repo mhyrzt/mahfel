@@ -7,7 +7,7 @@ mod state;
 
 pub use config::WsConfig;
 pub use metrics::WsMetrics;
-pub use state::WsState;
+pub use state::{ParticipationStores, WsState};
 
 use crate::http::{error::ApiError, state::AppState};
 use axum::{

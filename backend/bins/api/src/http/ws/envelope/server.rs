@@ -21,6 +21,30 @@ pub enum ServerMessage {
     Bye {
         reason: String,
     },
+    // --- Session participation (M4-02) ---
+    /// A reconnect to the same session returns the same `participant_id`.
+    Joined {
+        session_id: String,
+        participant_id: String,
+    },
+    Left {
+        session_id: String,
+        participant_id: String,
+    },
+    ParticipantJoined {
+        session_id: String,
+        participant_id: String,
+    },
+    ParticipantLeft {
+        session_id: String,
+        participant_id: String,
+    },
+    /// `code` is stable and machine-readable; `message` carries no internal
+    /// detail.
+    JoinRejected {
+        code: String,
+        message: String,
+    },
     // --- RTC responses ---
     TransportCreated {
         room_id: String,

@@ -49,11 +49,21 @@ pub(super) fn app(
         GrpcMediaGateway::lazy(settings.api.media_grpc_url.clone())
             .map_err(|e| anyhow::anyhow!("invalid media grpc url: {e}"))?,
     );
+    let rooms: Arc<dyn mahfel_application::ports::RoomStore> = Arc::new(stores.rooms.clone());
+    let sessions: Arc<dyn mahfel_application::ports::SessionStore> =
+        Arc::new(stores.sessions.clone());
+    let participants: Arc<dyn mahfel_application::ports::ParticipantStore> =
+        Arc::new(stores.participants.clone());
     let realtime = http::ws::WsState::new(
         Arc::clone(&authentication),
         http::ws::WsConfig::from(&settings.api.ws),
         telemetry.ws_metrics.clone(),
         Arc::clone(&media),
+        http::ws::ParticipationStores {
+            participants: Arc::clone(&participants),
+            sessions: Arc::clone(&sessions),
+            rooms: Arc::clone(&rooms),
+        },
         shutdown,
     );
 
@@ -67,8 +77,8 @@ pub(super) fn app(
         service_principals,
         provisioner,
         linker,
-        rooms: Arc::new(stores.rooms.clone()),
-        sessions: Arc::new(stores.sessions.clone()),
+        rooms,
+        sessions,
         realtime,
         turn: settings.turn.clone(),
     };

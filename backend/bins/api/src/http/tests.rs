@@ -6,7 +6,7 @@ use super::{
     },
     cors_layer,
     service_principals::{ServicePrincipalAdmin, StoreServicePrincipalAdmin},
-    ws::{WsConfig, WsMetrics, WsState},
+    ws::{ParticipationStores, WsConfig, WsMetrics, WsState},
 };
 use axum::{
     Router,
@@ -16,8 +16,8 @@ use axum::{
 use futures_util::{SinkExt, StreamExt};
 use mahfel_application::ports::{
     Action, AllowAuthenticated, AttributeError, AuthorizationError, Authorizer, BoxFuture,
-    Principal, ProvisionedIdentity, RoleBasedAuthorizer, RoomStore, ServicePrincipalStore,
-    SessionStore, StoreError, UserAttributeWriter,
+    ParticipantStore, Principal, ProvisionedIdentity, RoleBasedAuthorizer, RoomStore,
+    ServicePrincipalStore, SessionStore, StoreError, UserAttributeWriter,
 };
 use mahfel_application::service_principals::{CreateServicePrincipal, create_service_principal};
 use mahfel_application::users::{IdentityProvisioner, SyncIdentity, SyncIdentityError};
@@ -25,9 +25,9 @@ use mahfel_auth::AuthenticatedIdentity;
 use mahfel_auth::{TokenVerifier, TokenVerifierConfig};
 use mahfel_config::TurnSettings;
 use mahfel_domain::{
-    ActorId, ActorKind, DisplayName, Identity, Issuer, Room, RoomId, RoomMember, RoomRole,
-    RoomTitle, RoomVisibility, ServicePrincipal, ServicePrincipalStatus, Session, SessionId,
-    SessionStatus, Subject, User, UserStatus,
+    ActorId, ActorKind, DisplayName, Identity, Issuer, Participant, ParticipantId, Room, RoomId,
+    RoomMember, RoomRole, RoomTitle, RoomVisibility, ServicePrincipal, ServicePrincipalStatus,
+    Session, SessionId, SessionStatus, Subject, User, UserStatus,
 };
 use mahfel_media_client::GrpcMediaGateway;
 use prometheus::Encoder;
@@ -549,6 +549,91 @@ impl UserAttributeWriter for StubLinker {
     }
 }
 
+/// In-memory [`ParticipantStore`] mirroring the partial unique index that keeps
+/// one active participant per `(session, actor)`.
+#[derive(Clone, Default)]
+struct FakeParticipantStore {
+    participants: Arc<Mutex<Vec<Participant>>>,
+}
+
+impl FakeParticipantStore {
+    fn active(&self, session_id: SessionId, actor_id: ActorId) -> Option<Participant> {
+        self.participants
+            .lock()
+            .expect("fake store lock")
+            .iter()
+            .find(|p| p.session_id == session_id && p.actor_id == actor_id && p.is_active())
+            .cloned()
+    }
+}
+
+impl ParticipantStore for FakeParticipantStore {
+    fn get(&self, id: ParticipantId) -> BoxFuture<'_, Result<Option<Participant>, StoreError>> {
+        Box::pin(async move {
+            Ok(self
+                .participants
+                .lock()
+                .expect("fake store lock")
+                .iter()
+                .find(|p| p.id == id)
+                .cloned())
+        })
+    }
+
+    fn get_active(
+        &self,
+        session_id: SessionId,
+        actor_id: ActorId,
+    ) -> BoxFuture<'_, Result<Option<Participant>, StoreError>> {
+        Box::pin(async move { Ok(self.active(session_id, actor_id)) })
+    }
+
+    fn insert<'a>(&'a self, participant: &'a Participant) -> BoxFuture<'a, Result<(), StoreError>> {
+        Box::pin(async move {
+            if participant.is_active()
+                && self
+                    .active(participant.session_id, participant.actor_id)
+                    .is_some()
+            {
+                return Err(StoreError::Conflict("already active".to_owned()));
+            }
+            self.participants
+                .lock()
+                .expect("fake store lock")
+                .push(participant.clone());
+            Ok(())
+        })
+    }
+
+    fn save<'a>(&'a self, participant: &'a Participant) -> BoxFuture<'a, Result<(), StoreError>> {
+        Box::pin(async move {
+            let mut participants = self.participants.lock().expect("fake store lock");
+            let slot = participants
+                .iter_mut()
+                .find(|existing| existing.id == participant.id)
+                .ok_or_else(|| StoreError::NotFound(participant.id.to_string()))?;
+            *slot = participant.clone();
+            Ok(())
+        })
+    }
+
+    fn list_for_session(
+        &self,
+        session_id: SessionId,
+    ) -> BoxFuture<'_, Result<Vec<Participant>, StoreError>> {
+        Box::pin(async move {
+            Ok(self
+                .participants
+                .lock()
+                .expect("fake store lock")
+                .iter()
+                .filter(|p| p.session_id == session_id)
+                .cloned()
+                .collect())
+        })
+    }
+}
+
 fn ws_state(principal: Option<Principal>) -> WsState {
     let (_shutdown_tx, shutdown_rx) = watch::channel(false);
     let metrics = WsMetrics::register(&prometheus::Registry::new()).expect("register ws metrics");
@@ -557,6 +642,11 @@ fn ws_state(principal: Option<Principal>) -> WsState {
         WsConfig::default(),
         metrics,
         Arc::new(GrpcMediaGateway::lazy("http://localhost:50051".to_owned()).expect("media")),
+        ParticipationStores {
+            participants: Arc::new(FakeParticipantStore::default()),
+            sessions: Arc::new(FakeSessionStore::default()),
+            rooms: Arc::new(FakeRoomStore::default()),
+        },
         shutdown_rx,
     )
 }
@@ -1605,6 +1695,11 @@ async fn serve_ws(principal: Option<Principal>, config: WsConfig) -> WsHarness {
         config,
         metrics,
         Arc::new(GrpcMediaGateway::lazy("http://localhost:50051".to_owned()).expect("media")),
+        ParticipationStores {
+            participants: Arc::new(FakeParticipantStore::default()),
+            sessions: Arc::new(FakeSessionStore::default()),
+            rooms: Arc::new(FakeRoomStore::default()),
+        },
         shutdown_rx.clone(),
     );
     let (service_auth, service_principals) = service_seams(FakeServicePrincipalStore::default());
@@ -1801,6 +1896,11 @@ async fn serve_ws_with_verifier(verifier: TokenVerifier, config: WsConfig) -> Ws
         config,
         metrics,
         Arc::new(GrpcMediaGateway::lazy("http://localhost:50051".to_owned()).expect("media")),
+        ParticipationStores {
+            participants: Arc::new(FakeParticipantStore::default()),
+            sessions: Arc::new(FakeSessionStore::default()),
+            rooms: Arc::new(FakeRoomStore::default()),
+        },
         shutdown_rx.clone(),
     );
     let (service_auth, service_principals) = service_seams(FakeServicePrincipalStore::default());
@@ -2481,4 +2581,233 @@ async fn service_principal_creates_a_room_and_becomes_manager() {
         .expect("store")
         .expect("the service principal is a member");
     assert_eq!(membership.role, RoomRole::Manager);
+}
+
+/// Like [`serve_ws`], but with the stores seeded so participation frames can
+/// resolve a real room, session, and participant.
+async fn serve_ws_with(
+    principal: Option<Principal>,
+    rooms: FakeRoomStore,
+    sessions: FakeSessionStore,
+    participants: FakeParticipantStore,
+) -> WsHarness {
+    let registry = prometheus::Registry::new();
+    let metrics = WsMetrics::register(&registry).expect("register ws metrics");
+    let (shutdown_tx, shutdown_rx) = watch::channel(false);
+    let realtime = WsState::new(
+        Arc::new(StubAuthenticator::new(principal.clone())),
+        WsConfig::default(),
+        metrics,
+        Arc::new(GrpcMediaGateway::lazy("http://localhost:50051".to_owned()).expect("media")),
+        ParticipationStores {
+            participants: Arc::new(participants),
+            sessions: Arc::new(sessions),
+            rooms: Arc::new(rooms),
+        },
+        shutdown_rx.clone(),
+    );
+    let (service_auth, service_principals) = service_seams(FakeServicePrincipalStore::default());
+    let state = AppState {
+        service: "mahfel-api-test",
+        version: "0.1.0",
+        node_id: "node-test".to_owned(),
+        auth: AuthState::new(Arc::new(AllowAuthenticated)),
+        authentication: Arc::new(StubAuthenticator::new(principal)),
+        service_auth,
+        service_principals,
+        provisioner: Arc::new(StubProvisioner),
+        linker: Arc::new(StubLinker),
+        rooms: Arc::new(FakeRoomStore::default()),
+        sessions: Arc::new(FakeSessionStore::default()),
+        realtime,
+        turn: turn_settings(),
+    };
+    let listener = TcpListener::bind("127.0.0.1:0").await.expect("bind");
+    let addr = listener.local_addr().expect("listener address");
+    let task = tokio::spawn(mahfel_telemetry::serve_http(
+        listener,
+        api_router(state),
+        shutdown_rx,
+    ));
+    WsHarness {
+        addr,
+        shutdown: shutdown_tx,
+        registry,
+        _task: task,
+    }
+}
+
+/// A live session owned by `principal()`, plus the stores that hold it.
+fn participation_fixture() -> (
+    FakeRoomStore,
+    FakeSessionStore,
+    FakeParticipantStore,
+    Session,
+) {
+    let rooms = FakeRoomStore::default();
+    let room = rooms.seed_room("Algebra", principal().actor_id, RoomVisibility::InviteOnly);
+    let sessions = FakeSessionStore::default();
+    let mut session = Session::schedule(room.id, None, OffsetDateTime::now_utc());
+    session.start(OffsetDateTime::now_utc()).expect("start");
+    sessions.seed(session.clone());
+    (rooms, sessions, FakeParticipantStore::default(), session)
+}
+
+#[tokio::test]
+async fn websocket_join_resolves_a_participant_and_reconnect_reuses_it() {
+    let (rooms, sessions, participants, session) = participation_fixture();
+    let harness = serve_ws_with(Some(principal()), rooms, sessions, participants).await;
+
+    let mut first = connect(harness.addr).await;
+    authenticate(&mut first).await;
+    send(
+        &mut first,
+        &format!(r#"{{"v":1,"type":"join","session_id":"{}"}}"#, session.id),
+    )
+    .await;
+    let joined = next(&mut first).await;
+    let joined_text = joined.to_text().expect("text").to_owned();
+    assert!(
+        joined_text.contains(r#""type":"joined""#),
+        "join must be acknowledged: {joined_text}"
+    );
+    let participant_id = joined_text
+        .split(r#""participant_id":""#)
+        .nth(1)
+        .and_then(|rest| rest.split('"').next())
+        .expect("participant id present")
+        .to_owned();
+
+    // A second transport for the same actor is a reconnect, not a new identity.
+    let mut second = connect(harness.addr).await;
+    authenticate(&mut second).await;
+    send(
+        &mut second,
+        &format!(r#"{{"v":1,"type":"join","session_id":"{}"}}"#, session.id),
+    )
+    .await;
+    let rejoined = next(&mut second).await;
+    let rejoined_text = rejoined.to_text().expect("text").to_owned();
+    let repeated = rejoined_text
+        .split(r#""participant_id":""#)
+        .nth(1)
+        .and_then(|rest| rest.split('"').next())
+        .expect("participant id present");
+
+    assert_eq!(
+        participant_id, repeated,
+        "reconnect must reuse the stable participant identity"
+    );
+}
+
+#[tokio::test]
+async fn websocket_join_is_rejected_for_a_non_member() {
+    let rooms = FakeRoomStore::default();
+    let room = rooms.seed_room("Algebra", ActorId::new(), RoomVisibility::InviteOnly);
+    let sessions = FakeSessionStore::default();
+    let mut session = Session::schedule(room.id, None, OffsetDateTime::now_utc());
+    session.start(OffsetDateTime::now_utc()).expect("start");
+    sessions.seed(session.clone());
+
+    let harness = serve_ws_with(
+        Some(principal()),
+        rooms,
+        sessions,
+        FakeParticipantStore::default(),
+    )
+    .await;
+    let mut socket = connect(harness.addr).await;
+    authenticate(&mut socket).await;
+    send(
+        &mut socket,
+        &format!(r#"{{"v":1,"type":"join","session_id":"{}"}}"#, session.id),
+    )
+    .await;
+
+    let rejected = next(&mut socket).await;
+    let text = rejected.to_text().expect("text").to_owned();
+    assert!(
+        text.contains(r#""type":"join_rejected""#),
+        "a non-member must be rejected: {text}"
+    );
+    assert!(
+        text.contains(r#""code":"forbidden""#),
+        "the rejection must not reveal room existence: {text}"
+    );
+}
+
+#[tokio::test]
+async fn websocket_leave_is_terminal_and_the_actor_can_rejoin() {
+    let (rooms, sessions, participants, session) = participation_fixture();
+    let harness = serve_ws_with(Some(principal()), rooms, sessions, participants).await;
+
+    let mut socket = connect(harness.addr).await;
+    authenticate(&mut socket).await;
+    send(
+        &mut socket,
+        &format!(r#"{{"v":1,"type":"join","session_id":"{}"}}"#, session.id),
+    )
+    .await;
+    let joined_text = next(&mut socket).await.to_text().expect("text").to_owned();
+    let first_id = joined_text
+        .split(r#""participant_id":""#)
+        .nth(1)
+        .and_then(|rest| rest.split('"').next())
+        .expect("participant id")
+        .to_owned();
+
+    send(&mut socket, r#"{"v":1,"type":"leave"}"#).await;
+    let left_text = next(&mut socket).await.to_text().expect("text").to_owned();
+    assert!(
+        left_text.contains(r#""type":"left""#),
+        "leave must be acknowledged: {left_text}"
+    );
+
+    // Rejoining is a new participation, because leaving is terminal.
+    send(
+        &mut socket,
+        &format!(r#"{{"v":1,"type":"join","session_id":"{}"}}"#, session.id),
+    )
+    .await;
+    let rejoined_text = next(&mut socket).await.to_text().expect("text").to_owned();
+    let second_id = rejoined_text
+        .split(r#""participant_id":""#)
+        .nth(1)
+        .and_then(|rest| rest.split('"').next())
+        .expect("participant id")
+        .to_owned();
+    assert_ne!(first_id, second_id, "a rejoin is a new participation");
+}
+
+#[tokio::test]
+async fn websocket_join_peers_see_the_roster_change() {
+    let (rooms, sessions, participants, session) = participation_fixture();
+    let harness = serve_ws_with(Some(principal()), rooms, sessions, participants).await;
+
+    let mut owner = connect(harness.addr).await;
+    authenticate(&mut owner).await;
+    send(
+        &mut owner,
+        &format!(r#"{{"v":1,"type":"join","session_id":"{}"}}"#, session.id),
+    )
+    .await;
+    let _ = next(&mut owner).await;
+
+    // A second authenticated principal joins the same session; the owner's
+    // connection must observe the roster change.
+    let mut peer = connect(harness.addr).await;
+    authenticate(&mut peer).await;
+    send(
+        &mut peer,
+        &format!(r#"{{"v":1,"type":"join","session_id":"{}"}}"#, session.id),
+    )
+    .await;
+    let _ = next(&mut peer).await;
+
+    let observed = next(&mut owner).await;
+    let text = observed.to_text().expect("text").to_owned();
+    assert!(
+        text.contains(r#""type":"participant_joined""#),
+        "an existing member must see the roster change: {text}"
+    );
 }
