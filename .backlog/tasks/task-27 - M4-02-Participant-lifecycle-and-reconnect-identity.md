@@ -4,7 +4,7 @@ title: M4-02 Participant lifecycle and reconnect identity
 status: To Do
 assignee: []
 created_date: '2026-09-08 00:31'
-updated_date: '2026-09-21 09:45'
+updated_date: '2026-09-21 09:51'
 labels:
   - backend
   - api
@@ -33,4 +33,18 @@ A connection is transient but an actor's presence in a live session is a stable 
 - [ ] #4 The multi-device policy is explicit, documented, and tested.
 - [ ] #5 WebSocket join and leave events carry the stable participant identity used by the roster.
 - [ ] #6 The participant identity and join path are reusable by M4-05 blocking and M4-06 admission without reworking the participant model.
+- [ ] #7 A second concurrent device is allowed: one participant holds multiple connections, and the participant is present while at least one connection is live.
+- [ ] #8 Removing or muting a participant resolves unambiguously across that participant's connections, and no duplicate participant row is created by a second device.
 <!-- AC:END -->
+
+## Comments
+
+<!-- COMMENTS:BEGIN -->
+author: @mahyar
+created: 2026-09-21 09:51
+---
+Decisions recorded before implementation:
+A2 concurrent devices: one participant may hold several live connections; presence is derived from connection count (present while >=1 live), not from a single connection. Roster shows one participant; media de-duplication and per-connection targeting are the responsibility of this task's model, consumed by M4-05.
+B1 blocking deferred to M4-05: M4-02 ends the connection only; the durable block list and its join-path check land in M4-05 without reworking the participant model (AC 6).
+---
+<!-- COMMENTS:END -->
