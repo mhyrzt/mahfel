@@ -196,4 +196,35 @@ impl CoordinationStore for RedisCoordination {
             outcome.map(|_| ()).map_err(CoordinationError::from)
         })
     }
+
+    fn increment_with_ttl<'a>(
+        &'a self,
+        key: &'a str,
+        ttl: Duration,
+    ) -> BoxFuture<'a, Result<u64, CoordinationError>> {
+        Box::pin(async move {
+            let mut connection = self.manager.clone();
+            let milliseconds = u64::try_from(ttl.as_millis()).unwrap_or(u64::MAX);
+            // INCR creates the key at 1; EXPIRE then sets the window on every
+            // call. Re-arming the TTL is deliberate: a window that is refreshed
+            // by activity cannot be reset by an attacker waiting it out, and a
+            // burst near the boundary cannot extend a key indefinitely because
+            // the value, not the TTL, is what the limiter reads.
+            let result = timeout(
+                self.command_timeout,
+                redis::pipe()
+                    .atomic()
+                    .cmd("INCR")
+                    .arg(key)
+                    .cmd("EXPIRE")
+                    .arg(key)
+                    .arg(milliseconds)
+                    .ignore()
+                    .query_async::<i64>(&mut connection),
+            )
+            .await;
+            let count = self.finish(result).map_err(CoordinationError::from)?;
+            Ok(u64::try_from(count).unwrap_or(0))
+        })
+    }
 }

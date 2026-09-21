@@ -58,4 +58,21 @@ pub trait CoordinationStore: Send + Sync {
         channel: &'a str,
         payload: &'a [u8],
     ) -> BoxFuture<'a, Result<(), CoordinationError>>;
+
+    /// Increment a counter, returning the value after the increment.
+    ///
+    /// The counter expires `ttl` after it is first created, so a family of
+    /// counters is a fixed window: the window starts at the first increment and
+    /// rolls over when the key expires. The increment and the initial expiry are
+    /// applied together, so two replicas cannot both believe they created the
+    /// window.
+    ///
+    /// This is the primitive rate limiting is built on. Keys must be derived
+    /// from a digest rather than from a raw identifier, because the key
+    /// namespace is a low-trust surface.
+    fn increment_with_ttl<'a>(
+        &'a self,
+        key: &'a str,
+        ttl: Duration,
+    ) -> BoxFuture<'a, Result<u64, CoordinationError>>;
 }
