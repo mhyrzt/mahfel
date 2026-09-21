@@ -1,18 +1,25 @@
 pub mod cancel;
 pub mod end;
+pub mod error;
 pub mod get;
+pub(crate) mod guard;
+pub mod join;
+pub mod leave;
 pub mod list;
 pub mod schedule;
 pub mod start;
 
-pub use cancel::{CancelSession, CancelSessionError, cancel_session};
-pub use end::{EndSession, EndSessionError, end_session};
-pub use get::{GetSession, GetSessionError, get_session};
-pub use list::{ListSessions, ListSessionsError, list_sessions};
-pub use schedule::{ScheduleSession, ScheduleSessionError, schedule_session};
-pub use start::{StartSession, StartSessionError, start_session};
+pub use cancel::{CancelSession, cancel_session};
+pub use end::{EndSession, end_session};
+pub use error::SessionOperationError;
+pub use get::{GetSession, get_session};
+pub use join::{JoinSession, join_session};
+pub use leave::{LeaveSession, leave_session};
+pub use list::{ListSessions, list_sessions};
+pub use schedule::{ScheduleSession, schedule_session};
+pub use start::{StartSession, start_session};
 
-pub(crate) use crate::rooms::ManagerGuardError;
+pub(crate) use guard::require_joinable;
 
 #[cfg(test)]
 mod tests;

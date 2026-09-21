@@ -1,21 +1,6 @@
-use crate::error::{ApplicationError, ErrorKind};
-use crate::ports::{RoomStore, StoreError};
+use super::RoomOperationError;
+use crate::ports::RoomStore;
 use mahfel_domain::{ActorId, Room, RoomId};
-use thiserror::Error;
-
-#[derive(Debug, Error)]
-pub enum GetRoomError {
-    #[error("storage failure: {0}")]
-    Store(#[from] StoreError),
-}
-
-impl ApplicationError for GetRoomError {
-    fn kind(&self) -> ErrorKind {
-        match self {
-            Self::Store(_) => ErrorKind::Internal,
-        }
-    }
-}
 
 /// Return the room only when `actor` is a member.
 ///
@@ -25,7 +10,7 @@ pub async fn get_room<R>(
     rooms: &R,
     id: RoomId,
     actor: ActorId,
-) -> Result<Option<Room>, GetRoomError>
+) -> Result<Option<Room>, RoomOperationError>
 where
     R: RoomStore + ?Sized,
 {

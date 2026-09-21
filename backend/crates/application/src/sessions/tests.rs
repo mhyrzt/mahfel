@@ -1,11 +1,12 @@
 use super::{
-    CancelSession, EndSession, GetSession, ListSessions, ScheduleSession, StartSession,
-    cancel_session, end_session, get_session, list_sessions, schedule_session, start_session,
+    CancelSession, EndSession, GetSession, JoinSession, LeaveSession, ListSessions,
+    ScheduleSession, StartSession, cancel_session, end_session, get_session, join_session,
+    leave_session, list_sessions, schedule_session, start_session,
 };
-use crate::ports::{BoxFuture, RoomStore, SessionStore, StoreError};
+use crate::ports::{BoxFuture, ParticipantStore, RoomStore, SessionStore, StoreError};
 use mahfel_domain::{
-    ActorId, Room, RoomId, RoomMember, RoomRole, RoomTitle, RoomVisibility, Session, SessionError,
-    SessionId, SessionStatus,
+    ActorId, Participant, ParticipantId, ParticipantStatus, Room, RoomId, RoomMember, RoomRole,
+    RoomTitle, RoomVisibility, Session, SessionError, SessionId, SessionStatus,
 };
 use std::sync::{Arc, Mutex};
 use time::OffsetDateTime;
@@ -18,11 +19,15 @@ struct FakeRoomStore {
 
 impl FakeRoomStore {
     fn seed_room(&self, owner: ActorId) -> Room {
+        self.seed_room_with_visibility(owner, RoomVisibility::InviteOnly)
+    }
+
+    fn seed_room_with_visibility(&self, owner: ActorId, visibility: RoomVisibility) -> Room {
         let now = OffsetDateTime::now_utc();
         let room = Room::create(
             RoomTitle::new("Algebra".to_owned()).expect("valid title"),
             owner,
-            RoomVisibility::InviteOnly,
+            visibility,
             now,
         );
         self.rooms.lock().expect("lock").push(room.clone());
@@ -250,6 +255,299 @@ fn scheduled(room_id: RoomId) -> Session {
     Session::schedule(room_id, None, OffsetDateTime::now_utc())
 }
 
+/// In-memory [`ParticipantStore`] mirroring the partial unique index that keeps
+/// one active participant per `(session, actor)`.
+#[derive(Clone, Default)]
+struct FakeParticipantStore {
+    participants: Arc<Mutex<Vec<Participant>>>,
+}
+
+impl FakeParticipantStore {
+    fn active(&self, session_id: SessionId, actor_id: ActorId) -> Option<Participant> {
+        self.participants
+            .lock()
+            .expect("lock")
+            .iter()
+            .find(|p| p.session_id == session_id && p.actor_id == actor_id && p.is_active())
+            .cloned()
+    }
+}
+
+impl ParticipantStore for FakeParticipantStore {
+    fn get(&self, id: ParticipantId) -> BoxFuture<'_, Result<Option<Participant>, StoreError>> {
+        Box::pin(async move {
+            Ok(self
+                .participants
+                .lock()
+                .expect("lock")
+                .iter()
+                .find(|p| p.id == id)
+                .cloned())
+        })
+    }
+
+    fn get_active(
+        &self,
+        session_id: SessionId,
+        actor_id: ActorId,
+    ) -> BoxFuture<'_, Result<Option<Participant>, StoreError>> {
+        Box::pin(async move { Ok(self.active(session_id, actor_id)) })
+    }
+
+    fn insert<'a>(&'a self, participant: &'a Participant) -> BoxFuture<'a, Result<(), StoreError>> {
+        Box::pin(async move {
+            if participant.is_active()
+                && self
+                    .active(participant.session_id, participant.actor_id)
+                    .is_some()
+            {
+                return Err(StoreError::Conflict("already active".to_owned()));
+            }
+            self.participants
+                .lock()
+                .expect("lock")
+                .push(participant.clone());
+            Ok(())
+        })
+    }
+
+    fn save<'a>(&'a self, participant: &'a Participant) -> BoxFuture<'a, Result<(), StoreError>> {
+        Box::pin(async move {
+            let mut participants = self.participants.lock().expect("lock");
+            let slot = participants
+                .iter_mut()
+                .find(|existing| existing.id == participant.id)
+                .ok_or_else(|| StoreError::NotFound(participant.id.to_string()))?;
+            *slot = participant.clone();
+            Ok(())
+        })
+    }
+
+    fn list_for_session(
+        &self,
+        session_id: SessionId,
+    ) -> BoxFuture<'_, Result<Vec<Participant>, StoreError>> {
+        Box::pin(async move {
+            Ok(self
+                .participants
+                .lock()
+                .expect("lock")
+                .iter()
+                .filter(|p| p.session_id == session_id)
+                .cloned()
+                .collect())
+        })
+    }
+}
+
+/// A room with one manager, and a live session inside it.
+fn live_fixture() -> (
+    FakeRoomStore,
+    FakeSessionStore,
+    FakeParticipantStore,
+    Room,
+    Session,
+    ActorId,
+) {
+    let rooms = FakeRoomStore::default();
+    let sessions = FakeSessionStore::default();
+    let participants = FakeParticipantStore::default();
+    let owner = actor();
+    let room = rooms.seed_room(owner);
+    let mut session = scheduled(room.id);
+    session.start(OffsetDateTime::now_utc()).expect("start");
+    sessions.seed(session.clone());
+    (rooms, sessions, participants, room, session, owner)
+}
+
+#[tokio::test]
+async fn reconnect_reuses_the_same_participant() {
+    let (rooms, sessions, participants, _room, session, owner) = live_fixture();
+
+    let first = join_session(
+        &participants,
+        &sessions,
+        &rooms,
+        JoinSession {
+            actor: owner,
+            session_id: session.id,
+        },
+    )
+    .await
+    .expect("first join");
+
+    let second = join_session(
+        &participants,
+        &sessions,
+        &rooms,
+        JoinSession {
+            actor: owner,
+            session_id: session.id,
+        },
+    )
+    .await
+    .expect("reconnect");
+
+    assert_eq!(first.id, second.id, "reconnect must reuse the identity");
+    assert_eq!(
+        participants
+            .list_for_session(session.id)
+            .await
+            .expect("list")
+            .len(),
+        1,
+        "a reconnect must not duplicate the participant row"
+    );
+}
+
+#[tokio::test]
+async fn join_is_deny_by_default_for_non_members_of_private_rooms() {
+    let (rooms, sessions, participants, _room, session, owner) = live_fixture();
+    let _ = owner;
+    let outsider = actor();
+
+    let denied = join_session(
+        &participants,
+        &sessions,
+        &rooms,
+        JoinSession {
+            actor: outsider,
+            session_id: session.id,
+        },
+    )
+    .await;
+    assert!(matches!(
+        denied,
+        Err(super::SessionOperationError::Forbidden)
+    ));
+}
+
+#[tokio::test]
+async fn non_members_may_join_public_rooms() {
+    let rooms = FakeRoomStore::default();
+    let sessions = FakeSessionStore::default();
+    let participants = FakeParticipantStore::default();
+    let owner = actor();
+    let room = rooms.seed_room_with_visibility(owner, RoomVisibility::Public);
+    let mut session = scheduled(room.id);
+    session.start(OffsetDateTime::now_utc()).expect("start");
+    sessions.seed(session.clone());
+
+    let joined = join_session(
+        &participants,
+        &sessions,
+        &rooms,
+        JoinSession {
+            actor: actor(),
+            session_id: session.id,
+        },
+    )
+    .await
+    .expect("public join");
+    assert!(joined.is_active());
+}
+
+#[tokio::test]
+async fn join_requires_a_live_session() {
+    let rooms = FakeRoomStore::default();
+    let sessions = FakeSessionStore::default();
+    let participants = FakeParticipantStore::default();
+    let owner = actor();
+    let room = rooms.seed_room(owner);
+    let session = scheduled(room.id);
+    sessions.seed(session.clone());
+
+    let denied = join_session(
+        &participants,
+        &sessions,
+        &rooms,
+        JoinSession {
+            actor: owner,
+            session_id: session.id,
+        },
+    )
+    .await;
+    assert!(matches!(denied, Err(super::SessionOperationError::NotLive)));
+}
+
+#[tokio::test]
+async fn leave_is_terminal_and_the_actor_can_rejoin() {
+    let (rooms, sessions, participants, _room, session, owner) = live_fixture();
+    let joined = join_session(
+        &participants,
+        &sessions,
+        &rooms,
+        JoinSession {
+            actor: owner,
+            session_id: session.id,
+        },
+    )
+    .await
+    .expect("join");
+
+    leave_session(
+        &participants,
+        LeaveSession {
+            actor: owner,
+            participant_id: joined.id,
+        },
+    )
+    .await
+    .expect("leave");
+    assert_eq!(
+        participants
+            .get(joined.id)
+            .await
+            .expect("get")
+            .expect("present")
+            .status,
+        ParticipantStatus::Left
+    );
+
+    let rejoined = join_session(
+        &participants,
+        &sessions,
+        &rooms,
+        JoinSession {
+            actor: owner,
+            session_id: session.id,
+        },
+    )
+    .await
+    .expect("rejoin");
+    assert_ne!(rejoined.id, joined.id, "a rejoin is a new participation");
+    assert!(rejoined.is_active());
+}
+
+#[tokio::test]
+async fn leaving_another_actors_participant_is_not_found() {
+    let (rooms, sessions, participants, _room, session, owner) = live_fixture();
+    let joined = join_session(
+        &participants,
+        &sessions,
+        &rooms,
+        JoinSession {
+            actor: owner,
+            session_id: session.id,
+        },
+    )
+    .await
+    .expect("join");
+
+    let denied = leave_session(
+        &participants,
+        LeaveSession {
+            actor: actor(),
+            participant_id: joined.id,
+        },
+    )
+    .await;
+    assert!(matches!(
+        denied,
+        Err(super::SessionOperationError::NotFound)
+    ));
+}
+
 #[tokio::test]
 async fn non_manager_is_denied_and_non_member_is_hidden() {
     let rooms = FakeRoomStore::default();
@@ -271,7 +569,7 @@ async fn non_manager_is_denied_and_non_member_is_hidden() {
     )
     .await;
     assert!(
-        matches!(denied, Err(super::ScheduleSessionError::Forbidden)),
+        matches!(denied, Err(super::SessionOperationError::Forbidden)),
         "a member without the manager role is forbidden, got {denied:?}"
     );
 
@@ -286,7 +584,7 @@ async fn non_manager_is_denied_and_non_member_is_hidden() {
     )
     .await;
     assert!(
-        matches!(hidden, Err(super::ScheduleSessionError::NotFound)),
+        matches!(hidden, Err(super::SessionOperationError::NotFound)),
         "a non-member must not learn the room exists, got {hidden:?}"
     );
 }
@@ -314,7 +612,9 @@ async fn invalid_transition_is_rejected_without_state_change() {
     assert!(
         matches!(
             ended,
-            Err(super::EndSessionError::Domain(SessionError::CannotEnd(_)))
+            Err(super::SessionOperationError::Domain(
+                SessionError::CannotEnd(_)
+            ))
         ),
         "end from scheduled must be a domain conflict, got {ended:?}"
     );
@@ -340,7 +640,7 @@ async fn invalid_transition_is_rejected_without_state_change() {
     assert!(
         matches!(
             cancelled,
-            Err(super::CancelSessionError::Domain(
+            Err(super::SessionOperationError::Domain(
                 SessionError::CannotCancel(_)
             ))
         ),
@@ -441,7 +741,7 @@ async fn second_live_session_conflicts() {
     )
     .await;
     assert!(
-        matches!(losing, Err(super::StartSessionError::Conflict)),
+        matches!(losing, Err(super::SessionOperationError::Conflict)),
         "the second live start must conflict, got {losing:?}"
     );
     assert_eq!(sessions.status(second.id), Some(SessionStatus::Scheduled));
