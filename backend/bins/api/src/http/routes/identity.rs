@@ -1,7 +1,7 @@
 use crate::http::{
     auth::{self, Authenticated, VerifiedToken},
     error::ApiError,
-    state::{AppState, RoomStoreState},
+    state::AppState,
 };
 use axum::{
     Json, Router,
@@ -83,8 +83,8 @@ impl ProfileResponse {
         (status = 503, description = "Identity provider unavailable"),
     ),
 )]
-pub(crate) async fn provision<R: RoomStoreState>(
-    State(state): State<AppState<R>>,
+pub(crate) async fn provision(
+    State(state): State<AppState>,
     VerifiedToken(claims): VerifiedToken,
 ) -> Result<Json<ProfileResponse>, ApiError> {
     let command = SyncIdentity {
@@ -132,16 +132,16 @@ pub(crate) async fn provision<R: RoomStoreState>(
         (status = 403, description = "Account not provisioned"),
     ),
 )]
-pub(crate) async fn me<R: RoomStoreState>(
-    State(state): State<AppState<R>>,
+pub(crate) async fn me(
+    State(state): State<AppState>,
     Authenticated(principal): Authenticated,
 ) -> Result<Json<ProfileResponse>, ApiError> {
     auth::authorize(&state, &principal, Action::ViewOwnIdentity)?;
     Ok(Json(ProfileResponse::from_principal(&principal)))
 }
 
-pub(crate) fn route<R: RoomStoreState>() -> Router<AppState<R>> {
+pub(crate) fn route() -> Router<AppState> {
     Router::new()
-        .route("/auth/provision", post(provision::<R>))
-        .route("/auth/me", get(me::<R>))
+        .route("/auth/provision", post(provision))
+        .route("/auth/me", get(me))
 }

@@ -1,7 +1,6 @@
 use crate::http::error::{ApiError, api_error_from};
 use mahfel_application::ports::{Action, AuthorizationError, Authorizer, Principal};
 use std::sync::Arc;
-
 /// Authorization policy for the API.
 ///
 /// Authentication happens per request from the bearer token; this type only
@@ -29,8 +28,8 @@ impl AuthState {
 api_error_from!(AuthorizationError);
 
 /// Run a policy check, mapping denials into the HTTP error envelope.
-pub fn authorize<R>(
-    state: &crate::http::state::AppState<R>,
+pub fn authorize(
+    state: &crate::http::state::AppState,
     principal: &Principal,
     action: Action,
 ) -> Result<(), ApiError> {

@@ -3,7 +3,7 @@ use crate::http::{
     auth::{self, Authenticated},
     error::ApiError,
     extractor::ValidatedJson,
-    state::{AppState, RoomStoreState},
+    state::AppState,
 };
 use axum::{Json, extract::State, http::StatusCode};
 use mahfel_application::{
@@ -22,14 +22,14 @@ use mahfel_application::{
         (status = 422, description = "Invalid room title"),
     ),
 )]
-pub(crate) async fn create<R: RoomStoreState>(
-    State(state): State<AppState<R>>,
+pub(crate) async fn create(
+    State(state): State<AppState>,
     Authenticated(principal): Authenticated,
     ValidatedJson(body): ValidatedJson<CreateRoomRequest>,
 ) -> Result<(StatusCode, Json<RoomResponse>), ApiError> {
     auth::authorize(&state, &principal, Action::CreateRoom)?;
     let room = create_room(
-        &state.rooms,
+        state.rooms.as_ref(),
         CreateRoom {
             title: body.title,
             visibility: body

@@ -67,8 +67,8 @@ pub(super) fn app(
         service_principals,
         provisioner,
         linker,
-        rooms: stores.rooms,
-        sessions: http::state::SessionStoreRef::new(stores.sessions.clone()),
+        rooms: Arc::new(stores.rooms.clone()),
+        sessions: Arc::new(stores.sessions.clone()),
         realtime,
         turn: settings.turn.clone(),
     };

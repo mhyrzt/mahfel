@@ -1,9 +1,6 @@
 use super::dto::SessionResponse;
 use crate::http::{
-    auth::Authenticated,
-    error::ApiError,
-    extractor::ValidatedPath,
-    state::{AppState, RoomStoreState},
+    auth::Authenticated, error::ApiError, extractor::ValidatedPath, state::AppState,
 };
 use axum::{Json, extract::State};
 use mahfel_application::sessions::{GetSession, get_session as load_session};
@@ -24,14 +21,14 @@ use uuid::Uuid;
         (status = 404, description = "Session does not exist or the caller cannot see its room"),
     ),
 )]
-pub(crate) async fn get_session<R: RoomStoreState>(
-    State(state): State<AppState<R>>,
+pub(crate) async fn get_session(
+    State(state): State<AppState>,
     Authenticated(principal): Authenticated,
     ValidatedPath(session_id): ValidatedPath<Uuid>,
 ) -> Result<Json<SessionResponse>, ApiError> {
     let session = load_session(
-        &state.sessions,
-        &state.rooms,
+        state.sessions.as_ref(),
+        state.rooms.as_ref(),
         GetSession {
             actor: principal.actor_id,
             session_id: SessionId::from_uuid(session_id),

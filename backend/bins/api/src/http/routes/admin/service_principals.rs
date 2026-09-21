@@ -11,7 +11,7 @@ use crate::http::{
     auth::{self, Authenticated},
     error::{ApiError, api_error_from},
     extractor::{ValidatedJson, ValidatedPath},
-    state::{AppState, RoomStoreState},
+    state::AppState,
 };
 use axum::{
     Json, Router,
@@ -50,8 +50,8 @@ api_error_from!(
         (status = 422, description = "Invalid name"),
     ),
 )]
-pub(crate) async fn create<R: RoomStoreState>(
-    State(state): State<AppState<R>>,
+pub(crate) async fn create(
+    State(state): State<AppState>,
     Authenticated(principal): Authenticated,
     ValidatedJson(body): ValidatedJson<CreateServicePrincipalRequest>,
 ) -> Result<(StatusCode, Json<CreatedServicePrincipalResponse>), ApiError> {
@@ -79,8 +79,8 @@ pub(crate) async fn create<R: RoomStoreState>(
         (status = 403, description = "Permission denied"),
     ),
 )]
-pub(crate) async fn list<R: RoomStoreState>(
-    State(state): State<AppState<R>>,
+pub(crate) async fn list(
+    State(state): State<AppState>,
     Authenticated(principal): Authenticated,
 ) -> Result<Json<Vec<ServicePrincipalResponse>>, ApiError> {
     auth::authorize(&state, &principal, Action::ManageSystem)?;
@@ -106,8 +106,8 @@ pub(crate) async fn list<R: RoomStoreState>(
         (status = 409, description = "Service principal is revoked"),
     ),
 )]
-pub(crate) async fn rotate<R: RoomStoreState>(
-    State(state): State<AppState<R>>,
+pub(crate) async fn rotate(
+    State(state): State<AppState>,
     Authenticated(principal): Authenticated,
     ValidatedPath(id): ValidatedPath<Uuid>,
 ) -> Result<Json<RotatedServicePrincipalKeyResponse>, ApiError> {
@@ -133,8 +133,8 @@ pub(crate) async fn rotate<R: RoomStoreState>(
         (status = 404, description = "Service principal not found"),
     ),
 )]
-pub(crate) async fn revoke<R: RoomStoreState>(
-    State(state): State<AppState<R>>,
+pub(crate) async fn revoke(
+    State(state): State<AppState>,
     Authenticated(principal): Authenticated,
     ValidatedPath(id): ValidatedPath<Uuid>,
 ) -> Result<StatusCode, ApiError> {
@@ -146,12 +146,9 @@ pub(crate) async fn revoke<R: RoomStoreState>(
     Ok(StatusCode::NO_CONTENT)
 }
 
-pub(crate) fn route<R: RoomStoreState>() -> Router<AppState<R>> {
+pub(crate) fn route() -> Router<AppState> {
     Router::new()
-        .route(
-            "/admin/service-principals",
-            get(list::<R>).post(create::<R>),
-        )
-        .route("/admin/service-principals/{id}/rotate", post(rotate::<R>))
-        .route("/admin/service-principals/{id}", delete(revoke::<R>))
+        .route("/admin/service-principals", get(list).post(create))
+        .route("/admin/service-principals/{id}/rotate", post(rotate))
+        .route("/admin/service-principals/{id}", delete(revoke))
 }

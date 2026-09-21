@@ -3,7 +3,7 @@ use crate::http::{
     auth::Authenticated,
     error::ApiError,
     extractor::{ValidatedJson, ValidatedPath},
-    state::{AppState, RoomStoreState},
+    state::AppState,
 };
 use axum::{Json, extract::State, http::StatusCode};
 use mahfel_application::rooms::{add_member, remove_member};
@@ -24,14 +24,14 @@ use uuid::Uuid;
         (status = 409, description = "User is already a member"),
     ),
 )]
-pub(crate) async fn add<R: RoomStoreState>(
-    State(state): State<AppState<R>>,
+pub(crate) async fn add(
+    State(state): State<AppState>,
     Authenticated(principal): Authenticated,
     ValidatedPath(room_id): ValidatedPath<Uuid>,
     ValidatedJson(body): ValidatedJson<AddMemberRequest>,
 ) -> Result<(StatusCode, Json<MemberResponse>), ApiError> {
     let member = add_member(
-        &state.rooms,
+        state.rooms.as_ref(),
         RoomId::from_uuid(room_id),
         principal.actor_id,
         ActorId::from_uuid(body.user_id),
@@ -57,13 +57,13 @@ pub(crate) async fn add<R: RoomStoreState>(
         (status = 409, description = "The last manager cannot be removed"),
     ),
 )]
-pub(crate) async fn remove<R: RoomStoreState>(
-    State(state): State<AppState<R>>,
+pub(crate) async fn remove(
+    State(state): State<AppState>,
     Authenticated(principal): Authenticated,
     ValidatedPath((room_id, user_id)): ValidatedPath<(Uuid, Uuid)>,
 ) -> Result<StatusCode, ApiError> {
     remove_member(
-        &state.rooms,
+        state.rooms.as_ref(),
         RoomId::from_uuid(room_id),
         principal.actor_id,
         ActorId::from_uuid(user_id),

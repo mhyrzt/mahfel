@@ -9,11 +9,7 @@ pub(crate) mod status;
 
 pub(crate) use openapi::ApiDoc;
 
-use crate::http::{
-    error::ApiError,
-    state::{AppState, RoomStoreState},
-    ws,
-};
+use crate::http::{error::ApiError, state::AppState, ws};
 use axum::{Json, Router, routing::get};
 use utoipa::OpenApi;
 
@@ -28,16 +24,16 @@ pub(crate) async fn openapi() -> Json<utoipa::openapi::OpenApi> {
 }
 
 /// Versioned route table plus fallback, before transport middleware.
-pub(crate) fn router<R: RoomStoreState>(state: AppState<R>) -> Router {
-    let v1 = status::route::<R>()
-        .merge(health::route::<R>())
-        .merge(echo::route::<R>())
-        .merge(identity::route::<R>())
-        .merge(admin::route::<R>())
-        .merge(rooms::route::<R>())
-        .merge(sessions::route::<R>())
-        .merge(ws::route::<R>())
-        .merge(crate::http::turn::route::<R>())
+pub(crate) fn router(state: AppState) -> Router {
+    let v1 = status::route()
+        .merge(health::route())
+        .merge(echo::route())
+        .merge(identity::route())
+        .merge(admin::route())
+        .merge(rooms::route())
+        .merge(sessions::route())
+        .merge(ws::route())
+        .merge(crate::http::turn::route())
         .route("/openapi.json", get(openapi))
         .fallback(not_found);
 

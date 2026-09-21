@@ -3,7 +3,7 @@ pub(crate) mod service_principals;
 use crate::http::{
     auth::{self, Authenticated},
     error::ApiError,
-    state::{AppState, RoomStoreState},
+    state::AppState,
 };
 use axum::{Json, Router, extract::State, routing::get};
 use mahfel_application::ports::Action;
@@ -25,16 +25,16 @@ pub(crate) struct AdminResponse {
         (status = 403, description = "Permission denied"),
     ),
 )]
-pub(crate) async fn ping<R: RoomStoreState>(
-    State(state): State<AppState<R>>,
+pub(crate) async fn ping(
+    State(state): State<AppState>,
     Authenticated(principal): Authenticated,
 ) -> Result<Json<AdminResponse>, ApiError> {
     auth::authorize(&state, &principal, Action::ManageSystem)?;
     Ok(Json(AdminResponse { ok: true }))
 }
 
-pub(crate) fn route<R: RoomStoreState>() -> Router<AppState<R>> {
+pub(crate) fn route() -> Router<AppState> {
     Router::new()
-        .route("/admin/ping", get(ping::<R>))
-        .merge(service_principals::route::<R>())
+        .route("/admin/ping", get(ping))
+        .merge(service_principals::route())
 }

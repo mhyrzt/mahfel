@@ -6,7 +6,6 @@ use super::{
     },
     cors_layer,
     service_principals::{ServicePrincipalAdmin, StoreServicePrincipalAdmin},
-    state::SessionStoreRef,
     ws::{WsConfig, WsMetrics, WsState},
 };
 use axum::{
@@ -14,11 +13,11 @@ use axum::{
     body::Body,
     http::{HeaderValue, Method, Request, StatusCode, header},
 };
-use futures_util::{SinkExt, StreamExt, future::BoxFuture};
+use futures_util::{SinkExt, StreamExt};
 use mahfel_application::ports::{
-    Action, AllowAuthenticated, AttributeError, AuthorizationError, Authorizer, Principal,
-    ProvisionedIdentity, RoleBasedAuthorizer, RoomStore, ServicePrincipalStore, SessionStore,
-    StoreError, UserAttributeWriter,
+    Action, AllowAuthenticated, AttributeError, AuthorizationError, Authorizer, BoxFuture,
+    Principal, ProvisionedIdentity, RoleBasedAuthorizer, RoomStore, ServicePrincipalStore,
+    SessionStore, StoreError, UserAttributeWriter,
 };
 use mahfel_application::service_principals::{CreateServicePrincipal, create_service_principal};
 use mahfel_application::users::{IdentityProvisioner, SyncIdentity, SyncIdentityError};
@@ -88,130 +87,152 @@ impl FakeRoomStore {
 }
 
 impl RoomStore for FakeRoomStore {
-    async fn get(&self, id: RoomId) -> Result<Option<Room>, StoreError> {
-        Ok(self
-            .inner
-            .lock()
-            .expect("fake store lock")
-            .rooms
-            .iter()
-            .find(|room| room.id == id)
-            .cloned())
+    fn get(&self, id: RoomId) -> BoxFuture<'_, Result<Option<Room>, StoreError>> {
+        Box::pin(async move {
+            Ok(self
+                .inner
+                .lock()
+                .expect("fake store lock")
+                .rooms
+                .iter()
+                .find(|room| room.id == id)
+                .cloned())
+        })
     }
 
-    async fn insert(&self, room: &Room) -> Result<(), StoreError> {
-        self.inner
-            .lock()
-            .expect("fake store lock")
-            .rooms
-            .push(room.clone());
-        Ok(())
+    fn insert<'a>(&'a self, room: &'a Room) -> BoxFuture<'a, Result<(), StoreError>> {
+        Box::pin(async move {
+            self.inner
+                .lock()
+                .expect("fake store lock")
+                .rooms
+                .push(room.clone());
+            Ok(())
+        })
     }
 
-    async fn save(&self, room: &Room) -> Result<(), StoreError> {
-        let mut inner = self.inner.lock().expect("fake store lock");
-        let slot = inner
-            .rooms
-            .iter_mut()
-            .find(|existing| existing.id == room.id)
-            .ok_or_else(|| StoreError::NotFound(room.id.to_string()))?;
-        *slot = room.clone();
-        Ok(())
+    fn save<'a>(&'a self, room: &'a Room) -> BoxFuture<'a, Result<(), StoreError>> {
+        Box::pin(async move {
+            let mut inner = self.inner.lock().expect("fake store lock");
+            let slot = inner
+                .rooms
+                .iter_mut()
+                .find(|existing| existing.id == room.id)
+                .ok_or_else(|| StoreError::NotFound(room.id.to_string()))?;
+            *slot = room.clone();
+            Ok(())
+        })
     }
 
-    async fn create_with_manager(
-        &self,
-        room: &Room,
-        manager: &RoomMember,
-    ) -> Result<(), StoreError> {
-        let mut inner = self.inner.lock().expect("fake store lock");
-        inner.rooms.push(room.clone());
-        inner.members.push(manager.clone());
-        Ok(())
+    fn create_with_manager<'a>(
+        &'a self,
+        room: &'a Room,
+        manager: &'a RoomMember,
+    ) -> BoxFuture<'a, Result<(), StoreError>> {
+        Box::pin(async move {
+            let mut inner = self.inner.lock().expect("fake store lock");
+            inner.rooms.push(room.clone());
+            inner.members.push(manager.clone());
+            Ok(())
+        })
     }
 
-    async fn list_for_member(
+    fn list_for_member(
         &self,
         user_id: ActorId,
         limit: u64,
         offset: u64,
-    ) -> Result<Vec<Room>, StoreError> {
-        let inner = self.inner.lock().expect("fake store lock");
-        let mut rooms: Vec<Room> = inner
-            .rooms
-            .iter()
-            .filter(|room| {
-                inner
-                    .members
-                    .iter()
-                    .any(|member| member.room_id == room.id && member.actor_id == user_id)
-            })
-            .cloned()
-            .collect();
-        rooms.sort_by(|left, right| {
-            right
-                .created_at
-                .cmp(&left.created_at)
-                .then_with(|| left.id.as_uuid().cmp(&right.id.as_uuid()))
-        });
-        Ok(rooms
-            .into_iter()
-            .skip(offset as usize)
-            .take(limit as usize)
-            .collect())
+    ) -> BoxFuture<'_, Result<Vec<Room>, StoreError>> {
+        Box::pin(async move {
+            let inner = self.inner.lock().expect("fake store lock");
+            let mut rooms: Vec<Room> = inner
+                .rooms
+                .iter()
+                .filter(|room| {
+                    inner
+                        .members
+                        .iter()
+                        .any(|member| member.room_id == room.id && member.actor_id == user_id)
+                })
+                .cloned()
+                .collect();
+            rooms.sort_by(|left, right| {
+                right
+                    .created_at
+                    .cmp(&left.created_at)
+                    .then_with(|| left.id.as_uuid().cmp(&right.id.as_uuid()))
+            });
+            Ok(rooms
+                .into_iter()
+                .skip(offset as usize)
+                .take(limit as usize)
+                .collect())
+        })
     }
 
-    async fn get_member(
+    fn get_member(
         &self,
         room_id: RoomId,
         user_id: ActorId,
-    ) -> Result<Option<RoomMember>, StoreError> {
-        Ok(self
-            .inner
-            .lock()
-            .expect("fake store lock")
-            .members
-            .iter()
-            .find(|member| member.room_id == room_id && member.actor_id == user_id)
-            .cloned())
+    ) -> BoxFuture<'_, Result<Option<RoomMember>, StoreError>> {
+        Box::pin(async move {
+            Ok(self
+                .inner
+                .lock()
+                .expect("fake store lock")
+                .members
+                .iter()
+                .find(|member| member.room_id == room_id && member.actor_id == user_id)
+                .cloned())
+        })
     }
 
-    async fn list_members(&self, room_id: RoomId) -> Result<Vec<RoomMember>, StoreError> {
-        Ok(self
-            .inner
-            .lock()
-            .expect("fake store lock")
-            .members
-            .iter()
-            .filter(|member| member.room_id == room_id)
-            .cloned()
-            .collect())
+    fn list_members(&self, room_id: RoomId) -> BoxFuture<'_, Result<Vec<RoomMember>, StoreError>> {
+        Box::pin(async move {
+            Ok(self
+                .inner
+                .lock()
+                .expect("fake store lock")
+                .members
+                .iter()
+                .filter(|member| member.room_id == room_id)
+                .cloned()
+                .collect())
+        })
     }
 
-    async fn add_member(&self, member: &RoomMember) -> Result<(), StoreError> {
-        let mut inner = self.inner.lock().expect("fake store lock");
-        if inner.members.iter().any(|existing| {
-            existing.room_id == member.room_id && existing.actor_id == member.actor_id
-        }) {
-            return Err(StoreError::Conflict("already a member".to_owned()));
-        }
-        inner.members.push(member.clone());
-        Ok(())
+    fn add_member<'a>(&'a self, member: &'a RoomMember) -> BoxFuture<'a, Result<(), StoreError>> {
+        Box::pin(async move {
+            let mut inner = self.inner.lock().expect("fake store lock");
+            if inner.members.iter().any(|existing| {
+                existing.room_id == member.room_id && existing.actor_id == member.actor_id
+            }) {
+                return Err(StoreError::Conflict("already a member".to_owned()));
+            }
+            inner.members.push(member.clone());
+            Ok(())
+        })
     }
 
-    async fn remove_member(&self, room_id: RoomId, user_id: ActorId) -> Result<bool, StoreError> {
-        let mut inner = self.inner.lock().expect("fake store lock");
-        let managers = inner
-            .members
-            .iter()
-            .filter(|member| member.room_id == room_id && member.role == RoomRole::Manager)
-            .count();
-        let before = inner.members.len();
-        inner.members.retain(|member| {
-            let is_target = member.room_id == room_id && member.actor_id == user_id;
-            !is_target || (member.role == RoomRole::Manager && managers <= 1)
-        });
-        Ok(inner.members.len() < before)
+    fn remove_member(
+        &self,
+        room_id: RoomId,
+        user_id: ActorId,
+    ) -> BoxFuture<'_, Result<bool, StoreError>> {
+        Box::pin(async move {
+            let mut inner = self.inner.lock().expect("fake store lock");
+            let managers = inner
+                .members
+                .iter()
+                .filter(|member| member.room_id == room_id && member.role == RoomRole::Manager)
+                .count();
+            let before = inner.members.len();
+            inner.members.retain(|member| {
+                let is_target = member.room_id == room_id && member.actor_id == user_id;
+                !is_target || (member.role == RoomRole::Manager && managers <= 1)
+            });
+            Ok(inner.members.len() < before)
+        })
     }
 }
 
@@ -241,50 +262,59 @@ impl FakeSessionStore {
 }
 
 impl SessionStore for FakeSessionStore {
-    async fn get(&self, id: SessionId) -> Result<Option<Session>, StoreError> {
-        Ok(self
-            .sessions
-            .lock()
-            .expect("fake store lock")
-            .iter()
-            .find(|session| session.id == id)
-            .cloned())
+    fn get(&self, id: SessionId) -> BoxFuture<'_, Result<Option<Session>, StoreError>> {
+        Box::pin(async move {
+            Ok(self
+                .sessions
+                .lock()
+                .expect("fake store lock")
+                .iter()
+                .find(|session| session.id == id)
+                .cloned())
+        })
     }
 
-    async fn insert(&self, session: &Session) -> Result<(), StoreError> {
-        if session.status == SessionStatus::Live && self.has_live(session.room_id, None) {
-            return Err(StoreError::Conflict("live session exists".to_owned()));
-        }
-        self.sessions
-            .lock()
-            .expect("fake store lock")
-            .push(session.clone());
-        Ok(())
+    fn insert<'a>(&'a self, session: &'a Session) -> BoxFuture<'a, Result<(), StoreError>> {
+        Box::pin(async move {
+            if session.status == SessionStatus::Live && self.has_live(session.room_id, None) {
+                return Err(StoreError::Conflict("live session exists".to_owned()));
+            }
+            self.sessions
+                .lock()
+                .expect("fake store lock")
+                .push(session.clone());
+            Ok(())
+        })
     }
 
-    async fn save(&self, session: &Session) -> Result<(), StoreError> {
-        if session.status == SessionStatus::Live && self.has_live(session.room_id, Some(session.id))
-        {
-            return Err(StoreError::Conflict("live session exists".to_owned()));
-        }
-        let mut sessions = self.sessions.lock().expect("fake store lock");
-        let slot = sessions
-            .iter_mut()
-            .find(|existing| existing.id == session.id)
-            .ok_or_else(|| StoreError::NotFound(session.id.to_string()))?;
-        *slot = session.clone();
-        Ok(())
+    fn save<'a>(&'a self, session: &'a Session) -> BoxFuture<'a, Result<(), StoreError>> {
+        Box::pin(async move {
+            if session.status == SessionStatus::Live
+                && self.has_live(session.room_id, Some(session.id))
+            {
+                return Err(StoreError::Conflict("live session exists".to_owned()));
+            }
+            let mut sessions = self.sessions.lock().expect("fake store lock");
+            let slot = sessions
+                .iter_mut()
+                .find(|existing| existing.id == session.id)
+                .ok_or_else(|| StoreError::NotFound(session.id.to_string()))?;
+            *slot = session.clone();
+            Ok(())
+        })
     }
 
-    async fn list_for_room(&self, room_id: RoomId) -> Result<Vec<Session>, StoreError> {
-        Ok(self
-            .sessions
-            .lock()
-            .expect("fake store lock")
-            .iter()
-            .filter(|session| session.room_id == room_id)
-            .cloned()
-            .collect())
+    fn list_for_room(&self, room_id: RoomId) -> BoxFuture<'_, Result<Vec<Session>, StoreError>> {
+        Box::pin(async move {
+            Ok(self
+                .sessions
+                .lock()
+                .expect("fake store lock")
+                .iter()
+                .filter(|session| session.room_id == room_id)
+                .cloned()
+                .collect())
+        })
     }
 }
 
@@ -301,84 +331,100 @@ struct FakeServicePrincipalInner {
 }
 
 impl ServicePrincipalStore for FakeServicePrincipalStore {
-    async fn create(
-        &self,
-        principal: &ServicePrincipal,
-        api_key_hash: &str,
-    ) -> Result<(), StoreError> {
-        let mut inner = self.inner.lock().expect("fake store lock");
-        if inner
-            .principals
-            .iter()
-            .any(|other| other.name == principal.name)
-        {
-            return Err(StoreError::Conflict("duplicate name".to_owned()));
-        }
-        inner.principals.push(principal.clone());
-        inner
-            .active_keys
-            .insert(api_key_hash.to_owned(), principal.id);
-        Ok(())
+    fn create<'a>(
+        &'a self,
+        principal: &'a ServicePrincipal,
+        api_key_hash: &'a str,
+    ) -> BoxFuture<'a, Result<(), StoreError>> {
+        Box::pin(async move {
+            let mut inner = self.inner.lock().expect("fake store lock");
+            if inner
+                .principals
+                .iter()
+                .any(|other| other.name == principal.name)
+            {
+                return Err(StoreError::Conflict("duplicate name".to_owned()));
+            }
+            inner.principals.push(principal.clone());
+            inner
+                .active_keys
+                .insert(api_key_hash.to_owned(), principal.id);
+            Ok(())
+        })
     }
 
-    async fn get(&self, id: ActorId) -> Result<Option<ServicePrincipal>, StoreError> {
-        Ok(self
-            .inner
-            .lock()
-            .expect("fake store lock")
-            .principals
-            .iter()
-            .find(|principal| principal.id == id)
-            .cloned())
+    fn get(&self, id: ActorId) -> BoxFuture<'_, Result<Option<ServicePrincipal>, StoreError>> {
+        Box::pin(async move {
+            Ok(self
+                .inner
+                .lock()
+                .expect("fake store lock")
+                .principals
+                .iter()
+                .find(|principal| principal.id == id)
+                .cloned())
+        })
     }
 
-    async fn list(&self) -> Result<Vec<ServicePrincipal>, StoreError> {
-        Ok(self
-            .inner
-            .lock()
-            .expect("fake store lock")
-            .principals
-            .clone())
+    fn list(&self) -> BoxFuture<'_, Result<Vec<ServicePrincipal>, StoreError>> {
+        Box::pin(async move {
+            Ok(self
+                .inner
+                .lock()
+                .expect("fake store lock")
+                .principals
+                .clone())
+        })
     }
 
-    async fn revoke(&self, id: ActorId) -> Result<(), StoreError> {
-        let mut inner = self.inner.lock().expect("fake store lock");
-        let Some(principal) = inner.principals.iter_mut().find(|p| p.id == id) else {
-            return Err(StoreError::NotFound(id.to_string()));
-        };
-        principal.status = ServicePrincipalStatus::Revoked;
-        inner.active_keys.retain(|_, owner| *owner != id);
-        Ok(())
+    fn revoke(&self, id: ActorId) -> BoxFuture<'_, Result<(), StoreError>> {
+        Box::pin(async move {
+            let mut inner = self.inner.lock().expect("fake store lock");
+            let Some(principal) = inner.principals.iter_mut().find(|p| p.id == id) else {
+                return Err(StoreError::NotFound(id.to_string()));
+            };
+            principal.status = ServicePrincipalStatus::Revoked;
+            inner.active_keys.retain(|_, owner| *owner != id);
+            Ok(())
+        })
     }
 
-    async fn rotate_key(&self, id: ActorId, api_key_hash: &str) -> Result<(), StoreError> {
-        let mut inner = self.inner.lock().expect("fake store lock");
-        let Some(principal) = inner.principals.iter().find(|p| p.id == id) else {
-            return Err(StoreError::NotFound(id.to_string()));
-        };
-        if principal.status != ServicePrincipalStatus::Active {
-            return Err(StoreError::NotFound(id.to_string()));
-        }
-        inner.active_keys.retain(|_, owner| *owner != id);
-        inner.active_keys.insert(api_key_hash.to_owned(), id);
-        Ok(())
+    fn rotate_key<'a>(
+        &'a self,
+        id: ActorId,
+        api_key_hash: &'a str,
+    ) -> BoxFuture<'a, Result<(), StoreError>> {
+        Box::pin(async move {
+            let mut inner = self.inner.lock().expect("fake store lock");
+            let Some(principal) = inner.principals.iter().find(|p| p.id == id) else {
+                return Err(StoreError::NotFound(id.to_string()));
+            };
+            if principal.status != ServicePrincipalStatus::Active {
+                return Err(StoreError::NotFound(id.to_string()));
+            }
+            inner.active_keys.retain(|_, owner| *owner != id);
+            inner.active_keys.insert(api_key_hash.to_owned(), id);
+            Ok(())
+        })
     }
 
-    async fn find_active_by_key_hash(
-        &self,
-        api_key_hash: &str,
-    ) -> Result<Option<ServicePrincipal>, StoreError> {
-        let inner = self.inner.lock().expect("fake store lock");
-        let Some(id) = inner.active_keys.get(api_key_hash).copied() else {
-            return Ok(None);
-        };
-        Ok(inner
-            .principals
-            .iter()
-            .find(|principal| {
-                principal.id == id && principal.status == ServicePrincipalStatus::Active
-            })
-            .cloned())
+    fn find_active_by_key_hash<'a>(
+        &'a self,
+        api_key_hash: &'a str,
+    ) -> BoxFuture<'a, Result<Option<ServicePrincipal>, StoreError>> {
+        Box::pin(async move {
+            let inner = self.inner.lock().expect("fake store lock");
+            let Some(id) = inner.active_keys.get(api_key_hash).copied() else {
+                return Ok(None);
+            };
+            Ok(inner
+                .principals
+                .iter()
+                .find(|principal| {
+                    principal.id == id && principal.status == ServicePrincipalStatus::Active
+                })
+                .cloned())
+        })
     }
 }
 
@@ -515,14 +561,11 @@ fn ws_state(principal: Option<Principal>) -> WsState {
     )
 }
 
-fn state(principal: Option<Principal>, authorizer: Arc<dyn Authorizer>) -> AppState<FakeRoomStore> {
+fn state(principal: Option<Principal>, authorizer: Arc<dyn Authorizer>) -> AppState {
     state_with(principal, authorizer, true)
 }
 
-fn state_unprovisioned(
-    principal: Option<Principal>,
-    authorizer: Arc<dyn Authorizer>,
-) -> AppState<FakeRoomStore> {
+fn state_unprovisioned(principal: Option<Principal>, authorizer: Arc<dyn Authorizer>) -> AppState {
     state_with(principal, authorizer, false)
 }
 
@@ -530,7 +573,7 @@ fn state_with(
     principal: Option<Principal>,
     authorizer: Arc<dyn Authorizer>,
     provisioned: bool,
-) -> AppState<FakeRoomStore> {
+) -> AppState {
     let realtime = ws_state(principal.clone());
     let (service_auth, service_principals) = service_seams(FakeServicePrincipalStore::default());
     AppState {
@@ -547,8 +590,8 @@ fn state_with(
         service_principals,
         provisioner: Arc::new(StubProvisioner),
         linker: Arc::new(StubLinker),
-        rooms: FakeRoomStore::default(),
-        sessions: SessionStoreRef::new(FakeSessionStore::default()),
+        rooms: Arc::new(FakeRoomStore::default()),
+        sessions: Arc::new(FakeSessionStore::default()),
         realtime,
         turn: turn_settings(),
     }
@@ -605,8 +648,8 @@ fn authenticated_room_app(principal: Principal, store: FakeRoomStore) -> Router 
         service_principals,
         provisioner: Arc::new(StubProvisioner),
         linker: Arc::new(StubLinker),
-        rooms: store,
-        sessions: SessionStoreRef::new(FakeSessionStore::default()),
+        rooms: Arc::new(store),
+        sessions: Arc::new(FakeSessionStore::default()),
         realtime,
         turn: turn_settings(),
     })
@@ -1364,8 +1407,8 @@ fn session_app(
         service_principals,
         provisioner: Arc::new(StubProvisioner),
         linker: Arc::new(StubLinker),
-        rooms,
-        sessions: SessionStoreRef::new(sessions),
+        rooms: Arc::new(rooms),
+        sessions: Arc::new(sessions),
         realtime,
         turn: turn_settings(),
     })
@@ -1575,8 +1618,8 @@ async fn serve_ws(principal: Option<Principal>, config: WsConfig) -> WsHarness {
         service_principals,
         provisioner: Arc::new(StubProvisioner),
         linker: Arc::new(StubLinker),
-        rooms: FakeRoomStore::default(),
-        sessions: SessionStoreRef::new(FakeSessionStore::default()),
+        rooms: Arc::new(FakeRoomStore::default()),
+        sessions: Arc::new(FakeSessionStore::default()),
         realtime,
         turn: turn_settings(),
     };
@@ -1771,8 +1814,8 @@ async fn serve_ws_with_verifier(verifier: TokenVerifier, config: WsConfig) -> Ws
         service_principals,
         provisioner: Arc::new(StubProvisioner),
         linker: Arc::new(StubLinker),
-        rooms: FakeRoomStore::default(),
-        sessions: SessionStoreRef::new(FakeSessionStore::default()),
+        rooms: Arc::new(FakeRoomStore::default()),
+        sessions: Arc::new(FakeSessionStore::default()),
         realtime,
         turn: turn_settings(),
     };
@@ -2214,8 +2257,8 @@ fn service_app(
         service_principals,
         provisioner: Arc::new(StubProvisioner),
         linker: Arc::new(StubLinker),
-        rooms,
-        sessions: SessionStoreRef::new(FakeSessionStore::default()),
+        rooms: Arc::new(rooms),
+        sessions: Arc::new(FakeSessionStore::default()),
         realtime,
         turn: turn_settings(),
     })

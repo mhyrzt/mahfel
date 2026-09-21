@@ -1,9 +1,6 @@
 use super::dto::RoomResponse;
 use crate::http::{
-    auth::Authenticated,
-    error::ApiError,
-    extractor::ValidatedPath,
-    state::{AppState, RoomStoreState},
+    auth::Authenticated, error::ApiError, extractor::ValidatedPath, state::AppState,
 };
 use axum::{Json, extract::State};
 use mahfel_application::rooms::join_room;
@@ -22,11 +19,16 @@ use uuid::Uuid;
         (status = 409, description = "Room is archived"),
     ),
 )]
-pub(crate) async fn join<R: RoomStoreState>(
-    State(state): State<AppState<R>>,
+pub(crate) async fn join(
+    State(state): State<AppState>,
     Authenticated(principal): Authenticated,
     ValidatedPath(room_id): ValidatedPath<Uuid>,
 ) -> Result<Json<RoomResponse>, ApiError> {
-    let room = join_room(&state.rooms, RoomId::from_uuid(room_id), principal.actor_id).await?;
+    let room = join_room(
+        state.rooms.as_ref(),
+        RoomId::from_uuid(room_id),
+        principal.actor_id,
+    )
+    .await?;
     Ok(Json(room.into()))
 }
