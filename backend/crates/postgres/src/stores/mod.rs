@@ -1,4 +1,5 @@
 mod identity;
+mod invite;
 mod participant;
 mod participation;
 mod room;
@@ -7,6 +8,7 @@ mod session;
 mod user;
 
 pub use identity::PostgresIdentityStore;
+pub use invite::PostgresInviteStore;
 pub use participant::PostgresParticipantStore;
 pub use participation::PostgresParticipationStore;
 pub use room::PostgresRoomStore;
@@ -27,6 +29,7 @@ use sqlx::PgPool;
 pub struct PostgresStores {
     pub users: PostgresUserStore,
     pub identities: PostgresIdentityStore,
+    pub invites: PostgresInviteStore,
     pub rooms: PostgresRoomStore,
     pub sessions: PostgresSessionStore,
     pub participants: PostgresParticipantStore,
@@ -40,6 +43,7 @@ impl PostgresStores {
         Self {
             users: PostgresUserStore::new(pool.clone()),
             identities: PostgresIdentityStore::new(pool.clone()),
+            invites: PostgresInviteStore::new(pool.clone()),
             rooms: PostgresRoomStore::new(pool.clone()),
             sessions: PostgresSessionStore::new(pool.clone()),
             participants: PostgresParticipantStore::new(pool.clone()),
