@@ -30,6 +30,7 @@ nav:
       - Testing: development/testing.md
   - Deployment:
       - Local: deployment/local.md
+      - Minikube: deployment/minikube.md
       - Darkube: deployment/darkube.md
   - Architecture:
       - Overview: architecture/overview.md

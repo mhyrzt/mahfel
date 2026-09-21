@@ -1,0 +1,51 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: rustfs-data
+spec:
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: 2Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: rustfs
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels: {app: rustfs}
+  template:
+    metadata:
+      labels: {app: rustfs}
+    spec:
+      containers:
+        - name: rustfs
+          image: docker.arvancloud.ir/rustfs/rustfs:1.0.0-rc.6
+          env:
+            - {name: RUSTFS_VOLUMES, value: /data}
+            - {name: RUSTFS_ADDRESS, value: '0.0.0.0:9000'}
+            - {name: RUSTFS_CONSOLE_ADDRESS, value: '0.0.0.0:9001'}
+            - {name: RUSTFS_CONSOLE_ENABLE, value: 'true'}
+            - {name: RUSTFS_ACCESS_KEY, value: mahfel}
+            - name: RUSTFS_SECRET_KEY
+              valueFrom: {secretKeyRef: {name: local-credentials, key: rustfs-secret-key}}
+          ports: [{containerPort: 9000}, {containerPort: 9001}]
+          readinessProbe:
+            httpGet: {path: /health, port: 9000}
+            periodSeconds: 10
+          volumeMounts: [{name: data, mountPath: /data}]
+      volumes: [{name: data, persistentVolumeClaim: {claimName: rustfs-data}}]
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: rustfs
+spec:
+  selector: {app: rustfs}
+  ports:
+    - {name: s3, port: 9000}
+    - {name: console, port: 9001}

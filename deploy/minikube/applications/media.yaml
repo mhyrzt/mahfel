@@ -1,0 +1,48 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mahfel-media
+spec:
+  replicas: 1
+  strategy: {type: Recreate}
+  selector:
+    matchLabels: {app: mahfel-media}
+  template:
+    metadata:
+      labels: {app: mahfel-media}
+    spec:
+      containers:
+        - name: media
+          image: mahfel-media:local
+          imagePullPolicy: Never
+          env:
+            - {name: MAHFEL_CONFIG_PROFILE, value: docker}
+            - {name: MAHFEL_MEDIA__WORKER_COUNT, value: '4'}
+            - {name: MAHFEL_MEDIA__RTC_PORT_MIN, value: '40000'}
+            - {name: MAHFEL_MEDIA__RTC_PORT_MAX, value: '40003'}
+            - {name: MAHFEL_MEDIA__ANNOUNCED_ADDRESS, value: '192.0.2.1'}
+          ports:
+            - {containerPort: 50051, name: grpc}
+            - {containerPort: 9102, name: operations}
+            - {containerPort: 40000, hostPort: 40000, protocol: UDP}
+            - {containerPort: 40001, hostPort: 40001, protocol: UDP}
+            - {containerPort: 40002, hostPort: 40002, protocol: UDP}
+            - {containerPort: 40003, hostPort: 40003, protocol: UDP}
+            - {containerPort: 40000, hostPort: 40000, protocol: TCP}
+            - {containerPort: 40001, hostPort: 40001, protocol: TCP}
+            - {containerPort: 40002, hostPort: 40002, protocol: TCP}
+            - {containerPort: 40003, hostPort: 40003, protocol: TCP}
+          startupProbe:
+            httpGet: {path: /health/live, port: 9102}
+            failureThreshold: 30
+            periodSeconds: 5
+          readinessProbe:
+            httpGet: {path: /health/ready, port: 9102}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mahfel-media
+spec:
+  selector: {app: mahfel-media}
+  ports: [{name: grpc, port: 50051, targetPort: 50051}, {name: operations, port: 9102, targetPort: 9102}]

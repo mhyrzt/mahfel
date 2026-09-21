@@ -1,0 +1,62 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: minikube-api-config
+data:
+  local.toml: |
+    [turn]
+    uris = ["turn:192.0.2.1:3478?transport=udp", "turn:192.0.2.1:3478?transport=tcp"]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mahfel-api
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: mahfel-api}
+  template:
+    metadata:
+      labels: {app: mahfel-api}
+    spec:
+      hostAliases:
+        - ip: 192.0.2.1
+          hostnames: [auth.mahfel.localhost]
+      containers:
+        - name: api
+          image: mahfel-api:local
+          imagePullPolicy: Never
+          env:
+            - {name: MAHFEL_CONFIG_PROFILE, value: docker}
+            - {name: MAHFEL_DATABASE__HOST, value: postgres}
+            - {name: MAHFEL_DATABASE__USER, value: mahfel}
+            - {name: MAHFEL_DATABASE__NAME, value: mahfel}
+            - name: MAHFEL_DATABASE__PASSWORD
+              valueFrom: {secretKeyRef: {name: local-credentials, key: postgres-password}}
+            - {name: MAHFEL_DATABASE__MIGRATE_ON_START, value: 'false'}
+            - {name: MAHFEL_REDIS__URL, value: 'redis://redis:6379'}
+            - {name: MAHFEL_API__MEDIA_GRPC_URL, value: 'http://mahfel-media:50051'}
+            - {name: SSL_CERT_FILE, value: /certs/root.crt}
+          ports: [{containerPort: 8080}, {containerPort: 9101}]
+          startupProbe:
+            httpGet: {path: /health/live, port: 9101}
+            failureThreshold: 30
+            periodSeconds: 5
+          livenessProbe:
+            httpGet: {path: /health/live, port: 9101}
+          readinessProbe:
+            httpGet: {path: /health/ready, port: 9101}
+          volumeMounts:
+            - {name: local-ca, mountPath: /certs/root.crt, subPath: root.crt, readOnly: true}
+            - {name: local-config, mountPath: /app/config/local.toml, subPath: local.toml, readOnly: true}
+      volumes:
+        - {name: local-ca, configMap: {name: local-ca}}
+        - {name: local-config, configMap: {name: minikube-api-config}}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mahfel-api
+spec:
+  selector: {app: mahfel-api}
+  ports: [{name: http, port: 8080}, {name: operations, port: 9101}]
