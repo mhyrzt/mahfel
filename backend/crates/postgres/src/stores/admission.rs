@@ -2,7 +2,7 @@ use crate::stores::sqlx_store_error;
 use mahfel_application::ports::{AdmissionStore, BoxFuture, StoreError};
 use mahfel_domain::{
     ActorId, AdmissionOrigin, AdmissionRequest, AdmissionRequestId, AdmissionRequestStatus,
-    SessionId,
+    AdmissionTarget, RoomId, SessionId,
 };
 use sqlx::{FromRow, PgPool};
 use time::OffsetDateTime;
@@ -23,7 +23,8 @@ impl PostgresAdmissionStore {
 #[derive(FromRow)]
 struct RequestRow {
     id: Uuid,
-    session_id: Uuid,
+    session_id: Option<Uuid>,
+    room_id: Uuid,
     actor_id: Uuid,
     status: String,
     origin: String,
@@ -48,9 +49,15 @@ impl RequestRow {
                 .map_err(|error: mahfel_domain::InvalidStatus| {
                     StoreError::Unexpected(error.to_string())
                 })?;
+        // `room_id` is always present; a session id means the request is scoped
+        // to that one session rather than to the room.
+        let target = match self.session_id {
+            Some(session_id) => AdmissionTarget::Session(SessionId::from_uuid(session_id)),
+            None => AdmissionTarget::Room(RoomId::from_uuid(self.room_id)),
+        };
         Ok(AdmissionRequest {
             id: AdmissionRequestId::from_uuid(self.id),
-            session_id: SessionId::from_uuid(self.session_id),
+            target,
             actor_id: ActorId::from_uuid(self.actor_id),
             status,
             origin,
@@ -61,7 +68,7 @@ impl RequestRow {
     }
 }
 
-const SELECT_COLUMNS: &str = "id, session_id, actor_id, status, origin, requested_at, \
+const SELECT_COLUMNS: &str = "id, session_id, room_id, actor_id, status, origin, requested_at, \
                               decided_at, decided_by";
 
 impl AdmissionStore for PostgresAdmissionStore {
@@ -70,13 +77,33 @@ impl AdmissionStore for PostgresAdmissionStore {
         request: &'a AdmissionRequest,
     ) -> BoxFuture<'a, Result<(), StoreError>> {
         Box::pin(async move {
+            // A session-scoped row still records its room, because room_id is
+            // NOT NULL and authorization resolves against it either way.
+            let (session_id, room_id) = match request.target {
+                AdmissionTarget::Session(session_id) => {
+                    let room_id = sqlx::query_scalar::<_, Uuid>(
+                        "SELECT room_id FROM mahfel.sessions WHERE id = $1",
+                    )
+                    .bind(session_id.as_uuid())
+                    .fetch_optional(&self.pool)
+                    .await
+                    .map_err(sqlx_store_error)?
+                    .ok_or_else(|| {
+                        StoreError::MissingReference("session has no room".to_owned())
+                    })?;
+                    (Some(session_id.as_uuid()), room_id)
+                }
+                AdmissionTarget::Room(room_id) => (None, room_id.as_uuid()),
+            };
             sqlx::query(
                 "INSERT INTO mahfel.admission_requests \
-                 (id, session_id, actor_id, status, origin, requested_at, decided_at, decided_by) \
-                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)",
+                 (id, session_id, room_id, actor_id, status, origin, requested_at, decided_at, \
+                  decided_by) \
+                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)",
             )
             .bind(request.id.as_uuid())
-            .bind(request.session_id.as_uuid())
+            .bind(session_id)
+            .bind(room_id)
             .bind(request.actor_id.as_uuid())
             .bind(request.status.as_str())
             .bind(request.origin.as_str())
@@ -92,16 +119,21 @@ impl AdmissionStore for PostgresAdmissionStore {
 
     fn get_pending(
         &self,
-        session_id: SessionId,
+        target: AdmissionTarget,
         actor_id: ActorId,
     ) -> BoxFuture<'_, Result<Option<AdmissionRequest>, StoreError>> {
         Box::pin(async move {
+            let session_id = match target {
+                AdmissionTarget::Session(session_id) => Some(session_id.as_uuid()),
+                AdmissionTarget::Room(_) => None,
+            };
             let query = format!(
                 "SELECT {SELECT_COLUMNS} FROM mahfel.admission_requests \
-                 WHERE session_id = $1 AND actor_id = $2 AND status = 'pending'"
+                 WHERE session_id IS NOT DISTINCT FROM $1 \
+                   AND actor_id = $2 AND status = 'pending'"
             );
             let row = sqlx::query_as::<_, RequestRow>(sqlx::AssertSqlSafe(query))
-                .bind(session_id.as_uuid())
+                .bind(session_id)
                 .bind(actor_id.as_uuid())
                 .fetch_optional(&self.pool)
                 .await
@@ -147,13 +179,38 @@ impl AdmissionStore for PostgresAdmissionStore {
         })
     }
 
-    fn count_pending(&self, session_id: SessionId) -> BoxFuture<'_, Result<u64, StoreError>> {
+    fn list_pending_for_room(
+        &self,
+        room_id: RoomId,
+        limit: u32,
+    ) -> BoxFuture<'_, Result<Vec<AdmissionRequest>, StoreError>> {
         Box::pin(async move {
+            let query = format!(
+                "SELECT {SELECT_COLUMNS} FROM mahfel.admission_requests \
+                 WHERE room_id = $1 AND session_id IS NULL AND status = 'pending' \
+                 ORDER BY requested_at, id LIMIT $2"
+            );
+            let rows = sqlx::query_as::<_, RequestRow>(sqlx::AssertSqlSafe(query))
+                .bind(room_id.as_uuid())
+                .bind(i64::from(limit))
+                .fetch_all(&self.pool)
+                .await
+                .map_err(sqlx_store_error)?;
+            rows.into_iter().map(RequestRow::into_request).collect()
+        })
+    }
+
+    fn count_pending(&self, target: AdmissionTarget) -> BoxFuture<'_, Result<u64, StoreError>> {
+        Box::pin(async move {
+            let session_id = match target {
+                AdmissionTarget::Session(session_id) => Some(session_id.as_uuid()),
+                AdmissionTarget::Room(_) => None,
+            };
             let count = sqlx::query_scalar::<_, i64>(
                 "SELECT COUNT(*) FROM mahfel.admission_requests \
-                 WHERE session_id = $1 AND status = 'pending'",
+                 WHERE session_id IS NOT DISTINCT FROM $1 AND status = 'pending'",
             )
-            .bind(session_id.as_uuid())
+            .bind(session_id)
             .fetch_one(&self.pool)
             .await
             .map_err(sqlx_store_error)?;
@@ -193,6 +250,8 @@ impl AdmissionStore for PostgresAdmissionStore {
         expired_at: OffsetDateTime,
     ) -> BoxFuture<'_, Result<u64, StoreError>> {
         Box::pin(async move {
+            // Room-scoped requests are deliberately untouched: they ask to join
+            // the room, which outlives any one session.
             let result = sqlx::query(
                 "UPDATE mahfel.admission_requests \
                  SET status = 'expired', decided_at = $2, decided_by = NULL \

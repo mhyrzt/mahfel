@@ -23,7 +23,7 @@ pub use actor::{
 };
 pub use admission::{
     AdmissionError, AdmissionOrigin, AdmissionPolicy, AdmissionRequest, AdmissionRequestId,
-    AdmissionRequestStatus, MAX_PENDING_PER_SESSION,
+    AdmissionRequestStatus, AdmissionTarget, MAX_PENDING_PER_SESSION,
 };
 pub use identity::{Identity, IdentityId};
 pub use ids::NodeId;

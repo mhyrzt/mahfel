@@ -1,8 +1,8 @@
 use mahfel_application::ports::{AdmissionStore, RoomStore, SessionStore, StoreError, UserStore};
 use mahfel_domain::{
     ActorId, AdmissionOrigin, AdmissionPolicy, AdmissionRequest, AdmissionRequestStatus,
-    DisplayName, Room, RoomMember, RoomRole, RoomTitle, RoomVisibility, Session, SessionVisibility,
-    User,
+    AdmissionTarget, DisplayName, Room, RoomMember, RoomRole, RoomTitle, RoomVisibility, Session,
+    SessionVisibility, User,
 };
 use mahfel_postgres::{
     ConnectionSettings, PoolSettings, PostgresAdmissionStore, PostgresRoomStore,
@@ -168,22 +168,37 @@ async fn verify_admission(pool: &PgPool) -> Result<(), Box<dyn Error>> {
     );
 
     // One pending request per (session, actor): a duplicate join cannot queue twice.
-    let waiting = AdmissionRequest::new(session.id, member.id, AdmissionOrigin::Join, base);
+    let waiting = AdmissionRequest::new(
+        AdmissionTarget::Session(session.id),
+        member.id,
+        AdmissionOrigin::Join,
+        base,
+    );
     admissions.insert(&waiting).await?;
-    let duplicate = AdmissionRequest::new(session.id, member.id, AdmissionOrigin::InviteLink, base);
+    let duplicate = AdmissionRequest::new(
+        AdmissionTarget::Session(session.id),
+        member.id,
+        AdmissionOrigin::InviteLink,
+        base,
+    );
     let conflict = admissions.insert(&duplicate).await;
     assert!(
         matches!(conflict, Err(StoreError::Conflict(_))),
         "a second pending request must conflict, got {conflict:?}"
     );
 
-    assert_eq!(admissions.count_pending(session.id).await?, 1);
+    assert_eq!(
+        admissions
+            .count_pending(AdmissionTarget::Session(session.id))
+            .await?,
+        1
+    );
     let queue = admissions.list_pending(session.id, 10).await?;
     assert_eq!(queue.len(), 1);
     assert_eq!(queue[0].origin, AdmissionOrigin::Join);
     assert_eq!(
         admissions
-            .get_pending(session.id, member.id)
+            .get_pending(AdmissionTarget::Session(session.id), member.id)
             .await?
             .map(|r| r.id),
         Some(waiting.id)
@@ -216,12 +231,17 @@ async fn verify_admission(pool: &PgPool) -> Result<(), Box<dyn Error>> {
     let decided = admissions.get(waiting.id).await?.expect("retained");
     assert_eq!(decided.status, AdmissionRequestStatus::Admitted);
     assert_eq!(decided.decided_by, Some(manager.id));
-    assert_eq!(admissions.count_pending(session.id).await?, 0);
+    assert_eq!(
+        admissions
+            .count_pending(AdmissionTarget::Session(session.id))
+            .await?,
+        0
+    );
 
     // The end-of-session sweep retires anything still pending, naming no
     // deciding principal because none made the call.
     let other = AdmissionRequest::new(
-        session.id,
+        AdmissionTarget::Session(session.id),
         ActorId::new(),
         AdmissionOrigin::InviteLink,
         base,
@@ -233,8 +253,12 @@ async fn verify_admission(pool: &PgPool) -> Result<(), Box<dyn Error>> {
         "a request must reference a real actor, got {dangling:?}"
     );
 
-    let second_waiting =
-        AdmissionRequest::new(session.id, manager.id, AdmissionOrigin::InviteLink, base);
+    let second_waiting = AdmissionRequest::new(
+        AdmissionTarget::Session(session.id),
+        manager.id,
+        AdmissionOrigin::InviteLink,
+        base,
+    );
     admissions.insert(&second_waiting).await?;
     let swept = admissions
         .expire_pending_for_session(session.id, base + time::Duration::seconds(90))
@@ -272,6 +296,60 @@ async fn verify_admission(pool: &PgPool) -> Result<(), Box<dyn Error>> {
     assert!(
         malformed.is_err(),
         "a pending request must not record a decision"
+    );
+
+    // A room-scoped request exists with no session, which is the whole point
+    // of the 0010 migration.
+    let room_request = AdmissionRequest::new(
+        AdmissionTarget::Room(room.id),
+        member.id,
+        AdmissionOrigin::InviteLink,
+        base,
+    );
+    admissions.insert(&room_request).await?;
+
+    // The room is always present, because authorization resolves against it.
+    let no_room = sqlx::query(
+        "INSERT INTO mahfel.admission_requests \
+         (id, session_id, room_id, actor_id, status, origin, requested_at) \
+         VALUES ($1, NULL, NULL, $2, 'pending', 'join', $3)",
+    )
+    .bind(Uuid::new_v4())
+    .bind(manager.id.as_uuid())
+    .bind(base)
+    .execute(pool)
+    .await;
+    assert!(no_room.is_err(), "every request must name a room");
+
+    // A room request is listed on the room queue, not a session queue.
+    let room_queue = admissions.list_pending_for_room(room.id, 10).await?;
+    assert_eq!(room_queue.len(), 1);
+    assert_eq!(room_queue[0].target, AdmissionTarget::Room(room.id));
+    assert!(
+        admissions
+            .list_pending(session.id, 10)
+            .await?
+            .iter()
+            .all(|request| request.target != AdmissionTarget::Room(room.id)),
+        "a room request must not appear on a session queue"
+    );
+    assert_eq!(
+        admissions
+            .count_pending(AdmissionTarget::Room(room.id))
+            .await?,
+        1
+    );
+
+    // A room request is never retired by a session ending.
+    let swept_room_scope = admissions
+        .expire_pending_for_session(session.id, base + time::Duration::seconds(300))
+        .await?;
+    assert_eq!(swept_room_scope, 0, "room requests outlive sessions");
+    assert_eq!(
+        admissions
+            .count_pending(AdmissionTarget::Room(room.id))
+            .await?,
+        1
     );
 
     let bad_policy = sqlx::query("UPDATE mahfel.rooms SET admission = 'waiting' WHERE id = $1")

@@ -11,6 +11,7 @@
 
 use crate::actor::ActorId;
 use crate::ids::entity_id;
+use crate::room::RoomId;
 use crate::session::SessionId;
 use crate::status::status_conversion;
 use serde::{Deserialize, Serialize};
@@ -99,11 +100,41 @@ pub enum AdmissionError {
     LobbyFull,
 }
 
-/// One principal's outstanding request to join one session.
+/// What an admission request is asking for.
+///
+/// The two forms are not interchangeable, and the difference decides what
+/// approval grants: a session request asks to attend one live session, while a
+/// room request asks to join the room itself and may exist with no session
+/// running at all. Modelled as a closed enum rather than a nullable pair so
+/// "exactly one target" cannot be violated in memory.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case", tag = "kind", content = "id")]
+pub enum AdmissionTarget {
+    Session(SessionId),
+    Room(RoomId),
+}
+
+impl AdmissionTarget {
+    /// Whether this request is for one live session rather than the room.
+    #[must_use]
+    pub const fn is_session(self) -> bool {
+        matches!(self, Self::Session(_))
+    }
+
+    #[must_use]
+    pub const fn session_id(self) -> Option<SessionId> {
+        match self {
+            Self::Session(session_id) => Some(session_id),
+            Self::Room(_) => None,
+        }
+    }
+}
+
+/// One principal's outstanding request to enter a session or a room.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct AdmissionRequest {
     pub id: AdmissionRequestId,
-    pub session_id: SessionId,
+    pub target: AdmissionTarget,
     pub actor_id: ActorId,
     pub status: AdmissionRequestStatus,
     pub origin: AdmissionOrigin,
@@ -115,14 +146,14 @@ pub struct AdmissionRequest {
 impl AdmissionRequest {
     #[must_use]
     pub fn new(
-        session_id: SessionId,
+        target: AdmissionTarget,
         actor_id: ActorId,
         origin: AdmissionOrigin,
         now: OffsetDateTime,
     ) -> Self {
         Self {
             id: AdmissionRequestId::new(),
-            session_id,
+            target,
             actor_id,
             status: AdmissionRequestStatus::Pending,
             origin,
@@ -194,9 +225,18 @@ mod tests {
 
     fn request() -> AdmissionRequest {
         AdmissionRequest::new(
-            SessionId::new(),
+            AdmissionTarget::Session(SessionId::new()),
             ActorId::new(),
             AdmissionOrigin::Join,
+            at(0),
+        )
+    }
+
+    fn room_request() -> AdmissionRequest {
+        AdmissionRequest::new(
+            AdmissionTarget::Room(RoomId::new()),
+            ActorId::new(),
+            AdmissionOrigin::InviteLink,
             at(0),
         )
     }
@@ -296,6 +336,23 @@ mod tests {
                 "a repeat must not overwrite the recorded decision"
             );
         }
+    }
+
+    #[test]
+    fn a_request_carries_exactly_one_target() {
+        assert!(request().target.is_session());
+        assert!(
+            !room_request().target.is_session(),
+            "a room request is not a session request"
+        );
+    }
+
+    #[test]
+    fn room_requests_are_decidable_without_a_session() {
+        let mut request = room_request();
+        assert!(request.is_pending());
+        request.admit(ActorId::new(), at(30)).expect("admit");
+        assert_eq!(request.status, AdmissionRequestStatus::Admitted);
     }
 
     #[test]
