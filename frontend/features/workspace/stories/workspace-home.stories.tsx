@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from "@storybook/nextjs";
 
 import { AppShell } from "@/features/shell/components/app-shell";
 
-import { WorkspaceHome } from "./workspace-home";
+import { WorkspaceHome } from "../components/workspace-home";
 
 const rooms = [
   {
