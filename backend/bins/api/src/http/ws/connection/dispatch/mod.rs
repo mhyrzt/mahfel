@@ -1,4 +1,5 @@
 pub(crate) mod helpers;
+mod moderation;
 mod participant;
 mod rtc;
 
@@ -57,6 +58,80 @@ pub(super) async fn handle_text(
         ClientMessage::Leave {} => {
             participant::handle_leave(connection, registry, id, principal, state).await
         }
+        ClientMessage::MuteParticipant {
+            session_id,
+            actor_id,
+            kind: mute_kind,
+            source,
+        } => {
+            moderation::handle_mute(
+                connection,
+                registry,
+                rid,
+                &session_id,
+                &actor_id,
+                &mute_kind,
+                source,
+                principal,
+                state,
+            )
+            .await
+        }
+        ClientMessage::UnmuteParticipant {
+            session_id,
+            actor_id,
+            source,
+        } => {
+            moderation::handle_unmute(
+                connection,
+                registry,
+                rid,
+                &session_id,
+                &actor_id,
+                source,
+                principal,
+                state,
+            )
+            .await
+        }
+        ClientMessage::RemoveParticipant {
+            session_id,
+            actor_id,
+        } => {
+            moderation::handle_remove(
+                connection,
+                registry,
+                rid,
+                &session_id,
+                &actor_id,
+                principal,
+                state,
+            )
+            .await
+        }
+        ClientMessage::BlockPrincipal {
+            room_id,
+            session_id,
+            actor_id,
+            reason,
+            expires_at,
+        } => {
+            moderation::handle_block(
+                connection, registry, rid, room_id, session_id, &actor_id, reason, expires_at,
+                principal, state,
+            )
+            .await
+        }
+        ClientMessage::UnblockPrincipal {
+            room_id,
+            session_id,
+            actor_id,
+        } => {
+            moderation::handle_unblock(
+                connection, registry, rid, room_id, session_id, &actor_id, principal, state,
+            )
+            .await
+        }
         ClientMessage::CreateTransport { room_id } => {
             rtc::handle_create_transport(connection, rid, kind, &room_id, principal, media).await
         }
@@ -81,6 +156,7 @@ pub(super) async fn handle_text(
             transport_id,
             kind: produce_kind,
             rtp_parameters,
+            source,
         } => {
             rtc::handle_produce(
                 connection,
@@ -90,8 +166,9 @@ pub(super) async fn handle_text(
                 transport_id,
                 produce_kind,
                 rtp_parameters,
+                source,
                 principal,
-                media,
+                state,
             )
             .await
         }

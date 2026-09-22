@@ -28,6 +28,6 @@ pub(crate) fn route() -> Router<AppState> {
         .route("/rooms/{room_id}/members", post(members::add))
         .route(
             "/rooms/{room_id}/members/{user_id}",
-            delete(members::remove),
+            delete(members::remove).patch(members::change_role),
         )
 }

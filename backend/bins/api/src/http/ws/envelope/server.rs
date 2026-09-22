@@ -51,6 +51,46 @@ pub enum ServerMessage {
         code: String,
         message: String,
     },
+    // --- Moderation (M4-05) ---
+    /// A participant's mute state changed. Fanned out to the session so every
+    /// client's roster reflects it, and sent to the target so it can stop
+    /// sending media.
+    ParticipantMuted {
+        session_id: String,
+        participant_id: String,
+        actor_id: String,
+        /// "temporary" or "permanent".
+        kind: String,
+        source: String,
+    },
+    ParticipantUnmuted {
+        session_id: String,
+        participant_id: String,
+        actor_id: String,
+        source: String,
+    },
+    /// A participation ended. `reason` is "removed" today; carried explicitly so
+    /// a later reason does not need a new frame.
+    ParticipantRemoved {
+        session_id: String,
+        participant_id: String,
+        actor_id: String,
+        reason: String,
+    },
+    PrincipalBlocked {
+        #[serde(skip_serializing_if = "Option::is_none")]
+        room_id: Option<String>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        session_id: Option<String>,
+        actor_id: String,
+    },
+    PrincipalUnblocked {
+        #[serde(skip_serializing_if = "Option::is_none")]
+        room_id: Option<String>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        session_id: Option<String>,
+        actor_id: String,
+    },
     // --- RTC responses ---
     TransportCreated {
         room_id: String,

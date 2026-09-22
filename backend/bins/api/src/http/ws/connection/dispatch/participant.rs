@@ -51,6 +51,7 @@ pub(super) async fn handle_join(
         state.stores.admissions.as_ref(),
         state.stores.sessions.as_ref(),
         state.stores.rooms.as_ref(),
+        state.stores.blocks.as_ref(),
         JoinSession {
             actor: principal.actor_id,
             session_id,
@@ -115,6 +116,24 @@ pub(super) async fn handle_leave(
             .await;
     };
 
+    // Whether this is the last connection the participant holds here. Detached
+    // before the count, so this connection is not counted against itself.
+    registry.left(id);
+    let remaining = registry.connection_count_for_participant(session_id, principal.actor_id);
+
+    // A participant is present while at least one connection is live (AC 7), so
+    // a device closing while another is streaming must not end the
+    // participation or tell the roster the participant left.
+    if remaining > 0 {
+        connection
+            .send(ServerMessage::Left {
+                session_id: session_id.to_string(),
+                participant_id: participant_id.to_string(),
+            })
+            .await?;
+        return Ok(());
+    }
+
     let outcome = leave_session(
         state.stores.participants.as_ref(),
         state.stores.participation.as_ref(),
@@ -124,7 +143,6 @@ pub(super) async fn handle_leave(
         },
     )
     .await;
-    registry.left(id);
     match outcome {
         Ok(()) => {
             connection

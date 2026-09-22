@@ -16,10 +16,10 @@ use axum::{
 use futures_util::{SinkExt, StreamExt};
 use mahfel_application::policy::ServerCapabilityResolver;
 use mahfel_application::ports::{
-    AdmissionStore, AttributeError, BoxFuture, Capability, CapabilityContext, CapabilityResolver,
-    CapabilitySet, CoordinationError, CoordinationStore, InviteStore, ParticipantStore,
-    ParticipationStore, Principal, ProvisionedIdentity, RoomStore, ServicePrincipalStore,
-    SessionStore, StoreError, UserAttributeWriter,
+    AdmissionStore, AttributeError, BlockStore, BoxFuture, Capability, CapabilityContext,
+    CapabilityResolver, CapabilitySet, CoordinationError, CoordinationStore, InviteStore,
+    ParticipantStore, ParticipationStore, Principal, ProvisionedIdentity, RoomStore,
+    ServicePrincipalStore, SessionStore, StoreError, UserAttributeWriter,
 };
 use mahfel_application::service_principals::{CreateServicePrincipal, create_service_principal};
 use mahfel_application::users::{IdentityProvisioner, SyncIdentity, SyncIdentityError};
@@ -570,6 +570,37 @@ impl FakeParticipantStore {
             .find(|p| p.session_id == session_id && p.actor_id == actor_id && p.is_active())
             .cloned()
     }
+
+    /// Put a participant in a session, for moderation seeds.
+    fn seed_participant(&self, session_id: SessionId, actor_id: ActorId) -> Participant {
+        let participant = Participant::join(session_id, actor_id, time::OffsetDateTime::now_utc());
+        self.participants
+            .lock()
+            .expect("fake store lock")
+            .push(participant.clone());
+        participant
+    }
+
+    /// The recorded participant, matching the actor, whether or not it is
+    /// still active.
+    fn recorded(&self, session_id: SessionId, actor_id: ActorId) -> Option<Participant> {
+        self.participants
+            .lock()
+            .expect("fake store lock")
+            .iter()
+            .find(|p| p.session_id == session_id && p.actor_id == actor_id)
+            .cloned()
+    }
+
+    async fn is_muted(&self, session_id: SessionId, actor_id: ActorId) -> bool {
+        self.recorded(session_id, actor_id)
+            .is_some_and(|participant| participant.is_muted())
+    }
+
+    async fn is_active(&self, session_id: SessionId, actor_id: ActorId) -> bool {
+        self.recorded(session_id, actor_id)
+            .is_some_and(|participant| participant.is_active())
+    }
 }
 
 impl ParticipantStore for FakeParticipantStore {
@@ -836,6 +867,119 @@ impl CoordinationStore for FakeCoordination {
                     Ok(1)
                 }
             }
+        })
+    }
+}
+
+/// Blocks are absent unless a test seeds one, so the transport tests that
+/// predate them exercise the same join path as before.
+#[derive(Clone, Default)]
+struct FakeBlockStore {
+    blocks: Arc<Mutex<Vec<mahfel_domain::Block>>>,
+}
+
+impl BlockStore for FakeBlockStore {
+    fn get_active(
+        &self,
+        scope: mahfel_domain::BlockScope,
+        actor_id: ActorId,
+    ) -> BoxFuture<'_, Result<Option<mahfel_domain::Block>, StoreError>> {
+        Box::pin(async move {
+            let now = OffsetDateTime::now_utc();
+            Ok(self
+                .blocks
+                .lock()
+                .expect("fake store lock")
+                .iter()
+                .find(|b| b.scope == scope && b.actor_id == actor_id && b.is_active_at(now))
+                .cloned())
+        })
+    }
+
+    fn insert<'a>(
+        &'a self,
+        block: &'a mahfel_domain::Block,
+    ) -> BoxFuture<'a, Result<(), StoreError>> {
+        Box::pin(async move {
+            self.blocks
+                .lock()
+                .expect("fake store lock")
+                .push(block.clone());
+            Ok(())
+        })
+    }
+
+    fn extend(
+        &self,
+        id: mahfel_domain::BlockId,
+        expires_at: Option<OffsetDateTime>,
+    ) -> BoxFuture<'_, Result<bool, StoreError>> {
+        Box::pin(async move {
+            let mut blocks = self.blocks.lock().expect("fake store lock");
+            let Some(block) = blocks
+                .iter_mut()
+                .find(|b| b.id == id && b.lifted_at.is_none())
+            else {
+                return Ok(false);
+            };
+            block.expires_at = expires_at;
+            Ok(true)
+        })
+    }
+
+    fn lift(
+        &self,
+        id: mahfel_domain::BlockId,
+        lifted_by: ActorId,
+        lifted_at: OffsetDateTime,
+    ) -> BoxFuture<'_, Result<bool, StoreError>> {
+        Box::pin(async move {
+            let mut blocks = self.blocks.lock().expect("fake store lock");
+            let Some(block) = blocks
+                .iter_mut()
+                .find(|b| b.id == id && b.lifted_at.is_none())
+            else {
+                return Ok(false);
+            };
+            block.lifted_at = Some(lifted_at);
+            block.lifted_by = Some(lifted_by);
+            Ok(true)
+        })
+    }
+
+    fn list_active_for_room(
+        &self,
+        room_id: mahfel_domain::RoomId,
+        _limit: u32,
+    ) -> BoxFuture<'_, Result<Vec<mahfel_domain::Block>, StoreError>> {
+        Box::pin(async move {
+            let now = OffsetDateTime::now_utc();
+            Ok(self
+                .blocks
+                .lock()
+                .expect("fake store lock")
+                .iter()
+                .filter(|b| b.scope.room_id() == Some(room_id) && b.is_active_at(now))
+                .cloned()
+                .collect())
+        })
+    }
+
+    fn list_active_for_session(
+        &self,
+        session_id: SessionId,
+        _limit: u32,
+    ) -> BoxFuture<'_, Result<Vec<mahfel_domain::Block>, StoreError>> {
+        Box::pin(async move {
+            let now = OffsetDateTime::now_utc();
+            Ok(self
+                .blocks
+                .lock()
+                .expect("fake store lock")
+                .iter()
+                .filter(|b| b.scope.session_id() == Some(session_id) && b.is_active_at(now))
+                .cloned()
+                .collect())
         })
     }
 }
@@ -1143,6 +1287,7 @@ fn ws_state(principal: Option<Principal>) -> WsState {
             participation: Arc::new(FakeParticipationStore::default()),
             sessions: Arc::new(FakeSessionStore::default()),
             rooms: Arc::new(FakeRoomStore::default()),
+            blocks: Arc::new(FakeBlockStore::default()),
         },
         shutdown_rx,
     )
@@ -2346,7 +2491,34 @@ struct WsHarness {
     _task: JoinHandle<std::io::Result<()>>,
 }
 
+/// Stores a moderation test can seed before the socket is served.
+///
+/// The plain harness builds its own, which is fine for authentication tests but
+/// leaves a moderation frame with no session, participant, or membership to act
+/// on.
+#[derive(Clone, Default)]
+struct WsSeeds {
+    rooms: FakeRoomStore,
+    sessions: FakeSessionStore,
+    participants: FakeParticipantStore,
+    participation: FakeParticipationStore,
+    admissions: FakeAdmissionStore,
+    blocks: FakeBlockStore,
+}
+
+async fn serve_ws_seeded(principal: Principal, seeds: WsSeeds) -> WsHarness {
+    serve_ws_with_stores(Some(principal), WsConfig::default(), seeds).await
+}
+
 async fn serve_ws(principal: Option<Principal>, config: WsConfig) -> WsHarness {
+    serve_ws_with_stores(principal, config, WsSeeds::default()).await
+}
+
+async fn serve_ws_with_stores(
+    principal: Option<Principal>,
+    config: WsConfig,
+    seeds: WsSeeds,
+) -> WsHarness {
     let registry = prometheus::Registry::new();
     let metrics = WsMetrics::register(&registry).expect("register ws metrics");
     let (shutdown_tx, shutdown_rx) = watch::channel(false);
@@ -2356,11 +2528,12 @@ async fn serve_ws(principal: Option<Principal>, config: WsConfig) -> WsHarness {
         metrics,
         Arc::new(GrpcMediaGateway::lazy("http://localhost:50051".to_owned()).expect("media")),
         ParticipationStores {
-            admissions: Arc::new(FakeAdmissionStore::default()),
-            participants: Arc::new(FakeParticipantStore::default()),
-            participation: Arc::new(FakeParticipationStore::default()),
-            sessions: Arc::new(FakeSessionStore::default()),
-            rooms: Arc::new(FakeRoomStore::default()),
+            admissions: Arc::new(seeds.admissions.clone()),
+            participants: Arc::new(seeds.participants.clone()),
+            participation: Arc::new(seeds.participation.clone()),
+            sessions: Arc::new(seeds.sessions.clone()),
+            rooms: Arc::new(seeds.rooms.clone()),
+            blocks: Arc::new(seeds.blocks.clone()),
         },
         shutdown_rx.clone(),
     );
@@ -2375,10 +2548,10 @@ async fn serve_ws(principal: Option<Principal>, config: WsConfig) -> WsHarness {
         service_principals,
         provisioner: Arc::new(StubProvisioner),
         linker: Arc::new(StubLinker),
-        rooms: Arc::new(FakeRoomStore::default()),
-        sessions: Arc::new(FakeSessionStore::default()),
-        participation: Arc::new(FakeParticipationStore::default()),
-        admissions: Arc::new(FakeAdmissionStore::default()),
+        rooms: Arc::new(seeds.rooms),
+        sessions: Arc::new(seeds.sessions),
+        participation: Arc::new(seeds.participation),
+        admissions: Arc::new(seeds.admissions),
         invites: Arc::new(FakeInviteStore::default()),
         code_index: Arc::new(FakeCoordination::default()),
         source_address: Arc::new(crate::http::source_address::SourceAddressResolver::default()),
@@ -2569,6 +2742,7 @@ async fn serve_ws_with_verifier(verifier: TokenVerifier, config: WsConfig) -> Ws
             participation: Arc::new(FakeParticipationStore::default()),
             sessions: Arc::new(FakeSessionStore::default()),
             rooms: Arc::new(FakeRoomStore::default()),
+            blocks: Arc::new(FakeBlockStore::default()),
         },
         shutdown_rx.clone(),
     );
@@ -3279,6 +3453,7 @@ async fn serve_ws_with(
             participation: Arc::new(FakeParticipationStore::default()),
             sessions: Arc::new(sessions),
             rooms: Arc::new(rooms),
+            blocks: Arc::new(FakeBlockStore::default()),
         },
         shutdown_rx.clone(),
     );
@@ -4609,4 +4784,295 @@ async fn redemption_requires_authentication() {
     )
     .await;
     assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
+}
+
+// --- Moderation over WebSocket (M4-05, criterion 5) ---
+//
+// These drive the real connection handler against a real socket, so they prove
+// that a moderation action reaches the affected client as a frame rather than
+// only that the use case returns the right value.
+
+/// A room with a live session, a manager, and one joined participant.
+struct ModerationSeeds {
+    seeds: WsSeeds,
+    manager: Principal,
+    victim: Principal,
+    session: Session,
+}
+
+async fn moderation_seeds() -> ModerationSeeds {
+    let seeds = WsSeeds::default();
+    let manager = principal();
+    let room = seeds
+        .rooms
+        .seed_room("Algebra", manager.actor_id, RoomVisibility::InviteOnly);
+
+    let now = OffsetDateTime::now_utc();
+    let mut session = Session::schedule(room.id, None, now);
+    session.start(now).expect("start session");
+    seeds.sessions.seed(session.clone());
+
+    let victim = other_principal();
+    seeds
+        .rooms
+        .add_member(&RoomMember::new(
+            room.id,
+            victim.actor_id,
+            RoomRole::Member,
+            now,
+        ))
+        .await
+        .expect("add member");
+
+    ModerationSeeds {
+        seeds,
+        manager,
+        victim,
+        session,
+    }
+}
+
+#[tokio::test]
+async fn muting_a_participant_over_the_socket_propagates_to_the_target() {
+    let fixture = moderation_seeds().await;
+    let session_id = fixture.session.id;
+    let victim_id = fixture.victim.actor_id;
+    // The target is present, so the mute has something to act on.
+    fixture
+        .seeds
+        .participants
+        .seed_participant(session_id, victim_id);
+
+    let harness = serve_ws_seeded(fixture.manager.clone(), fixture.seeds.clone()).await;
+    let mut socket = connect(harness.addr).await;
+    authenticate(&mut socket).await;
+
+    // The manager joins, then mutes the victim by actor id, which is how
+    // moderation resolves across a participant's connections.
+    let join = serde_json::json!({
+        "v": 1, "type": "join", "session_id": session_id.to_string()
+    })
+    .to_string();
+    send(&mut socket, &join).await;
+    let joined = tokio::time::timeout(Duration::from_secs(2), next(&mut socket))
+        .await
+        .expect("join timeout");
+    assert!(joined.to_text().expect("text").contains("joined"));
+
+    let mute = serde_json::json!({
+        "v": 1,
+        "type": "mute_participant",
+        "session_id": session_id.to_string(),
+        "actor_id": victim_id.to_string(),
+        "kind": "permanent",
+        "source": "microphone"
+    })
+    .to_string();
+    send(&mut socket, &mute).await;
+
+    let frame = tokio::time::timeout(Duration::from_secs(2), next(&mut socket))
+        .await
+        .expect("mute propagation timeout");
+    let text = frame.to_text().expect("text").to_owned();
+    assert!(
+        text.contains("participant_muted"),
+        "the mute must propagate as a typed frame, got {text}"
+    );
+    assert!(
+        text.contains(&victim_id.to_string()),
+        "the frame names the target by actor id, got {text}"
+    );
+    assert!(
+        text.contains("permanent"),
+        "the frame carries the kind, so the target knows if it can clear it, got {text}"
+    );
+
+    // The durable state changed, not only the frame.
+    assert!(
+        fixture
+            .seeds
+            .participants
+            .is_muted(session_id, victim_id)
+            .await,
+        "the mute is recorded, so a reconnect does not clear it"
+    );
+}
+
+#[tokio::test]
+async fn a_member_cannot_mute_over_the_socket() {
+    let fixture = moderation_seeds().await;
+    let session_id = fixture.session.id;
+    let victim_id = fixture.victim.actor_id;
+    fixture
+        .seeds
+        .participants
+        .seed_participant(session_id, victim_id);
+
+    // The member is the caller this time, so the capability check is what
+    // refuses rather than the room being invisible.
+    let harness = serve_ws_seeded(fixture.victim.clone(), fixture.seeds.clone()).await;
+    let mut socket = connect(harness.addr).await;
+    authenticate(&mut socket).await;
+
+    let join = serde_json::json!({
+        "v": 1, "type": "join", "session_id": session_id.to_string()
+    })
+    .to_string();
+    send(&mut socket, &join).await;
+    let _joined = tokio::time::timeout(Duration::from_secs(2), next(&mut socket))
+        .await
+        .expect("join timeout");
+
+    // The member mutes itself, which is a self-unmute refusal path, so instead
+    // attempt to mute the manager.
+    let manager_id = fixture.manager.actor_id;
+    fixture
+        .seeds
+        .participants
+        .seed_participant(session_id, manager_id);
+    let mute = serde_json::json!({
+        "v": 1,
+        "type": "mute_participant",
+        "session_id": session_id.to_string(),
+        "actor_id": manager_id.to_string(),
+        "kind": "temporary"
+    })
+    .to_string();
+    send(&mut socket, &mute).await;
+
+    let frame = tokio::time::timeout(Duration::from_secs(2), next(&mut socket))
+        .await
+        .expect("denial timeout");
+    let text = frame.to_text().expect("text").to_owned();
+    assert!(
+        text.contains("forbidden"),
+        "a member must be refused server-side, got {text}"
+    );
+    assert!(
+        !fixture
+            .seeds
+            .participants
+            .is_muted(session_id, manager_id)
+            .await,
+        "a denied mute must not change durable state"
+    );
+}
+
+#[tokio::test]
+async fn removing_a_participant_over_the_socket_propagates() {
+    let fixture = moderation_seeds().await;
+    let session_id = fixture.session.id;
+    let victim_id = fixture.victim.actor_id;
+    fixture
+        .seeds
+        .participants
+        .seed_participant(session_id, victim_id);
+
+    let harness = serve_ws_seeded(fixture.manager.clone(), fixture.seeds.clone()).await;
+    let mut socket = connect(harness.addr).await;
+    authenticate(&mut socket).await;
+
+    let join = serde_json::json!({
+        "v": 1, "type": "join", "session_id": session_id.to_string()
+    })
+    .to_string();
+    send(&mut socket, &join).await;
+    let _joined = tokio::time::timeout(Duration::from_secs(2), next(&mut socket))
+        .await
+        .expect("join timeout");
+
+    let remove = serde_json::json!({
+        "v": 1,
+        "type": "remove_participant",
+        "session_id": session_id.to_string(),
+        "actor_id": victim_id.to_string()
+    })
+    .to_string();
+    send(&mut socket, &remove).await;
+
+    let frame = tokio::time::timeout(Duration::from_secs(2), next(&mut socket))
+        .await
+        .expect("remove propagation timeout");
+    let text = frame.to_text().expect("text").to_owned();
+    assert!(
+        text.contains("participant_removed"),
+        "removal must propagate as a typed frame, got {text}"
+    );
+    assert!(
+        !fixture
+            .seeds
+            .participants
+            .is_active(session_id, victim_id)
+            .await,
+        "removal is terminal for that participation"
+    );
+}
+
+#[tokio::test]
+async fn muting_an_unknown_participant_fails_without_touching_media() {
+    // Criterion 7 over the transport: identity is resolved before enforcement,
+    // so an unknown subject is not found rather than half-applied.
+    let fixture = moderation_seeds().await;
+    let session_id = fixture.session.id;
+    let harness = serve_ws_seeded(fixture.manager.clone(), fixture.seeds.clone()).await;
+    let mut socket = connect(harness.addr).await;
+    authenticate(&mut socket).await;
+
+    let join = serde_json::json!({
+        "v": 1, "type": "join", "session_id": session_id.to_string()
+    })
+    .to_string();
+    send(&mut socket, &join).await;
+    let _joined = tokio::time::timeout(Duration::from_secs(2), next(&mut socket))
+        .await
+        .expect("join timeout");
+
+    let mute = serde_json::json!({
+        "v": 1,
+        "type": "mute_participant",
+        "session_id": session_id.to_string(),
+        "actor_id": ActorId::new().to_string(),
+        "kind": "temporary"
+    })
+    .to_string();
+    send(&mut socket, &mute).await;
+
+    let frame = tokio::time::timeout(Duration::from_secs(2), next(&mut socket))
+        .await
+        .expect("not found timeout");
+    let text = frame.to_text().expect("text").to_owned();
+    assert!(
+        text.contains("not_found"),
+        "an unknown participant is not found, got {text}"
+    );
+}
+
+#[tokio::test]
+async fn a_malformed_moderation_frame_is_refused() {
+    // The wire parser refuses rather than defaulting where the value is
+    // semantic: the kind decides whether the target can clear the mute.
+    let fixture = moderation_seeds().await;
+    let session_id = fixture.session.id;
+    let harness = serve_ws_seeded(fixture.manager.clone(), fixture.seeds.clone()).await;
+    let mut socket = connect(harness.addr).await;
+    authenticate(&mut socket).await;
+
+    let mute = serde_json::json!({
+        "v": 1,
+        "type": "mute_participant",
+        "session_id": session_id.to_string(),
+        "actor_id": ActorId::new().to_string(),
+        "kind": "forever"
+    })
+    .to_string();
+    send(&mut socket, &mute).await;
+
+    let frame = tokio::time::timeout(Duration::from_secs(2), next(&mut socket))
+        .await
+        .expect("invalid timeout");
+    let text = frame.to_text().expect("text").to_owned();
+    assert!(
+        text.contains("invalid"),
+        "an unknown mute kind is refused, got {text}"
+    );
 }

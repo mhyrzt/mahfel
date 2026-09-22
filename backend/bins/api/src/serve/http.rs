@@ -66,6 +66,7 @@ pub(super) async fn app(
     let admissions: Arc<dyn mahfel_application::ports::AdmissionStore> =
         Arc::new(stores.admissions.clone());
     let invites: Arc<dyn mahfel_application::ports::InviteStore> = Arc::new(stores.invites.clone());
+    let blocks: Arc<dyn mahfel_application::ports::BlockStore> = Arc::new(stores.blocks.clone());
     let code_index: Arc<dyn mahfel_application::ports::CoordinationStore> =
         Arc::new(coordination.store.clone());
     let realtime = http::ws::WsState::new(
@@ -79,6 +80,7 @@ pub(super) async fn app(
             participation: Arc::clone(&participation),
             sessions: Arc::clone(&sessions),
             rooms: Arc::clone(&rooms),
+            blocks: Arc::clone(&blocks),
         },
         shutdown,
     );

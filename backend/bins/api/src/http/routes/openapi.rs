@@ -29,6 +29,7 @@ use utoipa::OpenApi;
         super::rooms::join::join,
         super::rooms::archive::archive,
         super::rooms::members::add,
+        super::rooms::members::change_role,
         super::rooms::members::remove,
         super::rooms::update::update,
         super::sessions::schedule::schedule,

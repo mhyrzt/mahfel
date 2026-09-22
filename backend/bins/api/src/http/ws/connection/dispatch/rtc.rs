@@ -1,7 +1,8 @@
 use super::super::writer::Connection;
 use super::helpers::{parse_room_or_send_error, send_err, send_ok};
-use crate::http::ws::{envelope::ServerMessage, metrics::DisconnectReason};
-use mahfel_application::ports::Principal;
+use crate::http::ws::{envelope::ServerMessage, metrics::DisconnectReason, state::WsState};
+use mahfel_application::ports::{Capability, Principal};
+use mahfel_domain::ProducerSource;
 use mahfel_media_client::GrpcMediaGateway;
 use mediasoup::prelude::MediaKind;
 
@@ -68,6 +69,21 @@ pub(super) async fn handle_connect_transport(
     }
 }
 
+/// Resolve a requested source, defaulting to the kind's obvious meaning.
+fn parse_source(raw: Option<&str>, kind: MediaKind) -> Result<ProducerSource, &'static str> {
+    let Some(raw) = raw.map(str::trim).filter(|raw| !raw.is_empty()) else {
+        return Ok(match kind {
+            MediaKind::Audio => ProducerSource::Microphone,
+            MediaKind::Video => ProducerSource::Camera,
+        });
+    };
+    let source: ProducerSource = raw.try_into().map_err(|_| "invalid source")?;
+    if source.is_audio() != (kind == MediaKind::Audio) {
+        return Err("source does not match kind");
+    }
+    Ok(source)
+}
+
 #[allow(clippy::too_many_arguments)]
 pub(super) async fn handle_produce(
     c: &mut Connection,
@@ -77,9 +93,11 @@ pub(super) async fn handle_produce(
     transport_id: String,
     produce_kind: String,
     rtp: String,
+    source: Option<String>,
     principal: &Principal,
-    media: &GrpcMediaGateway,
+    state: &WsState,
 ) -> Result<(), DisconnectReason> {
+    let media = state.media.as_ref();
     let Some(room) = parse_room_or_send_error(c, rid.clone(), &room_id).await else {
         return Ok(());
     };
@@ -96,8 +114,58 @@ pub(super) async fn handle_produce(
             return Ok(());
         }
     };
+    // An omitted source takes the kind's obvious meaning, so a client that
+    // predates the field keeps working. A mismatched source is refused rather
+    // than coerced: it selects which producers a moderation action applies to,
+    // so a wrong label would misdirect a later mute.
+    let source = match parse_source(source.as_deref(), kind) {
+        Ok(source) => source,
+        Err(message) => {
+            let _ = c
+                .send_with_id(
+                    rid.clone(),
+                    super::helpers::protocol_error("invalid_argument", message),
+                )
+                .await;
+            return Ok(());
+        }
+    };
+
+    // Publishing is capability-gated by source, because ShareScreen is a
+    // distinct capability from PublishMedia: a room can permit speaking without
+    // permitting a screen share, and a non-member in a public room holds
+    // neither. Checked before any media is created, so an unauthorized caller
+    // never reaches the SFU.
+    let capability = match source {
+        ProducerSource::Screen => Capability::ShareScreen,
+        ProducerSource::Microphone | ProducerSource::Camera => Capability::PublishMedia,
+    };
+    if mahfel_application::policy::require_room_capability(
+        state.stores.rooms.as_ref(),
+        principal,
+        room,
+        capability,
+    )
+    .await
+    .is_err()
+    {
+        let _ = c
+            .send_with_id(
+                rid,
+                super::helpers::protocol_error("forbidden", "publishing is not permitted"),
+            )
+            .await;
+        return Ok(());
+    }
     match media
-        .produce(room, principal.actor_id, transport_id.clone(), kind, rtp)
+        .produce(
+            room,
+            principal.actor_id,
+            transport_id.clone(),
+            kind,
+            source,
+            rtp,
+        )
         .await
     {
         Ok(producer_id) => {

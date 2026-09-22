@@ -24,6 +24,55 @@ pub enum ClientMessage {
         session_id: String,
     },
     Leave {},
+    // --- Moderation (M4-05) ---
+    /// Mute another participant's media for one source.
+    ///
+    /// `kind` is "temporary" (the target may clear it) or "permanent" (only a
+    /// moderator may). `source` defaults to the microphone.
+    MuteParticipant {
+        session_id: String,
+        /// The target's actor id, not a connection: moderation resolves across
+        /// all of a participant's connections.
+        actor_id: String,
+        kind: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        source: Option<String>,
+    },
+    /// Clear a mute. A target may clear its own temporary mute; a permanent one
+    /// needs a moderator.
+    UnmuteParticipant {
+        session_id: String,
+        actor_id: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        source: Option<String>,
+    },
+    /// End a participant's participation in this session. They may rejoin.
+    RemoveParticipant {
+        session_id: String,
+        actor_id: String,
+    },
+    /// Bar a principal from a room or a session. Unlike removal, this holds.
+    BlockPrincipal {
+        /// A room block bars every session in that room; a session block is
+        /// narrower. Exactly one of these is set.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        room_id: Option<String>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        session_id: Option<String>,
+        actor_id: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        reason: Option<String>,
+        /// Unix seconds. Omitted means until explicitly lifted.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        expires_at: Option<i64>,
+    },
+    UnblockPrincipal {
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        room_id: Option<String>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        session_id: Option<String>,
+        actor_id: String,
+    },
     // --- RTC signaling (M3-06) ---
     CreateTransport {
         room_id: String,
@@ -38,6 +87,12 @@ pub enum ClientMessage {
         transport_id: String,
         kind: String,
         rtp_parameters: String,
+        /// "microphone" | "camera" | "screen". Omitted means the kind's obvious
+        /// meaning: audio is a microphone and video is a camera. This selects
+        /// which producers a moderation action applies to; it is never
+        /// authorization.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        source: Option<String>,
     },
     Consume {
         room_id: String,

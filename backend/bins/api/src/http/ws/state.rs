@@ -1,7 +1,7 @@
 use super::{config::WsConfig, metrics::WsMetrics, registry::ConnectionRegistry};
 use crate::http::auth::RequestAuthenticator;
 use mahfel_application::ports::{
-    AdmissionStore, ParticipantStore, ParticipationStore, RoomStore, SessionStore,
+    AdmissionStore, BlockStore, ParticipantStore, ParticipationStore, RoomStore, SessionStore,
 };
 use mahfel_media_client::GrpcMediaGateway;
 use std::sync::Arc;
@@ -15,6 +15,7 @@ pub struct ParticipationStores {
     pub participation: Arc<dyn ParticipationStore>,
     pub sessions: Arc<dyn SessionStore>,
     pub rooms: Arc<dyn RoomStore>,
+    pub blocks: Arc<dyn BlockStore>,
 }
 
 /// Shared WebSocket gateway state held by the router.
