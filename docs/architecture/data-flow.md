@@ -158,6 +158,49 @@ sequenceDiagram
   A-->>B: Session metadata and signaling channel
 ```
 
+## Moderation
+
+```mermaid
+sequenceDiagram
+  participant B as Manager browser
+  participant A as mahfel-api
+  participant P as PostgreSQL
+  participant M as mahfel-media
+  B->>A: mute_participant {actor_id, kind, source}
+  A->>P: Resolve membership and capability
+  alt no mute_others
+    A-->>B: forbidden
+  else
+    A->>P: Load the active participant
+    alt no active participant
+      A-->>B: not_found, before any media call
+    else
+      A->>P: Record muted_at, mute_kind, muted_by
+      A->>M: gRPC PauseParticipantSource {room, actor, source}
+      alt media plane unreachable
+        Note over A: Audited as degraded; the durable mute stands
+      end
+      A-->>B: participant_muted
+      Note over A: Fanned out to every connection of the participant
+    end
+  end
+```
+
+The order is the property that matters, and it is the same for every moderation action: resolve the
+capability, resolve the target against the authoritative store, change durable state, reach the media
+plane, then audit and propagate. Capability first so an unauthorized caller cannot probe for who
+exists, and the state change before enforcement so a media outage degrades rather than misreports.
+
+A capability withdrawal reconciles rather than sweeping: removing a membership or blocking closes
+the producers whose source the principal may no longer publish, while a demotion closes nothing
+because a member keeps `publish_media` and `share_screen`. Removing a membership while a principal is
+publishing closes their producers for the same reason a block does: the grant they were publishing
+under is gone.
+
+Presence is derived from the connection registry rather than from a single connection, so a
+participant on two devices stays present when one closes and `participant_left` is emitted only at
+the last one.
+
 ## WebRTC signaling
 
 ```mermaid

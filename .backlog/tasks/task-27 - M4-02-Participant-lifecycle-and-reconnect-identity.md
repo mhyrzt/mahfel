@@ -5,7 +5,7 @@ status: In Progress
 assignee:
   - '@mahyar'
 created_date: '2026-09-08 00:31'
-updated_date: '2026-09-22 00:19'
+updated_date: '2026-09-22 20:06'
 labels:
   - backend
   - api
@@ -34,8 +34,8 @@ A connection is transient but an actor's presence in a live session is a stable 
 - [x] #4 The multi-device policy is explicit, documented, and tested.
 - [x] #5 WebSocket join and leave events carry the stable participant identity used by the roster.
 - [x] #6 The participant identity and join path are reusable by M4-05 blocking and M4-06 admission without reworking the participant model.
-- [ ] #7 A second concurrent device is allowed: one participant holds multiple connections, and the participant is present while at least one connection is live.
-- [ ] #8 Removing or muting a participant resolves unambiguously across that participant's connections, and no duplicate participant row is created by a second device.
+- [x] #7 A second concurrent device is allowed: one participant holds multiple connections, and the participant is present while at least one connection is live.
+- [x] #8 Removing or muting a participant resolves unambiguously across that participant's connections, and no duplicate participant row is created by a second device.
 <!-- AC:END -->
 
 ## Implementation Plan
@@ -55,6 +55,14 @@ A connection is transient but an actor's presence in a live session is a stable 
 
 <!-- SECTION:NOTES:BEGIN -->
 AC 6 closed by TASK-125 (M4-06). Admission layered onto the existing join path without reshaping the participant model: join_session gained a JoinOutcome return and a waiting branch, and Participant, ParticipantStore, and the (session, actor) uniqueness invariant were all unchanged. The lobby reuses the same participant identity on approval, including reusing an existing active participant, so the model proved reusable as claimed. AC 7 (multi-device presence counting) and AC 8 (cross-connection targeting) remain open and belong to TASK-28, where moderation actually needs to resolve a participant across its connections.
+
+Acceptance criteria 7 and 8 are closed by TASK-28 (M4-05).
+
+AC 7, multi-device presence: ConnectionRegistry::connection_count_for_participant counts a participant's live connections, and handle_leave consults it after detaching the leaving connection. A participant is present while at least one connection is live, and ParticipantLeft is emitted only when the last connection goes. Previously handle_leave emitted it unconditionally, so closing one of two devices told the roster the participant had left while the other device was still publishing. Covered by six registry tests, including one participant across two connections and an authenticated connection that has not joined.
+
+AC 8, cross-connection resolution: moderation keys on the actor rather than a connection, so a mute or removal resolves across every device a participant holds: producers are paused or closed once for the principal, and the participant is ended once. Fan-out uses broadcast_to_session, which reaches the target as well as the roster, because the target must learn it was muted or removed. The second device does not duplicate the participant row, which the partial unique index on (session_id, actor_id) WHERE status = 'active' already guaranteed from this task.
+
+Replica caveat, unchanged: the registry is replica-local, so a participant with devices attached to two replicas is counted once per replica. Cross-replica presence and targeting need the connection hub (M4-05 depends on TASK-34, M5-03, ADR 0017), which is why these were testable here single-replica only.
 <!-- SECTION:NOTES:END -->
 
 ## Comments

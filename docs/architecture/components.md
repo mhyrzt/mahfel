@@ -267,6 +267,68 @@ Endpoints are `GET`/`PUT /v1/rooms/{room_id}/admission`, `GET`/`PUT /v1/sessions
 `POST /v1/sessions/{session_id}/lobby/{actor_id}/admit` and `/reject`. Over the WebSocket, a
 deferred join is answered with a `join_waiting` frame instead of `joined`.
 
+### Moderation
+
+Moderation is capability-gated and generic: a vertical maps its vocabulary onto the capabilities
+rather than adding engine roles, so education's teacher is a room `manager` and nothing about the
+engine names a vertical.
+
+- **Four rungs, each strictly stronger.** *Temporary mute* is a reset the target clears itself.
+  *Permanent mute* holds until a caller with `mute_others` clears it. *Remove* ends the
+  participation and permits rejoin. *Block* is a durable bar, so a blocked principal cannot rejoin
+  while it is active. The rungs do not overlap: a caller who needs a mute that survives a rejoin
+  wants a block.
+- **Mute is durable state on the participation.** `muted_at`, `mute_kind`, and `muted_by` live on
+  `mahfel.session_participants`, so a reconnect reuses the same row and the mute holds. It does
+  **not** survive a rejoin: leaving is terminal, so a new join is a new participation with no mute.
+  That is deliberate, and it is why block exists.
+- **Blocks are independent durable facts.** Room-scoped and session-scoped blocks are separate rows.
+  A room block denies every session in its room by enforcement, so nothing writes per-session rows
+  for it, and lifting a room block can therefore never disturb an unrelated session block. A block
+  carries an optional `expires_at`: `NULL` holds until explicitly lifted, which suits an education
+  setting, while a timestamp lapses on its own, which suits a one-off meeting. Re-blocking an
+  already-blocked principal extends the existing block rather than stacking a second one.
+- **A block composes removal.** Barring someone who is currently publishing would not be a block, so
+  blocking ends their participation and closes their producers.
+- **Mute is enforced through media control by source.** A producer records what the SFU carries
+  (`kind`: audio or video) and what it is for (`source`: microphone, camera, or screen). A screen
+  share genuinely is video, so `kind` alone could not distinguish it from a camera. Muting pauses the
+  named source and leaves the others running; unmuting resumes it without the target renegotiating
+  transport. Pausing rather than closing is what keeps mute state and media state in one-to-one
+  correspondence.
+- **Publishing is gated by the capability that matches the source.** `publish_media` for a
+  microphone or camera, `share_screen` for a screen. A room can therefore permit speaking without
+  permitting a screen share, and a non-member in a public room — who holds `join` alone — cannot
+  publish. A source is never authorization: it selects which producers an action applies to, so a
+  mislabelled source can narrow an action but never widen one.
+- **Withdrawing a capability reconciles running producers.** Removing a membership, or blocking,
+  closes the producers whose source the principal may no longer publish. A demotion closes nothing,
+  because a member keeps `publish_media` and `share_screen`; that is why this is a reconcile rather
+  than a sweep. Enforcement failure is best-effort for the response and audited as degraded: the
+  durable change has already happened, so failing the request would misreport it, but an operator has
+  to know that a removed principal may still be publishing.
+- **Identity is validated before enforcement.** A subject with no active participant fails `404`
+  before any media call. The media plane holds no participant registry and must not gain one: a
+  registry would make it authoritative for session membership, which would drift from PostgreSQL.
+  It carries `participant_id` only as an ownership tag on transports, producers, and consumers.
+- **Presence is at least one live connection.** A participant on two devices stays present when one
+  closes, and `participant_left` is emitted only when the last connection goes. Moderation keys on
+  the actor rather than a connection, so a mute or removal resolves across every device the
+  participant is on.
+
+Moderation actions are audited as structured `audit` events and propagate over typed WebSocket
+frames: `participant_muted`, `participant_unmuted`, `participant_removed`, `principal_blocked`, and
+`principal_unblocked`, driven by the `mute_participant`, `unmute_participant`, `remove_participant`,
+`block_principal`, and `unblock_principal` client frames.
+
+A room `manager` may change a member's role at `PATCH /v1/rooms/{room_id}/members/{user_id}`. The
+last manager cannot be demoted, for the same reason it cannot be removed: the room would be left with
+nobody who can manage it.
+
+Known limitation: the connection registry is replica-local, so a participant with devices attached to
+two replicas is counted once per replica. Cross-replica presence and targeting need the connection
+hub (M5-03, ADR 0017) and are documented there rather than solved here.
+
 ## `mahfel-media`
 
 The Rust media plane hosts Tokio, the mediasoup Rust bindings, native mediasoup workers, routers,
