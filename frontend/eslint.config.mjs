@@ -98,5 +98,12 @@ export default defineConfig([
       "react/self-closing-comp": "error",
     },
   },
-  globalIgnores([".next/**", "out/**", "build/**", "next-env.d.ts"]),
+  globalIgnores([
+    ".next/**",
+    "out/**",
+    "build/**",
+    "storybook-static/**",
+    "lib/api/generated/**",
+    "next-env.d.ts",
+  ]),
 ]);

@@ -56,3 +56,7 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+[lang="fa"] {
+  font-family: "Vazirmatn Variable", Arial, Helvetica, sans-serif;
+}

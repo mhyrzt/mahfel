@@ -2,7 +2,7 @@ import { getToken } from "next-auth/jwt";
 import { NextResponse, type NextRequest } from "next/server";
 import { sessionCookieName, shouldUseSecureAuthCookies } from "./lib/auth/cookie-policy";
 
-const PUBLIC_PATHS = ["/login", "/api/auth", "/api/health"];
+const PUBLIC_PATHS = ["/", "/login", "/api/auth", "/api/health"];
 
 function isPublicPath(pathname: string): boolean {
   return PUBLIC_PATHS.some((path) => pathname === path || pathname.startsWith(`${path}/`));
@@ -18,7 +18,7 @@ export async function middleware(request: NextRequest): Promise<NextResponse> {
     cookieName: sessionCookieName(),
   });
 
-  if (token?.error && token.error !== "RefreshTemporarilyUnavailable") {
+  if (pathname !== "/" && token?.error && token.error !== "RefreshTemporarilyUnavailable") {
     if (pathname.startsWith("/api/")) {
       return NextResponse.json({ error: "SessionExpired" }, { status: 401 });
     }
