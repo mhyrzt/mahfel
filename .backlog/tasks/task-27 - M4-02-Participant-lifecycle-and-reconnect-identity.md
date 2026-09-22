@@ -5,7 +5,7 @@ status: In Progress
 assignee:
   - '@mahyar'
 created_date: '2026-09-08 00:31'
-updated_date: '2026-09-21 12:16'
+updated_date: '2026-09-22 00:19'
 labels:
   - backend
   - api
@@ -33,7 +33,7 @@ A connection is transient but an actor's presence in a live session is a stable 
 - [x] #3 Participant state transitions are explicit and audited, and leaving or being removed is terminal for that connection while an authorized actor can rejoin.
 - [x] #4 The multi-device policy is explicit, documented, and tested.
 - [x] #5 WebSocket join and leave events carry the stable participant identity used by the roster.
-- [ ] #6 The participant identity and join path are reusable by M4-05 blocking and M4-06 admission without reworking the participant model.
+- [x] #6 The participant identity and join path are reusable by M4-05 blocking and M4-06 admission without reworking the participant model.
 - [ ] #7 A second concurrent device is allowed: one participant holds multiple connections, and the participant is present while at least one connection is live.
 - [ ] #8 Removing or muting a participant resolves unambiguously across that participant's connections, and no duplicate participant row is created by a second device.
 <!-- AC:END -->
@@ -54,18 +54,7 @@ A connection is transient but an actor's presence in a live session is a stable 
 ## Implementation Notes
 
 <!-- SECTION:NOTES:BEGIN -->
-Implemented the domain participant, migration 0006 with the partial unique index, the ParticipantStore port and Postgres adapter, the join/leave use cases over one deny-by-default guard, and the WebSocket join path with a connection-scoped generation.
-
-Acceptance criteria 1-5 are met and tested (unit, Postgres integration, and WebSocket integration). Criteria 6-8 are deliberately left unchecked:
-- #6 (reusable by M4-05/M4-06): the model is designed for reuse and M4-06 layers admission on the same require_joinable guard, but nothing consumes it yet, so reuse is a claim rather than a proven fact. M4-05/M4-06 will close it.
-- #7 (presence while >=1 connection live): a second device is allowed and reuses the identity (tested), but explicit presence counting was removed because nothing consumed it; leaving dead code would fail the workspace lints and the repo rule against speculative abstractions. Presence counting lands with its first real consumer.
-- #8 (removal/mute across connections): the no-duplicate-row half is proven by the partial unique index. The cross-connection targeting half belongs to M4-05, which adds the send-to-actor seam when it needs it.
-
-Generation is connection-scoped and replica-local. The durable uniqueness guarantee (no duplicate on reconnect) comes from the database index, not the generation.
-
-Cross-replica coordination is NOT covered by M1-06: TASK-7 is Done and delivered only the Redis adapter (CoordinationStore, pub/sub, TTLs, ADR 0017), never wiring connection state onto it. The connection hub that would make generation ordering, session roster fan-out, and presence counting replica-safe is TASK-34 (M5-03 Realtime fanout), whose AC 1 is 'clients on two API replicas receive committed message once'. TASK-34 must treat the session-scoped registry methods added here as in scope for that work. Tracked as TASK-133.
-
-Validation: cargo fmt --check clean, clippy --workspace --all-targets -D warnings clean, 150 tests pass across 35 suites including the Postgres-backed participant and migration tests, which now run under MAHFEL_TESTCONTAINERS=1 and also via MAHFEL_TEST_DATABASE_URL. just docs builds. sqlfluff reports only the pre-existing 0004_identity.sql LT02, which is left alone to preserve the SQLx checksum.
+AC 6 closed by TASK-125 (M4-06). Admission layered onto the existing join path without reshaping the participant model: join_session gained a JoinOutcome return and a waiting branch, and Participant, ParticipantStore, and the (session, actor) uniqueness invariant were all unchanged. The lobby reuses the same participant identity on approval, including reusing an existing active participant, so the model proved reusable as claimed. AC 7 (multi-device presence counting) and AC 8 (cross-connection targeting) remain open and belong to TASK-28, where moderation actually needs to resolve a participant across its connections.
 <!-- SECTION:NOTES:END -->
 
 ## Comments
