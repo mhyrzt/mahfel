@@ -6,7 +6,7 @@ use super::{
     },
     cors_layer,
     service_principals::{ServicePrincipalAdmin, StoreServicePrincipalAdmin},
-    ws::{ParticipationStores, WsConfig, WsMetrics, WsState},
+    ws::{Outbound, ParticipationStores, ServerMessage, WsConfig, WsMetrics, WsState},
 };
 use axum::{
     Router,
@@ -30,9 +30,9 @@ use mahfel_domain::{
     ActorId, ActorKind, AdmissionOrigin, AdmissionRequest, AdmissionRequestId,
     AdmissionRequestStatus, AdmissionTarget, DisplayName, Identity, IntervalId, InviteCode,
     InviteLink, InviteLinkId, InviteLinkStatus, InviteTarget, InviteTargetKind, Issuer,
-    Participant, ParticipantId, ParticipationInterval, Room, RoomId, RoomMember, RoomRole,
-    RoomTitle, RoomVisibility, ServicePrincipal, ServicePrincipalStatus, Session, SessionId,
-    SessionStatus, Subject, User, UserStatus,
+    Participant, ParticipantId, ParticipantStatus, ParticipationInterval, Room, RoomId, RoomMember,
+    RoomRole, RoomTitle, RoomVisibility, ServicePrincipal, ServicePrincipalStatus, Session,
+    SessionId, SessionStatus, Subject, User, UserStatus,
 };
 use mahfel_media_client::GrpcMediaGateway;
 use prometheus::Encoder;
@@ -44,7 +44,7 @@ use std::{
 use time::OffsetDateTime;
 use tokio::{
     net::{TcpListener, TcpStream},
-    sync::watch,
+    sync::{mpsc, watch},
     task::JoinHandle,
 };
 use tokio_tungstenite::{
@@ -3571,6 +3571,152 @@ async fn websocket_join_resolves_a_participant_and_reconnect_reuses_it() {
         participant_id, repeated,
         "reconnect must reuse the stable participant identity"
     );
+}
+
+#[tokio::test]
+async fn websocket_disconnect_updates_presence_only_after_the_last_device() {
+    let (rooms, sessions, participants, session) = participation_fixture();
+    let participation = FakeParticipationStore::default();
+    let room_id = session.room_id;
+    let harness = serve_ws_seeded(
+        principal(),
+        WsSeeds {
+            rooms,
+            sessions,
+            participants: participants.clone(),
+            participation: participation.clone(),
+            ..WsSeeds::default()
+        },
+    )
+    .await;
+
+    let mut first = connect(harness.addr).await;
+    authenticate(&mut first).await;
+    send(
+        &mut first,
+        &format!(r#"{{"v":1,"type":"join","session_id":"{}"}}"#, session.id),
+    )
+    .await;
+    let joined = next(&mut first).await.to_text().expect("text").to_owned();
+    let participant_id = ParticipantId::from_uuid(
+        Uuid::parse_str(
+            joined
+                .split(r#""participant_id":""#)
+                .nth(1)
+                .and_then(|rest| rest.split('"').next())
+                .expect("participant id"),
+        )
+        .expect("uuid"),
+    );
+
+    let mut second = connect(harness.addr).await;
+    authenticate(&mut second).await;
+    send(
+        &mut second,
+        &format!(r#"{{"v":1,"type":"join","session_id":"{}"}}"#, session.id),
+    )
+    .await;
+    let second_joined = next(&mut second).await.to_text().expect("text").to_owned();
+    assert!(second_joined.contains(&participant_id.to_string()));
+
+    // Observe roster events without opening a third socket through the fixed
+    // test authenticator, which authenticates every socket as the same actor.
+    let observer_id = Uuid::new_v4();
+    let (observer_tx, mut observer_rx) = mpsc::channel(8);
+    let observer = harness
+        .realtime
+        .registry
+        .register(observer_id, ActorId::new(), observer_tx);
+    harness
+        .realtime
+        .registry
+        .joined(observer_id, room_id, session.id, ParticipantId::new());
+
+    first.close(None).await.expect("close first device");
+    tokio::time::timeout(Duration::from_secs(3), async {
+        while harness
+            .realtime
+            .registry
+            .connection_count_for_participant(session.id, principal().actor_id)
+            != 1
+        {
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+    })
+    .await
+    .expect("first device detached");
+    assert!(
+        tokio::time::timeout(Duration::from_millis(50), observer_rx.recv())
+            .await
+            .is_err(),
+        "first departure is not a leave"
+    );
+    assert_eq!(
+        participation
+            .list_for_participant(participant_id)
+            .iter()
+            .filter(|interval| interval.is_open())
+            .count(),
+        1,
+        "one device keeps the connected interval open"
+    );
+
+    second.close(None).await.expect("close last device");
+    let event = tokio::time::timeout(Duration::from_secs(3), observer_rx.recv())
+        .await
+        .expect("roster event after last departure")
+        .expect("observer is registered");
+    assert!(matches!(
+        event,
+        Outbound::Message(ServerMessage::ParticipantLeft {
+            session_id: left_session,
+            participant_id: left_participant,
+        }) if left_session == session.id.to_string() && left_participant == participant_id.to_string()
+    ));
+    assert_eq!(
+        harness
+            .realtime
+            .registry
+            .connection_count_for_participant(session.id, principal().actor_id),
+        0
+    );
+    assert!(
+        participation
+            .list_for_participant(participant_id)
+            .iter()
+            .all(|interval| !interval.is_open()),
+        "last departure closes connected time"
+    );
+    assert_eq!(
+        participants
+            .get(participant_id)
+            .await
+            .expect("store")
+            .expect("participant")
+            .status,
+        ParticipantStatus::Active,
+        "unexpected disconnect preserves reconnect identity"
+    );
+
+    let mut third = connect(harness.addr).await;
+    authenticate(&mut third).await;
+    send(
+        &mut third,
+        &format!(r#"{{"v":1,"type":"join","session_id":"{}"}}"#, session.id),
+    )
+    .await;
+    let rejoined = next(&mut third).await.to_text().expect("text").to_owned();
+    assert!(rejoined.contains(&participant_id.to_string()));
+    let intervals = participation.list_for_participant(participant_id);
+    assert_eq!(intervals.len(), 2, "reconnect starts another interval");
+    assert_eq!(
+        intervals
+            .iter()
+            .filter(|interval| interval.is_open())
+            .count(),
+        1
+    );
+    drop(observer);
 }
 
 #[tokio::test]

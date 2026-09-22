@@ -42,6 +42,8 @@ pub(super) async fn handle_join(
         Ok(session_id) => session_id,
         Err(rejection) => return connection.send(rejection).await,
     };
+    let lifecycle_lock = registry.lifecycle_lock(session_id, principal.actor_id);
+    let lifecycle_guard = lifecycle_lock.lock().await;
 
     // Deny by default: the application guard authorizes against membership and
     // visibility, and M4-06 admission policy extends this same path.
@@ -119,6 +121,7 @@ pub(super) async fn handle_join(
             participant_id: participant.id.to_string(),
         },
     );
+    drop(lifecycle_guard);
     Ok(())
 }
 
@@ -130,7 +133,7 @@ pub(super) async fn handle_leave(
     principal: &Principal,
     state: &WsState,
 ) -> Result<(), DisconnectReason> {
-    let Some((session_id, participant_id)) = registry.participation(id) else {
+    let Some(handle) = registry.participation(id) else {
         return connection
             .send(ServerMessage::JoinRejected {
                 code: "not_joined".to_owned(),
@@ -138,36 +141,48 @@ pub(super) async fn handle_leave(
             })
             .await;
     };
-
-    // Whether this is the last connection the participant holds here. Detached
-    // before the count, so this connection is not counted against itself.
-    registry.left(id);
-    state.speakers.prune(registry);
-    close_owned_transports(connection, state).await;
+    let session_id = handle.session_id;
+    let participant_id = handle.participant_id;
+    let lifecycle_lock = registry.lifecycle_lock(session_id, principal.actor_id);
+    let lifecycle_guard = lifecycle_lock.lock().await;
+    if !registry.left_if_current(id, handle) {
+        drop(lifecycle_guard);
+        return connection
+            .send(ServerMessage::JoinRejected {
+                code: "not_joined".to_owned(),
+                message: "connection has not joined a session".to_owned(),
+            })
+            .await;
+    }
     let remaining = registry.connection_count_for_participant(session_id, principal.actor_id);
-
-    // A participant is present while at least one connection is live (AC 7), so
-    // a device closing while another is streaming must not end the
-    // participation or tell the roster the participant left.
-    if remaining > 0 {
-        connection
-            .send(ServerMessage::Left {
+    // Only the last local device ends durable participation. Serialize that
+    // transition with joins so a reconnect cannot reuse a row being left.
+    let outcome = if remaining == 0 {
+        leave_session(
+            state.stores.participants.as_ref(),
+            state.stores.participation.as_ref(),
+            LeaveSession {
+                actor: principal.actor_id,
+                participant_id,
+            },
+        )
+        .await
+    } else {
+        Ok(())
+    };
+    if outcome.is_ok() && remaining == 0 {
+        registry.broadcast_to_session_except(
+            session_id,
+            id,
+            &ServerMessage::ParticipantLeft {
                 session_id: session_id.to_string(),
                 participant_id: participant_id.to_string(),
-            })
-            .await?;
-        return Ok(());
+            },
+        );
     }
-
-    let outcome = leave_session(
-        state.stores.participants.as_ref(),
-        state.stores.participation.as_ref(),
-        LeaveSession {
-            actor: principal.actor_id,
-            participant_id,
-        },
-    )
-    .await;
+    drop(lifecycle_guard);
+    state.speakers.prune(registry);
+    close_owned_transports(connection, state).await;
     match outcome {
         Ok(()) => {
             connection
@@ -176,14 +191,6 @@ pub(super) async fn handle_leave(
                     participant_id: participant_id.to_string(),
                 })
                 .await?;
-            registry.broadcast_to_session_except(
-                session_id,
-                id,
-                &ServerMessage::ParticipantLeft {
-                    session_id: session_id.to_string(),
-                    participant_id: participant_id.to_string(),
-                },
-            );
             Ok(())
         }
         // A concurrent leave wins; the connection is already detached.

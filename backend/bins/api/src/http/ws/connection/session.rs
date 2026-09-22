@@ -74,29 +74,40 @@ pub(super) async fn run(
     )
     .await;
 
+    // A dropped socket still changes local presence. Keep the durable
+    // participant Active so a reconnect reuses its identity, but close the
+    // connected-time interval and notify the roster when the last device goes.
+    if let Some(handle) = registry.participation(id) {
+        let lifecycle_lock = registry.lifecycle_lock(handle.session_id, principal.actor_id);
+        let lifecycle_guard = lifecycle_lock.lock().await;
+        if registry.left_if_current(id, handle)
+            && registry.connection_count_for_participant(handle.session_id, principal.actor_id) == 0
+        {
+            if let Err(error) = state
+                .stores
+                .participation
+                .close_open_interval(handle.participant_id, time::OffsetDateTime::now_utc())
+                .await
+            {
+                tracing::warn!(
+                    ?error,
+                    participant_id = %handle.participant_id,
+                    "failed to close participation interval on disconnect"
+                );
+            }
+            registry.broadcast_to_session(
+                handle.session_id,
+                &ServerMessage::ParticipantLeft {
+                    session_id: handle.session_id.to_string(),
+                    participant_id: handle.participant_id.to_string(),
+                },
+            );
+        }
+        drop(lifecycle_guard);
+    }
+    drop(registration);
     // This also covers EOF, heartbeat timeout, write failure, and shutdown.
     dispatch::close_owned_transports(connection, state).await;
-
-    // A transport can vanish without a `leave` frame: a dropped socket, a
-    // heartbeat timeout, a write failure, or a server shutdown. Close the
-    // durable interval here so connected time is recorded for every exit path,
-    // not only a graceful leave (AC 5). `leave` already closed it when the
-    // client left explicitly, and closing is idempotent.
-    if let Some((_, participant_id)) = registry.participation(id)
-        && let Err(error) = state
-            .stores
-            .participation
-            .close_open_interval(participant_id, time::OffsetDateTime::now_utc())
-            .await
-    {
-        tracing::warn!(
-            ?error,
-            participant_id = %participant_id,
-            "failed to close participation interval on disconnect"
-        );
-    }
-
-    drop(registration);
     state.speakers.prune(registry);
     // The loop only ends by returning an error; an `Ok` completion is
     // unreachable and mapped defensively.

@@ -3,15 +3,16 @@ use mahfel_domain::{ActorId, ParticipantId, RoomId, SessionId};
 use std::{
     collections::HashMap,
     sync::{
-        Arc, Mutex, MutexGuard, PoisonError,
+        Arc, Mutex, MutexGuard, PoisonError, Weak,
         atomic::{AtomicUsize, Ordering},
     },
 };
-use tokio::sync::mpsc;
+use tokio::sync::{Mutex as AsyncMutex, mpsc};
 
 use uuid::Uuid;
 
 mod fanout;
+mod lifecycle;
 mod participation;
 #[cfg(test)]
 mod tests;
@@ -56,8 +57,12 @@ struct Inner {
     reserved: AtomicUsize,
     connections: Mutex<HashMap<Uuid, Connection>>,
     generations: Mutex<HashMap<(SessionId, ActorId), u64>>,
+    lifecycle_locks: Mutex<HashMap<LifecycleKey, Weak<LifecycleLock>>>,
     metrics: WsMetrics,
 }
+
+type LifecycleKey = (SessionId, ActorId);
+type LifecycleLock = AsyncMutex<()>;
 
 impl ConnectionRegistry {
     #[must_use]
@@ -68,6 +73,7 @@ impl ConnectionRegistry {
                 reserved: AtomicUsize::new(0),
                 connections: Mutex::new(HashMap::new()),
                 generations: Mutex::new(HashMap::new()),
+                lifecycle_locks: Mutex::new(HashMap::new()),
                 metrics,
             }),
         }

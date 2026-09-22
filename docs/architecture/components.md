@@ -109,6 +109,13 @@ creating a new one, and the roster shows one entry. An operation that targets th
 or a removal, M4-05) must therefore resolve across every connection that actor holds, not one
 transport.
 
+An explicit `leave` ends the durable participation when the actor's last local connection leaves.
+An unexpected transport loss removes local presence and closes the connected-time interval after
+the last local connection, but leaves the participant row active so reconnect reuses its ID and
+opens a new interval. Join and departure for one `(session, actor)` are serialized on each API
+replica; a connection generation prevents cleanup captured before a rejoin from detaching the
+newer registration. Last-device departure emits `participant_left` to the replica-local roster.
+
 #### Known limitations
 
 These apply only when more than one API replica runs before the realtime fanout work
@@ -144,12 +151,13 @@ actor_id)` and referencing the durable participant rather than a transport.
   ended_at IS NULL` makes this a database invariant, so a duplicated connect or a racing join
   collides instead of recording two open stretches. Intervals for one participant therefore never
   overlap.
-- **The reconnect policy is no grace.** A disconnect closes the interval immediately, and a reconnect
-  opens a new one against the same durable participant. Records fragment across a flaky connection,
-  but the aggregate is exact and there is no clock-skew window or expiry job to get wrong.
+- **The reconnect policy is no grace after the last local device.** Losing one of several connections
+  keeps the interval open. Losing the last closes it immediately, and a reconnect opens a new one
+  against the same durable participant. Records fragment across a flaky connection, but there is no
+  clock-skew window or expiry job to get wrong.
 - **No interval outlives its session.** Ending a session sweeps every open interval in it, stopping
   the clock at the session end. Abrupt disconnects are covered because the WebSocket teardown closes
-  the interval on every exit path, not only a graceful `leave`.
+  the interval after the last local connection exits, not only after a graceful `leave`.
 
 Queries are manager-scoped for a session summary and self-scoped for a participant's own history, so
 a client can show its own connected time without seeing anyone else's. Corrections are manager-only

@@ -9,6 +9,8 @@ mod state;
 pub use config::WsConfig;
 pub use metrics::WsMetrics;
 pub use state::{ParticipationStores, WsState};
+#[cfg(test)]
+pub(super) use {envelope::ServerMessage, registry::Outbound};
 
 use crate::http::{error::ApiError, state::AppState};
 use axum::{

@@ -4,6 +4,13 @@ use super::ConnectionRegistry;
 use mahfel_domain::{ActorId, ParticipantId, RoomId, SessionId};
 use uuid::Uuid;
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) struct ParticipationHandle {
+    pub session_id: SessionId,
+    pub participant_id: ParticipantId,
+    pub generation: u64,
+}
+
 impl ConnectionRegistry {
     /// Hand out the next generation for the connection's `(session, actor)`.
     pub fn joined(
@@ -29,19 +36,32 @@ impl ConnectionRegistry {
         generation
     }
 
-    pub fn left(&self, id: Uuid) {
-        if let Some(connection) = self.lock().get_mut(&id) {
-            connection.session_id = None;
-            connection.room_id = None;
-            connection.participant_id = None;
+    pub(crate) fn left_if_current(&self, id: Uuid, expected: ParticipationHandle) -> bool {
+        let mut connections = self.lock();
+        let Some(connection) = connections.get_mut(&id) else {
+            return false;
+        };
+        if connection.session_id != Some(expected.session_id)
+            || connection.participant_id != Some(expected.participant_id)
+            || connection.generation != expected.generation
+        {
+            return false;
         }
+        connection.session_id = None;
+        connection.room_id = None;
+        connection.participant_id = None;
+        true
     }
 
     #[must_use]
-    pub fn participation(&self, id: Uuid) -> Option<(SessionId, ParticipantId)> {
-        self.lock()
-            .get(&id)
-            .and_then(|connection| connection.session_id.zip(connection.participant_id))
+    pub(crate) fn participation(&self, id: Uuid) -> Option<ParticipationHandle> {
+        self.lock().get(&id).and_then(|connection| {
+            Some(ParticipationHandle {
+                session_id: connection.session_id?,
+                participant_id: connection.participant_id?,
+                generation: connection.generation,
+            })
+        })
     }
 
     #[must_use]

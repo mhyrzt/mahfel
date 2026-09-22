@@ -1,11 +1,11 @@
 ---
 id: TASK-27
 title: M4-02 Participant lifecycle and reconnect identity
-status: In Progress
+status: Done
 assignee:
   - '@mahyar'
 created_date: '2026-09-08 00:31'
-updated_date: '2026-09-22 20:06'
+updated_date: '2026-09-22 23:16'
 labels:
   - backend
   - api
@@ -63,6 +63,10 @@ AC 7, multi-device presence: ConnectionRegistry::connection_count_for_participan
 AC 8, cross-connection resolution: moderation keys on the actor rather than a connection, so a mute or removal resolves across every device a participant holds: producers are paused or closed once for the principal, and the participant is ended once. Fan-out uses broadcast_to_session, which reaches the target as well as the roster, because the target must learn it was muted or removed. The second device does not duplicate the participant row, which the partial unique index on (session_id, actor_id) WHERE status = 'active' already guaranteed from this task.
 
 Replica caveat, unchanged: the registry is replica-local, so a participant with devices attached to two replicas is counted once per replica. Cross-replica presence and targeting need the connection hub (M4-05 depends on TASK-34, M5-03, ADR 0017), which is why these were testable here single-replica only.
+
+Follow-up in progress: reconcile unexpected WebSocket disconnects under a per-(session,actor) lifecycle lock. Detach only the matching connection generation; close the participation interval and emit ParticipantLeft only when the last local connection leaves. Preserve the active durable participant on unexpected disconnect so reconnect reuses its ID. Explicit leave remains terminal.
+
+Follow-up complete: unexpected WebSocket disconnect now detaches only the captured connection generation under a per-(session,actor) lifecycle lock. The last local connection closes the participation interval and emits participant_left; earlier device departures keep the interval and roster presence. The durable participant remains Active on unexpected disconnect, so reconnect reuses its ID and starts another interval. Explicit leave remains terminal on the last local connection. Added a WebSocket regression for two devices, last-device departure, roster fan-out, and reconnect; added a stale-generation registry test; updated architecture documentation. Validation: mahfel-api unit suite 125 passed; focused disconnect regression passed after final adjustment; cargo clippy -p mahfel-api --all-targets -- -D warnings passed; just backend fmt passed; just docs passed. Cross-replica presence and fan-out remain with TASK-34/M5-03.
 <!-- SECTION:NOTES:END -->
 
 ## Comments
@@ -76,3 +80,9 @@ A2 concurrent devices: one participant may hold several live connections; presen
 B1 blocking deferred to M4-05: M4-02 ends the connection only; the durable block list and its join-path check land in M4-05 without reworking the participant model (AC 6).
 ---
 <!-- COMMENTS:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Completed stable participant lifecycle for replica-local multi-device WebSockets: generation-guarded join/departure, correct last-device presence and connected-time cleanup, and reconnect identity. Verified by 125 API unit tests, strict clippy, formatting, and docs build.
+<!-- SECTION:FINAL_SUMMARY:END -->
