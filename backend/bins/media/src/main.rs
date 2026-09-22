@@ -7,9 +7,9 @@ use anyhow::{Context, Result};
 use mahfel_config::Settings;
 use mahfel_domain::NodeId;
 use mahfel_rtc::MediaRuntime;
-use mahfel_rtc_protocol::media::media_control_server::MediaControlServer;
+use mahfel_rtc_protocol::media::media_control_service_server::MediaControlServiceServer;
 use mahfel_telemetry::{init_tracing, operations, serve_http, shutdown_signal, wait_for_shutdown};
-use service::MediaControlService;
+use service::MediaControlServiceImpl;
 use std::{net::SocketAddr, sync::Arc};
 use tokio::sync::watch;
 use tokio_stream::wrappers::TcpListenerStream;
@@ -35,7 +35,7 @@ async fn main() -> Result<()> {
     );
 
     let node_id = NodeId::new();
-    let service = MediaControlService {
+    let service = MediaControlServiceImpl {
         node_id: node_id.clone(),
         worker_count: validation::saturating_u32(media.active_workers()),
         rtc_ports: media.ports().iter().copied().map(u32::from).collect(),
@@ -72,7 +72,7 @@ async fn main() -> Result<()> {
     ));
     let grpc_task = tokio::spawn(async move {
         Server::builder()
-            .add_service(MediaControlServer::new(service))
+            .add_service(MediaControlServiceServer::new(service))
             .serve_with_incoming_shutdown(
                 TcpListenerStream::new(grpc_listener),
                 wait_for_shutdown(grpc_shutdown),

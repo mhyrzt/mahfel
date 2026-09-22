@@ -1,16 +1,16 @@
 use crate::error::MediaClientError;
-use mahfel_rtc_protocol::media::media_control_client::MediaControlClient;
+use mahfel_rtc_protocol::media::media_control_service_client::MediaControlServiceClient;
 use tonic::transport::{Channel, Endpoint};
 
 #[derive(Clone)]
 pub struct GrpcMediaGateway {
-    pub(super) client: MediaControlClient<Channel>,
+    pub(super) client: MediaControlServiceClient<Channel>,
 }
 
 impl GrpcMediaGateway {
     pub fn from_channel(channel: Channel) -> Self {
         Self {
-            client: MediaControlClient::new(channel),
+            client: MediaControlServiceClient::new(channel),
         }
     }
 
@@ -21,13 +21,13 @@ impl GrpcMediaGateway {
     }
 
     #[must_use]
-    pub fn into_inner(self) -> MediaControlClient<Channel> {
+    pub fn into_inner(self) -> MediaControlServiceClient<Channel> {
         self.client
     }
 }
 
-pub fn lazy(endpoint: String) -> Result<MediaControlClient<Channel>, MediaClientError> {
-    Ok(MediaControlClient::new(
+pub fn lazy(endpoint: String) -> Result<MediaControlServiceClient<Channel>, MediaClientError> {
+    Ok(MediaControlServiceClient::new(
         Endpoint::from_shared(endpoint)?.connect_lazy(),
     ))
 }

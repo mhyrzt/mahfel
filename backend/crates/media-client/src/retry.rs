@@ -1,12 +1,12 @@
 use tonic::{Code, Status, transport::Channel};
 
 use super::gateway::GrpcMediaGateway;
-use mahfel_rtc_protocol::media::media_control_client::MediaControlClient;
+use mahfel_rtc_protocol::media::media_control_service_client::MediaControlServiceClient;
 
 impl GrpcMediaGateway {
     pub(super) async fn with_retry<F, T, Fut>(&self, mut operation: F) -> Result<T, Status>
     where
-        F: FnMut(MediaControlClient<Channel>) -> Fut + Send,
+        F: FnMut(MediaControlServiceClient<Channel>) -> Fut + Send,
         Fut: std::future::Future<Output = Result<tonic::Response<T>, Status>> + Send,
         T: Send,
     {

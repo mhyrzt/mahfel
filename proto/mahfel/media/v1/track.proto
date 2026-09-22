@@ -32,6 +32,20 @@ message ConsumeResponse {
   bool paused = 3;
 }
 
+message PauseProducerRequest {
+  string room_id = 1;
+  string producer_id = 2;
+}
+
+message PauseProducerResponse {}
+
+message ResumeProducerRequest {
+  string room_id = 1;
+  string producer_id = 2;
+}
+
+message ResumeProducerResponse {}
+
 message PauseConsumerRequest {
   string room_id = 1;
   string consumer_id = 2;

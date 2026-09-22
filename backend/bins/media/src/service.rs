@@ -9,7 +9,7 @@ use tonic::{Request, Response, Status};
 use crate::validation::saturating_u64;
 
 #[derive(Clone)]
-pub struct MediaControlService {
+pub struct MediaControlServiceImpl {
     pub node_id: NodeId,
     pub worker_count: u32,
     pub rtc_ports: Vec<u32>,
@@ -17,7 +17,9 @@ pub struct MediaControlService {
 }
 
 #[tonic::async_trait]
-impl mahfel_rtc_protocol::media::media_control_server::MediaControl for MediaControlService {
+impl mahfel_rtc_protocol::media::media_control_service_server::MediaControlService
+    for MediaControlServiceImpl
+{
     async fn get_node_info(
         &self,
         _request: Request<GetNodeInfoRequest>,
@@ -79,6 +81,20 @@ impl mahfel_rtc_protocol::media::media_control_server::MediaControl for MediaCon
         crate::handlers::producer::produce(&self.media, request).await
     }
 
+    async fn pause_producer(
+        &self,
+        request: Request<mahfel_rtc_protocol::media::PauseProducerRequest>,
+    ) -> Result<Response<mahfel_rtc_protocol::media::PauseProducerResponse>, Status> {
+        crate::handlers::producer::pause_producer(&self.media, request).await
+    }
+
+    async fn resume_producer(
+        &self,
+        request: Request<mahfel_rtc_protocol::media::ResumeProducerRequest>,
+    ) -> Result<Response<mahfel_rtc_protocol::media::ResumeProducerResponse>, Status> {
+        crate::handlers::producer::resume_producer(&self.media, request).await
+    }
+
     async fn consume(
         &self,
         request: Request<mahfel_rtc_protocol::media::ConsumeRequest>,
@@ -102,10 +118,8 @@ impl mahfel_rtc_protocol::media::media_control_server::MediaControl for MediaCon
 
     async fn close_participant(
         &self,
-        _: Request<mahfel_rtc_protocol::media::CloseParticipantRequest>,
+        request: Request<mahfel_rtc_protocol::media::CloseParticipantRequest>,
     ) -> Result<Response<mahfel_rtc_protocol::media::CloseParticipantResponse>, Status> {
-        Err(Status::unimplemented(
-            "media operation is planned for milestone M3",
-        ))
+        crate::handlers::producer::close_participant(&self.media, request).await
     }
 }
