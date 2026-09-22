@@ -1,7 +1,7 @@
 use super::error::RtcError;
 use super::room::RoomMap;
 use super::transport::TransportMap;
-use mahfel_domain::{ActorId, RoomId};
+use mahfel_domain::{ActorId, ProducerSource, RoomId};
 use mediasoup::prelude::{MediaKind, Producer, ProducerOptions, RtpParameters, Transport};
 use std::{collections::HashMap, sync::Arc};
 use tokio::sync::RwLock;
@@ -12,6 +12,8 @@ pub(super) struct ProducerEntry {
     pub(super) room_id: RoomId,
     pub(super) transport_id: String,
     pub(super) participant_id: ActorId,
+    pub(super) kind: MediaKind,
+    pub(super) source: ProducerSource,
 }
 
 pub(super) type ProducerMap = Arc<RwLock<HashMap<String, ProducerEntry>>>;
@@ -25,6 +27,7 @@ pub(super) async fn create_producer(
     transport_id: &str,
     participant_id: ActorId,
     kind: MediaKind,
+    source: ProducerSource,
     rtp_parameters_json: &str,
 ) -> Result<String, RtcError> {
     let rtp_parameters: RtpParameters = serde_json::from_str(rtp_parameters_json)
@@ -65,6 +68,8 @@ pub(super) async fn create_producer(
             room_id,
             transport_id: transport_id.to_owned(),
             participant_id,
+            kind,
+            source,
         },
     );
     Ok(producer_id)
@@ -126,6 +131,61 @@ pub(super) async fn resume_producer(
     Ok(())
 }
 
+/// Pause every producer a participant owns for one source.
+///
+/// Source targeting is what makes muting a microphone distinct from stopping a
+/// camera or a screen share, which are all video or audio to the SFU. Returns
+/// how many were paused, which is zero when they published nothing of that
+/// source.
+pub(super) async fn pause_participant_source(
+    producers: &ProducerMap,
+    room_id: RoomId,
+    participant_id: ActorId,
+    source: ProducerSource,
+) -> Result<usize, RtcError> {
+    let map = producers.read().await;
+    let selected = owned_producer_ids(&map, room_id, participant_id, Some(source));
+
+    let mut paused = 0;
+    for producer_id in selected {
+        let Some(entry) = map.get(&producer_id) else {
+            continue;
+        };
+        entry
+            .producer
+            .pause()
+            .await
+            .map_err(|e| RtcError::Producer(e.to_string()))?;
+        paused += 1;
+    }
+    Ok(paused)
+}
+
+/// Resume every producer a participant owns for one source.
+pub(super) async fn resume_participant_source(
+    producers: &ProducerMap,
+    room_id: RoomId,
+    participant_id: ActorId,
+    source: ProducerSource,
+) -> Result<usize, RtcError> {
+    let map = producers.read().await;
+    let selected = owned_producer_ids(&map, room_id, participant_id, Some(source));
+
+    let mut resumed = 0;
+    for producer_id in selected {
+        let Some(entry) = map.get(&producer_id) else {
+            continue;
+        };
+        entry
+            .producer
+            .resume()
+            .await
+            .map_err(|e| RtcError::Producer(e.to_string()))?;
+        resumed += 1;
+    }
+    Ok(resumed)
+}
+
 /// Close every producer owned by one participant in one room.
 ///
 /// Removal is terminal, so closing is correct here rather than pausing: the
@@ -143,7 +203,9 @@ pub(super) async fn close_participant(
     participant_id: ActorId,
 ) -> Result<usize, RtcError> {
     let mut map = producers.write().await;
-    let owned = owned_producer_ids(&map, room_id, participant_id);
+    // Removal ends participation, so every source goes; source targeting is for
+    // mute, which is a narrower action.
+    let owned = owned_producer_ids(&map, room_id, participant_id, None);
 
     let mut closed = 0;
     for producer_id in owned {
@@ -154,37 +216,74 @@ pub(super) async fn close_participant(
     Ok(closed)
 }
 
-/// Which of a participant's producers a close should remove.
+/// Close every producer a participant owns for one source.
+///
+/// Removal closes every source; this closes one, which is what a capability
+/// withdrawal needs when only part of a participant's media is no longer
+/// permitted. Returns how many were closed.
+pub(super) async fn close_participant_source(
+    producers: &ProducerMap,
+    room_id: RoomId,
+    participant_id: ActorId,
+    source: ProducerSource,
+) -> Result<usize, RtcError> {
+    let mut map = producers.write().await;
+    let owned = owned_producer_ids(&map, room_id, participant_id, Some(source));
+
+    let mut closed = 0;
+    for producer_id in owned {
+        if map.remove(&producer_id).is_some() {
+            closed += 1;
+        }
+    }
+    Ok(closed)
+}
+
+/// Which of a participant's producers a selection should take.
 fn owned_producer_ids(
     producers: &HashMap<String, ProducerEntry>,
     room_id: RoomId,
     participant_id: ActorId,
+    source: Option<ProducerSource>,
 ) -> Vec<String> {
     producers
         .iter()
-        .filter(|(_, entry)| owned_by(entry.room_id, entry.participant_id, room_id, participant_id))
+        .filter(|(_, entry)| {
+            owned_by(
+                entry.room_id,
+                entry.participant_id,
+                entry.source,
+                room_id,
+                participant_id,
+                source,
+            )
+        })
         .map(|(id, _)| id.clone())
         .collect()
 }
 
-/// Whether one entry is a producer this close should remove.
+/// Whether one entry matches a moderation selection.
 ///
-/// The rule the whole operation rests on: a producer is removed only for the
-/// named participant, and only in the named room. A producer in another room is
-/// not this caller's to close even for the right participant.
+/// A selection names a source, or all of them when `source` is `None`, so
+/// muting audio and stopping a screen share are separate operations rather than
+/// both ending the participant's video.
 ///
-/// It takes the entry's two fields rather than the entry itself, which is what
+/// It takes the entry's fields rather than the entry itself, which is what
 /// makes the rule testable: a `ProducerEntry` cannot be constructed outside
-/// mediasoup, since `Producer::new` is private and needs a live worker. Four
-/// `RoomId`/`ActorId` arguments are easy to transpose, so the first two are
-/// always the entry's own fields and the last two are the request's.
+/// mediasoup, since `Producer::new` is private and needs a live worker. Several
+/// `RoomId`/`ActorId` arguments are easy to transpose, so the entry's own
+/// fields always come first and the request's after them.
 fn owned_by(
     entry_room_id: RoomId,
     entry_participant_id: ActorId,
+    entry_source: ProducerSource,
     room_id: RoomId,
     participant_id: ActorId,
+    source: Option<ProducerSource>,
 ) -> bool {
-    entry_room_id == room_id && entry_participant_id == participant_id
+    entry_room_id == room_id
+        && entry_participant_id == participant_id
+        && source.is_none_or(|wanted| entry_source == wanted)
 }
 
 #[cfg(test)]
@@ -198,12 +297,19 @@ mod tests {
         let alice = ActorId::new();
 
         assert!(
-            owned_by(room, alice, room, alice),
+            owned_by(room, alice, ProducerSource::Microphone, room, alice, None),
             "the participant's producer in this room is selected"
         );
         assert!(
-            !owned_by(room, alice, other_room, alice),
-            "a producer in another room must not be closed, even for the same participant"
+            !owned_by(
+                room,
+                alice,
+                ProducerSource::Microphone,
+                other_room,
+                alice,
+                None
+            ),
+            "a producer in another room must not be selected, even for the same participant"
         );
     }
 
@@ -213,23 +319,87 @@ mod tests {
         let alice = ActorId::new();
         let bob = ActorId::new();
 
-        assert!(owned_by(room, alice, room, alice));
+        assert!(owned_by(
+            room,
+            alice,
+            ProducerSource::Camera,
+            room,
+            alice,
+            None
+        ));
         assert!(
-            !owned_by(room, alice, room, bob),
-            "another participant's producer must not be closed"
+            !owned_by(room, alice, ProducerSource::Camera, room, bob, None),
+            "another participant's producer must not be selected"
         );
     }
 
     #[test]
-    fn a_producer_in_another_room_belonging_to_another_participant_is_not_owned() {
+    fn every_source_is_selected_when_none_is_named() {
         let room = RoomId::new();
-        let other_room = RoomId::new();
         let alice = ActorId::new();
-        let bob = ActorId::new();
+        for source in [
+            ProducerSource::Microphone,
+            ProducerSource::Camera,
+            ProducerSource::Screen,
+        ] {
+            assert!(
+                owned_by(room, alice, source, room, alice, None),
+                "an unnamed source selects all of them, which is what removal needs"
+            );
+        }
+    }
 
+    #[test]
+    fn only_the_named_source_is_selected_when_one_is_named() {
+        let room = RoomId::new();
+        let alice = ActorId::new();
+
+        assert!(owned_by(
+            room,
+            alice,
+            ProducerSource::Microphone,
+            room,
+            alice,
+            Some(ProducerSource::Microphone)
+        ));
         assert!(
-            !owned_by(other_room, bob, room, alice),
-            "both fields must match; one matching is not enough"
+            !owned_by(
+                room,
+                alice,
+                ProducerSource::Camera,
+                room,
+                alice,
+                Some(ProducerSource::Microphone)
+            ),
+            "muting the microphone must not touch the camera"
+        );
+    }
+
+    #[test]
+    fn stopping_a_screen_share_leaves_the_camera_alone() {
+        // The case that makes the source field necessary: both are video to the
+        // SFU, so a kind-only selection could not tell them apart.
+        let room = RoomId::new();
+        let alice = ActorId::new();
+
+        assert!(owned_by(
+            room,
+            alice,
+            ProducerSource::Screen,
+            room,
+            alice,
+            Some(ProducerSource::Screen)
+        ));
+        assert!(
+            !owned_by(
+                room,
+                alice,
+                ProducerSource::Camera,
+                room,
+                alice,
+                Some(ProducerSource::Screen)
+            ),
+            "stopping a screen share must not stop the camera"
         );
     }
 
@@ -240,7 +410,14 @@ mod tests {
         let room = RoomId::new();
         let alice = ActorId::new();
         assert!(
-            !owned_by(room, alice, room, ActorId::new()),
+            !owned_by(
+                room,
+                alice,
+                ProducerSource::Camera,
+                room,
+                ActorId::new(),
+                None
+            ),
             "a matching room alone must not select a producer"
         );
     }

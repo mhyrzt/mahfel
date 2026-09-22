@@ -16,9 +16,12 @@ service MediaControlService {
   rpc ConnectWebRtcTransport(ConnectWebRtcTransportRequest) returns (ConnectWebRtcTransportResponse);
   rpc Produce(ProduceRequest) returns (ProduceResponse);
   rpc PauseProducer(PauseProducerRequest) returns (PauseProducerResponse);
+  rpc PauseParticipantSource(PauseParticipantSourceRequest) returns (PauseParticipantSourceResponse);
+  rpc ResumeParticipantSource(ResumeParticipantSourceRequest) returns (ResumeParticipantSourceResponse);
   rpc ResumeProducer(ResumeProducerRequest) returns (ResumeProducerResponse);
   rpc Consume(ConsumeRequest) returns (ConsumeResponse);
   rpc PauseConsumer(PauseConsumerRequest) returns (PauseConsumerResponse);
   rpc ResumeConsumer(ResumeConsumerRequest) returns (ResumeConsumerResponse);
   rpc CloseParticipant(CloseParticipantRequest) returns (CloseParticipantResponse);
+  rpc CloseParticipantSource(CloseParticipantSourceRequest) returns (CloseParticipantSourceResponse);
 }

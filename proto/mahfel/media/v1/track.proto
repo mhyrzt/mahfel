@@ -6,10 +6,9 @@ message ProduceRequest {
   string room_id = 1;
   string participant_id = 2;
   string transport_id = 3;
-  // "audio" | "video"
   string kind = 4;
-  // JSON-encoded RtpParameters from mediasoup-client transport.produce
   string rtp_parameters = 5;
+  string source = 6;
 }
 
 message ProduceResponse {
@@ -21,13 +20,11 @@ message ConsumeRequest {
   string participant_id = 2;
   string producer_id = 3;
   string transport_id = 4;
-  // JSON-encoded RtpCapabilities from mediasoup-client Device.rtpCapabilities
   string rtp_capabilities = 5;
 }
 
 message ConsumeResponse {
   string consumer_id = 1;
-  // JSON-encoded RtpParameters for the consumer
   string rtp_parameters = 2;
   bool paused = 3;
 }
@@ -38,6 +35,45 @@ message PauseProducerRequest {
 }
 
 message PauseProducerResponse {}
+
+message PauseParticipantSourceRequest {
+  string room_id = 1;
+  string participant_id = 2;
+  string source = 3;
+}
+
+message PauseParticipantSourceResponse {
+  uint32 affected = 1;
+}
+
+message ResumeParticipantSourceRequest {
+  string room_id = 1;
+  string participant_id = 2;
+  // "microphone" | "camera" | "screen"
+  string source = 3;
+}
+
+message ResumeParticipantSourceResponse {
+  uint32 affected = 1;
+}
+
+message CloseParticipantSourceRequest {
+  string room_id = 1;
+  string participant_id = 2;
+  // "microphone" | "camera" | "screen"
+  string source = 3;
+}
+
+// How many producers were closed. Zero is normal when the participant has
+// published nothing of that source.
+message CloseParticipantSourceResponse {
+  uint32 closed = 1;
+}
+
+message CloseParticipantResponse {
+  // How many producers were closed. Zero is normal for a silent participant.
+  uint32 closed = 1;
+}
 
 message ResumeProducerRequest {
   string room_id = 1;
@@ -64,5 +100,3 @@ message CloseParticipantRequest {
   string room_id = 1;
   string participant_id = 2;
 }
-
-message CloseParticipantResponse {}

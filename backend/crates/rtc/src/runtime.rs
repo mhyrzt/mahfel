@@ -1,6 +1,6 @@
 use super::error::RtcError;
 use super::{consumer::ConsumerMap, producer::ProducerMap, room::RoomMap, transport::TransportMap};
-use mahfel_domain::{ActorId, RoomId};
+use mahfel_domain::{ActorId, ProducerSource, RoomId};
 use mediasoup::{
     prelude::{
         ListenInfo, MediaKind, Protocol, WebRtcServer, WebRtcServerListenInfos, WebRtcServerOptions,
@@ -190,6 +190,7 @@ impl MediaRuntime {
         transport_id: &str,
         participant_id: ActorId,
         kind: MediaKind,
+        source: ProducerSource,
         rtp_parameters_json: &str,
     ) -> Result<String, RtcError> {
         super::producer::create_producer(
@@ -200,9 +201,30 @@ impl MediaRuntime {
             transport_id,
             participant_id,
             kind,
+            source,
             rtp_parameters_json,
         )
         .await
+    }
+
+    pub async fn pause_participant_source(
+        &self,
+        room_id: RoomId,
+        participant_id: ActorId,
+        source: ProducerSource,
+    ) -> Result<usize, RtcError> {
+        super::producer::pause_participant_source(&self.producers, room_id, participant_id, source)
+            .await
+    }
+
+    pub async fn resume_participant_source(
+        &self,
+        room_id: RoomId,
+        participant_id: ActorId,
+        source: ProducerSource,
+    ) -> Result<usize, RtcError> {
+        super::producer::resume_participant_source(&self.producers, room_id, participant_id, source)
+            .await
     }
 
     pub async fn pause_producer(&self, room_id: RoomId, producer_id: &str) -> Result<(), RtcError> {
@@ -246,6 +268,16 @@ impl MediaRuntime {
         participant_id: ActorId,
     ) -> Result<usize, RtcError> {
         super::producer::close_participant(&self.producers, room_id, participant_id).await
+    }
+
+    pub async fn close_participant_source(
+        &self,
+        room_id: RoomId,
+        participant_id: ActorId,
+        source: ProducerSource,
+    ) -> Result<usize, RtcError> {
+        super::producer::close_participant_source(&self.producers, room_id, participant_id, source)
+            .await
     }
 
     pub async fn pause_consumer(&self, room_id: RoomId, consumer_id: &str) -> Result<(), RtcError> {

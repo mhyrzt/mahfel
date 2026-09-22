@@ -1,4 +1,4 @@
-use mahfel_domain::{ActorId, RoomId};
+use mahfel_domain::{ActorId, ProducerSource, RoomId};
 use mediasoup::prelude::MediaKind;
 use tonic::Status;
 use uuid::Uuid;
@@ -47,6 +47,29 @@ pub(crate) fn parse_media_kind(raw: &str) -> Result<MediaKind, Status> {
     }
 }
 
+/// The application-level intent of a producer.
+///
+/// An empty source takes the kind's obvious meaning, so a caller that predates
+/// the field keeps working: audio is a microphone and video is a camera.
+pub(crate) fn parse_producer_source(raw: &str, kind: MediaKind) -> Result<ProducerSource, Status> {
+    let trimmed = raw.trim();
+    if trimmed.is_empty() {
+        return Ok(match kind {
+            MediaKind::Audio => ProducerSource::Microphone,
+            MediaKind::Video => ProducerSource::Camera,
+        });
+    }
+    let source: ProducerSource = trimmed
+        .try_into()
+        .map_err(|_| Status::invalid_argument("invalid source"))?;
+    // A source decides which producers a moderation action selects, so a
+    // mismatch would let a caller hide an audio track behind a video label.
+    if source.is_audio() != (kind == MediaKind::Audio) {
+        return Err(Status::invalid_argument("source does not match kind"));
+    }
+    Ok(source)
+}
+
 pub struct Validated<T>(pub T);
 
 pub struct CreateRoomValidated {
@@ -70,6 +93,7 @@ pub struct ProduceValidated {
     pub participant_id: ActorId,
     pub transport_id: String,
     pub kind: MediaKind,
+    pub source: ProducerSource,
     pub rtp_parameters: String,
 }
 pub struct ConsumeValidated {
@@ -86,6 +110,11 @@ pub struct PauseValidated {
 pub struct ProducerValidated {
     pub room_id: RoomId,
     pub producer_id: String,
+}
+pub struct ParticipantSourceValidated {
+    pub room_id: RoomId,
+    pub participant_id: ActorId,
+    pub source: ProducerSource,
 }
 pub struct CloseParticipantValidated {
     pub room_id: RoomId,
@@ -151,11 +180,13 @@ impl TryFrom<mahfel_rtc_protocol::media::ProduceRequest> for Validated<ProduceVa
         let transport_id = require_field(req.transport_id, "transport_id")?;
         let raw_kind = require_field(req.kind, "kind")?;
         let rtp_parameters = require_field(req.rtp_parameters, "rtp_parameters")?;
+        let kind = parse_media_kind(&raw_kind)?;
         Ok(Self(ProduceValidated {
             room_id: parse_room_id(&raw_room_id)?,
             participant_id: parse_user_id(&raw_participant)?,
             transport_id,
-            kind: parse_media_kind(&raw_kind)?,
+            kind,
+            source: parse_producer_source(&req.source, kind)?,
             rtp_parameters,
         }))
     }
@@ -229,6 +260,58 @@ impl TryFrom<mahfel_rtc_protocol::media::ResumeProducerRequest> for Validated<Pr
             room_id: parse_room_id(&raw_room_id)?,
             producer_id,
         }))
+    }
+}
+
+impl TryFrom<mahfel_rtc_protocol::media::PauseParticipantSourceRequest>
+    for Validated<ParticipantSourceValidated>
+{
+    type Error = Status;
+    fn try_from(
+        req: mahfel_rtc_protocol::media::PauseParticipantSourceRequest,
+    ) -> Result<Self, Self::Error> {
+        participant_source_validated(req.room_id, req.participant_id, req.source)
+    }
+}
+
+impl TryFrom<mahfel_rtc_protocol::media::ResumeParticipantSourceRequest>
+    for Validated<ParticipantSourceValidated>
+{
+    type Error = Status;
+    fn try_from(
+        req: mahfel_rtc_protocol::media::ResumeParticipantSourceRequest,
+    ) -> Result<Self, Self::Error> {
+        participant_source_validated(req.room_id, req.participant_id, req.source)
+    }
+}
+
+fn participant_source_validated(
+    raw_room_id: String,
+    raw_participant: String,
+    raw_source: String,
+) -> Result<Validated<ParticipantSourceValidated>, Status> {
+    let raw_room_id = require_field(raw_room_id, "room_id")?;
+    let raw_participant = require_field(raw_participant, "participant_id")?;
+    let raw_source = require_field(raw_source, "source")?;
+    let source: ProducerSource = raw_source
+        .trim()
+        .try_into()
+        .map_err(|_| Status::invalid_argument("invalid source"))?;
+    Ok(Validated(ParticipantSourceValidated {
+        room_id: parse_room_id(&raw_room_id)?,
+        participant_id: parse_user_id(&raw_participant)?,
+        source,
+    }))
+}
+
+impl TryFrom<mahfel_rtc_protocol::media::CloseParticipantSourceRequest>
+    for Validated<ParticipantSourceValidated>
+{
+    type Error = Status;
+    fn try_from(
+        req: mahfel_rtc_protocol::media::CloseParticipantSourceRequest,
+    ) -> Result<Self, Self::Error> {
+        participant_source_validated(req.room_id, req.participant_id, req.source)
     }
 }
 

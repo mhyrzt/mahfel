@@ -95,6 +95,27 @@ impl mahfel_rtc_protocol::media::media_control_service_server::MediaControlServi
         crate::handlers::producer::resume_producer(&self.media, request).await
     }
 
+    async fn close_participant_source(
+        &self,
+        request: Request<mahfel_rtc_protocol::media::CloseParticipantSourceRequest>,
+    ) -> Result<Response<mahfel_rtc_protocol::media::CloseParticipantSourceResponse>, Status> {
+        crate::handlers::producer::close_participant_source(&self.media, request).await
+    }
+
+    async fn pause_participant_source(
+        &self,
+        request: Request<mahfel_rtc_protocol::media::PauseParticipantSourceRequest>,
+    ) -> Result<Response<mahfel_rtc_protocol::media::PauseParticipantSourceResponse>, Status> {
+        crate::handlers::producer::pause_participant_source(&self.media, request).await
+    }
+
+    async fn resume_participant_source(
+        &self,
+        request: Request<mahfel_rtc_protocol::media::ResumeParticipantSourceRequest>,
+    ) -> Result<Response<mahfel_rtc_protocol::media::ResumeParticipantSourceResponse>, Status> {
+        crate::handlers::producer::resume_participant_source(&self.media, request).await
+    }
+
     async fn consume(
         &self,
         request: Request<mahfel_rtc_protocol::media::ConsumeRequest>,

@@ -7,9 +7,11 @@
 
 mod actor;
 mod admission;
+mod block;
 mod identity;
 mod ids;
 mod invite;
+mod media;
 mod participant;
 mod participation;
 mod room;
@@ -25,13 +27,15 @@ pub use admission::{
     AdmissionError, AdmissionOrigin, AdmissionPolicy, AdmissionRequest, AdmissionRequestId,
     AdmissionRequestStatus, AdmissionTarget, MAX_PENDING_PER_SESSION,
 };
+pub use block::{Block, BlockError, BlockId, BlockScope};
 pub use identity::{Identity, IdentityId};
 pub use ids::NodeId;
 pub use invite::{
     DEFAULT_EXPIRY_DAYS, InviteCode, InviteLink, InviteLinkError, InviteLinkId, InviteLinkStatus,
     InviteTarget, InviteTargetKind, MAX_EXPIRY_DAYS,
 };
-pub use participant::{Participant, ParticipantError, ParticipantId, ParticipantStatus};
+pub use media::ProducerSource;
+pub use participant::{MuteKind, Participant, ParticipantError, ParticipantId, ParticipantStatus};
 pub use participation::{
     CorrectionReason, IntervalError, IntervalId, ParticipationInterval, intervals_overlap,
     total_connected_seconds,

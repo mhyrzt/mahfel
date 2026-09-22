@@ -1,5 +1,5 @@
 use super::gateway::GrpcMediaGateway;
-use mahfel_domain::{ActorId, RoomId};
+use mahfel_domain::{ActorId, ProducerSource, RoomId};
 use mahfel_rtc_protocol::media::{
     CloseParticipantRequest, PauseProducerRequest, ProduceRequest, ResumeProducerRequest,
 };
@@ -12,6 +12,7 @@ impl GrpcMediaGateway {
         participant_id: ActorId,
         transport_id: String,
         kind: MediaKind,
+        source: ProducerSource,
         rtp_parameters: String,
     ) -> Result<String, tonic::Status> {
         let kind_str = match kind {
@@ -27,6 +28,7 @@ impl GrpcMediaGateway {
                     participant_id: participant_id.to_string(),
                     transport_id: transport_id.clone(),
                     kind: kind_str.clone(),
+                    source: source.as_str().to_owned(),
                     rtp_parameters: rtp_parameters.clone(),
                 };
                 async move { client.produce(req).await }
