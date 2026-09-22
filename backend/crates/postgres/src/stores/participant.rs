@@ -1,7 +1,7 @@
 use crate::DatabaseError;
 use crate::stores::{sqlx_store_error, store_error};
 use mahfel_application::ports::{BoxFuture, ParticipantStore, StoreError};
-use mahfel_domain::{ActorId, Participant, ParticipantId, ParticipantStatus, SessionId};
+use mahfel_domain::{ActorId, MuteKind, Participant, ParticipantId, ParticipantStatus, SessionId};
 use sqlx::{FromRow, PgPool};
 use time::OffsetDateTime;
 use uuid::Uuid;
@@ -26,6 +26,9 @@ struct ParticipantRow {
     status: String,
     joined_at: OffsetDateTime,
     left_at: Option<OffsetDateTime>,
+    muted_at: Option<OffsetDateTime>,
+    mute_kind: Option<String>,
+    muted_by: Option<Uuid>,
     created_at: OffsetDateTime,
     updated_at: OffsetDateTime,
 }
@@ -35,7 +38,7 @@ impl ParticipantStore for PostgresParticipantStore {
         Box::pin(async move {
             let row = sqlx::query_as::<_, ParticipantRow>(
                 "SELECT id, session_id, actor_id, status, joined_at, left_at, \
-                        created_at, updated_at \
+                        muted_at, mute_kind, muted_by, created_at, updated_at \
                  FROM mahfel.session_participants WHERE id = $1",
             )
             .bind(id.as_uuid())
@@ -56,7 +59,7 @@ impl ParticipantStore for PostgresParticipantStore {
         Box::pin(async move {
             let row = sqlx::query_as::<_, ParticipantRow>(
                 "SELECT id, session_id, actor_id, status, joined_at, left_at, \
-                        created_at, updated_at \
+                        muted_at, mute_kind, muted_by, created_at, updated_at \
                  FROM mahfel.session_participants \
                  WHERE session_id = $1 AND actor_id = $2 AND status = 'active'",
             )
@@ -75,8 +78,9 @@ impl ParticipantStore for PostgresParticipantStore {
         Box::pin(async move {
             sqlx::query(
                 "INSERT INTO mahfel.session_participants \
-                 (id, session_id, actor_id, status, joined_at, left_at, created_at, updated_at) \
-                 VALUES ($1, $2, $3, $4, $5, $6, $7, $7)",
+                 (id, session_id, actor_id, status, joined_at, left_at, muted_at, \
+                  mute_kind, muted_by, created_at, updated_at) \
+                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $10)",
             )
             .bind(participant.id.as_uuid())
             .bind(participant.session_id.as_uuid())
@@ -84,6 +88,9 @@ impl ParticipantStore for PostgresParticipantStore {
             .bind(participant.status.as_str())
             .bind(participant.joined_at)
             .bind(participant.left_at)
+            .bind(participant.muted_at)
+            .bind(participant.mute_kind.map(MuteKind::as_str))
+            .bind(participant.muted_by.map(ActorId::as_uuid))
             .bind(participant.created_at)
             .execute(&self.pool)
             .await
@@ -96,12 +103,16 @@ impl ParticipantStore for PostgresParticipantStore {
         Box::pin(async move {
             let result = sqlx::query(
                 "UPDATE mahfel.session_participants \
-                 SET status = $2, left_at = $3, updated_at = $4 \
+                 SET status = $2, left_at = $3, muted_at = $4, mute_kind = $5, \
+                     muted_by = $6, updated_at = $7 \
                  WHERE id = $1",
             )
             .bind(participant.id.as_uuid())
             .bind(participant.status.as_str())
             .bind(participant.left_at)
+            .bind(participant.muted_at)
+            .bind(participant.mute_kind.map(MuteKind::as_str))
+            .bind(participant.muted_by.map(ActorId::as_uuid))
             .bind(participant.updated_at)
             .execute(&self.pool)
             .await
@@ -121,7 +132,7 @@ impl ParticipantStore for PostgresParticipantStore {
         Box::pin(async move {
             let rows = sqlx::query_as::<_, ParticipantRow>(
                 "SELECT id, session_id, actor_id, status, joined_at, left_at, \
-                        created_at, updated_at \
+                        muted_at, mute_kind, muted_by, created_at, updated_at \
                  FROM mahfel.session_participants \
                  WHERE session_id = $1 ORDER BY joined_at, id",
             )
@@ -148,6 +159,13 @@ impl TryFrom<ParticipantRow> for Participant {
             status: ParticipantStatus::try_from(row.status.as_str())?,
             joined_at: row.joined_at,
             left_at: row.left_at,
+            muted_at: row.muted_at,
+            mute_kind: row
+                .mute_kind
+                .as_deref()
+                .map(MuteKind::try_from)
+                .transpose()?,
+            muted_by: row.muted_by.map(ActorId::from_uuid),
             created_at: row.created_at,
             updated_at: row.updated_at,
         })
