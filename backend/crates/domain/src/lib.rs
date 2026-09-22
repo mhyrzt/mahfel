@@ -6,6 +6,7 @@
 //! into modules by aggregate.
 
 mod actor;
+mod admission;
 mod identity;
 mod ids;
 mod invite;
@@ -19,6 +20,10 @@ mod validation;
 
 pub use actor::{
     ActorId, ActorKind, ServicePrincipal, ServicePrincipalError, ServicePrincipalStatus,
+};
+pub use admission::{
+    AdmissionError, AdmissionOrigin, AdmissionPolicy, AdmissionRequest, AdmissionRequestId,
+    AdmissionRequestStatus, MAX_PENDING_PER_SESSION,
 };
 pub use identity::{Identity, IdentityId};
 pub use ids::NodeId;
@@ -35,7 +40,7 @@ pub use room::{
     MembershipError, RoleCapability, Room, RoomError, RoomId, RoomMember, RoomRole, RoomStatus,
     RoomVisibility, ensure_member_removable,
 };
-pub use session::{Session, SessionError, SessionId, SessionStatus};
+pub use session::{Session, SessionError, SessionId, SessionStatus, SessionVisibility};
 pub use status::InvalidStatus;
 pub use user::{User, UserError, UserStatus};
 pub use validation::{

@@ -1,4 +1,5 @@
 use crate::actor::ActorId;
+use crate::admission::AdmissionPolicy;
 use crate::ids::entity_id;
 use crate::status::status_conversion;
 use crate::validation::{RoomTitle, ValidationError};
@@ -7,7 +8,6 @@ use thiserror::Error;
 use time::OffsetDateTime;
 
 entity_id!(RoomId);
-
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum RoomStatus {
@@ -89,6 +89,9 @@ pub struct Room {
     pub title: RoomTitle,
     pub created_by: ActorId,
     pub visibility: RoomVisibility,
+    /// Whether joining a session in this room requires approval. Sessions may
+    /// tighten this, never loosen it.
+    pub admission: AdmissionPolicy,
     pub status: RoomStatus,
     pub created_at: OffsetDateTime,
     pub updated_at: OffsetDateTime,
@@ -107,6 +110,7 @@ impl Room {
             title,
             created_by,
             visibility,
+            admission: AdmissionPolicy::Open,
             status: RoomStatus::Active,
             created_at: now,
             updated_at: now,
@@ -132,6 +136,21 @@ impl Room {
             return Err(RoomError::AlreadyArchived);
         }
         self.visibility = visibility;
+        self.updated_at = now;
+        Ok(())
+    }
+
+    /// Change the admission policy. Existing memberships and sessions are
+    /// unaffected; the policy applies to joins from now on.
+    pub fn set_admission(
+        &mut self,
+        admission: AdmissionPolicy,
+        now: OffsetDateTime,
+    ) -> Result<(), RoomError> {
+        if self.status == RoomStatus::Archived {
+            return Err(RoomError::AlreadyArchived);
+        }
+        self.admission = admission;
         self.updated_at = now;
         Ok(())
     }
