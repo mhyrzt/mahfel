@@ -5,6 +5,7 @@
 //! `mahfel-media-client`, `mahfel-messaging`) implement the ports defined
 //! here. This crate depends only on `mahfel-domain`.
 
+pub mod admission;
 pub mod error;
 pub mod invite;
 pub mod participation;

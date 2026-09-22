@@ -4,12 +4,14 @@ use super::{
     leave_session, list_sessions, schedule_session, start_session,
 };
 use crate::ports::{
-    BoxFuture, ParticipantStore, ParticipationStore, RoomStore, SessionStore, StoreError,
+    AdmissionStore, BoxFuture, ParticipantStore, ParticipationStore, RoomStore, SessionStore,
+    StoreError,
 };
 use mahfel_domain::{
-    ActorId, IntervalId, Participant, ParticipantId, ParticipantStatus, ParticipationInterval,
-    Room, RoomId, RoomMember, RoomRole, RoomTitle, RoomVisibility, Session, SessionError,
-    SessionId, SessionStatus,
+    ActorId, AdmissionOrigin, AdmissionPolicy, AdmissionRequest, AdmissionRequestId,
+    AdmissionRequestStatus, IntervalId, Participant, ParticipantId, ParticipantStatus,
+    ParticipationInterval, Room, RoomId, RoomMember, RoomRole, RoomTitle, RoomVisibility, Session,
+    SessionError, SessionId, SessionStatus,
 };
 use std::sync::{Arc, Mutex};
 use time::OffsetDateTime;
@@ -164,6 +166,148 @@ impl RoomStore for FakeRoomStore {
             let before = members.len();
             members.retain(|member| !(member.room_id == room_id && member.actor_id == actor_id));
             Ok(members.len() < before)
+        })
+    }
+}
+
+#[derive(Clone, Default)]
+struct FakeAdmissionStore {
+    requests: Arc<Mutex<Vec<AdmissionRequest>>>,
+}
+
+impl FakeAdmissionStore {
+    fn pending(&self, session_id: SessionId, actor_id: ActorId) -> Option<AdmissionRequest> {
+        self.requests
+            .lock()
+            .expect("lock")
+            .iter()
+            .find(|request| {
+                request.session_id == session_id
+                    && request.actor_id == actor_id
+                    && request.is_pending()
+            })
+            .cloned()
+    }
+
+    fn all(&self) -> Vec<AdmissionRequest> {
+        self.requests.lock().expect("lock").clone()
+    }
+}
+
+impl AdmissionStore for FakeAdmissionStore {
+    fn insert<'a>(
+        &'a self,
+        request: &'a AdmissionRequest,
+    ) -> BoxFuture<'a, Result<(), StoreError>> {
+        Box::pin(async move {
+            let mut requests = self.requests.lock().expect("lock");
+            if requests.iter().any(|existing| {
+                existing.session_id == request.session_id
+                    && existing.actor_id == request.actor_id
+                    && existing.is_pending()
+            }) {
+                return Err(StoreError::Conflict("already pending".to_owned()));
+            }
+            requests.push(request.clone());
+            Ok(())
+        })
+    }
+
+    fn get_pending(
+        &self,
+        session_id: SessionId,
+        actor_id: ActorId,
+    ) -> BoxFuture<'_, Result<Option<AdmissionRequest>, StoreError>> {
+        Box::pin(async move { Ok(self.pending(session_id, actor_id)) })
+    }
+
+    fn get(
+        &self,
+        id: AdmissionRequestId,
+    ) -> BoxFuture<'_, Result<Option<AdmissionRequest>, StoreError>> {
+        Box::pin(async move {
+            Ok(self
+                .requests
+                .lock()
+                .expect("lock")
+                .iter()
+                .find(|request| request.id == id)
+                .cloned())
+        })
+    }
+
+    fn list_pending(
+        &self,
+        session_id: SessionId,
+        limit: u32,
+    ) -> BoxFuture<'_, Result<Vec<AdmissionRequest>, StoreError>> {
+        Box::pin(async move {
+            let mut pending: Vec<AdmissionRequest> = self
+                .requests
+                .lock()
+                .expect("lock")
+                .iter()
+                .filter(|request| request.session_id == session_id && request.is_pending())
+                .cloned()
+                .collect();
+            pending.sort_by_key(|request| request.requested_at);
+            pending.truncate(limit as usize);
+            Ok(pending)
+        })
+    }
+
+    fn count_pending(&self, session_id: SessionId) -> BoxFuture<'_, Result<u64, StoreError>> {
+        Box::pin(async move {
+            Ok(self
+                .requests
+                .lock()
+                .expect("lock")
+                .iter()
+                .filter(|request| request.session_id == session_id && request.is_pending())
+                .count() as u64)
+        })
+    }
+
+    fn decide_if_pending(
+        &self,
+        id: AdmissionRequestId,
+        status: AdmissionRequestStatus,
+        decided_by: Option<ActorId>,
+        decided_at: OffsetDateTime,
+    ) -> BoxFuture<'_, Result<bool, StoreError>> {
+        Box::pin(async move {
+            let mut requests = self.requests.lock().expect("lock");
+            let Some(request) = requests.iter_mut().find(|request| request.id == id) else {
+                return Ok(false);
+            };
+            if !request.is_pending() {
+                return Ok(false);
+            }
+            request.status = status;
+            request.decided_at = Some(decided_at);
+            request.decided_by = decided_by;
+            Ok(true)
+        })
+    }
+
+    fn expire_pending_for_session(
+        &self,
+        session_id: SessionId,
+        expired_at: OffsetDateTime,
+    ) -> BoxFuture<'_, Result<u64, StoreError>> {
+        Box::pin(async move {
+            let mut requests = self.requests.lock().expect("lock");
+            let mut expired = 0;
+            for request in requests
+                .iter_mut()
+                .filter(|request| request.session_id == session_id && request.is_pending())
+            {
+                request.status = AdmissionRequestStatus::Expired;
+                request.decided_at = Some(expired_at);
+                request.decided_by = None;
+                expired += 1;
+            }
+            Ok(expired)
         })
     }
 }
@@ -511,31 +655,40 @@ fn live_fixture() -> (
 async fn reconnect_reuses_the_same_participant() {
     let (rooms, sessions, participants, participation, _room, session, owner) = live_fixture();
 
+    let admissions = FakeAdmissionStore::default();
     let first = join_session(
         &participants,
         &participation,
+        &admissions,
         &sessions,
         &rooms,
         JoinSession {
             actor: owner,
             session_id: session.id,
+            origin: AdmissionOrigin::Join,
         },
     )
     .await
-    .expect("first join");
+    .expect("first join")
+    .participant()
+    .expect("admitted immediately");
 
     let second = join_session(
         &participants,
         &participation,
+        &admissions,
         &sessions,
         &rooms,
         JoinSession {
             actor: owner,
             session_id: session.id,
+            origin: AdmissionOrigin::Join,
         },
     )
     .await
-    .expect("reconnect");
+    .expect("reconnect")
+    .participant()
+    .expect("admitted immediately");
 
     assert_eq!(first.id, second.id, "reconnect must reuse the identity");
     assert_eq!(
@@ -551,6 +704,7 @@ async fn reconnect_reuses_the_same_participant() {
 
 #[tokio::test]
 async fn join_is_deny_by_default_for_non_members_of_private_rooms() {
+    let admissions = FakeAdmissionStore::default();
     let (rooms, sessions, participants, participation, _room, session, owner) = live_fixture();
     let _ = owner;
     let outsider = actor();
@@ -558,11 +712,13 @@ async fn join_is_deny_by_default_for_non_members_of_private_rooms() {
     let denied = join_session(
         &participants,
         &participation,
+        &admissions,
         &sessions,
         &rooms,
         JoinSession {
             actor: outsider,
             session_id: session.id,
+            origin: AdmissionOrigin::Join,
         },
     )
     .await;
@@ -574,6 +730,7 @@ async fn join_is_deny_by_default_for_non_members_of_private_rooms() {
 
 #[tokio::test]
 async fn non_members_may_join_public_rooms() {
+    let admissions = FakeAdmissionStore::default();
     let rooms = FakeRoomStore::default();
     let sessions = FakeSessionStore::default();
     let participants = FakeParticipantStore::default();
@@ -587,20 +744,25 @@ async fn non_members_may_join_public_rooms() {
     let joined = join_session(
         &participants,
         &participation,
+        &admissions,
         &sessions,
         &rooms,
         JoinSession {
             actor: actor(),
             session_id: session.id,
+            origin: AdmissionOrigin::Join,
         },
     )
     .await
-    .expect("public join");
+    .expect("public join")
+    .participant()
+    .expect("admitted immediately");
     assert!(joined.is_active());
 }
 
 #[tokio::test]
 async fn join_requires_a_live_session() {
+    let admissions = FakeAdmissionStore::default();
     let rooms = FakeRoomStore::default();
     let sessions = FakeSessionStore::default();
     let participants = FakeParticipantStore::default();
@@ -613,11 +775,13 @@ async fn join_requires_a_live_session() {
     let denied = join_session(
         &participants,
         &participation,
+        &admissions,
         &sessions,
         &rooms,
         JoinSession {
             actor: owner,
             session_id: session.id,
+            origin: AdmissionOrigin::Join,
         },
     )
     .await;
@@ -626,19 +790,24 @@ async fn join_requires_a_live_session() {
 
 #[tokio::test]
 async fn leave_is_terminal_and_the_actor_can_rejoin() {
+    let admissions = FakeAdmissionStore::default();
     let (rooms, sessions, participants, participation, _room, session, owner) = live_fixture();
     let joined = join_session(
         &participants,
         &participation,
+        &admissions,
         &sessions,
         &rooms,
         JoinSession {
             actor: owner,
             session_id: session.id,
+            origin: AdmissionOrigin::Join,
         },
     )
     .await
-    .expect("join");
+    .expect("join")
+    .participant()
+    .expect("admitted immediately");
 
     leave_session(
         &participants,
@@ -663,34 +832,43 @@ async fn leave_is_terminal_and_the_actor_can_rejoin() {
     let rejoined = join_session(
         &participants,
         &participation,
+        &admissions,
         &sessions,
         &rooms,
         JoinSession {
             actor: owner,
             session_id: session.id,
+            origin: AdmissionOrigin::Join,
         },
     )
     .await
-    .expect("rejoin");
+    .expect("rejoin")
+    .participant()
+    .expect("admitted immediately");
     assert_ne!(rejoined.id, joined.id, "a rejoin is a new participation");
     assert!(rejoined.is_active());
 }
 
 #[tokio::test]
 async fn leaving_another_actors_participant_is_not_found() {
+    let admissions = FakeAdmissionStore::default();
     let (rooms, sessions, participants, participation, _room, session, owner) = live_fixture();
     let joined = join_session(
         &participants,
         &participation,
+        &admissions,
         &sessions,
         &rooms,
         JoinSession {
             actor: owner,
             session_id: session.id,
+            origin: AdmissionOrigin::Join,
         },
     )
     .await
-    .expect("join");
+    .expect("join")
+    .participant()
+    .expect("admitted immediately");
 
     let denied = leave_session(
         &participants,
@@ -764,6 +942,7 @@ async fn invalid_transition_is_rejected_without_state_change() {
         &sessions,
         &rooms,
         &participation,
+        &FakeAdmissionStore::default(),
         EndSession {
             actor: owner,
             session_id: session.id,
@@ -847,6 +1026,7 @@ async fn manager_can_schedule_start_end_and_cancel() {
         &sessions,
         &rooms,
         &participation,
+        &FakeAdmissionStore::default(),
         EndSession {
             actor: owner,
             session_id: live.id,
@@ -989,5 +1169,408 @@ async fn an_outsider_cannot_load_a_private_session() {
     assert!(
         matches!(denied, Err(super::SessionOperationError::NotFound)),
         "an outsider must not learn the session exists, got {denied:?}"
+    );
+}
+
+// --- Admission and lobby (M4-06) ---
+
+/// A live fixture whose room requires approval, so a join waits.
+async fn lobby_fixture() -> (
+    FakeRoomStore,
+    FakeSessionStore,
+    FakeAdmissionStore,
+    FakeParticipantStore,
+    FakeParticipationStore,
+    Room,
+    Session,
+    ActorId,
+) {
+    let rooms = FakeRoomStore::default();
+    let sessions = FakeSessionStore::default();
+    let admissions = FakeAdmissionStore::default();
+    let participants = FakeParticipantStore::default();
+    let participation = FakeParticipationStore::default();
+    let owner = actor();
+    // Public, so a synthetic actor passes authorization and reaches the lobby.
+    // Admission is what these tests vary, not visibility.
+    let mut room = rooms.seed_room_with_visibility(owner, RoomVisibility::Public);
+    room.set_admission(AdmissionPolicy::Lobby, OffsetDateTime::now_utc())
+        .expect("lobby");
+    rooms.save(&room).await.expect("save");
+    let mut session = scheduled(room.id);
+    session.start(OffsetDateTime::now_utc()).expect("start");
+    sessions.seed(session.clone());
+    (
+        rooms,
+        sessions,
+        admissions,
+        participants,
+        participation,
+        room,
+        session,
+        owner,
+    )
+}
+
+#[tokio::test]
+async fn lobby_defers_the_join_and_grants_no_participant() {
+    let (rooms, sessions, admissions, participants, participation, _room, session, owner) =
+        lobby_fixture().await;
+
+    let outcome = join_session(
+        &participants,
+        &participation,
+        &admissions,
+        &sessions,
+        &rooms,
+        JoinSession {
+            actor: owner,
+            session_id: session.id,
+            origin: AdmissionOrigin::Join,
+        },
+    )
+    .await
+    .expect("authorized");
+
+    assert!(
+        outcome.is_waiting(),
+        "an authorized caller waits under lobby"
+    );
+    assert!(
+        outcome.participant().is_none(),
+        "a waiting caller must get no participant"
+    );
+    assert!(
+        participants
+            .list_for_session(session.id)
+            .await
+            .expect("list")
+            .is_empty(),
+        "a waiting caller must not appear in the roster"
+    );
+    assert!(
+        admissions.pending(session.id, owner).is_some(),
+        "the request must be queued"
+    );
+}
+
+#[tokio::test]
+async fn open_policy_still_admits_immediately() {
+    let (rooms, sessions, participants, participation, _room, session, owner) = live_fixture();
+    let admissions = FakeAdmissionStore::default();
+
+    let outcome = join_session(
+        &participants,
+        &participation,
+        &admissions,
+        &sessions,
+        &rooms,
+        JoinSession {
+            actor: owner,
+            session_id: session.id,
+            origin: AdmissionOrigin::Join,
+        },
+    )
+    .await
+    .expect("join");
+
+    assert!(
+        !outcome.is_waiting(),
+        "the default policy admits immediately"
+    );
+    assert!(
+        admissions.all().is_empty(),
+        "no request is queued under open"
+    );
+}
+
+#[tokio::test]
+async fn a_repeated_join_while_waiting_reuses_the_same_request() {
+    let (rooms, sessions, admissions, participants, participation, _room, session, owner) =
+        lobby_fixture().await;
+
+    let mut request_ids = Vec::new();
+    for _ in 0..3 {
+        let outcome = join_session(
+            &participants,
+            &participation,
+            &admissions,
+            &sessions,
+            &rooms,
+            JoinSession {
+                actor: owner,
+                session_id: session.id,
+                origin: AdmissionOrigin::Join,
+            },
+        )
+        .await
+        .expect("authorized");
+        match outcome {
+            super::JoinOutcome::Waiting(request) => request_ids.push(request.id),
+            super::JoinOutcome::Joined(_) => panic!("lobby must not admit directly"),
+        }
+    }
+
+    assert_eq!(request_ids.len(), 3);
+    assert_eq!(
+        request_ids[0], request_ids[1],
+        "a repeat join must keep its place rather than queue again"
+    );
+    assert_eq!(request_ids[1], request_ids[2]);
+    assert_eq!(
+        admissions.all().len(),
+        1,
+        "the waiting set must not grow per attempt"
+    );
+}
+
+#[tokio::test]
+async fn the_lobby_is_bounded() {
+    let (rooms, sessions, admissions, participants, participation, _room, session, _owner) =
+        lobby_fixture().await;
+
+    for _ in 0..mahfel_domain::MAX_PENDING_PER_SESSION {
+        // A distinct actor each time, so each consumes a slot.
+        let outcome = join_session(
+            &participants,
+            &participation,
+            &admissions,
+            &sessions,
+            &rooms,
+            JoinSession {
+                actor: actor(),
+                session_id: session.id,
+                origin: AdmissionOrigin::Join,
+            },
+        )
+        .await;
+        assert!(outcome.is_ok(), "within the cap a request is queued");
+    }
+
+    let overflow = join_session(
+        &participants,
+        &participation,
+        &admissions,
+        &sessions,
+        &rooms,
+        JoinSession {
+            actor: actor(),
+            session_id: session.id,
+            origin: AdmissionOrigin::Join,
+        },
+    )
+    .await;
+    assert!(
+        overflow.is_err(),
+        "a full lobby must refuse rather than grow without bound"
+    );
+}
+
+#[tokio::test]
+async fn admitting_creates_the_participant_and_opens_an_interval() {
+    let (rooms, sessions, admissions, participants, participation, room, session, owner) =
+        lobby_fixture().await;
+    let waiter = actor();
+    rooms.add_member(room.id, waiter, RoomRole::Member);
+
+    join_session(
+        &participants,
+        &participation,
+        &admissions,
+        &sessions,
+        &rooms,
+        JoinSession {
+            actor: waiter,
+            session_id: session.id,
+            origin: AdmissionOrigin::Join,
+        },
+    )
+    .await
+    .expect("queued");
+
+    let participant = crate::admission::admit(
+        &participants,
+        &participation,
+        &admissions,
+        &sessions,
+        &rooms,
+        crate::admission::AdmissionDecision {
+            actor: owner,
+            session_id: session.id,
+            target: waiter,
+        },
+        OffsetDateTime::now_utc(),
+    )
+    .await
+    .expect("admit");
+
+    assert_eq!(participant.actor_id, waiter);
+    assert!(
+        participants
+            .get_active(session.id, waiter)
+            .await
+            .expect("get")
+            .is_some()
+    );
+    assert!(
+        !participation
+            .list_for_participant(participant.id)
+            .await
+            .expect("intervals")
+            .is_empty(),
+        "an approved join must start recording connected time"
+    );
+    assert!(
+        admissions.pending(session.id, waiter).is_none(),
+        "the request must no longer be pending"
+    );
+}
+
+#[tokio::test]
+async fn rejecting_grants_nothing_and_is_terminal() {
+    let (rooms, sessions, admissions, participants, participation, room, session, owner) =
+        lobby_fixture().await;
+    let waiter = actor();
+    rooms.add_member(room.id, waiter, RoomRole::Member);
+
+    join_session(
+        &participants,
+        &participation,
+        &admissions,
+        &sessions,
+        &rooms,
+        JoinSession {
+            actor: waiter,
+            session_id: session.id,
+            origin: AdmissionOrigin::Join,
+        },
+    )
+    .await
+    .expect("queued");
+
+    crate::admission::reject(
+        &admissions,
+        &sessions,
+        &rooms,
+        crate::admission::AdmissionDecision {
+            actor: owner,
+            session_id: session.id,
+            target: waiter,
+        },
+        OffsetDateTime::now_utc(),
+    )
+    .await
+    .expect("reject");
+
+    assert!(
+        participants
+            .get_active(session.id, waiter)
+            .await
+            .expect("get")
+            .is_none(),
+        "a rejected caller must not become a participant"
+    );
+    let again = crate::admission::reject(
+        &admissions,
+        &sessions,
+        &rooms,
+        crate::admission::AdmissionDecision {
+            actor: owner,
+            session_id: session.id,
+            target: waiter,
+        },
+        OffsetDateTime::now_utc(),
+    )
+    .await;
+    assert!(again.is_err(), "rejection is terminal, not repeatable");
+}
+
+#[tokio::test]
+async fn a_member_who_cannot_admit_is_denied() {
+    let (rooms, sessions, admissions, participants, participation, room, session, _owner) =
+        lobby_fixture().await;
+    let member = actor();
+    rooms.add_member(room.id, member, RoomRole::Member);
+    let waiter = actor();
+    rooms.add_member(room.id, waiter, RoomRole::Member);
+
+    join_session(
+        &participants,
+        &participation,
+        &admissions,
+        &sessions,
+        &rooms,
+        JoinSession {
+            actor: waiter,
+            session_id: session.id,
+            origin: AdmissionOrigin::Join,
+        },
+    )
+    .await
+    .expect("queued");
+
+    let denied = crate::admission::admit(
+        &participants,
+        &participation,
+        &admissions,
+        &sessions,
+        &rooms,
+        crate::admission::AdmissionDecision {
+            actor: member,
+            session_id: session.id,
+            target: waiter,
+        },
+        OffsetDateTime::now_utc(),
+    )
+    .await;
+    assert!(
+        denied.is_err(),
+        "a plain member must not admit, even though it may see the session"
+    );
+}
+
+#[tokio::test]
+async fn ending_a_session_retires_the_lobby() {
+    let (rooms, sessions, admissions, participants, participation, room, session, owner) =
+        lobby_fixture().await;
+    let waiter = actor();
+    rooms.add_member(room.id, waiter, RoomRole::Member);
+
+    join_session(
+        &participants,
+        &participation,
+        &admissions,
+        &sessions,
+        &rooms,
+        JoinSession {
+            actor: waiter,
+            session_id: session.id,
+            origin: AdmissionOrigin::Join,
+        },
+    )
+    .await
+    .expect("queued");
+
+    end_session(
+        &sessions,
+        &rooms,
+        &participation,
+        &admissions,
+        EndSession {
+            actor: owner,
+            session_id: session.id,
+        },
+    )
+    .await
+    .expect("end");
+
+    assert!(
+        admissions.all().iter().all(|request| !request.is_pending()),
+        "no one may be left waiting on a session that ended"
+    );
+    assert_eq!(
+        sessions.status(session.id),
+        Some(SessionStatus::Ended),
+        "the session itself still ends"
     );
 }

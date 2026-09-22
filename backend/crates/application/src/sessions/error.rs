@@ -35,6 +35,10 @@ pub enum SessionOperationError {
     /// durable recording problem, which is an internal failure, not a denial.
     #[error("participation record failure: {0}")]
     Participation(#[from] IntervalError),
+    /// Admission failure while joining. Distinct from a denial: the caller was
+    /// authorized, but the lobby could not queue them.
+    #[error("admission failure: {0}")]
+    Admission(#[from] crate::admission::AdmissionOperationError),
     #[error("storage failure: {0}")]
     Store(#[from] StoreError),
 }
@@ -48,6 +52,7 @@ impl ApplicationError for SessionOperationError {
                 ErrorKind::Conflict
             }
             Self::Participation(_) => ErrorKind::Internal,
+            Self::Admission(error) => error.kind(),
             Self::Store(_) => ErrorKind::Internal,
         }
     }

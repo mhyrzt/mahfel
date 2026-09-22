@@ -1,7 +1,11 @@
 use super::error::SessionOperationError;
-use crate::ports::{ParticipantStore, ParticipationStore, RoomStore, SessionStore, StoreError};
+use crate::admission::{AdmissionOutcome, EnqueueAdmission, enqueue_admission};
+use crate::ports::{
+    AdmissionStore, ParticipantStore, ParticipationStore, RoomStore, SessionStore, StoreError,
+};
 use mahfel_domain::{
-    ActorId, Participant, ParticipantError, ParticipationInterval, SessionId, SessionStatus,
+    ActorId, AdmissionOrigin, AdmissionRequest, Participant, ParticipantError,
+    ParticipationInterval, SessionId, SessionStatus,
 };
 use time::OffsetDateTime;
 
@@ -9,28 +13,61 @@ use time::OffsetDateTime;
 pub struct JoinSession {
     pub actor: ActorId,
     pub session_id: SessionId,
+    /// Where this attempt came from, recorded on a waiting request so an
+    /// operator can tell an explicit join from an invite-link redemption.
+    pub origin: AdmissionOrigin,
+}
+
+/// What a join attempt resolved to.
+///
+/// Three outcomes, not two: authorization can succeed while admission is still
+/// undecided. A waiting principal gets no participant, no interval, and no
+/// participation capability, so "cannot publish until admitted" is structural
+/// rather than a UI convention.
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub enum JoinOutcome {
+    Joined(Participant),
+    Waiting(AdmissionRequest),
+}
+
+impl JoinOutcome {
+    /// The participant, when the join was admitted immediately.
+    #[must_use]
+    pub fn participant(self) -> Option<Participant> {
+        match self {
+            Self::Joined(participant) => Some(participant),
+            Self::Waiting(_) => None,
+        }
+    }
+
+    #[must_use]
+    pub fn is_waiting(&self) -> bool {
+        matches!(self, Self::Waiting(_))
+    }
 }
 
 /// Join a live session, reusing an existing participant on reconnect.
 ///
-/// The single join path: M4-06 layers admission policy on top of the same
-/// guard, so it must not be bypassed by another entry point.
+/// The single join path: admission layers on top of the same guard, so it cannot
+/// be bypassed by another entry point. Authorization runs first and is
+/// unchanged; the effective admission policy then decides whether the caller
+/// enters or waits.
 ///
-/// Every accepted join opens a participation interval, including a reconnect:
-/// the prior interval closed when that connection ended, so a reconnect is a
-/// new connected stretch even though it reuses the durable participant
-/// identity. A fresh join and a reconnect therefore differ only in whether a
-/// participant row is created.
-pub async fn join_session<P, Q, R, S>(
+/// Every admitted join opens a participation interval, including a reconnect:
+/// the prior interval closed when that connection ended, so a reconnect is a new
+/// connected stretch even though it reuses the durable participant identity.
+pub async fn join_session<P, Q, A, R, S>(
     participants: &P,
     participation: &Q,
+    admissions: &A,
     sessions: &R,
     rooms: &S,
     command: JoinSession,
-) -> Result<Participant, SessionOperationError>
+) -> Result<JoinOutcome, SessionOperationError>
 where
     P: ParticipantStore + ?Sized,
     Q: ParticipationStore + ?Sized,
+    A: AdmissionStore + ?Sized,
     R: SessionStore + ?Sized,
     S: RoomStore + ?Sized,
 {
@@ -42,7 +79,24 @@ where
     if session.status != SessionStatus::Live {
         return Err(SessionOperationError::NotLive);
     }
-    super::require_joinable(rooms, session.room_id, command.actor).await?;
+    let room = super::require_joinable(rooms, session.room_id, command.actor).await?;
+
+    if session.effective_admission(&room).requires_approval() {
+        let outcome = enqueue_admission(
+            admissions,
+            sessions,
+            EnqueueAdmission {
+                actor: command.actor,
+                session_id: command.session_id,
+                origin: command.origin,
+            },
+            now,
+        )
+        .await?;
+        return Ok(match outcome {
+            AdmissionOutcome::Waiting(request) => JoinOutcome::Waiting(request),
+        });
+    }
 
     if let Some(existing) = participants
         .get_active(command.session_id, command.actor)
@@ -57,7 +111,7 @@ where
             participant_id = %existing.id,
             outcome = "ok"
         );
-        return Ok(existing);
+        return Ok(JoinOutcome::Joined(existing));
     }
 
     let participant = Participant::join(command.session_id, command.actor, now);
@@ -79,7 +133,7 @@ where
         participant_id = %participant.id,
         outcome = "ok"
     );
-    Ok(participant)
+    Ok(JoinOutcome::Joined(participant))
 }
 
 /// Open the interval for an accepted join.
