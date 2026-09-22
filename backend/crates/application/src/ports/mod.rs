@@ -1,5 +1,6 @@
 pub mod admission_store;
 pub mod authorization;
+pub mod block_store;
 pub mod coordination;
 pub mod event_publisher;
 pub mod futures;
@@ -20,6 +21,7 @@ pub use authorization::{
     AuthorizationError, Capability, CapabilityContext, CapabilityResolver, CapabilitySet,
     Principal, require_capability, resolve_capabilities,
 };
+pub use block_store::BlockStore;
 pub use coordination::{CoordinationError, CoordinationStore};
 pub use event_publisher::{DomainEvent, EventPublisher, PublishError};
 pub use futures::BoxFuture;
