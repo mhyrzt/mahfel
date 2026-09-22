@@ -12,6 +12,10 @@ dev-api:
 migrate:
     cargo run --bin mahfel-api -- migrate
 
+# Export the code-first REST contract to the repository artifact.
+openapi-export path="../openapi/mahfel-api.json":
+    cargo run --bin mahfel-api -- openapi export {{path}}
+
 # Apply development seed fixtures. Pass an optional file or directory path.
 seed *args:
     MAHFEL_CONFIG_PROFILE=local cargo run --bin mahfel-api -- seed {{args}}

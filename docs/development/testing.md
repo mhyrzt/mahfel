@@ -42,6 +42,17 @@ serves the machine-readable document at `GET /v1/openapi.json`, and the interact
 `/docs` on the private operations listener (ADR 0011). A unit test asserts that every REST route
 template appears in the generated document, so a new route cannot be silently undocumented.
 
+Export the code-first document to `openapi/mahfel-api.json`, then generate the frontend REST
+types at `frontend/lib/api/generated/schema.ts` whenever the REST contract changes:
+
+```bash
+just openapi-export
+just frontend generate-api
+```
+
+The generated types describe REST only. The WebSocket protocol remains a separately maintained
+typed transport contract.
+
 An interactive Bruno collection for manual and end-to-end requests is planned under `bruno/`
 (ADR 0016) and is not yet present; the directory holds a placeholder.
 

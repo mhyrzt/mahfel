@@ -4,7 +4,7 @@ title: OpenAPI generation and Bruno collection
 status: In Progress
 assignee: []
 created_date: '2026-09-19 15:24'
-updated_date: '2026-09-19 15:48'
+updated_date: '2026-09-22 19:33'
 labels: []
 dependencies:
   - TASK-8
@@ -45,4 +45,6 @@ Scope: utoipa confined to mahfel-api; transport DTOs derive ToSchema with transp
 
 <!-- SECTION:NOTES:BEGIN -->
 OpenAPI implemented with utoipa 5.5 confined to mahfel-api: transport DTOs derive ToSchema, handlers carry #[utoipa::path], and transport-level visibility/role schema enums keep mahfel-domain free of utoipa. GET /v1/openapi.json serves an OpenAPI 3.1 document; the interactive Scalar UI is mounted at /docs on the private operations listener (ADR 0011/0015); tests cover both route coverage (REST_PATH_TEMPLATES) and a served document. Bruno collection deferred at user request: bruno/.gitkeep placeholder, to be generated from the document via Bruno's OpenAPI import (ADR 0016). Validation: workspace clippy -D warnings clean; mahfel-api 47 tests; boot smoke returned openapi 3.1.0 on the product host, /docs 200 on operations and 404 on the product host; just docs strict. Remains In Progress pending AC4.
+
+2026-09-22: Added code-first snapshot export: `mahfel-api openapi export [path]` serializes ApiDoc to openapi/mahfel-api.json; `just openapi-export` emits it and `just frontend generate-api` produces frontend/lib/api/generated/schema.ts. The snapshot and generated types were produced locally.
 <!-- SECTION:NOTES:END -->

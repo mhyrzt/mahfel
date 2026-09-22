@@ -40,6 +40,7 @@ api_error_from!(
 #[utoipa::path(
     post,
     path = "/v1/admin/service-principals",
+    operation_id = "adminCreateServicePrincipal",
     tag = "admin",
     request_body = CreateServicePrincipalRequest,
     responses(
@@ -72,6 +73,7 @@ pub(crate) async fn create(
 #[utoipa::path(
     get,
     path = "/v1/admin/service-principals",
+    operation_id = "adminListServicePrincipals",
     tag = "admin",
     responses(
         (status = 200, description = "Service principals", body = [ServicePrincipalResponse]),
@@ -96,6 +98,7 @@ pub(crate) async fn list(
 #[utoipa::path(
     post,
     path = "/v1/admin/service-principals/{id}/rotate",
+    operation_id = "adminRotateServicePrincipalKey",
     tag = "admin",
     params(("id" = String, Path, description = "Service principal identifier (UUID)")),
     responses(
@@ -124,6 +127,7 @@ pub(crate) async fn rotate(
 #[utoipa::path(
     delete,
     path = "/v1/admin/service-principals/{id}",
+    operation_id = "adminRevokeServicePrincipal",
     tag = "admin",
     params(("id" = String, Path, description = "Service principal identifier (UUID)")),
     responses(

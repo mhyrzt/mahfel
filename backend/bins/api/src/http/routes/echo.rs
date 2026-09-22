@@ -24,6 +24,7 @@ pub(crate) fn route() -> Router<AppState> {
 #[utoipa::path(
     get,
     path = "/v1/echo",
+    operation_id = "listEchoPayloads",
     tag = "echo",
     params(
         ("page" = Option<u64>, Query, description = "Page number, 1-based"),
@@ -49,6 +50,7 @@ pub(crate) async fn list(
 #[utoipa::path(
     post,
     path = "/v1/echo",
+    operation_id = "createEchoPayload",
     tag = "echo",
     request_body = EchoPayload,
     responses(

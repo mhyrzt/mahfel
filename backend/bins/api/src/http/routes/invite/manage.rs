@@ -16,6 +16,7 @@ use super::dto::{InviteLinkResponse, RotateInviteLinkRequest};
 #[utoipa::path(
     post,
     path = "/v1/invite-links/{link_id}/revoke",
+    operation_id = "revokeInviteLink",
     tag = "invite",
     params(("link_id" = String, Path, description = "Invite link identifier (UUID)")),
     responses(
@@ -52,6 +53,7 @@ pub(crate) async fn revoke(
 #[utoipa::path(
     post,
     path = "/v1/invite-links/{link_id}/rotate",
+    operation_id = "rotateInviteLink",
     tag = "invite",
     params(("link_id" = String, Path, description = "Invite link identifier (UUID)")),
     request_body = RotateInviteLinkRequest,
