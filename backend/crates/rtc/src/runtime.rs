@@ -205,6 +205,10 @@ impl MediaRuntime {
         .await
     }
 
+    pub async fn pause_producer(&self, room_id: RoomId, producer_id: &str) -> Result<(), RtcError> {
+        super::producer::pause_producer(&self.producers, room_id, producer_id).await
+    }
+
     #[allow(clippy::too_many_arguments)]
     pub async fn create_consumer(
         &self,
@@ -226,6 +230,22 @@ impl MediaRuntime {
             rtp_capabilities_json,
         )
         .await
+    }
+
+    pub async fn resume_producer(
+        &self,
+        room_id: RoomId,
+        producer_id: &str,
+    ) -> Result<(), RtcError> {
+        super::producer::resume_producer(&self.producers, room_id, producer_id).await
+    }
+
+    pub async fn close_participant(
+        &self,
+        room_id: RoomId,
+        participant_id: ActorId,
+    ) -> Result<usize, RtcError> {
+        super::producer::close_participant(&self.producers, room_id, participant_id).await
     }
 
     pub async fn pause_consumer(&self, room_id: RoomId, consumer_id: &str) -> Result<(), RtcError> {
