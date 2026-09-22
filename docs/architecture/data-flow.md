@@ -75,6 +75,36 @@ expiry and revocation are enforced on redemption rather than stored as a derived
 never appears in logs or metric labels (ADR 0021). Redemption and the confirmation flow that follows
 it belong to M4-14 (TASK-130).
 
+## Admission
+
+```mermaid
+sequenceDiagram
+  participant B as Joining browser
+  participant M as Manager browser
+  participant A as mahfel-api
+  participant P as PostgreSQL
+  B->>A: join session
+  A->>P: Authorize membership or visibility
+  A->>A: Resolve effective policy (session override, else room)
+  alt policy is open
+    A->>P: Insert participant and open interval
+    A-->>B: joined
+  else policy is lobby
+    A->>P: Insert pending admission request
+    A-->>B: join_waiting (no participant, no capabilities)
+    M->>A: GET /v1/sessions/{id}/lobby
+    A-->>M: waiting principals
+    M->>A: POST /v1/sessions/{id}/lobby/{actor}/admit
+    A->>P: Mark admitted, insert participant, open interval
+    A-->>B: admitted
+  end
+```
+
+Authorization runs first and is unchanged; admission decides only whether an already-authorized
+caller enters now or waits. A session's access settings inherit from its room and may only tighten,
+so a session cannot expose a room the room itself protects. Ending a session retires any pending
+requests, so no one is left waiting on a session that no longer exists.
+
 ## Session join
 
 ```mermaid

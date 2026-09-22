@@ -200,6 +200,46 @@ Management endpoints are `POST`/`GET /v1/rooms/{room_id}/invite-links`,
 `POST /v1/invite-links/{link_id}/rotate`. Redemption and the confirmation flow that follows it are
 M4-14 (TASK-130).
 
+### Admission and the lobby
+
+Joining is authorized first and admitted second. Authorization is unchanged — membership or public
+visibility — and admission layers on top of it, so a caller who fails the join guard is still denied
+and admission can never widen who is allowed.
+
+- **Two axes, both inheritable.** A room carries an `admission` policy of `open` or `lobby`, and the
+  existing `visibility`. A session carries an optional override of each; `NULL` in the database and
+  `None` in the domain mean "inherit the room". A session therefore resolves to
+  `session.effective_admission(room)` and `session.effective_visibility(room)`.
+- **An override may only tighten.** A session can require approval that its room does not, or hide
+  itself where its room is public, but it can never loosen either axis. That rule is enforced in the
+  domain and is what makes an override safe to set: it cannot expose a room the room itself protects.
+- **Waiting is a state, not a denial.** Under `lobby`, an authorized principal who is not already
+  approved receives a pending admission request instead of a participant. The distinction matters:
+  denied is terminal, waiting is resolvable by someone else.
+- **A waiting principal holds nothing.** No participant row, no participation interval, and no
+  `Join`/`PublishMedia` capability, because there is no participant identity to publish as. The
+  restriction is structural rather than a UI convention.
+- **Pending requests are durable, in PostgreSQL.** The waiting principal is looking at a waiting
+  screen, so the request is a user-visible fact and does not belong in Redis. A partial unique index
+  on `(session_id, actor_id) WHERE status = 'pending'` makes "at most one outstanding request per
+  principal" a database invariant, so a reconnect while waiting keeps its place rather than queueing
+  again. The waiting set is bounded per session, because any authorized caller could otherwise fill a
+  manager's queue.
+- **Decisions are capability-gated and audited.** Approving or rejecting requires
+  `admit_participant`, which room managers and global moderators already hold. Approval is when
+  access begins: it creates the participant and opens the participation interval, so the durable
+  record starts at the decision rather than at the earlier request. Rejection terminates the waiting
+  state and grants nothing.
+- **Nothing outlives its session.** Ending a session retires every pending request alongside the
+  participation sweep, and an expiry records no deciding principal, because no one made the call.
+- **Requests carry an origin**, so an operator can tell an explicit join from an invite-link
+  redemption (ADR 0021).
+
+Endpoints are `GET`/`PUT /v1/rooms/{room_id}/admission`, `GET`/`PUT /v1/sessions/{session_id}/access`,
+`GET /v1/sessions/{session_id}/lobby`, and
+`POST /v1/sessions/{session_id}/lobby/{actor_id}/admit` and `/reject`. Over the WebSocket, a
+deferred join is answered with a `join_waiting` frame instead of `joined`.
+
 ## `mahfel-media`
 
 The Rust media plane hosts Tokio, the mediasoup Rust bindings, native mediasoup workers, routers,
