@@ -35,6 +35,10 @@ pub(crate) fn route() -> Router<AppState> {
         )
         .route("/sessions/{session_id}/lobby", get(access::get_lobby))
         .route(
+            "/sessions/{session_id}/admission",
+            get(access::own_admission),
+        )
+        .route(
             "/sessions/{session_id}/lobby/{actor_id}/admit",
             post(access::admit_principal),
         )

@@ -1,4 +1,4 @@
 use crate::http::error::api_error_from;
-use mahfel_application::invite::InviteOperationError;
+use mahfel_application::invite::{InviteOperationError, RedeemError};
 
-api_error_from!(InviteOperationError);
+api_error_from!(InviteOperationError, RedeemError);

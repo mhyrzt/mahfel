@@ -3,6 +3,7 @@ pub(crate) mod dto;
 pub(crate) mod error;
 pub(crate) mod list;
 pub(crate) mod manage;
+pub(crate) mod redeem;
 
 use crate::http::state::AppState;
 use axum::{
@@ -20,6 +21,7 @@ pub(crate) fn route() -> Router<AppState> {
             "/sessions/{session_id}/invite-links",
             get(list::list_for_session).post(create::create_for_session),
         )
+        .route("/invite-links/redeem", post(redeem::redeem))
         .route("/invite-links/{link_id}/revoke", post(manage::revoke))
         .route("/invite-links/{link_id}/rotate", post(manage::rotate))
 }

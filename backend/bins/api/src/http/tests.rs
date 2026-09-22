@@ -28,11 +28,11 @@ use mahfel_auth::{TokenVerifier, TokenVerifierConfig};
 use mahfel_config::TurnSettings;
 use mahfel_domain::{
     ActorId, ActorKind, AdmissionOrigin, AdmissionRequest, AdmissionRequestId,
-    AdmissionRequestStatus, DisplayName, Identity, IntervalId, InviteCode, InviteLink,
-    InviteLinkId, InviteLinkStatus, InviteTarget, InviteTargetKind, Issuer, Participant,
-    ParticipantId, ParticipationInterval, Room, RoomId, RoomMember, RoomRole, RoomTitle,
-    RoomVisibility, ServicePrincipal, ServicePrincipalStatus, Session, SessionId, SessionStatus,
-    Subject, User, UserStatus,
+    AdmissionRequestStatus, AdmissionTarget, DisplayName, Identity, IntervalId, InviteCode,
+    InviteLink, InviteLinkId, InviteLinkStatus, InviteTarget, InviteTargetKind, Issuer,
+    Participant, ParticipantId, ParticipationInterval, Room, RoomId, RoomMember, RoomRole,
+    RoomTitle, RoomVisibility, ServicePrincipal, ServicePrincipalStatus, Session, SessionId,
+    SessionStatus, Subject, User, UserStatus,
 };
 use mahfel_media_client::GrpcMediaGateway;
 use prometheus::Encoder;
@@ -852,15 +852,13 @@ impl FakeAdmissionStore {
         self.requests.lock().expect("fake store lock").push(request);
     }
 
-    fn pending(&self, session_id: SessionId, actor_id: ActorId) -> Option<AdmissionRequest> {
+    fn pending(&self, target: AdmissionTarget, actor_id: ActorId) -> Option<AdmissionRequest> {
         self.requests
             .lock()
             .expect("fake store lock")
             .iter()
             .find(|request| {
-                request.session_id == session_id
-                    && request.actor_id == actor_id
-                    && request.is_pending()
+                request.target == target && request.actor_id == actor_id && request.is_pending()
             })
             .cloned()
     }
@@ -874,7 +872,7 @@ impl AdmissionStore for FakeAdmissionStore {
         Box::pin(async move {
             let mut requests = self.requests.lock().expect("fake store lock");
             if requests.iter().any(|existing| {
-                existing.session_id == request.session_id
+                existing.target == request.target
                     && existing.actor_id == request.actor_id
                     && existing.is_pending()
             }) {
@@ -887,10 +885,33 @@ impl AdmissionStore for FakeAdmissionStore {
 
     fn get_pending(
         &self,
-        session_id: SessionId,
+        target: AdmissionTarget,
         actor_id: ActorId,
     ) -> BoxFuture<'_, Result<Option<AdmissionRequest>, StoreError>> {
-        Box::pin(async move { Ok(self.pending(session_id, actor_id)) })
+        Box::pin(async move { Ok(self.pending(target, actor_id)) })
+    }
+
+    fn list_pending_for_room(
+        &self,
+        room_id: RoomId,
+        limit: u32,
+    ) -> BoxFuture<'_, Result<Vec<AdmissionRequest>, StoreError>> {
+        Box::pin(async move {
+            let mut pending: Vec<AdmissionRequest> = self
+                .requests
+                .lock()
+                .expect("lock")
+                .iter()
+                .filter(|request| {
+                    request.is_pending()
+                        && matches!(request.target, AdmissionTarget::Room(id) if id == room_id)
+                })
+                .cloned()
+                .collect();
+            pending.sort_by_key(|request| request.requested_at);
+            pending.truncate(limit as usize);
+            Ok(pending)
+        })
     }
 
     fn get(
@@ -919,7 +940,10 @@ impl AdmissionStore for FakeAdmissionStore {
                 .lock()
                 .expect("fake store lock")
                 .iter()
-                .filter(|request| request.session_id == session_id && request.is_pending())
+                .filter(|request| {
+                    request.is_pending()
+                        && matches!(request.target, AdmissionTarget::Session(id) if id == session_id)
+                })
                 .cloned()
                 .collect();
             pending.sort_by_key(|request| request.requested_at);
@@ -928,14 +952,14 @@ impl AdmissionStore for FakeAdmissionStore {
         })
     }
 
-    fn count_pending(&self, session_id: SessionId) -> BoxFuture<'_, Result<u64, StoreError>> {
+    fn count_pending(&self, target: AdmissionTarget) -> BoxFuture<'_, Result<u64, StoreError>> {
         Box::pin(async move {
             Ok(self
                 .requests
                 .lock()
                 .expect("fake store lock")
                 .iter()
-                .filter(|request| request.session_id == session_id && request.is_pending())
+                .filter(|request| request.target == target && request.is_pending())
                 .count() as u64)
         })
     }
@@ -970,10 +994,10 @@ impl AdmissionStore for FakeAdmissionStore {
         Box::pin(async move {
             let mut requests = self.requests.lock().expect("fake store lock");
             let mut expired = 0;
-            for request in requests
-                .iter_mut()
-                .filter(|request| request.session_id == session_id && request.is_pending())
-            {
+            for request in requests.iter_mut().filter(|request| {
+                request.is_pending()
+                    && matches!(request.target, AdmissionTarget::Session(id) if id == session_id)
+            }) {
                 request.status = AdmissionRequestStatus::Expired;
                 request.decided_at = Some(expired_at);
                 request.decided_by = None;
@@ -1120,7 +1144,6 @@ fn ws_state(principal: Option<Principal>) -> WsState {
             sessions: Arc::new(FakeSessionStore::default()),
             rooms: Arc::new(FakeRoomStore::default()),
         },
-        Arc::new(FakeCoordination::default()),
         shutdown_rx,
     )
 }
@@ -1163,6 +1186,7 @@ fn state_with(
         admissions: Arc::new(FakeAdmissionStore::default()),
         invites: Arc::new(FakeInviteStore::default()),
         code_index: Arc::new(FakeCoordination::default()),
+        source_address: Arc::new(crate::http::source_address::SourceAddressResolver::default()),
         realtime,
         turn: turn_settings(),
     }
@@ -1234,6 +1258,7 @@ fn authenticated_room_app(principal: Principal, store: FakeRoomStore) -> Router 
         admissions: Arc::new(FakeAdmissionStore::default()),
         invites: Arc::new(FakeInviteStore::default()),
         code_index: Arc::new(FakeCoordination::default()),
+        source_address: Arc::new(crate::http::source_address::SourceAddressResolver::default()),
         realtime,
         turn: turn_settings(),
     })
@@ -2010,6 +2035,7 @@ fn session_app(
         admissions: Arc::new(FakeAdmissionStore::default()),
         invites: Arc::new(FakeInviteStore::default()),
         code_index: Arc::new(FakeCoordination::default()),
+        source_address: Arc::new(crate::http::source_address::SourceAddressResolver::default()),
         realtime,
         turn: turn_settings(),
     })
@@ -2215,6 +2241,7 @@ fn policy_session_app(
         admissions: Arc::new(FakeAdmissionStore::default()),
         invites: Arc::new(FakeInviteStore::default()),
         code_index: Arc::new(FakeCoordination::default()),
+        source_address: Arc::new(crate::http::source_address::SourceAddressResolver::default()),
         realtime,
         turn: turn_settings(),
     })
@@ -2335,7 +2362,6 @@ async fn serve_ws(principal: Option<Principal>, config: WsConfig) -> WsHarness {
             sessions: Arc::new(FakeSessionStore::default()),
             rooms: Arc::new(FakeRoomStore::default()),
         },
-        Arc::new(FakeCoordination::default()),
         shutdown_rx.clone(),
     );
     let (service_auth, service_principals) = service_seams(FakeServicePrincipalStore::default());
@@ -2355,6 +2381,7 @@ async fn serve_ws(principal: Option<Principal>, config: WsConfig) -> WsHarness {
         admissions: Arc::new(FakeAdmissionStore::default()),
         invites: Arc::new(FakeInviteStore::default()),
         code_index: Arc::new(FakeCoordination::default()),
+        source_address: Arc::new(crate::http::source_address::SourceAddressResolver::default()),
         realtime,
         turn: turn_settings(),
     };
@@ -2543,7 +2570,6 @@ async fn serve_ws_with_verifier(verifier: TokenVerifier, config: WsConfig) -> Ws
             sessions: Arc::new(FakeSessionStore::default()),
             rooms: Arc::new(FakeRoomStore::default()),
         },
-        Arc::new(FakeCoordination::default()),
         shutdown_rx.clone(),
     );
     let (service_auth, service_principals) = service_seams(FakeServicePrincipalStore::default());
@@ -2563,6 +2589,7 @@ async fn serve_ws_with_verifier(verifier: TokenVerifier, config: WsConfig) -> Ws
         admissions: Arc::new(FakeAdmissionStore::default()),
         invites: Arc::new(FakeInviteStore::default()),
         code_index: Arc::new(FakeCoordination::default()),
+        source_address: Arc::new(crate::http::source_address::SourceAddressResolver::default()),
         realtime,
         turn: turn_settings(),
     };
@@ -3010,6 +3037,7 @@ fn service_app(
         admissions: Arc::new(FakeAdmissionStore::default()),
         invites: Arc::new(FakeInviteStore::default()),
         code_index: Arc::new(FakeCoordination::default()),
+        source_address: Arc::new(crate::http::source_address::SourceAddressResolver::default()),
         realtime,
         turn: turn_settings(),
     })
@@ -3252,7 +3280,6 @@ async fn serve_ws_with(
             sessions: Arc::new(sessions),
             rooms: Arc::new(rooms),
         },
-        Arc::new(FakeCoordination::default()),
         shutdown_rx.clone(),
     );
     let (service_auth, service_principals) = service_seams(FakeServicePrincipalStore::default());
@@ -3272,6 +3299,7 @@ async fn serve_ws_with(
         admissions: Arc::new(FakeAdmissionStore::default()),
         invites: Arc::new(FakeInviteStore::default()),
         code_index: Arc::new(FakeCoordination::default()),
+        source_address: Arc::new(crate::http::source_address::SourceAddressResolver::default()),
         realtime,
         turn: turn_settings(),
     };
@@ -3493,6 +3521,7 @@ fn participation_app(
         admissions: Arc::new(FakeAdmissionStore::default()),
         invites: Arc::new(FakeInviteStore::default()),
         code_index: Arc::new(FakeCoordination::default()),
+        source_address: Arc::new(crate::http::source_address::SourceAddressResolver::default()),
         realtime,
         turn: turn_settings(),
     })
@@ -3752,6 +3781,7 @@ fn invite_app(
         admissions: Arc::new(FakeAdmissionStore::default()),
         invites: Arc::new(invites),
         code_index: Arc::new(FakeCoordination::default()),
+        source_address: Arc::new(crate::http::source_address::SourceAddressResolver::default()),
         realtime,
         turn: turn_settings(),
     })
@@ -4145,6 +4175,39 @@ fn admission_app(
         admissions: Arc::new(admissions),
         invites: Arc::new(FakeInviteStore::default()),
         code_index: Arc::new(FakeCoordination::default()),
+        source_address: Arc::new(crate::http::source_address::SourceAddressResolver::default()),
+        realtime,
+        turn: turn_settings(),
+    })
+}
+
+/// Router whose invite store the caller controls, for redemption tests.
+fn redeem_app(
+    principal: Option<Principal>,
+    rooms: FakeRoomStore,
+    sessions: FakeSessionStore,
+    admissions: FakeAdmissionStore,
+    invites: FakeInviteStore,
+) -> Router {
+    let realtime = ws_state(principal.clone());
+    let (service_auth, service_principals) = service_seams(FakeServicePrincipalStore::default());
+    api_router(AppState {
+        service: "mahfel-api-test",
+        version: "0.1.0",
+        node_id: "node-test".to_owned(),
+        auth: AuthState::new(Arc::new(ServerCapabilityResolver)),
+        authentication: Arc::new(StubAuthenticator::new(principal)),
+        service_auth,
+        service_principals,
+        provisioner: Arc::new(StubProvisioner),
+        linker: Arc::new(StubLinker),
+        rooms: Arc::new(rooms),
+        sessions: Arc::new(sessions),
+        participation: Arc::new(FakeParticipationStore::default()),
+        admissions: Arc::new(admissions),
+        invites: Arc::new(invites),
+        code_index: Arc::new(FakeCoordination::default()),
+        source_address: Arc::new(crate::http::source_address::SourceAddressResolver::default()),
         realtime,
         turn: turn_settings(),
     })
@@ -4278,7 +4341,7 @@ async fn a_manager_sees_and_decides_the_lobby() {
     let (rooms, sessions, admissions, room, session) = admission_fixture(manager);
     let now = OffsetDateTime::now_utc();
     admissions.seed(AdmissionRequest::new(
-        session.id,
+        AdmissionTarget::Session(session.id),
         waiter,
         AdmissionOrigin::Join,
         now,
@@ -4325,7 +4388,9 @@ async fn a_manager_sees_and_decides_the_lobby() {
         "an admitted principal must get a participant identity"
     );
     assert!(
-        admissions.pending(session.id, waiter).is_none(),
+        admissions
+            .pending(AdmissionTarget::Session(session.id), waiter)
+            .is_none(),
         "the request must no longer be pending"
     );
     let _ = room;
@@ -4337,7 +4402,7 @@ async fn rejecting_ends_the_waiting_state() {
     let waiter = ActorId::new();
     let (rooms, sessions, admissions, _room, session) = admission_fixture(manager);
     admissions.seed(AdmissionRequest::new(
-        session.id,
+        AdmissionTarget::Session(session.id),
         waiter,
         AdmissionOrigin::InviteLink,
         OffsetDateTime::now_utc(),
@@ -4357,7 +4422,11 @@ async fn rejecting_ends_the_waiting_state() {
     )
     .await;
     assert_eq!(rejected.status(), StatusCode::NO_CONTENT);
-    assert!(admissions.pending(session.id, waiter).is_none());
+    assert!(
+        admissions
+            .pending(AdmissionTarget::Session(session.id), waiter)
+            .is_none()
+    );
 }
 
 #[tokio::test]
@@ -4368,7 +4437,7 @@ async fn a_member_cannot_decide_the_lobby() {
     let (rooms, sessions, admissions, room, session) = admission_fixture(manager);
     rooms.add_raw_member(room.id, member, RoomRole::Member);
     admissions.seed(AdmissionRequest::new(
-        session.id,
+        AdmissionTarget::Session(session.id),
         waiter,
         AdmissionOrigin::Join,
         OffsetDateTime::now_utc(),
@@ -4406,4 +4475,138 @@ async fn deciding_a_request_that_is_not_waiting_is_a_conflict() {
     // conflict rather than a missing resource; 404 stays reserved for a session
     // the caller cannot see.
     assert_eq!(resp.status(), StatusCode::CONFLICT);
+}
+
+// --- Invite redemption transport tests (TASK-130 / M4-14) ---
+
+#[tokio::test]
+async fn redeeming_a_room_link_reports_waiting() {
+    let manager = ActorId::new();
+    let newcomer = ActorId::new();
+    let (rooms, sessions, admissions, room, _session) = admission_fixture(manager);
+    let invites = FakeInviteStore::default();
+    let link = InviteLink::issue(
+        InviteCode::generate(),
+        InviteTarget::Room(room.id),
+        manager,
+        7,
+        OffsetDateTime::now_utc(),
+    )
+    .expect("issue");
+    invites.seed(link.clone());
+
+    let app = redeem_app(
+        Some(principal_for(newcomer)),
+        rooms,
+        sessions,
+        admissions,
+        invites,
+    );
+    let resp = send_json(
+        &app,
+        Method::POST,
+        "/v1/invite-links/redeem",
+        &format!(r#"{{"code":"{}"}}"#, link.code.format()),
+    )
+    .await;
+    assert_eq!(resp.status(), StatusCode::OK);
+    let json = response_json(resp).await;
+    assert_eq!(
+        json.get("target_kind").and_then(|v| v.as_str()),
+        Some("room")
+    );
+    assert_eq!(
+        json.get("outcome").and_then(|v| v.as_str()),
+        Some("waiting"),
+        "a non-member must not be admitted"
+    );
+    assert!(
+        json.get("request_id").and_then(|v| v.as_str()).is_some(),
+        "a waiting caller needs the request id to poll"
+    );
+}
+
+#[tokio::test]
+async fn redeeming_an_unknown_code_is_not_found_without_echoing_it() {
+    let manager = ActorId::new();
+    let (rooms, sessions, admissions, _room, _session) = admission_fixture(manager);
+    let secret_ish = "abcdefghij";
+    let app = redeem_app(
+        Some(principal_for(manager)),
+        rooms,
+        sessions,
+        admissions,
+        FakeInviteStore::default(),
+    );
+
+    let resp = send_json(
+        &app,
+        Method::POST,
+        "/v1/invite-links/redeem",
+        &format!(r#"{{"code":"{secret_ish}"}}"#),
+    )
+    .await;
+    assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+    let body = response_body_string(resp).await;
+    assert!(
+        !body.contains(secret_ish),
+        "the response must not echo the submitted code: {body}"
+    );
+}
+
+#[tokio::test]
+async fn a_malformed_and_an_unknown_code_are_the_same_response() {
+    let manager = ActorId::new();
+    let (rooms, sessions, admissions, _room, _session) = admission_fixture(manager);
+    let app = redeem_app(
+        Some(principal_for(manager)),
+        rooms,
+        sessions,
+        admissions,
+        FakeInviteStore::default(),
+    );
+
+    let unknown = send_json(
+        &app,
+        Method::POST,
+        "/v1/invite-links/redeem",
+        r#"{"code":"abcdefghij"}"#,
+    )
+    .await;
+    let malformed = send_json(
+        &app,
+        Method::POST,
+        "/v1/invite-links/redeem",
+        r#"{"code":"nope"}"#,
+    )
+    .await;
+
+    assert_eq!(unknown.status(), malformed.status());
+    assert_eq!(
+        response_body_string(unknown).await,
+        response_body_string(malformed).await,
+        "a caller must not learn whether a code's shape was valid"
+    );
+}
+
+#[tokio::test]
+async fn redemption_requires_authentication() {
+    let manager = ActorId::new();
+    let (rooms, sessions, admissions, _room, _session) = admission_fixture(manager);
+    let app = redeem_app(
+        None,
+        rooms,
+        sessions,
+        admissions,
+        FakeInviteStore::default(),
+    );
+
+    let resp = send_json(
+        &app,
+        Method::POST,
+        "/v1/invite-links/redeem",
+        r#"{"code":"abcdefghij"}"#,
+    )
+    .await;
+    assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
 }

@@ -8,7 +8,7 @@ use mahfel_application::admission::{
     AdmissionDecision, Lobby, SessionAccess, SessionAccessView, admit, reject, set_session_access,
     view_lobby, view_session_access,
 };
-use mahfel_domain::{ActorId, SessionId};
+use mahfel_domain::{ActorId, AdmissionTarget, SessionId};
 use serde::{Deserialize, Serialize};
 use time::OffsetDateTime;
 use utoipa::ToSchema;
@@ -194,7 +194,7 @@ pub(crate) async fn admit_principal(
 ) -> Result<Json<AdmittedResponse>, ApiError> {
     let session_id = SessionId::from_uuid(session_id);
     let target = ActorId::from_uuid(actor_id);
-    let participant = admit(
+    let grant = admit(
         state.realtime.stores.participants.as_ref(),
         state.participation.as_ref(),
         state.admissions.as_ref(),
@@ -202,8 +202,8 @@ pub(crate) async fn admit_principal(
         state.rooms.as_ref(),
         AdmissionDecision {
             actor: principal.actor_id,
-            session_id,
-            target,
+            target: AdmissionTarget::Session(session_id),
+            subject: target,
         },
         OffsetDateTime::now_utc(),
     )
@@ -211,7 +211,10 @@ pub(crate) async fn admit_principal(
     Ok(Json(AdmittedResponse {
         session_id: session_id.to_string(),
         actor_id: target.to_string(),
-        participant_id: participant.id.to_string(),
+        participant_id: grant
+            .participant()
+            .map(|participant| participant.id.to_string())
+            .unwrap_or_default(),
     }))
 }
 
@@ -243,8 +246,8 @@ pub(crate) async fn reject_principal(
         state.rooms.as_ref(),
         AdmissionDecision {
             actor: principal.actor_id,
-            session_id: SessionId::from_uuid(session_id),
-            target: ActorId::from_uuid(actor_id),
+            target: AdmissionTarget::Session(SessionId::from_uuid(session_id)),
+            subject: ActorId::from_uuid(actor_id),
         },
         OffsetDateTime::now_utc(),
     )
@@ -260,4 +263,42 @@ fn response(session_id: SessionId, view: SessionAccessView) -> SessionAccessResp
         visibility_overridden: view.visibility_overridden,
         admission_overridden: view.admission_overridden,
     }
+}
+
+#[derive(Debug, Serialize, ToSchema)]
+pub(crate) struct OwnAdmissionResponse {
+    pub(crate) status: String,
+    pub(crate) request_id: String,
+}
+
+/// The caller's own outstanding admission request for this session, if any.
+///
+/// Self-scoped: a waiting client needs to know whether it has been admitted
+/// without being able to read anyone else's request.
+#[utoipa::path(
+    get,
+    path = "/v1/sessions/{session_id}/admission",
+    tag = "admission",
+    params(("session_id" = String, Path, description = "Session identifier (UUID)")),
+    responses(
+        (status = 200, description = "The caller's pending request", body = OwnAdmissionResponse),
+        (status = 401, description = "Authentication required"),
+        (status = 404, description = "The caller has no pending request for this session"),
+    ),
+)]
+pub(crate) async fn own_admission(
+    State(state): State<AppState>,
+    Authenticated(principal): Authenticated,
+    ValidatedPath(session_id): ValidatedPath<Uuid>,
+) -> Result<Json<OwnAdmissionResponse>, ApiError> {
+    let request = mahfel_application::admission::wait_for_admission(
+        state.admissions.as_ref(),
+        AdmissionTarget::Session(SessionId::from_uuid(session_id)),
+        principal.actor_id,
+    )
+    .await?;
+    Ok(Json(OwnAdmissionResponse {
+        status: request.status.as_str().to_owned(),
+        request_id: request.id.to_string(),
+    }))
 }
