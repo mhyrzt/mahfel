@@ -144,6 +144,13 @@ config_map() {
     --from-file="${file}" --dry-run=client -o yaml | kubectl apply -f - >/dev/null
 }
 
+caddy_config_map() {
+  kubectl -n "${namespace}" create configmap caddy-config \
+    --from-file=Caddyfile="${manifest_dir}/caddy/Caddyfile" \
+    --from-file=base.Caddyfile="${repo_dir}/deploy/caddy/Caddyfile" \
+    --dry-run=client -o yaml | kubectl apply -f - >/dev/null
+}
+
 up() {
   step 'Checking Minikube'
   require_minikube
@@ -157,7 +164,7 @@ up() {
   step 'Creating namespace and local configuration'
   kubectl apply -f "${infra_dir}/namespace.yaml" >/dev/null
   config_map keycloak-realm "${repo_dir}/deploy/keycloak/rastai-realm.json"
-  config_map caddy-config "${repo_dir}/deploy/caddy/Caddyfile"
+  caddy_config_map
   config_map caddy-index "${repo_dir}/deploy/caddy/index.html"
   step 'Applying infrastructure (image pulls may take several minutes)'
   kubectl -n "${namespace}" apply \
@@ -168,6 +175,9 @@ up() {
     -f "${infra_dir}/rustfs.yaml" \
     -f "${infra_dir}/keycloak.yaml" \
     -f "${infra_dir}/caddy.yaml" >/dev/null
+  if kubectl -n "${namespace}" get deployment/caddy >/dev/null 2>&1; then
+    kubectl -n "${namespace}" rollout restart deployment/caddy >/dev/null
+  fi
   sed "s/192\.0\.2\.1/${node_ip}/g" "${infra_dir}/coturn.yaml" |
     kubectl -n "${namespace}" apply -f - >/dev/null
 

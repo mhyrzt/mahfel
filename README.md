@@ -29,14 +29,14 @@ trust store and may prompt for `sudo`.
 To use Minikube instead:
 
 ```bash
-just minikube-init
-just minikube-bootstrap
+just minikube init
+just minikube bootstrap
 ```
 
-Initialize the cluster once. `just minikube-bootstrap` builds and deploys the apps, then forwards
+Initialize the cluster once. `just minikube bootstrap` builds and deploys the apps, then forwards
 HTTPS until you stop the command. Host ports 80 and 443 must be free. Certificate trust and
 forwarding may prompt for `sudo`. Open `https://mahfel.localhost` once forwarding starts. Run
-`just minikube-cert` if the Minikube CA changes.
+`just minikube cert` if the Minikube CA changes.
 
 See [getting started](docs/development/getting-started.md) for details. Run `just --list` for all
 development commands.

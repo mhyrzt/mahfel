@@ -61,53 +61,10 @@ docs:
 docs-serve:
     mkdocs serve
 
-# Initialize the local single-node Kubernetes cluster used by the Minikube profile.
-[group('Minikube')]
-minikube-init:
-    minikube start --driver=docker --cpus=4 --memory=8192
-    kubectl config use-context minikube
-
-# Build and deploy Minikube, then keep local HTTPS forwarded.
-[group('Minikube')]
-minikube-bootstrap:
-    just minikube-build
-    just minikube-up
-    just minikube-forward
-
-# Build the four application images and load them into Minikube.
-[group('Minikube')]
-minikube-build:
-    ./deploy/minikube/minikube.sh build
-
-# Apply the local Kubernetes stack and trust its HTTPS certificate on the host.
-[group('Minikube')]
-minikube-up:
-    ./deploy/minikube/minikube.sh up
-
-# Forward local HTTP and HTTPS to Minikube Caddy (requires sudo).
-[group('Minikube')]
-minikube-forward:
-    ./deploy/minikube/minikube.sh forward
-
-# Export and trust the Minikube Caddy root CA on the host.
-[group('Minikube')]
-minikube-cert:
-    ./deploy/minikube/minikube.sh cert
-
-# Show pods, services, Jobs, and persistent volumes in the Mahfel namespace.
-[group('Minikube')]
-minikube-status:
-    ./deploy/minikube/minikube.sh status
-
-# Remove the local Mahfel namespace and its Kubernetes resources.
-[group('Minikube')]
-minikube-down:
-    ./deploy/minikube/minikube.sh down
-
-# Stop the Minikube cluster without deleting its profile or cached images.
-[group('Minikube')]
-minikube-stop:
-    minikube stop
+# Forward Minikube recipes and arguments to the deployment Justfile.
+[group('Components')]
+minikube *args:
+    just --justfile deploy/minikube/justfile {{args}}
 
 # Start selected Compose profiles; no arguments starts all profiles.
 [group('Compose')]

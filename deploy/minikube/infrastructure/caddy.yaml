@@ -33,6 +33,7 @@ spec:
             periodSeconds: 5
           volumeMounts:
             - {name: config, mountPath: /etc/caddy/Caddyfile, subPath: Caddyfile, readOnly: true}
+            - {name: config, mountPath: /etc/caddy/base.Caddyfile, subPath: base.Caddyfile, readOnly: true}
             - {name: page, mountPath: /srv/caddy/index.html, subPath: index.html, readOnly: true}
             - {name: data, mountPath: /data}
       volumes:

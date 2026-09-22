@@ -1,0 +1,56 @@
+set dotenv-load
+
+default:
+    @just --list
+
+# Check formatting for all Minikube YAML manifests.
+fmt-check:
+    prettier --check '**/*.yaml' '**/*.yml' --no-error-on-unmatched-pattern
+
+# Apply canonical formatting to all Minikube YAML manifests.
+fmt:
+    prettier --write '**/*.yaml' '**/*.yml' --no-error-on-unmatched-pattern
+
+# Render and lint the complete Minikube Kubernetes resource set.
+lint:
+    kubectl kustomize . | kubeconform -strict -ignore-missing-schemas -summary
+
+# Initialize the local single-node Kubernetes cluster used by the Minikube profile.
+init:
+    minikube start --driver=docker --cpus=4 --memory=8192
+    kubectl config use-context minikube
+
+# Build and deploy Minikube, then keep local HTTPS forwarded.
+bootstrap: build up forward
+
+# Build the four application images and load them into Minikube.
+build:
+    ./minikube.sh build
+
+# Apply the local Kubernetes stack and trust its HTTPS certificate on the host.
+up:
+    ./minikube.sh up
+
+# Forward local HTTP and HTTPS to Minikube Caddy (requires sudo).
+forward:
+    ./minikube.sh forward
+
+# Export and trust the Minikube Caddy root CA on the host.
+cert:
+    ./minikube.sh cert
+
+# Show pods, services, Jobs, and persistent volumes in the Mahfel namespace.
+status:
+    ./minikube.sh status
+
+# Remove the local Mahfel namespace and its Kubernetes resources.
+down:
+    ./minikube.sh down
+
+# Stop the Minikube cluster without deleting its profile or cached images.
+stop:
+    minikube stop
+
+# Remove the Mahfel namespace, then delete the default Minikube profile and its node state.
+clean-aggressive: down
+    minikube delete --profile minikube

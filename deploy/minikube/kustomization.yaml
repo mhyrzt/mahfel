@@ -4,3 +4,4 @@ namespace: mahfel
 resources:
   - infrastructure
   - applications
+  - monitoring

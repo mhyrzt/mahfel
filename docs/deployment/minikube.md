@@ -12,12 +12,12 @@ Keycloak, and the application (at least 4 CPUs and 8 GiB of memory is a useful s
 From the repository root:
 
 ```bash
-just minikube-init
-just minikube-bootstrap
+just minikube init
+just minikube bootstrap
 ```
 
-Initialize the cluster once. `just minikube-bootstrap` builds and deploys the apps and keeps HTTPS
-forwarding open until interrupted. Host ports 80 and 443 must be free. Run `just minikube-status`
+Initialize the cluster once. `just minikube bootstrap` builds and deploys the apps and keeps HTTPS
+forwarding open until interrupted. Host ports 80 and 443 must be free. Run `just minikube status`
 in another terminal to inspect the stack.
 
 The first media image build is slow because mediasoup builds native components. `build` builds
@@ -26,6 +26,9 @@ Minikube. Re-run `build` after source changes and `up` to apply configuration. T
 unchanged-tag image after rebuilding, use `kubectl -n mahfel rollout restart deployment/mahfel-api`
 (or the corresponding deployment). The seed Job runs once per namespace and applies the local
 development data after migrations; delete that Job before `up` if seed files change.
+
+Run `just minikube fmt` to format Minikube YAML manifests, `just minikube fmt-check` to check
+formatting, and `just minikube lint` to render and validate the complete Kubernetes resource set.
 
 The helper checks that the current kubectl context is exactly `minikube` before changing resources.
 It creates ConfigMaps from the repository's canonical Caddyfile, index page, and Keycloak realm
@@ -39,21 +42,21 @@ networking correctly.
 
 ## Browser HTTPS
 
-`just minikube-bootstrap` starts forwarding automatically. When running the steps individually,
+`just minikube bootstrap` starts forwarding automatically. When running the steps individually,
 keep this running in a second terminal:
 
 ```bash
-just minikube-forward
+just minikube forward
 ```
 
 The forward prompts for `sudo` because ports 80 and 443 are privileged. It uses your kubectl
 configuration and binds only `127.0.0.1:80` and `127.0.0.1:443`. These ports must be free. The
-existing `*.mahfel.localhost` names resolve to loopback on normal development hosts. `just minikube-up`
+existing `*.mahfel.localhost` names resolve to loopback on normal development hosts. `just minikube up`
 exports and trusts the Minikube Caddy CA
 on the host. If it could not prompt for `sudo`, or the CA changes, run this in an interactive terminal:
 
 ```bash
-just minikube-cert
+just minikube cert
 ```
 
 The CA is saved at `.local/minikube/root.crt`. The Minikube Caddy has its own CA; the Compose Caddy
@@ -94,11 +97,16 @@ proof of WebRTC connectivity.
 ```bash
 kubectl -n mahfel describe pod <pod-name>
 kubectl -n mahfel logs deployment/mahfel-api
-just minikube-down
-just minikube-stop
+just minikube down
+just minikube stop
+# Full profile reset, including Minikube node state and node-resident images:
+just minikube clean-aggressive
 ```
 
-`minikube-down` deletes the `mahfel` namespace and its local PVCs; `minikube-stop` stops the
-cluster while retaining its profile and cached images. Nothing in this directory is a production
-Kubernetes deployment: it uses single replicas, in-cluster fixture credentials, a local CA,
-and host networking for coturn's relay ports.
+`just minikube down` deletes the `mahfel` namespace and its local PVCs; `just minikube stop` stops the
+cluster while retaining its profile and node-resident images. `just minikube clean-aggressive` deletes
+the `mahfel` namespace and its PVC-backed local data, then deletes only the default `minikube` profile;
+this removes its node state and loaded images but does not delete other Minikube profiles or host
+Docker images/build cache. Nothing in this directory is a production Kubernetes deployment: it
+uses single replicas, in-cluster fixture credentials, a local CA, and host networking for coturn's
+relay ports.
