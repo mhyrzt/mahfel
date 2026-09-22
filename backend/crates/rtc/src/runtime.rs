@@ -1,4 +1,5 @@
 use super::error::RtcError;
+use super::speaker::SpeakerHub;
 use super::{consumer::ConsumerMap, producer::ProducerMap, room::RoomMap, transport::TransportMap};
 use mahfel_domain::{ActorId, ProducerSource, RoomId};
 use mediasoup::{
@@ -24,6 +25,7 @@ pub struct MediaRuntime {
     pub(super) transports: TransportMap,
     pub(super) producers: ProducerMap,
     pub(super) consumers: ConsumerMap,
+    pub(super) speakers: SpeakerHub,
     next_worker: Arc<AtomicUsize>,
 }
 
@@ -101,6 +103,7 @@ impl MediaRuntime {
             transports: Arc::new(RwLock::new(HashMap::new())),
             producers: Arc::new(RwLock::new(HashMap::new())),
             consumers: Arc::new(RwLock::new(HashMap::new())),
+            speakers: SpeakerHub::new(),
             next_worker: Arc::new(AtomicUsize::new(0)),
         })
     }
@@ -139,7 +142,14 @@ impl MediaRuntime {
     }
 
     pub async fn create_room(&self, room_id: RoomId) -> Result<bool, RtcError> {
-        super::room::create_room(&self.rooms, &self.workers, &self.next_worker, room_id).await
+        super::room::create_room(
+            &self.rooms,
+            &self.workers,
+            &self.next_worker,
+            &self.speakers,
+            room_id,
+        )
+        .await
     }
 
     pub async fn delete_room(&self, room_id: RoomId) -> bool {
@@ -149,8 +159,21 @@ impl MediaRuntime {
             &self.transports,
             &self.producers,
             &self.consumers,
+            &self.speakers,
         )
         .await
+    }
+
+    pub async fn clear_room_media(&self, room_id: RoomId) {
+        super::room::clear_room_media(
+            &self.rooms,
+            room_id,
+            &self.transports,
+            &self.producers,
+            &self.consumers,
+            &self.speakers,
+        )
+        .await;
     }
 
     pub async fn create_transport(
@@ -183,6 +206,22 @@ impl MediaRuntime {
         .await
     }
 
+    pub async fn close_transport(
+        &self,
+        room_id: RoomId,
+        transport_id: &str,
+    ) -> Result<bool, RtcError> {
+        super::transport::close_transport(
+            &self.transports,
+            &self.producers,
+            &self.consumers,
+            &self.speakers,
+            room_id,
+            transport_id,
+        )
+        .await
+    }
+
     #[allow(clippy::too_many_arguments)]
     pub async fn create_producer(
         &self,
@@ -197,6 +236,7 @@ impl MediaRuntime {
             &self.rooms,
             &self.transports,
             &self.producers,
+            &self.speakers,
             room_id,
             transport_id,
             participant_id,
@@ -207,14 +247,25 @@ impl MediaRuntime {
         .await
     }
 
+    #[must_use]
+    pub fn speaker_hub(&self) -> SpeakerHub {
+        self.speakers.clone()
+    }
+
     pub async fn pause_participant_source(
         &self,
         room_id: RoomId,
         participant_id: ActorId,
         source: ProducerSource,
     ) -> Result<usize, RtcError> {
-        super::producer::pause_participant_source(&self.producers, room_id, participant_id, source)
-            .await
+        super::producer::pause_participant_source(
+            &self.producers,
+            &self.speakers,
+            room_id,
+            participant_id,
+            source,
+        )
+        .await
     }
 
     pub async fn resume_participant_source(
@@ -223,12 +274,18 @@ impl MediaRuntime {
         participant_id: ActorId,
         source: ProducerSource,
     ) -> Result<usize, RtcError> {
-        super::producer::resume_participant_source(&self.producers, room_id, participant_id, source)
-            .await
+        super::producer::resume_participant_source(
+            &self.producers,
+            &self.speakers,
+            room_id,
+            participant_id,
+            source,
+        )
+        .await
     }
 
     pub async fn pause_producer(&self, room_id: RoomId, producer_id: &str) -> Result<(), RtcError> {
-        super::producer::pause_producer(&self.producers, room_id, producer_id).await
+        super::producer::pause_producer(&self.producers, &self.speakers, room_id, producer_id).await
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -259,7 +316,8 @@ impl MediaRuntime {
         room_id: RoomId,
         producer_id: &str,
     ) -> Result<(), RtcError> {
-        super::producer::resume_producer(&self.producers, room_id, producer_id).await
+        super::producer::resume_producer(&self.producers, &self.speakers, room_id, producer_id)
+            .await
     }
 
     pub async fn close_participant(
@@ -267,7 +325,8 @@ impl MediaRuntime {
         room_id: RoomId,
         participant_id: ActorId,
     ) -> Result<usize, RtcError> {
-        super::producer::close_participant(&self.producers, room_id, participant_id).await
+        super::producer::close_participant(&self.producers, &self.speakers, room_id, participant_id)
+            .await
     }
 
     pub async fn close_participant_source(
@@ -276,8 +335,14 @@ impl MediaRuntime {
         participant_id: ActorId,
         source: ProducerSource,
     ) -> Result<usize, RtcError> {
-        super::producer::close_participant_source(&self.producers, room_id, participant_id, source)
-            .await
+        super::producer::close_participant_source(
+            &self.producers,
+            &self.speakers,
+            room_id,
+            participant_id,
+            source,
+        )
+        .await
     }
 
     pub async fn pause_consumer(&self, room_id: RoomId, consumer_id: &str) -> Result<(), RtcError> {

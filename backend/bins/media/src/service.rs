@@ -1,12 +1,16 @@
+use crate::metrics::MediaMetrics;
 use crate::validation::saturating_u32;
 use mahfel_domain::NodeId;
 use mahfel_rtc::MediaRuntime;
 use mahfel_rtc_protocol::media::{
     GetNodeInfoRequest, GetNodeInfoResponse, GetNodeStatsRequest, GetNodeStatsResponse,
+    WatchActiveSpeakersRequest,
 };
 use tonic::{Request, Response, Status};
 
 use crate::validation::saturating_u64;
+
+mod speaker;
 
 #[derive(Clone)]
 pub struct MediaControlServiceImpl {
@@ -14,12 +18,22 @@ pub struct MediaControlServiceImpl {
     pub worker_count: u32,
     pub rtc_ports: Vec<u32>,
     pub media: std::sync::Arc<MediaRuntime>,
+    pub metrics: MediaMetrics,
 }
 
 #[tonic::async_trait]
 impl mahfel_rtc_protocol::media::media_control_service_server::MediaControlService
     for MediaControlServiceImpl
 {
+    type WatchActiveSpeakersStream = speaker::SpeakerStream;
+
+    async fn watch_active_speakers(
+        &self,
+        _request: Request<WatchActiveSpeakersRequest>,
+    ) -> Result<Response<Self::WatchActiveSpeakersStream>, Status> {
+        speaker::watch_active_speakers(self).await
+    }
+
     async fn get_node_info(
         &self,
         _request: Request<GetNodeInfoRequest>,
@@ -60,6 +74,13 @@ impl mahfel_rtc_protocol::media::media_control_service_server::MediaControlServi
         crate::handlers::room::delete_room(&self.media, request).await
     }
 
+    async fn clear_room_media(
+        &self,
+        request: Request<mahfel_rtc_protocol::media::ClearRoomMediaRequest>,
+    ) -> Result<Response<mahfel_rtc_protocol::media::ClearRoomMediaResponse>, Status> {
+        crate::handlers::room::clear_room_media(&self.media, request).await
+    }
+
     async fn create_web_rtc_transport(
         &self,
         request: Request<mahfel_rtc_protocol::media::CreateWebRtcTransportRequest>,
@@ -72,6 +93,13 @@ impl mahfel_rtc_protocol::media::media_control_service_server::MediaControlServi
         request: Request<mahfel_rtc_protocol::media::ConnectWebRtcTransportRequest>,
     ) -> Result<Response<mahfel_rtc_protocol::media::ConnectWebRtcTransportResponse>, Status> {
         crate::handlers::transport::connect_web_rtc_transport(&self.media, request).await
+    }
+
+    async fn close_web_rtc_transport(
+        &self,
+        request: Request<mahfel_rtc_protocol::media::CloseWebRtcTransportRequest>,
+    ) -> Result<Response<mahfel_rtc_protocol::media::CloseWebRtcTransportResponse>, Status> {
+        crate::handlers::transport::close_web_rtc_transport(&self.media, request).await
     }
 
     async fn produce(

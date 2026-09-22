@@ -35,13 +35,6 @@ async fn main() -> Result<()> {
     );
 
     let node_id = NodeId::new();
-    let service = MediaControlServiceImpl {
-        node_id: node_id.clone(),
-        worker_count: validation::saturating_u32(media.active_workers()),
-        rtc_ports: media.ports().iter().copied().map(u32::from).collect(),
-        media: Arc::clone(&media),
-    };
-
     let grpc_address = settings.media.grpc_bind.parse::<SocketAddr>()?;
     let operations_address = settings.media.operations_bind.parse::<SocketAddr>()?;
     let grpc_listener = tokio::net::TcpListener::bind(grpc_address).await?;
@@ -50,6 +43,13 @@ async fn main() -> Result<()> {
 
     let metrics = metrics::MediaMetrics::register(&health)?;
     metrics.set_all(&media).await;
+    let service = MediaControlServiceImpl {
+        node_id: node_id.clone(),
+        worker_count: validation::saturating_u32(media.active_workers()),
+        rtc_ports: media.ports().iter().copied().map(u32::from).collect(),
+        media: Arc::clone(&media),
+        metrics: metrics.clone(),
+    };
     health.set_check("grpc", true).await;
     health
         .set_check("mediasoup_workers", media.active_workers() > 0)

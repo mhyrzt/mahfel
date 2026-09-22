@@ -1,6 +1,8 @@
 use super::gateway::GrpcMediaGateway;
 use mahfel_domain::{ActorId, RoomId};
-use mahfel_rtc_protocol::media::{ConnectWebRtcTransportRequest, CreateWebRtcTransportRequest};
+use mahfel_rtc_protocol::media::{
+    CloseWebRtcTransportRequest, ConnectWebRtcTransportRequest, CreateWebRtcTransportRequest,
+};
 
 impl GrpcMediaGateway {
     pub async fn create_transport(
@@ -38,6 +40,22 @@ impl GrpcMediaGateway {
                 dtls_parameters: dtls_parameters.clone(),
             };
             async move { client.connect_web_rtc_transport(req).await }
+        })
+        .await
+        .map(|_| ())
+    }
+
+    pub async fn close_transport(
+        &self,
+        room: RoomId,
+        transport_id: String,
+    ) -> Result<(), tonic::Status> {
+        self.with_retry(|mut client| {
+            let request = CloseWebRtcTransportRequest {
+                room_id: room.to_string(),
+                transport_id: transport_id.clone(),
+            };
+            async move { client.close_web_rtc_transport(request).await }
         })
         .await
         .map(|_| ())

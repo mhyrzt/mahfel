@@ -7,6 +7,7 @@ use tokio::sync::watch;
 
 use crate::validation::saturating_i64;
 
+#[derive(Clone)]
 pub(crate) struct MediaMetrics {
     pub(crate) active_workers: IntGauge,
     pub(crate) worker_failures: Counter,
@@ -14,6 +15,8 @@ pub(crate) struct MediaMetrics {
     pub(crate) active_transports: IntGauge,
     pub(crate) active_producers: IntGauge,
     pub(crate) active_consumers: IntGauge,
+    pub(crate) active_speakers: IntGauge,
+    pub(crate) speaker_stream_dropped_updates: Counter,
 }
 
 impl MediaMetrics {
@@ -55,6 +58,17 @@ impl MediaMetrics {
         ))?;
         registry.register(Box::new(active_consumers.clone()))?;
 
+        let active_speakers = IntGauge::with_opts(Opts::new(
+            "media_active_speakers",
+            "Current aggregate speaker count across all rooms",
+        ))?;
+        registry.register(Box::new(active_speakers.clone()))?;
+        let speaker_stream_dropped_updates = Counter::with_opts(Opts::new(
+            "media_speaker_stream_dropped_updates_total",
+            "Speaker snapshots skipped by slow stream subscribers",
+        ))?;
+        registry.register(Box::new(speaker_stream_dropped_updates.clone()))?;
+
         Ok(Self {
             active_workers,
             worker_failures,
@@ -62,6 +76,8 @@ impl MediaMetrics {
             active_transports,
             active_producers,
             active_consumers,
+            active_speakers,
+            speaker_stream_dropped_updates,
         })
     }
 
@@ -76,6 +92,8 @@ impl MediaMetrics {
             .set(saturating_i64(media.producer_count().await));
         self.active_consumers
             .set(saturating_i64(media.consumer_count().await));
+        self.active_speakers
+            .set(saturating_i64(media.speaker_hub().active_count()));
     }
 }
 
@@ -99,6 +117,7 @@ pub(crate) fn spawn_supervision(
                     metrics.active_transports.set(saturating_i64(media.transport_count().await));
                     metrics.active_producers.set(saturating_i64(media.producer_count().await));
                     metrics.active_consumers.set(saturating_i64(media.consumer_count().await));
+                    metrics.active_speakers.set(saturating_i64(media.speaker_hub().active_count()));
                     if active < last_active {
                         let delta = last_active - active;
                         metrics.worker_failures.inc_by(f64::from(u32::try_from(delta).unwrap_or(0)));

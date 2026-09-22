@@ -1,8 +1,9 @@
 use crate::validation::{ConnectTransportValidated, CreateTransportValidated, Validated};
+use mahfel_domain::RoomId;
 use mahfel_rtc::MediaRuntime;
 use mahfel_rtc_protocol::media::{
-    ConnectWebRtcTransportRequest, ConnectWebRtcTransportResponse, CreateWebRtcTransportRequest,
-    CreateWebRtcTransportResponse,
+    CloseWebRtcTransportRequest, CloseWebRtcTransportResponse, ConnectWebRtcTransportRequest,
+    ConnectWebRtcTransportResponse, CreateWebRtcTransportRequest, CreateWebRtcTransportResponse,
 };
 use tonic::{Request, Response, Status};
 
@@ -23,6 +24,23 @@ pub(crate) async fn create_web_rtc_transport(
         ice_candidates,
         dtls_parameters,
     }))
+}
+
+pub(crate) async fn close_web_rtc_transport(
+    media: &MediaRuntime,
+    request: Request<CloseWebRtcTransportRequest>,
+) -> Result<Response<CloseWebRtcTransportResponse>, Status> {
+    let request = request.into_inner();
+    let room_id = uuid::Uuid::parse_str(&request.room_id)
+        .map(RoomId::from_uuid)
+        .map_err(|_| Status::invalid_argument("room_id must be a uuid"))?;
+    if request.transport_id.is_empty() {
+        return Err(Status::invalid_argument("transport_id is required"));
+    }
+    media
+        .close_transport(room_id, &request.transport_id)
+        .await?;
+    Ok(Response::new(CloseWebRtcTransportResponse {}))
 }
 
 pub(crate) async fn connect_web_rtc_transport(

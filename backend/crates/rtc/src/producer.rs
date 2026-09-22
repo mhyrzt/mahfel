@@ -1,8 +1,12 @@
 use super::error::RtcError;
 use super::room::RoomMap;
+use super::speaker::SpeakerHub;
 use super::transport::TransportMap;
 use mahfel_domain::{ActorId, ProducerSource, RoomId};
-use mediasoup::prelude::{MediaKind, Producer, ProducerOptions, RtpParameters, Transport};
+use mediasoup::{
+    prelude::{MediaKind, Producer, ProducerOptions, RtpParameters, Transport},
+    rtp_observer::{RtpObserver, RtpObserverAddProducerOptions},
+};
 use std::{collections::HashMap, sync::Arc};
 use tokio::sync::RwLock;
 
@@ -23,6 +27,7 @@ pub(super) async fn create_producer(
     rooms: &RoomMap,
     transports: &TransportMap,
     producers: &ProducerMap,
+    speakers: &SpeakerHub,
     room_id: RoomId,
     transport_id: &str,
     participant_id: ActorId,
@@ -33,12 +38,13 @@ pub(super) async fn create_producer(
     let rtp_parameters: RtpParameters = serde_json::from_str(rtp_parameters_json)
         .map_err(|e| RtcError::RtpParameters(e.to_string()))?;
 
-    {
+    let observer = {
         let map = rooms.read().await;
-        if !map.contains_key(&room_id) {
-            return Err(RtcError::RoomNotFound { room_id });
-        }
-    }
+        map.get(&room_id)
+            .ok_or(RtcError::RoomNotFound { room_id })?
+            .audio_observer
+            .clone()
+    };
 
     let transport = {
         let map = transports.read().await;
@@ -61,6 +67,16 @@ pub(super) async fn create_producer(
         .map_err(|e| RtcError::Producer(e.to_string()))?;
 
     let producer_id = producer.id().to_string();
+    if kind == MediaKind::Audio && source == ProducerSource::Microphone {
+        speakers.add_producer(room_id, producer_id.clone(), participant_id);
+        if let Err(error) = observer
+            .add_producer(RtpObserverAddProducerOptions::new(producer.id()))
+            .await
+        {
+            speakers.remove_producer(room_id, &producer_id);
+            return Err(RtcError::Observer(error.to_string()));
+        }
+    }
     producers.write().await.insert(
         producer_id.clone(),
         ProducerEntry {
@@ -82,6 +98,7 @@ pub(super) async fn create_producer(
 /// mute record never points at a producer that no longer exists.
 pub(super) async fn pause_producer(
     producers: &ProducerMap,
+    speakers: &SpeakerHub,
     room_id: RoomId,
     producer_id: &str,
 ) -> Result<(), RtcError> {
@@ -103,12 +120,14 @@ pub(super) async fn pause_producer(
         .pause()
         .await
         .map_err(|e| RtcError::Producer(e.to_string()))?;
+    speakers.remove_producer(room_id, producer_id);
     Ok(())
 }
 
 /// Resume a producer that was paused.
 pub(super) async fn resume_producer(
     producers: &ProducerMap,
+    speakers: &SpeakerHub,
     room_id: RoomId,
     producer_id: &str,
 ) -> Result<(), RtcError> {
@@ -128,6 +147,9 @@ pub(super) async fn resume_producer(
         .resume()
         .await
         .map_err(|e| RtcError::Producer(e.to_string()))?;
+    if entry.kind == MediaKind::Audio && entry.source == ProducerSource::Microphone {
+        speakers.add_producer(room_id, producer_id.to_owned(), entry.participant_id);
+    }
     Ok(())
 }
 
@@ -139,6 +161,7 @@ pub(super) async fn resume_producer(
 /// source.
 pub(super) async fn pause_participant_source(
     producers: &ProducerMap,
+    speakers: &SpeakerHub,
     room_id: RoomId,
     participant_id: ActorId,
     source: ProducerSource,
@@ -156,6 +179,7 @@ pub(super) async fn pause_participant_source(
             .pause()
             .await
             .map_err(|e| RtcError::Producer(e.to_string()))?;
+        speakers.remove_producer(room_id, &producer_id);
         paused += 1;
     }
     Ok(paused)
@@ -164,6 +188,7 @@ pub(super) async fn pause_participant_source(
 /// Resume every producer a participant owns for one source.
 pub(super) async fn resume_participant_source(
     producers: &ProducerMap,
+    speakers: &SpeakerHub,
     room_id: RoomId,
     participant_id: ActorId,
     source: ProducerSource,
@@ -181,6 +206,9 @@ pub(super) async fn resume_participant_source(
             .resume()
             .await
             .map_err(|e| RtcError::Producer(e.to_string()))?;
+        if entry.kind == MediaKind::Audio && entry.source == ProducerSource::Microphone {
+            speakers.add_producer(room_id, producer_id.clone(), entry.participant_id);
+        }
         resumed += 1;
     }
     Ok(resumed)
@@ -199,6 +227,7 @@ pub(super) async fn resume_participant_source(
 /// partially closed producer cannot be left behind.
 pub(super) async fn close_participant(
     producers: &ProducerMap,
+    speakers: &SpeakerHub,
     room_id: RoomId,
     participant_id: ActorId,
 ) -> Result<usize, RtcError> {
@@ -210,6 +239,7 @@ pub(super) async fn close_participant(
     let mut closed = 0;
     for producer_id in owned {
         if map.remove(&producer_id).is_some() {
+            speakers.remove_producer(room_id, &producer_id);
             closed += 1;
         }
     }
@@ -223,6 +253,7 @@ pub(super) async fn close_participant(
 /// permitted. Returns how many were closed.
 pub(super) async fn close_participant_source(
     producers: &ProducerMap,
+    speakers: &SpeakerHub,
     room_id: RoomId,
     participant_id: ActorId,
     source: ProducerSource,
@@ -233,6 +264,7 @@ pub(super) async fn close_participant_source(
     let mut closed = 0;
     for producer_id in owned {
         if map.remove(&producer_id).is_some() {
+            speakers.remove_producer(room_id, &producer_id);
             closed += 1;
         }
     }

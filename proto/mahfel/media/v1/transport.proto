@@ -22,3 +22,10 @@ message ConnectWebRtcTransportRequest {
 }
 
 message ConnectWebRtcTransportResponse {}
+
+message CloseWebRtcTransportRequest {
+  string room_id = 1;
+  string transport_id = 2;
+}
+
+message CloseWebRtcTransportResponse {}

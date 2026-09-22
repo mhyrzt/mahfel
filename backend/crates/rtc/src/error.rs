@@ -21,6 +21,8 @@ pub enum RtcError {
     WebRtcServer(#[from] mediasoup::worker::CreateWebRtcServerError),
     #[error("router creation failed: {0}")]
     Router(#[from] CreateRouterError),
+    #[error("audio observer failed: {0}")]
+    Observer(String),
     #[error("room not found: {room_id}")]
     RoomNotFound { room_id: RoomId },
     #[error("transport not found: {transport_id}")]

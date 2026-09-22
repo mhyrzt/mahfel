@@ -15,3 +15,10 @@ message DeleteRoomRequest {
 }
 
 message DeleteRoomResponse {}
+
+// Close volatile media from an ended session while retaining the room router.
+message ClearRoomMediaRequest {
+  string room_id = 1;
+}
+
+message ClearRoomMediaResponse {}

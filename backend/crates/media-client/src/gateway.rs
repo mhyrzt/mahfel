@@ -1,5 +1,6 @@
 use crate::error::MediaClientError;
 use mahfel_rtc_protocol::media::media_control_service_client::MediaControlServiceClient;
+use mahfel_rtc_protocol::media::{WatchActiveSpeakersRequest, WatchActiveSpeakersResponse};
 use tonic::transport::{Channel, Endpoint};
 
 #[derive(Clone)]
@@ -23,6 +24,16 @@ impl GrpcMediaGateway {
     #[must_use]
     pub fn into_inner(self) -> MediaControlServiceClient<Channel> {
         self.client
+    }
+
+    pub async fn watch_active_speakers(
+        &self,
+    ) -> Result<tonic::Streaming<WatchActiveSpeakersResponse>, tonic::Status> {
+        let mut client = self.client.clone();
+        client
+            .watch_active_speakers(WatchActiveSpeakersRequest {})
+            .await
+            .map(tonic::Response::into_inner)
     }
 }
 

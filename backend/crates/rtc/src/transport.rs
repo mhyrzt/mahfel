@@ -1,5 +1,6 @@
 use super::error::RtcError;
 use super::room::RoomMap;
+use super::{consumer::ConsumerMap, producer::ProducerMap, speaker::SpeakerHub};
 use mahfel_domain::{ActorId, RoomId};
 use mediasoup::prelude::{
     DtlsParameters, IceCandidate, IceParameters, Transport, WebRtcServer, WebRtcTransport,
@@ -91,4 +92,47 @@ pub(super) async fn connect_transport(
         .await
         .map_err(|e| RtcError::Connect(e.to_string()))?;
     Ok(())
+}
+
+/// Close one connection-owned transport and its media. A repeated close is safe.
+pub(super) async fn close_transport(
+    transports: &TransportMap,
+    producers: &ProducerMap,
+    consumers: &ConsumerMap,
+    speakers: &SpeakerHub,
+    room_id: RoomId,
+    transport_id: &str,
+) -> Result<bool, RtcError> {
+    let removed = {
+        let mut map = transports.write().await;
+        match map.get(transport_id) {
+            None => return Ok(false),
+            Some(entry) if entry.room_id != room_id => {
+                return Err(RtcError::TransportNotFound {
+                    transport_id: transport_id.to_owned(),
+                });
+            }
+            Some(_) => map.remove(transport_id),
+        }
+    };
+    let producer_ids: Vec<_> = {
+        let mut map = producers.write().await;
+        let ids: Vec<_> = map
+            .iter()
+            .filter(|(_, entry)| entry.transport_id == transport_id)
+            .map(|(id, _)| id.clone())
+            .collect();
+        for id in &ids {
+            map.remove(id);
+        }
+        ids
+    };
+    consumers.write().await.retain(|_, entry| {
+        entry.transport_id != transport_id && !producer_ids.contains(&entry.producer_id)
+    });
+    for producer_id in producer_ids {
+        speakers.remove_producer(room_id, &producer_id);
+    }
+    drop(removed);
+    Ok(true)
 }

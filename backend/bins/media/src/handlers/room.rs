@@ -1,7 +1,10 @@
-use crate::validation::{CreateRoomValidated, DeleteRoomValidated, Validated};
+use crate::validation::{
+    CreateRoomValidated, DeleteRoomValidated, Validated, parse_room_id, require_field,
+};
 use mahfel_rtc::MediaRuntime;
 use mahfel_rtc_protocol::media::{
-    CreateRoomRequest, CreateRoomResponse, DeleteRoomRequest, DeleteRoomResponse,
+    ClearRoomMediaRequest, ClearRoomMediaResponse, CreateRoomRequest, CreateRoomResponse,
+    DeleteRoomRequest, DeleteRoomResponse,
 };
 use tonic::{Request, Response, Status};
 
@@ -17,6 +20,15 @@ pub(crate) async fn create_room(
     Ok(Response::new(CreateRoomResponse {
         room_id: raw_room_id,
     }))
+}
+
+pub(crate) async fn clear_room_media(
+    media: &MediaRuntime,
+    request: Request<ClearRoomMediaRequest>,
+) -> Result<Response<ClearRoomMediaResponse>, Status> {
+    let room_id = parse_room_id(&require_field(request.into_inner().room_id, "room_id")?)?;
+    media.clear_room_media(room_id).await;
+    Ok(Response::new(ClearRoomMediaResponse {}))
 }
 
 pub(crate) async fn delete_room(

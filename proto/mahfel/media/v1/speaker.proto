@@ -1,0 +1,13 @@
+syntax = "proto3";
+
+package mahfel.media.v1;
+
+message WatchActiveSpeakersRequest {}
+
+message WatchActiveSpeakersResponse {
+  string room_id = 1;
+  // Ordered by smoothed loudness. The API maps actors to session participants.
+  repeated string actor_ids = 2;
+  // Clear all previously received room snapshots before applying following frames.
+  bool reset = 3;
+}

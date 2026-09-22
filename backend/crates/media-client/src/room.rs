@@ -2,9 +2,23 @@ use super::gateway::GrpcMediaGateway;
 use mahfel_application::ports::{BoxFuture, MediaGateway, MediaGatewayError};
 use mahfel_domain::{ActorId, ProducerSource, RoomId};
 use mahfel_rtc_protocol::media::{
-    CloseParticipantSourceRequest, CreateRoomRequest, DeleteRoomRequest,
+    ClearRoomMediaRequest, CloseParticipantSourceRequest, CreateRoomRequest, DeleteRoomRequest,
     PauseParticipantSourceRequest, ResumeParticipantSourceRequest,
 };
+
+impl GrpcMediaGateway {
+    pub async fn clear_room_media(&self, room: RoomId) -> Result<(), tonic::Status> {
+        self.with_retry(|mut client| async move {
+            client
+                .clear_room_media(ClearRoomMediaRequest {
+                    room_id: room.to_string(),
+                })
+                .await
+        })
+        .await
+        .map(|_| ())
+    }
+}
 
 impl MediaGateway for GrpcMediaGateway {
     fn create_room(&self, room: RoomId) -> BoxFuture<'_, Result<(), MediaGatewayError>> {
