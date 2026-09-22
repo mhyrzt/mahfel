@@ -1,10 +1,14 @@
 use mediasoup::prelude::{MimeTypeAudio, MimeTypeVideo, RtcpFeedback, RtpCodecCapability};
 use std::num::{NonZeroU8, NonZeroU32};
 
+const OPUS_PAYLOAD_TYPE: u8 = 100;
+const VP8_PAYLOAD_TYPE: u8 = 101;
+// Mediasoup assigns 102 to VP8 RTX, so H.264 must use the next free type.
+const H264_PAYLOAD_TYPE: u8 = 103;
+
 /// Canonical router codecs for Mahfel classrooms.
 ///
-/// Chosen from `supported_rtp_capabilities.rs` with stable payload types
-/// 100-102 to avoid collisions with dynamic allocations.
+/// Chosen from `supported_rtp_capabilities.rs` with stable payload types.
 #[must_use]
 pub fn media_codecs() -> Vec<RtpCodecCapability> {
     let mut opus_params = mediasoup::prelude::RtpCodecParametersParameters::default();
@@ -19,7 +23,7 @@ pub fn media_codecs() -> Vec<RtpCodecCapability> {
     vec![
         RtpCodecCapability::Audio {
             mime_type: MimeTypeAudio::Opus,
-            preferred_payload_type: Some(100),
+            preferred_payload_type: Some(OPUS_PAYLOAD_TYPE),
             clock_rate: NonZeroU32::new(48000).expect("non-zero"),
             channels: NonZeroU8::new(2).expect("non-zero"),
             parameters: opus_params,
@@ -27,7 +31,7 @@ pub fn media_codecs() -> Vec<RtpCodecCapability> {
         },
         RtpCodecCapability::Video {
             mime_type: MimeTypeVideo::Vp8,
-            preferred_payload_type: Some(101),
+            preferred_payload_type: Some(VP8_PAYLOAD_TYPE),
             clock_rate: NonZeroU32::new(90000).expect("non-zero"),
             parameters: mediasoup::prelude::RtpCodecParametersParameters::default(),
             rtcp_feedback: vec![
@@ -40,7 +44,7 @@ pub fn media_codecs() -> Vec<RtpCodecCapability> {
         },
         RtpCodecCapability::Video {
             mime_type: MimeTypeVideo::H264,
-            preferred_payload_type: Some(102),
+            preferred_payload_type: Some(H264_PAYLOAD_TYPE),
             clock_rate: NonZeroU32::new(90000).expect("non-zero"),
             parameters: h264_params,
             rtcp_feedback: vec![
@@ -60,10 +64,14 @@ mod tests {
 
     #[test]
     fn codecs_are_stable() {
+        assert_eq!(
+            (OPUS_PAYLOAD_TYPE, VP8_PAYLOAD_TYPE, H264_PAYLOAD_TYPE),
+            (100, 101, 103)
+        );
         let codecs = media_codecs();
         assert_eq!(codecs.len(), 3);
-        assert_eq!(codecs[0].preferred_payload_type(), Some(100));
-        assert_eq!(codecs[1].preferred_payload_type(), Some(101));
-        assert_eq!(codecs[2].preferred_payload_type(), Some(102));
+        assert_eq!(codecs[0].preferred_payload_type(), Some(OPUS_PAYLOAD_TYPE));
+        assert_eq!(codecs[1].preferred_payload_type(), Some(VP8_PAYLOAD_TYPE));
+        assert_eq!(codecs[2].preferred_payload_type(), Some(H264_PAYLOAD_TYPE));
     }
 }
