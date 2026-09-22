@@ -29,6 +29,7 @@ pub(crate) async fn end(
         state.sessions.as_ref(),
         state.rooms.as_ref(),
         state.participation.as_ref(),
+        state.admissions.as_ref(),
         EndSession {
             actor: principal.actor_id,
             session_id: SessionId::from_uuid(session_id),

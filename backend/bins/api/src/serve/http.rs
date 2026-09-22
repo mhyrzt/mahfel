@@ -58,6 +58,8 @@ pub(super) fn app(
         Arc::new(stores.participants.clone());
     let participation: Arc<dyn mahfel_application::ports::ParticipationStore> =
         Arc::new(stores.participation.clone());
+    let admissions: Arc<dyn mahfel_application::ports::AdmissionStore> =
+        Arc::new(stores.admissions.clone());
     let invites: Arc<dyn mahfel_application::ports::InviteStore> = Arc::new(stores.invites.clone());
     let code_index: Arc<dyn mahfel_application::ports::CoordinationStore> =
         Arc::new(coordination.store.clone());
@@ -67,6 +69,7 @@ pub(super) fn app(
         telemetry.ws_metrics.clone(),
         Arc::clone(&media),
         http::ws::ParticipationStores {
+            admissions: Arc::clone(&admissions),
             participants: Arc::clone(&participants),
             participation: Arc::clone(&participation),
             sessions: Arc::clone(&sessions),
@@ -89,6 +92,7 @@ pub(super) fn app(
         rooms,
         sessions,
         participation,
+        admissions,
         invites,
         code_index,
         realtime,

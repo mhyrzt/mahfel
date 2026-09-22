@@ -1,4 +1,4 @@
-use mahfel_domain::{Room, RoomMember, RoomRole, RoomVisibility};
+use mahfel_domain::{AdmissionPolicy, Room, RoomMember, RoomRole, RoomVisibility};
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 use uuid::Uuid;
@@ -26,6 +26,33 @@ impl From<RoomVisibility> for RoomVisibilityDto {
         match value {
             RoomVisibility::Public => Self::Public,
             RoomVisibility::InviteOnly => Self::InviteOnly,
+        }
+    }
+}
+
+/// Transport-level admission schema. Kept out of the domain so `utoipa` never
+/// reaches `mahfel-domain` (ADR 0015).
+#[derive(Clone, Copy, Debug, Deserialize, Serialize, ToSchema)]
+#[serde(rename_all = "snake_case")]
+pub(crate) enum AdmissionPolicyDto {
+    Open,
+    Lobby,
+}
+
+impl From<AdmissionPolicyDto> for AdmissionPolicy {
+    fn from(value: AdmissionPolicyDto) -> Self {
+        match value {
+            AdmissionPolicyDto::Open => Self::Open,
+            AdmissionPolicyDto::Lobby => Self::Lobby,
+        }
+    }
+}
+
+impl From<AdmissionPolicy> for AdmissionPolicyDto {
+    fn from(value: AdmissionPolicy) -> Self {
+        match value {
+            AdmissionPolicy::Open => Self::Open,
+            AdmissionPolicy::Lobby => Self::Lobby,
         }
     }
 }
@@ -85,6 +112,7 @@ pub(crate) struct RoomResponse {
     pub(crate) id: String,
     pub(crate) title: String,
     pub(crate) visibility: RoomVisibilityDto,
+    pub(crate) admission: AdmissionPolicyDto,
     pub(crate) status: String,
     pub(crate) created_by: String,
 }
@@ -101,6 +129,7 @@ impl From<Room> for RoomResponse {
             id: room.id.to_string(),
             title: room.title.as_str().to_owned(),
             visibility: room.visibility.into(),
+            admission: room.admission.into(),
             status: room.status.as_str().to_owned(),
             created_by: room.created_by.to_string(),
         }

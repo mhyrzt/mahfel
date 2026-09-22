@@ -31,6 +31,12 @@ pub enum ServerMessage {
         session_id: String,
         participant_id: String,
     },
+    /// The caller is authorized but not yet admitted. No participant exists
+    /// until a capable principal approves the request.
+    JoinWaiting {
+        session_id: String,
+        request_id: String,
+    },
     ParticipantJoined {
         session_id: String,
         participant_id: String,

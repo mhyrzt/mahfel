@@ -1,8 +1,10 @@
 use mahfel_application::ports::CapabilitySet;
-use mahfel_domain::{Session, SessionStatus};
+use mahfel_domain::{Session, SessionStatus, SessionVisibility};
 use serde::{Deserialize, Serialize};
 use time::OffsetDateTime;
 use utoipa::ToSchema;
+
+pub(crate) use super::super::rooms::dto::AdmissionPolicyDto;
 
 /// Transport-level session status schema. Kept out of the domain so `utoipa`
 /// never reaches `mahfel-domain` (ADR 0015).
@@ -26,6 +28,32 @@ impl From<SessionStatus> for SessionStatusDto {
     }
 }
 
+/// Transport-level visibility schema for a session override.
+#[derive(Clone, Copy, Debug, Deserialize, Serialize, ToSchema)]
+#[serde(rename_all = "snake_case")]
+pub(crate) enum SessionVisibilityDto {
+    Public,
+    InviteOnly,
+}
+
+impl From<SessionVisibilityDto> for SessionVisibility {
+    fn from(value: SessionVisibilityDto) -> Self {
+        match value {
+            SessionVisibilityDto::Public => Self::Public,
+            SessionVisibilityDto::InviteOnly => Self::InviteOnly,
+        }
+    }
+}
+
+impl From<SessionVisibility> for SessionVisibilityDto {
+    fn from(value: SessionVisibility) -> Self {
+        match value {
+            SessionVisibility::Public => Self::Public,
+            SessionVisibility::InviteOnly => Self::InviteOnly,
+        }
+    }
+}
+
 #[derive(Debug, Deserialize, ToSchema)]
 pub(crate) struct CreateSessionRequest {
     /// Optional advisory start instant. A session may also be ad-hoc.
@@ -41,6 +69,11 @@ pub(crate) struct SessionResponse {
     pub(crate) scheduled_start_at: Option<OffsetDateTime>,
     pub(crate) started_at: Option<OffsetDateTime>,
     pub(crate) ended_at: Option<OffsetDateTime>,
+    /// `None` means the session inherits its room's value.
+    #[serde(default)]
+    pub(crate) visibility: Option<SessionVisibilityDto>,
+    #[serde(default)]
+    pub(crate) admission: Option<AdmissionPolicyDto>,
     pub(crate) created_at: OffsetDateTime,
     pub(crate) updated_at: OffsetDateTime,
 }
@@ -72,6 +105,8 @@ impl From<Session> for SessionResponse {
             scheduled_start_at: session.scheduled_start_at,
             started_at: session.started_at,
             ended_at: session.ended_at,
+            visibility: session.visibility.map(Into::into),
+            admission: session.admission.map(Into::into),
             created_at: session.created_at,
             updated_at: session.updated_at,
         }

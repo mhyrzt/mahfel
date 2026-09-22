@@ -5,8 +5,8 @@ use crate::http::{
 };
 use mahfel_application::{
     ports::{
-        CoordinationStore, InviteStore, ParticipationStore, RoomStore, SessionStore,
-        UserAttributeWriter,
+        AdmissionStore, CoordinationStore, InviteStore, ParticipationStore, RoomStore,
+        SessionStore, UserAttributeWriter,
     },
     users::IdentityProvisioner,
 };
@@ -33,6 +33,7 @@ pub struct AppState {
     pub rooms: Arc<dyn RoomStore>,
     pub sessions: Arc<dyn SessionStore>,
     pub participation: Arc<dyn ParticipationStore>,
+    pub admissions: Arc<dyn AdmissionStore>,
     pub invites: Arc<dyn InviteStore>,
     /// Ephemeral counters behind invite-code rate limiting. Redis, because the
     /// window must be shared across replicas and is replaceable state.

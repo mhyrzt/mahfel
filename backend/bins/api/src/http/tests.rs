@@ -16,10 +16,10 @@ use axum::{
 use futures_util::{SinkExt, StreamExt};
 use mahfel_application::policy::ServerCapabilityResolver;
 use mahfel_application::ports::{
-    AttributeError, BoxFuture, Capability, CapabilityContext, CapabilityResolver, CapabilitySet,
-    CoordinationError, CoordinationStore, InviteStore, ParticipantStore, ParticipationStore,
-    Principal, ProvisionedIdentity, RoomStore, ServicePrincipalStore, SessionStore, StoreError,
-    UserAttributeWriter,
+    AdmissionStore, AttributeError, BoxFuture, Capability, CapabilityContext, CapabilityResolver,
+    CapabilitySet, CoordinationError, CoordinationStore, InviteStore, ParticipantStore,
+    ParticipationStore, Principal, ProvisionedIdentity, RoomStore, ServicePrincipalStore,
+    SessionStore, StoreError, UserAttributeWriter,
 };
 use mahfel_application::service_principals::{CreateServicePrincipal, create_service_principal};
 use mahfel_application::users::{IdentityProvisioner, SyncIdentity, SyncIdentityError};
@@ -27,11 +27,12 @@ use mahfel_auth::AuthenticatedIdentity;
 use mahfel_auth::{TokenVerifier, TokenVerifierConfig};
 use mahfel_config::TurnSettings;
 use mahfel_domain::{
-    ActorId, ActorKind, DisplayName, Identity, IntervalId, InviteCode, InviteLink, InviteLinkId,
-    InviteLinkStatus, InviteTarget, InviteTargetKind, Issuer, Participant, ParticipantId,
-    ParticipationInterval, Room, RoomId, RoomMember, RoomRole, RoomTitle, RoomVisibility,
-    ServicePrincipal, ServicePrincipalStatus, Session, SessionId, SessionStatus, Subject, User,
-    UserStatus,
+    ActorId, ActorKind, AdmissionOrigin, AdmissionRequest, AdmissionRequestId,
+    AdmissionRequestStatus, DisplayName, Identity, IntervalId, InviteCode, InviteLink,
+    InviteLinkId, InviteLinkStatus, InviteTarget, InviteTargetKind, Issuer, Participant,
+    ParticipantId, ParticipationInterval, Room, RoomId, RoomMember, RoomRole, RoomTitle,
+    RoomVisibility, ServicePrincipal, ServicePrincipalStatus, Session, SessionId, SessionStatus,
+    Subject, User, UserStatus,
 };
 use mahfel_media_client::GrpcMediaGateway;
 use prometheus::Encoder;
@@ -839,6 +840,150 @@ impl CoordinationStore for FakeCoordination {
     }
 }
 
+/// In-memory admission requests, with the same uniqueness rule the partial
+/// index enforces.
+#[derive(Clone, Default)]
+struct FakeAdmissionStore {
+    requests: Arc<Mutex<Vec<AdmissionRequest>>>,
+}
+
+impl FakeAdmissionStore {
+    fn seed(&self, request: AdmissionRequest) {
+        self.requests.lock().expect("fake store lock").push(request);
+    }
+
+    fn pending(&self, session_id: SessionId, actor_id: ActorId) -> Option<AdmissionRequest> {
+        self.requests
+            .lock()
+            .expect("fake store lock")
+            .iter()
+            .find(|request| {
+                request.session_id == session_id
+                    && request.actor_id == actor_id
+                    && request.is_pending()
+            })
+            .cloned()
+    }
+}
+
+impl AdmissionStore for FakeAdmissionStore {
+    fn insert<'a>(
+        &'a self,
+        request: &'a AdmissionRequest,
+    ) -> BoxFuture<'a, Result<(), StoreError>> {
+        Box::pin(async move {
+            let mut requests = self.requests.lock().expect("fake store lock");
+            if requests.iter().any(|existing| {
+                existing.session_id == request.session_id
+                    && existing.actor_id == request.actor_id
+                    && existing.is_pending()
+            }) {
+                return Err(StoreError::Conflict("already pending".to_owned()));
+            }
+            requests.push(request.clone());
+            Ok(())
+        })
+    }
+
+    fn get_pending(
+        &self,
+        session_id: SessionId,
+        actor_id: ActorId,
+    ) -> BoxFuture<'_, Result<Option<AdmissionRequest>, StoreError>> {
+        Box::pin(async move { Ok(self.pending(session_id, actor_id)) })
+    }
+
+    fn get(
+        &self,
+        id: AdmissionRequestId,
+    ) -> BoxFuture<'_, Result<Option<AdmissionRequest>, StoreError>> {
+        Box::pin(async move {
+            Ok(self
+                .requests
+                .lock()
+                .expect("fake store lock")
+                .iter()
+                .find(|request| request.id == id)
+                .cloned())
+        })
+    }
+
+    fn list_pending(
+        &self,
+        session_id: SessionId,
+        limit: u32,
+    ) -> BoxFuture<'_, Result<Vec<AdmissionRequest>, StoreError>> {
+        Box::pin(async move {
+            let mut pending: Vec<AdmissionRequest> = self
+                .requests
+                .lock()
+                .expect("fake store lock")
+                .iter()
+                .filter(|request| request.session_id == session_id && request.is_pending())
+                .cloned()
+                .collect();
+            pending.sort_by_key(|request| request.requested_at);
+            pending.truncate(limit as usize);
+            Ok(pending)
+        })
+    }
+
+    fn count_pending(&self, session_id: SessionId) -> BoxFuture<'_, Result<u64, StoreError>> {
+        Box::pin(async move {
+            Ok(self
+                .requests
+                .lock()
+                .expect("fake store lock")
+                .iter()
+                .filter(|request| request.session_id == session_id && request.is_pending())
+                .count() as u64)
+        })
+    }
+
+    fn decide_if_pending(
+        &self,
+        id: AdmissionRequestId,
+        status: AdmissionRequestStatus,
+        decided_by: Option<ActorId>,
+        decided_at: OffsetDateTime,
+    ) -> BoxFuture<'_, Result<bool, StoreError>> {
+        Box::pin(async move {
+            let mut requests = self.requests.lock().expect("fake store lock");
+            let Some(request) = requests.iter_mut().find(|request| request.id == id) else {
+                return Ok(false);
+            };
+            if !request.is_pending() {
+                return Ok(false);
+            }
+            request.status = status;
+            request.decided_at = Some(decided_at);
+            request.decided_by = decided_by;
+            Ok(true)
+        })
+    }
+
+    fn expire_pending_for_session(
+        &self,
+        session_id: SessionId,
+        expired_at: OffsetDateTime,
+    ) -> BoxFuture<'_, Result<u64, StoreError>> {
+        Box::pin(async move {
+            let mut requests = self.requests.lock().expect("fake store lock");
+            let mut expired = 0;
+            for request in requests
+                .iter_mut()
+                .filter(|request| request.session_id == session_id && request.is_pending())
+            {
+                request.status = AdmissionRequestStatus::Expired;
+                request.decided_at = Some(expired_at);
+                request.decided_by = None;
+                expired += 1;
+            }
+            Ok(expired)
+        })
+    }
+}
+
 /// In-memory invite links, with the same uniqueness rule the unique index
 /// enforces.
 #[derive(Clone, Default)]
@@ -969,6 +1114,7 @@ fn ws_state(principal: Option<Principal>) -> WsState {
         metrics,
         Arc::new(GrpcMediaGateway::lazy("http://localhost:50051".to_owned()).expect("media")),
         ParticipationStores {
+            admissions: Arc::new(FakeAdmissionStore::default()),
             participants: Arc::new(FakeParticipantStore::default()),
             participation: Arc::new(FakeParticipationStore::default()),
             sessions: Arc::new(FakeSessionStore::default()),
@@ -1014,6 +1160,7 @@ fn state_with(
         rooms: Arc::new(FakeRoomStore::default()),
         sessions: Arc::new(FakeSessionStore::default()),
         participation: Arc::new(FakeParticipationStore::default()),
+        admissions: Arc::new(FakeAdmissionStore::default()),
         invites: Arc::new(FakeInviteStore::default()),
         code_index: Arc::new(FakeCoordination::default()),
         realtime,
@@ -1084,6 +1231,7 @@ fn authenticated_room_app(principal: Principal, store: FakeRoomStore) -> Router 
         rooms: Arc::new(store),
         sessions: Arc::new(FakeSessionStore::default()),
         participation: Arc::new(FakeParticipationStore::default()),
+        admissions: Arc::new(FakeAdmissionStore::default()),
         invites: Arc::new(FakeInviteStore::default()),
         code_index: Arc::new(FakeCoordination::default()),
         realtime,
@@ -1859,6 +2007,7 @@ fn session_app(
         rooms: Arc::new(rooms),
         sessions: Arc::new(sessions),
         participation: Arc::new(FakeParticipationStore::default()),
+        admissions: Arc::new(FakeAdmissionStore::default()),
         invites: Arc::new(FakeInviteStore::default()),
         code_index: Arc::new(FakeCoordination::default()),
         realtime,
@@ -2063,6 +2212,7 @@ fn policy_session_app(
         rooms: Arc::new(rooms),
         sessions: Arc::new(sessions),
         participation: Arc::new(FakeParticipationStore::default()),
+        admissions: Arc::new(FakeAdmissionStore::default()),
         invites: Arc::new(FakeInviteStore::default()),
         code_index: Arc::new(FakeCoordination::default()),
         realtime,
@@ -2179,6 +2329,7 @@ async fn serve_ws(principal: Option<Principal>, config: WsConfig) -> WsHarness {
         metrics,
         Arc::new(GrpcMediaGateway::lazy("http://localhost:50051".to_owned()).expect("media")),
         ParticipationStores {
+            admissions: Arc::new(FakeAdmissionStore::default()),
             participants: Arc::new(FakeParticipantStore::default()),
             participation: Arc::new(FakeParticipationStore::default()),
             sessions: Arc::new(FakeSessionStore::default()),
@@ -2201,6 +2352,7 @@ async fn serve_ws(principal: Option<Principal>, config: WsConfig) -> WsHarness {
         rooms: Arc::new(FakeRoomStore::default()),
         sessions: Arc::new(FakeSessionStore::default()),
         participation: Arc::new(FakeParticipationStore::default()),
+        admissions: Arc::new(FakeAdmissionStore::default()),
         invites: Arc::new(FakeInviteStore::default()),
         code_index: Arc::new(FakeCoordination::default()),
         realtime,
@@ -2385,6 +2537,7 @@ async fn serve_ws_with_verifier(verifier: TokenVerifier, config: WsConfig) -> Ws
         metrics,
         Arc::new(GrpcMediaGateway::lazy("http://localhost:50051".to_owned()).expect("media")),
         ParticipationStores {
+            admissions: Arc::new(FakeAdmissionStore::default()),
             participants: Arc::new(FakeParticipantStore::default()),
             participation: Arc::new(FakeParticipationStore::default()),
             sessions: Arc::new(FakeSessionStore::default()),
@@ -2407,6 +2560,7 @@ async fn serve_ws_with_verifier(verifier: TokenVerifier, config: WsConfig) -> Ws
         rooms: Arc::new(FakeRoomStore::default()),
         sessions: Arc::new(FakeSessionStore::default()),
         participation: Arc::new(FakeParticipationStore::default()),
+        admissions: Arc::new(FakeAdmissionStore::default()),
         invites: Arc::new(FakeInviteStore::default()),
         code_index: Arc::new(FakeCoordination::default()),
         realtime,
@@ -2853,6 +3007,7 @@ fn service_app(
         rooms: Arc::new(rooms),
         sessions: Arc::new(FakeSessionStore::default()),
         participation: Arc::new(FakeParticipationStore::default()),
+        admissions: Arc::new(FakeAdmissionStore::default()),
         invites: Arc::new(FakeInviteStore::default()),
         code_index: Arc::new(FakeCoordination::default()),
         realtime,
@@ -3091,6 +3246,7 @@ async fn serve_ws_with(
         metrics,
         Arc::new(GrpcMediaGateway::lazy("http://localhost:50051".to_owned()).expect("media")),
         ParticipationStores {
+            admissions: Arc::new(FakeAdmissionStore::default()),
             participants: Arc::new(participants),
             participation: Arc::new(FakeParticipationStore::default()),
             sessions: Arc::new(sessions),
@@ -3113,6 +3269,7 @@ async fn serve_ws_with(
         rooms: Arc::new(FakeRoomStore::default()),
         sessions: Arc::new(FakeSessionStore::default()),
         participation: Arc::new(FakeParticipationStore::default()),
+        admissions: Arc::new(FakeAdmissionStore::default()),
         invites: Arc::new(FakeInviteStore::default()),
         code_index: Arc::new(FakeCoordination::default()),
         realtime,
@@ -3333,6 +3490,7 @@ fn participation_app(
         rooms: Arc::new(rooms),
         sessions: Arc::new(sessions),
         participation: Arc::new(participation),
+        admissions: Arc::new(FakeAdmissionStore::default()),
         invites: Arc::new(FakeInviteStore::default()),
         code_index: Arc::new(FakeCoordination::default()),
         realtime,
@@ -3591,6 +3749,7 @@ fn invite_app(
         rooms: Arc::new(rooms),
         sessions: Arc::new(sessions),
         participation: Arc::new(FakeParticipationStore::default()),
+        admissions: Arc::new(FakeAdmissionStore::default()),
         invites: Arc::new(invites),
         code_index: Arc::new(FakeCoordination::default()),
         realtime,
@@ -3957,4 +4116,294 @@ async fn an_unknown_link_id_is_not_found() {
     )
     .await;
     assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+}
+
+// --- Admission and lobby transport tests (M4-06) ---
+
+/// Router whose admission store the caller controls.
+fn admission_app(
+    principal: Option<Principal>,
+    rooms: FakeRoomStore,
+    sessions: FakeSessionStore,
+    admissions: FakeAdmissionStore,
+) -> Router {
+    let realtime = ws_state(principal.clone());
+    let (service_auth, service_principals) = service_seams(FakeServicePrincipalStore::default());
+    api_router(AppState {
+        service: "mahfel-api-test",
+        version: "0.1.0",
+        node_id: "node-test".to_owned(),
+        auth: AuthState::new(Arc::new(ServerCapabilityResolver)),
+        authentication: Arc::new(StubAuthenticator::new(principal)),
+        service_auth,
+        service_principals,
+        provisioner: Arc::new(StubProvisioner),
+        linker: Arc::new(StubLinker),
+        rooms: Arc::new(rooms),
+        sessions: Arc::new(sessions),
+        participation: Arc::new(FakeParticipationStore::default()),
+        admissions: Arc::new(admissions),
+        invites: Arc::new(FakeInviteStore::default()),
+        code_index: Arc::new(FakeCoordination::default()),
+        realtime,
+        turn: turn_settings(),
+    })
+}
+
+/// A public room with a live session, so a caller reaches admission rather than
+/// being refused by visibility.
+fn admission_fixture(
+    manager: ActorId,
+) -> (
+    FakeRoomStore,
+    FakeSessionStore,
+    FakeAdmissionStore,
+    Room,
+    Session,
+) {
+    let rooms = FakeRoomStore::default();
+    let room = rooms.seed_room("Analytical Engines", manager, RoomVisibility::InviteOnly);
+    let sessions = FakeSessionStore::default();
+    let mut session = Session::schedule(room.id, None, OffsetDateTime::now_utc());
+    session.start(OffsetDateTime::now_utc()).expect("start");
+    sessions.seed(session.clone());
+    (
+        rooms,
+        sessions,
+        FakeAdmissionStore::default(),
+        room,
+        session,
+    )
+}
+
+#[tokio::test]
+async fn a_manager_sets_and_reads_the_room_admission_policy() {
+    let manager = ActorId::new();
+    let (rooms, sessions, admissions, room, _session) = admission_fixture(manager);
+    let app = admission_app(Some(principal_for(manager)), rooms, sessions, admissions);
+
+    let updated = send_json(
+        &app,
+        Method::PUT,
+        &format!("/v1/rooms/{}/admission", room.id),
+        r#"{"policy":"lobby"}"#,
+    )
+    .await;
+    assert_eq!(updated.status(), StatusCode::OK);
+    let json = response_json(updated).await;
+    assert_eq!(json.get("policy").and_then(|v| v.as_str()), Some("lobby"));
+
+    let read = send_json(
+        &app,
+        Method::GET,
+        &format!("/v1/rooms/{}/admission", room.id),
+        "",
+    )
+    .await;
+    assert_eq!(read.status(), StatusCode::OK);
+    let json = response_json(read).await;
+    assert_eq!(
+        json.get("policy").and_then(|v| v.as_str()),
+        Some("lobby"),
+        "the policy must persist, not just echo"
+    );
+}
+
+#[tokio::test]
+async fn a_member_cannot_change_the_room_admission_policy() {
+    let manager = ActorId::new();
+    let member = ActorId::new();
+    let (rooms, sessions, admissions, room, _session) = admission_fixture(manager);
+    rooms.add_raw_member(room.id, member, RoomRole::Member);
+    let app = admission_app(Some(principal_for(member)), rooms, sessions, admissions);
+
+    let resp = send_json(
+        &app,
+        Method::PUT,
+        &format!("/v1/rooms/{}/admission", room.id),
+        r#"{"policy":"lobby"}"#,
+    )
+    .await;
+    assert_eq!(
+        resp.status(),
+        StatusCode::FORBIDDEN,
+        "a plain member must not change the policy"
+    );
+}
+
+#[tokio::test]
+async fn a_session_may_tighten_access_but_not_loosen_it() {
+    let manager = ActorId::new();
+    let (rooms, sessions, admissions, _room, session) = admission_fixture(manager);
+    let app = admission_app(Some(principal_for(manager)), rooms, sessions, admissions);
+
+    // The session's room is invite_only, so making the session public would
+    // expose it. That must be refused.
+    let loosened = send_json(
+        &app,
+        Method::PUT,
+        &format!("/v1/sessions/{}/access", session.id),
+        r#"{"visibility":"public","admission":"lobby"}"#,
+    )
+    .await;
+    assert_eq!(
+        loosened.status(),
+        StatusCode::UNPROCESSABLE_ENTITY,
+        "an override must not loosen the room's access"
+    );
+
+    let tightened = send_json(
+        &app,
+        Method::PUT,
+        &format!("/v1/sessions/{}/access", session.id),
+        r#"{"visibility":"invite_only","admission":"lobby"}"#,
+    )
+    .await;
+    assert_eq!(tightened.status(), StatusCode::OK);
+    let json = response_json(tightened).await;
+    assert_eq!(
+        json.get("admission").and_then(|v| v.as_str()),
+        Some("lobby")
+    );
+    assert_eq!(
+        json.get("admission_overridden").and_then(|v| v.as_bool()),
+        Some(true)
+    );
+}
+
+#[tokio::test]
+async fn a_manager_sees_and_decides_the_lobby() {
+    let manager = ActorId::new();
+    let waiter = ActorId::new();
+    let (rooms, sessions, admissions, room, session) = admission_fixture(manager);
+    let now = OffsetDateTime::now_utc();
+    admissions.seed(AdmissionRequest::new(
+        session.id,
+        waiter,
+        AdmissionOrigin::Join,
+        now,
+    ));
+    let app = admission_app(
+        Some(principal_for(manager)),
+        rooms.clone(),
+        sessions,
+        admissions.clone(),
+    );
+
+    let listed = send_json(
+        &app,
+        Method::GET,
+        &format!("/v1/sessions/{}/lobby", session.id),
+        "",
+    )
+    .await;
+    assert_eq!(listed.status(), StatusCode::OK);
+    let json = response_json(listed).await;
+    let entries = json
+        .get("entries")
+        .and_then(|v| v.as_array())
+        .expect("entries");
+    assert_eq!(entries.len(), 1);
+    assert_eq!(
+        entries[0].get("origin").and_then(|v| v.as_str()),
+        Some("join")
+    );
+
+    let admitted = send_json(
+        &app,
+        Method::POST,
+        &format!("/v1/sessions/{}/lobby/{}/admit", session.id, waiter),
+        "",
+    )
+    .await;
+    assert_eq!(admitted.status(), StatusCode::OK);
+    let json = response_json(admitted).await;
+    assert!(
+        json.get("participant_id")
+            .and_then(|v| v.as_str())
+            .is_some(),
+        "an admitted principal must get a participant identity"
+    );
+    assert!(
+        admissions.pending(session.id, waiter).is_none(),
+        "the request must no longer be pending"
+    );
+    let _ = room;
+}
+
+#[tokio::test]
+async fn rejecting_ends_the_waiting_state() {
+    let manager = ActorId::new();
+    let waiter = ActorId::new();
+    let (rooms, sessions, admissions, _room, session) = admission_fixture(manager);
+    admissions.seed(AdmissionRequest::new(
+        session.id,
+        waiter,
+        AdmissionOrigin::InviteLink,
+        OffsetDateTime::now_utc(),
+    ));
+    let app = admission_app(
+        Some(principal_for(manager)),
+        rooms,
+        sessions,
+        admissions.clone(),
+    );
+
+    let rejected = send_json(
+        &app,
+        Method::POST,
+        &format!("/v1/sessions/{}/lobby/{}/reject", session.id, waiter),
+        "",
+    )
+    .await;
+    assert_eq!(rejected.status(), StatusCode::NO_CONTENT);
+    assert!(admissions.pending(session.id, waiter).is_none());
+}
+
+#[tokio::test]
+async fn a_member_cannot_decide_the_lobby() {
+    let manager = ActorId::new();
+    let member = ActorId::new();
+    let waiter = ActorId::new();
+    let (rooms, sessions, admissions, room, session) = admission_fixture(manager);
+    rooms.add_raw_member(room.id, member, RoomRole::Member);
+    admissions.seed(AdmissionRequest::new(
+        session.id,
+        waiter,
+        AdmissionOrigin::Join,
+        OffsetDateTime::now_utc(),
+    ));
+    let app = admission_app(Some(principal_for(member)), rooms, sessions, admissions);
+
+    let denied = send_json(
+        &app,
+        Method::POST,
+        &format!("/v1/sessions/{}/lobby/{}/admit", session.id, waiter),
+        "",
+    )
+    .await;
+    assert_eq!(
+        denied.status(),
+        StatusCode::FORBIDDEN,
+        "a member must not admit without the capability"
+    );
+}
+
+#[tokio::test]
+async fn deciding_a_request_that_is_not_waiting_is_a_conflict() {
+    let manager = ActorId::new();
+    let (rooms, sessions, admissions, _room, session) = admission_fixture(manager);
+    let app = admission_app(Some(principal_for(manager)), rooms, sessions, admissions);
+
+    let resp = send_json(
+        &app,
+        Method::POST,
+        &format!("/v1/sessions/{}/lobby/{}/admit", session.id, ActorId::new()),
+        "",
+    )
+    .await;
+    // A manager can see the session, so "nothing is waiting" is a state
+    // conflict rather than a missing resource; 404 stays reserved for a session
+    // the caller cannot see.
+    assert_eq!(resp.status(), StatusCode::CONFLICT);
 }

@@ -1,3 +1,4 @@
+pub(crate) mod admission;
 pub(crate) mod archive;
 pub(crate) mod create;
 pub(crate) mod dto;
@@ -19,6 +20,10 @@ pub(crate) fn route() -> Router<AppState> {
         .route("/rooms", get(list::list_rooms).post(create::create))
         .route("/rooms/{room_id}", get(get::get_room).patch(update::update))
         .route("/rooms/{room_id}/join", post(join::join))
+        .route(
+            "/rooms/{room_id}/admission",
+            get(admission::get_admission).put(admission::set_admission),
+        )
         .route("/rooms/{room_id}/archive", post(archive::archive))
         .route("/rooms/{room_id}/members", post(members::add))
         .route(

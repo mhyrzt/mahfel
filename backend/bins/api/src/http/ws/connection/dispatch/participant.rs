@@ -12,8 +12,11 @@ use crate::http::{
 };
 use mahfel_application::{
     ports::Principal,
-    sessions::{JoinSession, LeaveSession, SessionOperationError, join_session, leave_session},
+    sessions::{
+        JoinOutcome, JoinSession, LeaveSession, SessionOperationError, join_session, leave_session,
+    },
 };
+use mahfel_domain::AdmissionOrigin;
 use mahfel_domain::SessionId;
 use uuid::Uuid;
 
@@ -45,16 +48,28 @@ pub(super) async fn handle_join(
     let participant = match join_session(
         state.stores.participants.as_ref(),
         state.stores.participation.as_ref(),
+        state.stores.admissions.as_ref(),
         state.stores.sessions.as_ref(),
         state.stores.rooms.as_ref(),
         JoinSession {
             actor: principal.actor_id,
             session_id,
+            origin: AdmissionOrigin::Join,
         },
     )
     .await
     {
-        Ok(participant) => participant,
+        Ok(JoinOutcome::Joined(participant)) => participant,
+        // Authorized but not yet admitted: the caller is waiting, so it holds no
+        // participant identity and can attach to no session resources.
+        Ok(JoinOutcome::Waiting(request)) => {
+            return connection
+                .send(ServerMessage::JoinWaiting {
+                    session_id: session_id.to_string(),
+                    request_id: request.id.to_string(),
+                })
+                .await;
+        }
         Err(error) => {
             return connection
                 .send(ServerMessage::JoinRejected {
@@ -154,5 +169,6 @@ fn join_rejection_code(error: &SessionOperationError) -> &'static str {
         | SessionOperationError::Domain(_)
         | SessionOperationError::Participant(_) => "conflict",
         SessionOperationError::Store(_) | SessionOperationError::Participation(_) => "unavailable",
+        SessionOperationError::Admission(_) => "admission_unavailable",
     }
 }

@@ -1,7 +1,8 @@
 use super::{config::WsConfig, metrics::WsMetrics, registry::ConnectionRegistry};
 use crate::http::auth::RequestAuthenticator;
 use mahfel_application::ports::{
-    CoordinationStore, ParticipantStore, ParticipationStore, RoomStore, SessionStore,
+    AdmissionStore, CoordinationStore, ParticipantStore, ParticipationStore, RoomStore,
+    SessionStore,
 };
 use mahfel_media_client::GrpcMediaGateway;
 use std::sync::Arc;
@@ -10,6 +11,7 @@ use tokio::sync::watch;
 /// The store seams the participation frames need, resolved together at join.
 #[derive(Clone)]
 pub struct ParticipationStores {
+    pub admissions: Arc<dyn AdmissionStore>,
     pub participants: Arc<dyn ParticipantStore>,
     pub participation: Arc<dyn ParticipationStore>,
     pub sessions: Arc<dyn SessionStore>,

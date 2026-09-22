@@ -1,3 +1,4 @@
+pub(crate) mod access;
 pub(crate) mod cancel;
 pub(crate) mod capabilities;
 pub(crate) mod dto;
@@ -28,4 +29,17 @@ pub(crate) fn route() -> Router<AppState> {
         .route("/sessions/{session_id}/start", post(start::start))
         .route("/sessions/{session_id}/end", post(end::end))
         .route("/sessions/{session_id}/cancel", post(cancel::cancel))
+        .route(
+            "/sessions/{session_id}/access",
+            get(access::get_access).put(access::set_access),
+        )
+        .route("/sessions/{session_id}/lobby", get(access::get_lobby))
+        .route(
+            "/sessions/{session_id}/lobby/{actor_id}/admit",
+            post(access::admit_principal),
+        )
+        .route(
+            "/sessions/{session_id}/lobby/{actor_id}/reject",
+            post(access::reject_principal),
+        )
 }
