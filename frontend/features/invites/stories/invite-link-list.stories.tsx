@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/nextjs";
 
-import { InviteLinkList } from "./invite-link-list";
+import { InviteLinkList } from "../components/invite-link-list";
 
 const links = [
   {

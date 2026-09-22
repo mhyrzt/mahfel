@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/nextjs";
 
-import { JoinByCodePanel } from "./join-by-code-panel";
+import { JoinByCodePanel } from "../components/join-by-code-panel";
 
 const meta = {
   title: "Invites/Join by Code Panel",
