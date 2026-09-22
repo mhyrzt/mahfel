@@ -1,3 +1,4 @@
+mod admission;
 mod identity;
 mod invite;
 mod participant;
@@ -7,6 +8,7 @@ mod service_principal;
 mod session;
 mod user;
 
+pub use admission::PostgresAdmissionStore;
 pub use identity::PostgresIdentityStore;
 pub use invite::PostgresInviteStore;
 pub use participant::PostgresParticipantStore;
@@ -32,6 +34,7 @@ pub struct PostgresStores {
     pub invites: PostgresInviteStore,
     pub rooms: PostgresRoomStore,
     pub sessions: PostgresSessionStore,
+    pub admissions: PostgresAdmissionStore,
     pub participants: PostgresParticipantStore,
     pub participation: PostgresParticipationStore,
     pub service_principals: PostgresServicePrincipalStore,
@@ -46,6 +49,7 @@ impl PostgresStores {
             invites: PostgresInviteStore::new(pool.clone()),
             rooms: PostgresRoomStore::new(pool.clone()),
             sessions: PostgresSessionStore::new(pool.clone()),
+            admissions: PostgresAdmissionStore::new(pool.clone()),
             participants: PostgresParticipantStore::new(pool.clone()),
             participation: PostgresParticipationStore::new(pool.clone()),
             service_principals: PostgresServicePrincipalStore::new(pool),

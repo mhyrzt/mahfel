@@ -1,7 +1,7 @@
 use crate::DatabaseError;
 use crate::stores::{sqlx_store_error, store_error};
 use mahfel_application::ports::{BoxFuture, SessionStore, StoreError};
-use mahfel_domain::{RoomId, Session, SessionId};
+use mahfel_domain::{AdmissionPolicy, RoomId, Session, SessionId, SessionVisibility};
 use sqlx::{FromRow, PgPool};
 use time::OffsetDateTime;
 use uuid::Uuid;
@@ -23,6 +23,8 @@ struct SessionRow {
     id: Uuid,
     room_id: Uuid,
     status: String,
+    visibility: Option<String>,
+    admission: Option<String>,
     scheduled_start_at: Option<OffsetDateTime>,
     started_at: Option<OffsetDateTime>,
     ended_at: Option<OffsetDateTime>,
@@ -34,8 +36,8 @@ impl SessionStore for PostgresSessionStore {
     fn get(&self, id: SessionId) -> BoxFuture<'_, Result<Option<Session>, StoreError>> {
         Box::pin(async move {
             let row = sqlx::query_as::<_, SessionRow>(
-                "SELECT id, room_id, status, scheduled_start_at, started_at, ended_at, \
-                        created_at, updated_at \
+                "SELECT id, room_id, status, visibility, admission, scheduled_start_at, \
+                        started_at, ended_at, created_at, updated_at \
                  FROM mahfel.sessions WHERE id = $1",
             )
             .bind(id.as_uuid())
@@ -52,12 +54,15 @@ impl SessionStore for PostgresSessionStore {
         Box::pin(async move {
             sqlx::query(
                 "INSERT INTO mahfel.sessions \
-                 (id, room_id, status, scheduled_start_at, started_at, ended_at, created_at, updated_at) \
-                 VALUES ($1, $2, $3, $4, $5, $6, $7, $7)",
+                 (id, room_id, status, visibility, admission, scheduled_start_at, started_at, \
+                  ended_at, created_at, updated_at) \
+                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $9)",
             )
             .bind(session.id.as_uuid())
             .bind(session.room_id.as_uuid())
             .bind(session.status.as_str())
+            .bind(session.visibility.map(SessionVisibility::as_str))
+            .bind(session.admission.map(AdmissionPolicy::as_str))
             .bind(session.scheduled_start_at)
             .bind(session.started_at)
             .bind(session.ended_at)
@@ -73,11 +78,14 @@ impl SessionStore for PostgresSessionStore {
         Box::pin(async move {
             let result = sqlx::query(
                 "UPDATE mahfel.sessions \
-                 SET status = $2, scheduled_start_at = $3, started_at = $4, ended_at = $5, updated_at = $6 \
+                 SET status = $2, visibility = $3, admission = $4, scheduled_start_at = $5, \
+                     started_at = $6, ended_at = $7, updated_at = $8 \
                  WHERE id = $1",
             )
             .bind(session.id.as_uuid())
             .bind(session.status.as_str())
+            .bind(session.visibility.map(SessionVisibility::as_str))
+            .bind(session.admission.map(AdmissionPolicy::as_str))
             .bind(session.scheduled_start_at)
             .bind(session.started_at)
             .bind(session.ended_at)
@@ -96,8 +104,8 @@ impl SessionStore for PostgresSessionStore {
     fn list_for_room(&self, room_id: RoomId) -> BoxFuture<'_, Result<Vec<Session>, StoreError>> {
         Box::pin(async move {
             let rows = sqlx::query_as::<_, SessionRow>(
-                "SELECT id, room_id, status, scheduled_start_at, started_at, ended_at, \
-                        created_at, updated_at \
+                "SELECT id, room_id, status, visibility, admission, scheduled_start_at, \
+                        started_at, ended_at, created_at, updated_at \
                  FROM mahfel.sessions WHERE room_id = $1 \
                  ORDER BY created_at DESC, id",
             )
@@ -121,6 +129,16 @@ impl TryFrom<SessionRow> for Session {
             id: SessionId::from_uuid(row.id),
             room_id: RoomId::from_uuid(row.room_id),
             status: row.status.as_str().try_into()?,
+            visibility: row
+                .visibility
+                .as_deref()
+                .map(SessionVisibility::try_from)
+                .transpose()?,
+            admission: row
+                .admission
+                .as_deref()
+                .map(AdmissionPolicy::try_from)
+                .transpose()?,
             scheduled_start_at: row.scheduled_start_at,
             started_at: row.started_at,
             ended_at: row.ended_at,

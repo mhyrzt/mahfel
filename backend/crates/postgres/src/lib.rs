@@ -17,7 +17,7 @@ pub use migrations::migrate;
 pub use pool::{connect, ping};
 pub use settings::{ConnectionSettings, PoolSettings};
 pub use stores::{
-    PostgresIdentityStore, PostgresInviteStore, PostgresParticipantStore,
+    PostgresAdmissionStore, PostgresIdentityStore, PostgresInviteStore, PostgresParticipantStore,
     PostgresParticipationStore, PostgresRoomStore, PostgresServicePrincipalStore,
     PostgresSessionStore, PostgresStores, PostgresUserStore,
 };

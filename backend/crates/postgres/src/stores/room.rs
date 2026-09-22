@@ -24,6 +24,7 @@ struct RoomRow {
     title: String,
     created_by: Uuid,
     visibility: String,
+    admission: String,
     status: String,
     created_at: OffsetDateTime,
     updated_at: OffsetDateTime,
@@ -43,7 +44,7 @@ impl RoomStore for PostgresRoomStore {
     fn get(&self, id: RoomId) -> BoxFuture<'_, Result<Option<Room>, StoreError>> {
         Box::pin(async move {
             let row = sqlx::query_as::<_, RoomRow>(
-                "SELECT id, title, created_by, visibility, status, created_at, updated_at \
+                "SELECT id, title, created_by, visibility, admission, status, created_at, updated_at \
                  FROM mahfel.rooms WHERE id = $1",
             )
             .bind(id.as_uuid())
@@ -60,13 +61,14 @@ impl RoomStore for PostgresRoomStore {
         Box::pin(async move {
             sqlx::query(
                 "INSERT INTO mahfel.rooms \
-                 (id, title, created_by, visibility, status, created_at, updated_at) \
-                 VALUES ($1, $2, $3, $4, $5, $6, $6)",
+                 (id, title, created_by, visibility, admission, status, created_at, updated_at) \
+                 VALUES ($1, $2, $3, $4, $5, $6, $7, $7)",
             )
             .bind(room.id.as_uuid())
             .bind(room.title.as_str())
             .bind(room.created_by.as_uuid())
             .bind(room.visibility.as_str())
+            .bind(room.admission.as_str())
             .bind(room.status.as_str())
             .bind(room.created_at)
             .execute(&self.pool)
@@ -80,12 +82,13 @@ impl RoomStore for PostgresRoomStore {
         Box::pin(async move {
             let result = sqlx::query(
                 "UPDATE mahfel.rooms \
-                 SET title = $2, visibility = $3, status = $4, updated_at = $5 \
+                 SET title = $2, visibility = $3, admission = $4, status = $5, updated_at = $6 \
                  WHERE id = $1",
             )
             .bind(room.id.as_uuid())
             .bind(room.title.as_str())
             .bind(room.visibility.as_str())
+            .bind(room.admission.as_str())
             .bind(room.status.as_str())
             .bind(room.updated_at)
             .execute(&self.pool)
@@ -108,13 +111,14 @@ impl RoomStore for PostgresRoomStore {
             let mut tx = self.pool.begin().await.map_err(sqlx_store_error)?;
             sqlx::query(
                 "INSERT INTO mahfel.rooms \
-                 (id, title, created_by, visibility, status, created_at, updated_at) \
-                 VALUES ($1, $2, $3, $4, $5, $6, $6)",
+                 (id, title, created_by, visibility, admission, status, created_at, updated_at) \
+                 VALUES ($1, $2, $3, $4, $5, $6, $7, $7)",
             )
             .bind(room.id.as_uuid())
             .bind(room.title.as_str())
             .bind(room.created_by.as_uuid())
             .bind(room.visibility.as_str())
+            .bind(room.admission.as_str())
             .bind(room.status.as_str())
             .bind(room.created_at)
             .execute(&mut *tx)
@@ -134,7 +138,7 @@ impl RoomStore for PostgresRoomStore {
     ) -> BoxFuture<'_, Result<Vec<Room>, StoreError>> {
         Box::pin(async move {
             let rows = sqlx::query_as::<_, RoomRow>(
-                "SELECT r.id, r.title, r.created_by, r.visibility, r.status, \
+                "SELECT r.id, r.title, r.created_by, r.visibility, r.admission, r.status, \
                         r.created_at, r.updated_at \
                  FROM mahfel.rooms r \
                  JOIN mahfel.room_memberships m ON m.room_id = r.id \
@@ -313,6 +317,7 @@ impl TryFrom<RoomRow> for Room {
                 .map_err(|_| DatabaseError::InvalidStoredValue("invalid room title"))?,
             created_by: ActorId::from_uuid(row.created_by),
             visibility: row.visibility.as_str().try_into()?,
+            admission: row.admission.as_str().try_into()?,
             status: row.status.as_str().try_into()?,
             created_at: row.created_at,
             updated_at: row.updated_at,

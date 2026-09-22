@@ -1,3 +1,4 @@
+pub mod admission_store;
 pub mod authorization;
 pub mod coordination;
 pub mod event_publisher;
@@ -14,6 +15,7 @@ pub mod session_store;
 pub mod user_attribute;
 pub mod user_store;
 
+pub use admission_store::AdmissionStore;
 pub use authorization::{
     AuthorizationError, Capability, CapabilityContext, CapabilityResolver, CapabilitySet,
     Principal, require_capability, resolve_capabilities,
