@@ -6,6 +6,13 @@ pub struct ApiSettings {
     pub operations_bind: String,
     pub media_grpc_url: String,
     pub allowed_origin: String,
+    /// Address of the reverse proxy whose `X-Forwarded-For` may be trusted.
+    ///
+    /// Unset means the header is ignored and the socket peer is used. Trusting
+    /// the header without this check would let any client forge it and obtain a
+    /// fresh rate-limit budget.
+    #[serde(default)]
+    pub trusted_proxy: Option<String>,
     #[serde(default)]
     pub ws: WsSettings,
 }

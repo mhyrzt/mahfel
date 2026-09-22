@@ -3,6 +3,9 @@ http_bind = "0.0.0.0:8080"
 operations_bind = "0.0.0.0:9101"
 media_grpc_url = "http://mahfel-media:50051"
 allowed_origin = "https://mahfel.localhost"
+# Unset: X-Forwarded-For is ignored and the socket peer is used.
+# Set only to the address of the reverse proxy that actually sets the header.
+# trusted_proxy = "10.0.0.1"
 
 [api.ws]
 max_connections = 10000

@@ -181,9 +181,14 @@ pub async fn serve_http(
     router: Router,
     shutdown: watch::Receiver<bool>,
 ) -> std::io::Result<()> {
-    axum::serve(listener, router)
-        .with_graceful_shutdown(wait_for_shutdown(shutdown))
-        .await
+    // Connect info carries the socket peer, which source-address resolution
+    // needs for rate limiting.
+    axum::serve(
+        listener,
+        router.into_make_service_with_connect_info::<std::net::SocketAddr>(),
+    )
+    .with_graceful_shutdown(wait_for_shutdown(shutdown))
+    .await
 }
 
 /// Resolve once shutdown has been requested on the watch channel.

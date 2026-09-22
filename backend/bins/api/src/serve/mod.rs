@@ -36,7 +36,8 @@ pub(crate) async fn run(settings: Settings) -> Result<()> {
         &coordination,
         &telemetry,
         shutdown_rx.clone(),
-    )?;
+    )
+    .await?;
 
     runtime::start(
         &settings,

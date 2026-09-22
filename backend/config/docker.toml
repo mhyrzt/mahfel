@@ -2,6 +2,7 @@
 [api]
 media_grpc_url = "http://mahfel-media:50051"
 allowed_origin = "https://mahfel.localhost"
+trusted_proxy = "caddy"
 
 [database]
 host = "postgres"

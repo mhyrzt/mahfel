@@ -16,7 +16,7 @@ use std::sync::Arc;
 use tokio::sync::watch;
 
 /// Build the browser-facing router: state, authentication, and CORS.
-pub(super) fn app(
+pub(super) async fn app(
     settings: &Settings,
     node_id: &NodeId,
     database: &Database,
@@ -26,6 +26,11 @@ pub(super) fn app(
 ) -> Result<Router> {
     let origin = settings::allowed_origin(settings)?;
     let stores = PostgresStores::new(database.pool.clone());
+    let source_address = Arc::new(
+        http::source_address::SourceAddressResolver::new(settings.api.trusted_proxy.as_deref())
+            .await
+            .map_err(|reason| anyhow::anyhow!("{reason}"))?,
+    );
 
     // One verifier serves both HTTP extraction and WebSocket upgrades.
     let authentication: std::sync::Arc<dyn http::auth::RequestAuthenticator> =
@@ -75,7 +80,6 @@ pub(super) fn app(
             sessions: Arc::clone(&sessions),
             rooms: Arc::clone(&rooms),
         },
-        Arc::clone(&code_index),
         shutdown,
     );
 
@@ -95,6 +99,7 @@ pub(super) fn app(
         admissions,
         invites,
         code_index,
+        source_address,
         realtime,
         turn: settings.turn.clone(),
     };
