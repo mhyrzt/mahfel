@@ -83,6 +83,14 @@ pub struct PauseValidated {
     pub room_id: RoomId,
     pub consumer_id: String,
 }
+pub struct ProducerValidated {
+    pub room_id: RoomId,
+    pub producer_id: String,
+}
+pub struct CloseParticipantValidated {
+    pub room_id: RoomId,
+    pub participant_id: ActorId,
+}
 
 impl TryFrom<mahfel_rtc_protocol::media::CreateRoomRequest> for Validated<CreateRoomValidated> {
     type Error = Status;
@@ -192,6 +200,50 @@ impl TryFrom<mahfel_rtc_protocol::media::ResumeConsumerRequest> for Validated<Pa
         Ok(Self(PauseValidated {
             room_id: parse_room_id(&raw_room_id)?,
             consumer_id,
+        }))
+    }
+}
+
+impl TryFrom<mahfel_rtc_protocol::media::PauseProducerRequest> for Validated<ProducerValidated> {
+    type Error = Status;
+    fn try_from(
+        req: mahfel_rtc_protocol::media::PauseProducerRequest,
+    ) -> Result<Self, Self::Error> {
+        let raw_room_id = require_field(req.room_id, "room_id")?;
+        let producer_id = require_field(req.producer_id, "producer_id")?;
+        Ok(Self(ProducerValidated {
+            room_id: parse_room_id(&raw_room_id)?,
+            producer_id,
+        }))
+    }
+}
+
+impl TryFrom<mahfel_rtc_protocol::media::ResumeProducerRequest> for Validated<ProducerValidated> {
+    type Error = Status;
+    fn try_from(
+        req: mahfel_rtc_protocol::media::ResumeProducerRequest,
+    ) -> Result<Self, Self::Error> {
+        let raw_room_id = require_field(req.room_id, "room_id")?;
+        let producer_id = require_field(req.producer_id, "producer_id")?;
+        Ok(Self(ProducerValidated {
+            room_id: parse_room_id(&raw_room_id)?,
+            producer_id,
+        }))
+    }
+}
+
+impl TryFrom<mahfel_rtc_protocol::media::CloseParticipantRequest>
+    for Validated<CloseParticipantValidated>
+{
+    type Error = Status;
+    fn try_from(
+        req: mahfel_rtc_protocol::media::CloseParticipantRequest,
+    ) -> Result<Self, Self::Error> {
+        let raw_room_id = require_field(req.room_id, "room_id")?;
+        let raw_participant = require_field(req.participant_id, "participant_id")?;
+        Ok(Self(CloseParticipantValidated {
+            room_id: parse_room_id(&raw_room_id)?,
+            participant_id: parse_user_id(&raw_participant)?,
         }))
     }
 }
