@@ -1,30 +1,26 @@
 import type { ReactNode } from "react";
-import { Bell } from "lucide-react";
 
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Button } from "@/components/ui/button";
-import { Separator } from "@/components/ui/separator";
+import { defaultLocale, type Locale } from "@/lib/i18n/config";
 import { SidebarActions } from "./sidebar-actions";
 import { SidebarNavigation } from "./sidebar-navigation";
+import { MobileNavigation } from "./mobile-navigation";
 
-export function AppShell({ children }: Readonly<{ children: ReactNode }>) {
+export function AppShell({
+  children,
+  locale = defaultLocale,
+}: Readonly<{ children: ReactNode; locale?: Locale }>) {
   return (
     <div className="min-h-screen bg-muted/40">
       <aside className="fixed inset-y-0 hidden w-16 flex-col bg-background lg:flex">
-        <div className="flex h-16 items-center justify-center text-lg font-semibold tracking-tight">
-          M
-        </div>
-        <Separator />
-        <SidebarNavigation />
-        <SidebarActions />
+        <div className="h-16" aria-hidden="true" />
+        <SidebarNavigation locale={locale} />
+        <SidebarActions locale={locale} />
       </aside>
       <div className="lg:pl-16">
         <header className="sticky top-0 z-10 flex h-16 items-center justify-between border-b bg-background/95 px-4 backdrop-blur lg:px-8">
           <p className="text-lg font-semibold tracking-tight">Mahfel</p>
           <div className="flex items-center gap-2">
-            <Button aria-label="Notifications" size="icon" variant="ghost">
-              <Bell className="size-4" />
-            </Button>
             <Avatar className="size-8">
               <AvatarFallback className="bg-primary text-xs font-semibold text-primary-foreground">
                 R
@@ -32,8 +28,11 @@ export function AppShell({ children }: Readonly<{ children: ReactNode }>) {
             </Avatar>
           </div>
         </header>
-        <main className="mx-auto w-full max-w-7xl p-4 lg:p-8">{children}</main>
+        <main className="mx-auto w-full max-w-7xl p-4 pb-[calc(4rem+env(safe-area-inset-bottom))] lg:p-8">
+          {children}
+        </main>
       </div>
+      <MobileNavigation locale={locale} />
     </div>
   );
 }

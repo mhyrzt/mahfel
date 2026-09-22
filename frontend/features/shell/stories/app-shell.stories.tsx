@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from "@storybook/nextjs";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
-import { AppShell } from "./app-shell";
+import { AppShell } from "../components/app-shell";
 
 const meta = {
   title: "Shell/App Shell",
@@ -30,4 +30,16 @@ export const Default: Story = {};
 
 export const NarrowViewport: Story = {
   parameters: { viewport: { defaultViewport: "mobile1" } },
+};
+
+export const PersianRTL: Story = {
+  args: { locale: "fa" },
+  parameters: { viewport: { defaultViewport: "mobile1" } },
+  decorators: [
+    (Story) => (
+      <div dir="rtl" lang="fa">
+        <Story />
+      </div>
+    ),
+  ],
 };
