@@ -1,11 +1,11 @@
 use super::{
     CancelSession, EndSession, GetSession, JoinSession, LeaveSession, ListSessions,
-    ScheduleSession, StartSession, cancel_session, end_session, get_session, join_session,
-    leave_session, list_sessions, schedule_session, start_session,
+    ScheduleSession, SessionOperationError, StartSession, cancel_session, end_session, get_session,
+    join_session, leave_session, list_sessions, schedule_session, start_session,
 };
 use crate::ports::{
-    AdmissionStore, BoxFuture, ParticipantStore, ParticipationStore, RoomStore, SessionStore,
-    StoreError,
+    AdmissionStore, BlockStore, BoxFuture, ParticipantStore, ParticipationStore, RoomStore,
+    SessionStore, StoreError,
 };
 use mahfel_domain::{
     ActorId, AdmissionOrigin, AdmissionPolicy, AdmissionRequest, AdmissionRequestId,
@@ -645,6 +645,116 @@ impl ParticipantStore for FakeParticipantStore {
     }
 }
 
+/// Blocks are absent unless a test seeds one, so the join tests that predate
+/// them exercise the same path as before.
+#[derive(Clone, Default)]
+pub(crate) struct FakeBlockStore {
+    pub(crate) blocks: Arc<Mutex<Vec<mahfel_domain::Block>>>,
+}
+
+impl BlockStore for FakeBlockStore {
+    fn get_active(
+        &self,
+        scope: mahfel_domain::BlockScope,
+        actor_id: ActorId,
+    ) -> BoxFuture<'_, Result<Option<mahfel_domain::Block>, StoreError>> {
+        Box::pin(async move {
+            let now = OffsetDateTime::now_utc();
+            Ok(self
+                .blocks
+                .lock()
+                .expect("lock")
+                .iter()
+                .find(|b| b.scope == scope && b.actor_id == actor_id && b.is_active_at(now))
+                .cloned())
+        })
+    }
+
+    fn insert<'a>(
+        &'a self,
+        block: &'a mahfel_domain::Block,
+    ) -> BoxFuture<'a, Result<(), StoreError>> {
+        Box::pin(async move {
+            self.blocks.lock().expect("lock").push(block.clone());
+            Ok(())
+        })
+    }
+
+    fn extend(
+        &self,
+        id: mahfel_domain::BlockId,
+        expires_at: Option<OffsetDateTime>,
+    ) -> BoxFuture<'_, Result<bool, StoreError>> {
+        Box::pin(async move {
+            let mut blocks = self.blocks.lock().expect("lock");
+            let Some(block) = blocks
+                .iter_mut()
+                .find(|b| b.id == id && b.lifted_at.is_none())
+            else {
+                return Ok(false);
+            };
+            block.expires_at = expires_at;
+            Ok(true)
+        })
+    }
+
+    fn lift(
+        &self,
+        id: mahfel_domain::BlockId,
+        lifted_by: ActorId,
+        lifted_at: OffsetDateTime,
+    ) -> BoxFuture<'_, Result<bool, StoreError>> {
+        Box::pin(async move {
+            let mut blocks = self.blocks.lock().expect("lock");
+            let Some(block) = blocks
+                .iter_mut()
+                .find(|b| b.id == id && b.lifted_at.is_none())
+            else {
+                return Ok(false);
+            };
+            block.lifted_at = Some(lifted_at);
+            block.lifted_by = Some(lifted_by);
+            Ok(true)
+        })
+    }
+
+    fn list_active_for_room(
+        &self,
+        room_id: mahfel_domain::RoomId,
+        _limit: u32,
+    ) -> BoxFuture<'_, Result<Vec<mahfel_domain::Block>, StoreError>> {
+        Box::pin(async move {
+            let now = OffsetDateTime::now_utc();
+            Ok(self
+                .blocks
+                .lock()
+                .expect("lock")
+                .iter()
+                .filter(|b| b.scope.room_id() == Some(room_id) && b.is_active_at(now))
+                .cloned()
+                .collect())
+        })
+    }
+
+    fn list_active_for_session(
+        &self,
+        session_id: SessionId,
+        _limit: u32,
+    ) -> BoxFuture<'_, Result<Vec<mahfel_domain::Block>, StoreError>> {
+        Box::pin(async move {
+            let now = OffsetDateTime::now_utc();
+            Ok(self
+                .blocks
+                .lock()
+                .expect("lock")
+                .iter()
+                .filter(|b| b.scope.session_id() == Some(session_id) && b.is_active_at(now))
+                .cloned()
+                .collect())
+        })
+    }
+}
+
 /// A room with one manager, and a live session inside it.
 fn live_fixture() -> (
     FakeRoomStore,
@@ -686,6 +796,7 @@ async fn reconnect_reuses_the_same_participant() {
         &admissions,
         &sessions,
         &rooms,
+        &FakeBlockStore::default(),
         JoinSession {
             actor: owner,
             session_id: session.id,
@@ -703,6 +814,7 @@ async fn reconnect_reuses_the_same_participant() {
         &admissions,
         &sessions,
         &rooms,
+        &FakeBlockStore::default(),
         JoinSession {
             actor: owner,
             session_id: session.id,
@@ -739,6 +851,7 @@ async fn join_is_deny_by_default_for_non_members_of_private_rooms() {
         &admissions,
         &sessions,
         &rooms,
+        &FakeBlockStore::default(),
         JoinSession {
             actor: outsider,
             session_id: session.id,
@@ -771,6 +884,7 @@ async fn non_members_may_join_public_rooms() {
         &admissions,
         &sessions,
         &rooms,
+        &FakeBlockStore::default(),
         JoinSession {
             actor: actor(),
             session_id: session.id,
@@ -802,6 +916,7 @@ async fn join_requires_a_live_session() {
         &admissions,
         &sessions,
         &rooms,
+        &FakeBlockStore::default(),
         JoinSession {
             actor: owner,
             session_id: session.id,
@@ -822,6 +937,7 @@ async fn leave_is_terminal_and_the_actor_can_rejoin() {
         &admissions,
         &sessions,
         &rooms,
+        &FakeBlockStore::default(),
         JoinSession {
             actor: owner,
             session_id: session.id,
@@ -859,6 +975,7 @@ async fn leave_is_terminal_and_the_actor_can_rejoin() {
         &admissions,
         &sessions,
         &rooms,
+        &FakeBlockStore::default(),
         JoinSession {
             actor: owner,
             session_id: session.id,
@@ -883,6 +1000,7 @@ async fn leaving_another_actors_participant_is_not_found() {
         &admissions,
         &sessions,
         &rooms,
+        &FakeBlockStore::default(),
         JoinSession {
             actor: owner,
             session_id: session.id,
@@ -1247,6 +1365,7 @@ async fn lobby_defers_the_join_and_grants_no_participant() {
         &admissions,
         &sessions,
         &rooms,
+        &FakeBlockStore::default(),
         JoinSession {
             actor: owner,
             session_id: session.id,
@@ -1291,6 +1410,7 @@ async fn open_policy_still_admits_immediately() {
         &admissions,
         &sessions,
         &rooms,
+        &FakeBlockStore::default(),
         JoinSession {
             actor: owner,
             session_id: session.id,
@@ -1323,6 +1443,7 @@ async fn a_repeated_join_while_waiting_reuses_the_same_request() {
             &admissions,
             &sessions,
             &rooms,
+            &FakeBlockStore::default(),
             JoinSession {
                 actor: owner,
                 session_id: session.id,
@@ -1363,6 +1484,7 @@ async fn the_lobby_is_bounded() {
             &admissions,
             &sessions,
             &rooms,
+            &FakeBlockStore::default(),
             JoinSession {
                 actor: actor(),
                 session_id: session.id,
@@ -1379,6 +1501,7 @@ async fn the_lobby_is_bounded() {
         &admissions,
         &sessions,
         &rooms,
+        &FakeBlockStore::default(),
         JoinSession {
             actor: actor(),
             session_id: session.id,
@@ -1405,6 +1528,7 @@ async fn admitting_creates_the_participant_and_opens_an_interval() {
         &admissions,
         &sessions,
         &rooms,
+        &FakeBlockStore::default(),
         JoinSession {
             actor: waiter,
             session_id: session.id,
@@ -1470,6 +1594,7 @@ async fn rejecting_grants_nothing_and_is_terminal() {
         &admissions,
         &sessions,
         &rooms,
+        &FakeBlockStore::default(),
         JoinSession {
             actor: waiter,
             session_id: session.id,
@@ -1531,6 +1656,7 @@ async fn a_member_who_cannot_admit_is_denied() {
         &admissions,
         &sessions,
         &rooms,
+        &FakeBlockStore::default(),
         JoinSession {
             actor: waiter,
             session_id: session.id,
@@ -1573,6 +1699,7 @@ async fn ending_a_session_retires_the_lobby() {
         &admissions,
         &sessions,
         &rooms,
+        &FakeBlockStore::default(),
         JoinSession {
             actor: waiter,
             session_id: session.id,
@@ -1603,5 +1730,133 @@ async fn ending_a_session_retires_the_lobby() {
         sessions.status(session.id),
         Some(SessionStatus::Ended),
         "the session itself still ends"
+    );
+}
+
+// --- blocks barring a join (M4-05, AC 4 and 5) ---
+
+/// Seed one active block, so a join test can prove the guard reads it.
+fn seeded_blocks(scope: mahfel_domain::BlockScope, subject: ActorId) -> FakeBlockStore {
+    let store = FakeBlockStore::default();
+    let block = mahfel_domain::Block::new(
+        scope,
+        subject,
+        ActorId::new(),
+        None,
+        None,
+        OffsetDateTime::now_utc(),
+    )
+    .expect("block");
+    store.blocks.lock().expect("lock").push(block);
+    store
+}
+
+#[tokio::test]
+async fn a_room_block_denies_a_join_to_any_session_in_that_room() {
+    let (rooms, sessions, participants, participation, room, session, _owner) = live_fixture();
+    let blocked = ActorId::new();
+    // No membership and an invite-only room, so the block is what denies this,
+    // not visibility.
+    let blocks = seeded_blocks(mahfel_domain::BlockScope::Room(room.id), blocked);
+
+    let result = join_session(
+        &participants,
+        &participation,
+        &FakeAdmissionStore::default(),
+        &sessions,
+        &rooms,
+        &blocks,
+        JoinSession {
+            actor: blocked,
+            session_id: session.id,
+            origin: AdmissionOrigin::Join,
+        },
+    )
+    .await;
+
+    assert!(
+        matches!(result, Err(SessionOperationError::Forbidden)),
+        "a room block denies the session without a per-session row, got {result:?}"
+    );
+}
+
+#[tokio::test]
+async fn a_session_block_denies_that_session_even_for_a_member() {
+    let (rooms, sessions, participants, participation, _room, session, owner) = live_fixture();
+    let blocks = seeded_blocks(mahfel_domain::BlockScope::Session(session.id), owner);
+
+    let result = join_session(
+        &participants,
+        &participation,
+        &FakeAdmissionStore::default(),
+        &sessions,
+        &rooms,
+        &blocks,
+        JoinSession {
+            actor: owner,
+            session_id: session.id,
+            origin: AdmissionOrigin::Join,
+        },
+    )
+    .await;
+
+    assert!(
+        matches!(result, Err(SessionOperationError::Forbidden)),
+        "a session block denies a narrow case the room would allow, got {result:?}"
+    );
+}
+
+#[tokio::test]
+async fn a_block_on_another_session_does_not_deny_this_one() {
+    let (rooms, sessions, participants, participation, _room, session, owner) = live_fixture();
+    let blocks = seeded_blocks(mahfel_domain::BlockScope::Session(SessionId::new()), owner);
+
+    let joined = join_session(
+        &participants,
+        &participation,
+        &FakeAdmissionStore::default(),
+        &sessions,
+        &rooms,
+        &blocks,
+        JoinSession {
+            actor: owner,
+            session_id: session.id,
+            origin: AdmissionOrigin::Join,
+        },
+    )
+    .await
+    .expect("a block elsewhere must not deny this join");
+
+    assert!(joined.participant().is_some());
+}
+
+#[tokio::test]
+async fn a_blocked_principal_does_not_occupy_a_lobby_slot() {
+    // The block is checked before admission, so a blocked principal never
+    // queues and cannot consume lobby capacity.
+    let (rooms, sessions, admissions, participants, participation, room, session, _owner) =
+        lobby_fixture().await;
+    let blocked = ActorId::new();
+    let blocks = seeded_blocks(mahfel_domain::BlockScope::Room(room.id), blocked);
+
+    let result = join_session(
+        &participants,
+        &participation,
+        &admissions,
+        &sessions,
+        &rooms,
+        &blocks,
+        JoinSession {
+            actor: blocked,
+            session_id: session.id,
+            origin: AdmissionOrigin::Join,
+        },
+    )
+    .await;
+
+    assert!(matches!(result, Err(SessionOperationError::Forbidden)));
+    assert!(
+        admissions.requests.lock().expect("lock").is_empty(),
+        "a blocked principal must not reach the lobby"
     );
 }

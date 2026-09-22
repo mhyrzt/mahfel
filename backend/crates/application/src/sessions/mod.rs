@@ -21,7 +21,7 @@ pub use schedule::{ScheduleSession, schedule_session};
 pub use start::{StartSession, start_session};
 pub use visibility::{GetSessionForCaller, get_session_for_caller};
 
-pub(crate) use guard::require_joinable;
+pub(crate) use guard::{require_joinable, require_not_blocked};
 
 #[cfg(test)]
 mod tests;

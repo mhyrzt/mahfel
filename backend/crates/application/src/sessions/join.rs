@@ -1,7 +1,8 @@
 use super::error::SessionOperationError;
 use crate::admission::{AdmissionOutcome, EnqueueAdmission, enqueue_admission};
 use crate::ports::{
-    AdmissionStore, ParticipantStore, ParticipationStore, RoomStore, SessionStore, StoreError,
+    AdmissionStore, BlockStore, ParticipantStore, ParticipationStore, RoomStore, SessionStore,
+    StoreError,
 };
 use mahfel_domain::{
     ActorId, AdmissionOrigin, AdmissionRequest, Participant, ParticipantError,
@@ -56,12 +57,14 @@ impl JoinOutcome {
 /// Every admitted join opens a participation interval, including a reconnect:
 /// the prior interval closed when that connection ended, so a reconnect is a new
 /// connected stretch even though it reuses the durable participant identity.
-pub async fn join_session<P, Q, A, R, S>(
+#[allow(clippy::too_many_arguments)]
+pub async fn join_session<P, Q, A, R, S, B>(
     participants: &P,
     participation: &Q,
     admissions: &A,
     sessions: &R,
     rooms: &S,
+    blocks: &B,
     command: JoinSession,
 ) -> Result<JoinOutcome, SessionOperationError>
 where
@@ -70,6 +73,7 @@ where
     A: AdmissionStore + ?Sized,
     R: SessionStore + ?Sized,
     S: RoomStore + ?Sized,
+    B: BlockStore + ?Sized,
 {
     let now = OffsetDateTime::now_utc();
     let session = sessions
@@ -80,6 +84,13 @@ where
         return Err(SessionOperationError::NotLive);
     }
     let room = super::require_joinable(rooms, session.room_id, command.actor).await?;
+
+    // A block bars entry before admission is even considered, so a blocked
+    // principal never queues and cannot occupy a lobby slot. The room check runs
+    // first because a room block already covers every session in it; the session
+    // check then covers blocks narrower than a room block. The two are
+    // independent durable facts, so neither writes rows for the other.
+    super::require_not_blocked(blocks, room.id, command.session_id, command.actor).await?;
 
     if session.effective_admission(&room).requires_approval() {
         let outcome = enqueue_admission(

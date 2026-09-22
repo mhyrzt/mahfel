@@ -14,7 +14,7 @@ pub use error::RoomOperationError;
 pub use get::get_room;
 pub use join::join_room;
 pub use list::list_joined;
-pub use members::{add_member, remove_member};
+pub use members::{add_member, change_member_role, remove_member};
 pub use update::{UpdateRoom, update_settings};
 
 pub(crate) use guard::require_manager;
