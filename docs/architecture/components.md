@@ -332,12 +332,42 @@ hub (M5-03, ADR 0017) and are documented there rather than solved here.
 ## `mahfel-media`
 
 The Rust media plane hosts Tokio, the mediasoup Rust bindings, native mediasoup workers, routers,
-transports, producers, and consumers. It will own simulcast/SVC, bandwidth adaptation, active
-speaker signals, screenshare, media statistics, and future recording/STT/AI media taps.
+transports, producers, and consumers. It owns active-speaker signals and media statistics;
+simulcast/SVC, bandwidth adaptation, and future recording/STT/AI media taps remain separate work.
 
 It must not own authentication, courses, users, chat persistence, files, or LMS entities. Its gRPC
-contract is private and control-oriented; only node information/statistics are implemented during
-bootstrap. Lifecycle RPCs intentionally return `Unimplemented` until M3.
+contract is private. The API remains responsible for session authorization and for mapping media
+actor IDs to stable session participant IDs.
+
+### Active speaker (M4-07)
+
+Each room router holds a mediasoup `AudioLevelObserver` that watches microphone producers. The
+observer reads the RTP audio-level header extension; senders that omit that extension cannot
+contribute to the signal. A producer's samples are grouped by actor, so two devices holding one
+participant identity occupy at most one speaker position. The initial observer interval is 200 ms,
+its floor is -80 dBvo, and it returns at most eight producers. The tracker smooths levels with a
+0.35 weight on the newest sample, enters after two samples at or above -65 dBvo, and exits after
+three missing samples or samples at or below -75 dBvo. Near-equal speakers (within 3 dB) retain
+their previous order. Ordinary changed snapshots are capped at four per second; silence and
+explicit producer closure clear state immediately.
+
+`WatchActiveSpeakers` is a private server-streaming RPC. It sends a reset frame and current
+room-scoped snapshots when the API subscribes or when a subscriber falls behind. An empty actor
+list means silence. Channels and WebSocket outbound queues are bounded. Each API replica
+subscribes independently and fans events out only to its own WebSocket connections that have
+joined the live session. The public `active_speakers` event carries an ordered complete list of
+stable `participant_ids`, not audio levels or media producer IDs. A newly joined connection gets
+the current snapshot. Waiting and merely authenticated connections receive no speaker event.
+On media stream loss, the API clears the list, reconnects, and accepts fresh snapshots. Speaker
+state is ephemeral and is never stored in PostgreSQL, Redis, or RabbitMQ.
+
+WebSocket connections own the media transports they create. Explicit leave, EOF, heartbeat timeout,
+write failure, and shutdown close only that connection's transports and their producers/consumers;
+a second device's transports remain. The `media_active_speakers` gauge and
+`media_speaker_stream_dropped_updates_total` counter have no room, actor, participant, or producer
+labels. Ending a session clears the API speaker list and requests a media reset that closes
+volatile room resources while retaining the router for a later session. A failed reset is logged.
+Cross-replica presence and general WebSocket coordination remain with M5-03 (TASK-34).
 
 ## `mahfel-worker`
 
