@@ -8,6 +8,7 @@
 pub mod admission;
 pub mod error;
 pub mod invite;
+pub mod moderation;
 pub mod participation;
 pub mod policy;
 pub mod ports;

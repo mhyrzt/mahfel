@@ -168,6 +168,52 @@ where
     Err(AuthorizationError::Denied)
 }
 
+/// Fail unless an actor holds `capability` in `room_id`.
+///
+/// For use cases that carry an actor id rather than a resolved [`Principal`],
+/// which is the case for moderation: the acting principal is known, but
+/// resolving them again would only re-derive the same membership. The global
+/// grants are therefore empty here, so a caller reaching this helper has only
+/// its room membership to stand on, and a capability that requires a global
+/// role is denied. Moderation capabilities are room-scoped, so that is the
+/// correct reading rather than a limitation.
+///
+/// # Errors
+/// [`AuthorizationError::Denied`] when the capability is not granted, including
+/// when the membership is absent, so a caller cannot distinguish "no
+/// membership" from "membership without the grant".
+pub async fn require_actor_capability<S>(
+    memberships: &S,
+    actor: mahfel_domain::ActorId,
+    room_id: mahfel_domain::RoomId,
+    capability: Capability,
+) -> Result<(), AuthorizationError>
+where
+    S: crate::ports::MembershipStore + ?Sized,
+{
+    let membership = memberships
+        .role_of(room_id, actor)
+        .await
+        .map_err(|_| AuthorizationError::Denied)?;
+    let granted = ServerCapabilityResolver.resolve(
+        &Principal {
+            actor_id: actor,
+            kind: mahfel_domain::ActorKind::User,
+            display_name: None,
+            avatar_url: None,
+            email: None,
+            email_verified: false,
+            username: None,
+            roles: Vec::new(),
+        },
+        CapabilityContext::in_room(membership),
+    );
+    if granted.has(capability) {
+        return Ok(());
+    }
+    Err(AuthorizationError::Denied)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -278,6 +324,61 @@ mod tests {
         assert_eq!(
             require_room_capability(&memberships, &principal, room, Capability::Join).await,
             Err(AuthorizationError::Denied)
+        );
+    }
+
+    #[tokio::test]
+    async fn a_non_member_may_not_publish_even_though_a_public_room_admits_them() {
+        // The publish gate. A public room lets a non-member in through the join
+        // guard, which checks visibility rather than capability, so the
+        // capability set is what has to refuse publishing.
+        let memberships = FakeMemberships(None);
+        let principal = principal_with(&[], ActorKind::User);
+        let room = RoomId::new();
+
+        assert_eq!(
+            require_room_capability(&memberships, &principal, room, Capability::PublishMedia).await,
+            Err(AuthorizationError::Denied)
+        );
+        assert_eq!(
+            require_room_capability(&memberships, &principal, room, Capability::ShareScreen).await,
+            Err(AuthorizationError::Denied),
+            "a screen share is a separate capability from speaking"
+        );
+    }
+
+    #[tokio::test]
+    async fn a_member_may_publish_and_share_a_screen() {
+        // Guards the gate against over-refusing: both capabilities come from
+        // participation, so a plain member keeps them.
+        let memberships = FakeMemberships(Some(RoomRole::Member));
+        let principal = principal_with(&[], ActorKind::User);
+        let room = RoomId::new();
+
+        require_room_capability(&memberships, &principal, room, Capability::PublishMedia)
+            .await
+            .expect("a member may publish");
+        require_room_capability(&memberships, &principal, room, Capability::ShareScreen)
+            .await
+            .expect("a member may share a screen");
+    }
+
+    #[tokio::test]
+    async fn a_demoted_manager_keeps_every_media_capability() {
+        // Why the reconcile is a no-op on demotion: the media capabilities come
+        // from participation, which both roles grant.
+        let memberships = FakeMemberships(Some(RoomRole::Member));
+        let principal = principal_with(&[], ActorKind::User);
+        let room = RoomId::new();
+        let granted = resolve_room_capabilities(&memberships, &principal, room)
+            .await
+            .expect("resolve");
+
+        assert!(granted.has(Capability::PublishMedia));
+        assert!(granted.has(Capability::ShareScreen));
+        assert!(
+            !granted.has(Capability::MuteOthers),
+            "a demoted manager loses moderation, not media"
         );
     }
 }
