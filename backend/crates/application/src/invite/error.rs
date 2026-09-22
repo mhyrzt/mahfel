@@ -39,6 +39,16 @@ pub enum InviteOperationError {
 }
 
 impl InviteOperationError {
+    /// The single failure a redemption attempt may observe.
+    ///
+    /// Redemption collapses an unknown code, an expired or revoked one, a
+    /// dangling target, and a rate-limited attempt into one value, so a caller
+    /// cannot tell a valid code from an invalid one (ADR 0021).
+    #[must_use]
+    pub const fn not_redeemable() -> Self {
+        Self::NotFound
+    }
+
     /// Whether this is the deliberate non-enumerating redemption failure.
     #[must_use]
     pub const fn is_not_redeemable(&self) -> bool {
