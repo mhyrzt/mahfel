@@ -85,9 +85,10 @@ where
         let outcome = enqueue_admission(
             admissions,
             sessions,
+            rooms,
             EnqueueAdmission {
                 actor: command.actor,
-                session_id: command.session_id,
+                target: mahfel_domain::AdmissionTarget::Session(command.session_id),
                 origin: command.origin,
             },
             now,

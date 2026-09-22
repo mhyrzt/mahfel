@@ -6,9 +6,9 @@ pub mod lobby;
 pub mod policy;
 pub mod request;
 
-pub use decide::{AdmissionDecision, admit, reject};
+pub use decide::{AdmissionDecision, AdmissionGrant, admit, reject};
 pub use error::AdmissionOperationError;
-pub use lobby::{Lobby, LobbyEntry, view_lobby};
+pub use lobby::{Lobby, LobbyEntry, view_lobby, view_room_lobby};
 pub use policy::{
     RoomAdmission, SessionAccess, SessionAccessView, set_room_admission, set_session_access,
     view_session_access,

@@ -9,9 +9,9 @@ use crate::ports::{
 };
 use mahfel_domain::{
     ActorId, AdmissionOrigin, AdmissionPolicy, AdmissionRequest, AdmissionRequestId,
-    AdmissionRequestStatus, IntervalId, Participant, ParticipantId, ParticipantStatus,
-    ParticipationInterval, Room, RoomId, RoomMember, RoomRole, RoomTitle, RoomVisibility, Session,
-    SessionError, SessionId, SessionStatus,
+    AdmissionRequestStatus, AdmissionTarget, IntervalId, Participant, ParticipantId,
+    ParticipantStatus, ParticipationInterval, Room, RoomId, RoomMember, RoomRole, RoomTitle,
+    RoomVisibility, Session, SessionError, SessionId, SessionStatus,
 };
 use std::sync::{Arc, Mutex};
 use time::OffsetDateTime;
@@ -176,15 +176,13 @@ struct FakeAdmissionStore {
 }
 
 impl FakeAdmissionStore {
-    fn pending(&self, session_id: SessionId, actor_id: ActorId) -> Option<AdmissionRequest> {
+    fn pending(&self, target: AdmissionTarget, actor_id: ActorId) -> Option<AdmissionRequest> {
         self.requests
             .lock()
             .expect("lock")
             .iter()
             .find(|request| {
-                request.session_id == session_id
-                    && request.actor_id == actor_id
-                    && request.is_pending()
+                request.target == target && request.actor_id == actor_id && request.is_pending()
             })
             .cloned()
     }
@@ -202,7 +200,7 @@ impl AdmissionStore for FakeAdmissionStore {
         Box::pin(async move {
             let mut requests = self.requests.lock().expect("lock");
             if requests.iter().any(|existing| {
-                existing.session_id == request.session_id
+                existing.target == request.target
                     && existing.actor_id == request.actor_id
                     && existing.is_pending()
             }) {
@@ -215,10 +213,33 @@ impl AdmissionStore for FakeAdmissionStore {
 
     fn get_pending(
         &self,
-        session_id: SessionId,
+        target: AdmissionTarget,
         actor_id: ActorId,
     ) -> BoxFuture<'_, Result<Option<AdmissionRequest>, StoreError>> {
-        Box::pin(async move { Ok(self.pending(session_id, actor_id)) })
+        Box::pin(async move { Ok(self.pending(target, actor_id)) })
+    }
+
+    fn list_pending_for_room(
+        &self,
+        room_id: RoomId,
+        limit: u32,
+    ) -> BoxFuture<'_, Result<Vec<AdmissionRequest>, StoreError>> {
+        Box::pin(async move {
+            let mut pending: Vec<AdmissionRequest> = self
+                .requests
+                .lock()
+                .expect("lock")
+                .iter()
+                .filter(|request| {
+                    request.is_pending()
+                        && matches!(request.target, AdmissionTarget::Room(id) if id == room_id)
+                })
+                .cloned()
+                .collect();
+            pending.sort_by_key(|request| request.requested_at);
+            pending.truncate(limit as usize);
+            Ok(pending)
+        })
     }
 
     fn get(
@@ -247,7 +268,10 @@ impl AdmissionStore for FakeAdmissionStore {
                 .lock()
                 .expect("lock")
                 .iter()
-                .filter(|request| request.session_id == session_id && request.is_pending())
+                .filter(|request| {
+                    request.is_pending()
+                        && matches!(request.target, AdmissionTarget::Session(id) if id == session_id)
+                })
                 .cloned()
                 .collect();
             pending.sort_by_key(|request| request.requested_at);
@@ -256,14 +280,14 @@ impl AdmissionStore for FakeAdmissionStore {
         })
     }
 
-    fn count_pending(&self, session_id: SessionId) -> BoxFuture<'_, Result<u64, StoreError>> {
+    fn count_pending(&self, target: AdmissionTarget) -> BoxFuture<'_, Result<u64, StoreError>> {
         Box::pin(async move {
             Ok(self
                 .requests
                 .lock()
                 .expect("lock")
                 .iter()
-                .filter(|request| request.session_id == session_id && request.is_pending())
+                .filter(|request| request.target == target && request.is_pending())
                 .count() as u64)
         })
     }
@@ -298,10 +322,10 @@ impl AdmissionStore for FakeAdmissionStore {
         Box::pin(async move {
             let mut requests = self.requests.lock().expect("lock");
             let mut expired = 0;
-            for request in requests
-                .iter_mut()
-                .filter(|request| request.session_id == session_id && request.is_pending())
-            {
+            for request in requests.iter_mut().filter(|request| {
+                request.is_pending()
+                    && matches!(request.target, AdmissionTarget::Session(id) if id == session_id)
+            }) {
                 request.status = AdmissionRequestStatus::Expired;
                 request.decided_at = Some(expired_at);
                 request.decided_by = None;
@@ -406,7 +430,7 @@ fn scheduled(room_id: RoomId) -> Session {
 /// use cases rely on: at most one open interval per participant, and a
 /// correction that retains the superseded row.
 #[derive(Clone, Default)]
-struct FakeParticipationStore {
+pub(crate) struct FakeParticipationStore {
     intervals: Arc<Mutex<Vec<ParticipationInterval>>>,
 }
 
@@ -539,7 +563,7 @@ impl ParticipationStore for FakeParticipationStore {
 /// In-memory [`ParticipantStore`] mirroring the partial unique index that keeps
 /// one active participant per `(session, actor)`.
 #[derive(Clone, Default)]
-struct FakeParticipantStore {
+pub(crate) struct FakeParticipantStore {
     participants: Arc<Mutex<Vec<Participant>>>,
 }
 
@@ -1249,7 +1273,9 @@ async fn lobby_defers_the_join_and_grants_no_participant() {
         "a waiting caller must not appear in the roster"
     );
     assert!(
-        admissions.pending(session.id, owner).is_some(),
+        admissions
+            .pending(AdmissionTarget::Session(session.id), owner)
+            .is_some(),
         "the request must be queued"
     );
 }
@@ -1388,7 +1414,7 @@ async fn admitting_creates_the_participant_and_opens_an_interval() {
     .await
     .expect("queued");
 
-    let participant = crate::admission::admit(
+    let grant = crate::admission::admit(
         &participants,
         &participation,
         &admissions,
@@ -1396,14 +1422,17 @@ async fn admitting_creates_the_participant_and_opens_an_interval() {
         &rooms,
         crate::admission::AdmissionDecision {
             actor: owner,
-            session_id: session.id,
-            target: waiter,
+            target: AdmissionTarget::Session(session.id),
+            subject: waiter,
         },
         OffsetDateTime::now_utc(),
     )
     .await
     .expect("admit");
 
+    let participant = grant
+        .participant()
+        .expect("a session approval grants a participant");
     assert_eq!(participant.actor_id, waiter);
     assert!(
         participants
@@ -1421,7 +1450,9 @@ async fn admitting_creates_the_participant_and_opens_an_interval() {
         "an approved join must start recording connected time"
     );
     assert!(
-        admissions.pending(session.id, waiter).is_none(),
+        admissions
+            .pending(AdmissionTarget::Session(session.id), waiter)
+            .is_none(),
         "the request must no longer be pending"
     );
 }
@@ -1454,8 +1485,8 @@ async fn rejecting_grants_nothing_and_is_terminal() {
         &rooms,
         crate::admission::AdmissionDecision {
             actor: owner,
-            session_id: session.id,
-            target: waiter,
+            target: AdmissionTarget::Session(session.id),
+            subject: waiter,
         },
         OffsetDateTime::now_utc(),
     )
@@ -1476,8 +1507,8 @@ async fn rejecting_grants_nothing_and_is_terminal() {
         &rooms,
         crate::admission::AdmissionDecision {
             actor: owner,
-            session_id: session.id,
-            target: waiter,
+            target: AdmissionTarget::Session(session.id),
+            subject: waiter,
         },
         OffsetDateTime::now_utc(),
     )
@@ -1517,8 +1548,8 @@ async fn a_member_who_cannot_admit_is_denied() {
         &rooms,
         crate::admission::AdmissionDecision {
             actor: member,
-            session_id: session.id,
-            target: waiter,
+            target: AdmissionTarget::Session(session.id),
+            subject: waiter,
         },
         OffsetDateTime::now_utc(),
     )

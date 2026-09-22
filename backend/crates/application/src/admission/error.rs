@@ -21,6 +21,10 @@ pub enum AdmissionOperationError {
     /// A principal would be admitted but is not actually waiting.
     #[error("the principal is not waiting in this lobby")]
     NotWaiting,
+    /// A session request was approved, but the session is not live. A room
+    /// request has no such requirement.
+    #[error("the session is not live")]
+    NotLive,
     /// The lobby is at capacity, so a new request cannot be queued.
     #[error("lobby is at capacity")]
     LobbyFull,
@@ -41,7 +45,9 @@ impl ApplicationError for AdmissionOperationError {
         match self {
             Self::NotFound => ErrorKind::NotFound,
             Self::Forbidden => ErrorKind::Forbidden,
-            Self::AlreadyDecided | Self::NotWaiting | Self::LobbyFull => ErrorKind::Conflict,
+            Self::AlreadyDecided | Self::NotWaiting | Self::LobbyFull | Self::NotLive => {
+                ErrorKind::Conflict
+            }
             Self::Domain(_) | Self::Room(_) | Self::Admission(_) | Self::Validation(_) => {
                 ErrorKind::Unprocessable
             }
