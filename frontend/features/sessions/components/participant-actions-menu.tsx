@@ -1,6 +1,8 @@
-import { Ban, MicOff, MoreHorizontal, UserRoundX } from "lucide-react";
+import { Ban, MicOff, MoreHorizontal, Settings, UserRoundX } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { defaultLocale, type Locale } from "@/lib/i18n/config";
+import { formatMessage, messagesFor } from "@/lib/i18n/messages";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -15,26 +17,45 @@ import type { Participant, ParticipantAction } from "./session-types";
 interface ParticipantActionsMenuProps {
   actions: ParticipantAction[];
   participant: Participant;
+  locale?: Locale;
+  tone?: "light" | "dark";
+  compact?: boolean;
+  icon?: "more" | "settings";
 }
 
 export function ParticipantActionsMenu({
   actions,
   participant,
+  locale = defaultLocale,
+  tone = "light",
+  compact = false,
+  icon = "more",
 }: Readonly<ParticipantActionsMenuProps>) {
   if (actions.length === 0) {
     return null;
   }
+  const text = messagesFor(locale).sessions;
 
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button
-          aria-label={`Actions for ${participant.name}`}
-          className="text-white hover:bg-white/15 hover:text-white"
+          aria-label={formatMessage(text.participantActionsLabel, { name: participant.name })}
+          className={`${compact ? "size-8" : ""} ${
+            icon === "settings" ? "rounded-full bg-background/90 shadow-sm ring-1 ring-border" : ""
+          } ${
+            tone === "dark"
+              ? "text-white hover:bg-white/15 hover:text-white"
+              : "text-foreground hover:bg-muted hover:text-foreground"
+          }`}
           size="icon"
           variant="ghost"
         >
-          <MoreHorizontal className="size-4" />
+          {icon === "settings" ? (
+            <Settings className="size-4" />
+          ) : (
+            <MoreHorizontal className="size-4" />
+          )}
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-44">
@@ -43,19 +64,19 @@ export function ParticipantActionsMenu({
         {actions.includes("mute") ? (
           <DropdownMenuItem>
             <MicOff className="size-4" />
-            Mute participant
+            {text.muteParticipant}
           </DropdownMenuItem>
         ) : null}
         {actions.includes("remove") ? (
           <DropdownMenuItem className="text-destructive focus:text-destructive">
             <UserRoundX className="size-4" />
-            Remove from session
+            {text.removeParticipant}
           </DropdownMenuItem>
         ) : null}
         {actions.includes("block") ? (
           <DropdownMenuItem className="text-destructive focus:text-destructive">
             <Ban className="size-4" />
-            Block from room
+            {text.blockParticipant}
           </DropdownMenuItem>
         ) : null}
       </DropdownMenuContent>

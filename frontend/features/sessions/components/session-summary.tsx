@@ -1,28 +1,33 @@
 import { CalendarDays, Clock3, UsersRound } from "lucide-react";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { defaultLocale, type Locale } from "@/lib/i18n/config";
+import { messagesFor } from "@/lib/i18n/messages";
 
 interface SessionSummaryProps {
   startedAt: string;
   duration: string;
   participantCount: number;
+  locale?: Locale;
 }
 
 export function SessionSummary({
   startedAt,
   duration,
   participantCount,
+  locale = defaultLocale,
 }: Readonly<SessionSummaryProps>) {
+  const text = messagesFor(locale).sessions;
   const items = [
-    { label: "Started", value: startedAt, icon: CalendarDays },
-    { label: "Duration", value: duration, icon: Clock3 },
-    { label: "Participants", value: String(participantCount), icon: UsersRound },
+    { label: text.started, value: startedAt, icon: CalendarDays },
+    { label: text.duration, value: duration, icon: Clock3 },
+    { label: text.participants, value: String(participantCount), icon: UsersRound },
   ];
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-base">Participation summary</CardTitle>
+        <CardTitle className="text-base">{text.participationSummary}</CardTitle>
       </CardHeader>
       <CardContent className="grid gap-4 sm:grid-cols-3">
         {items.map(({ label, value, icon: Icon }) => (

@@ -1,32 +1,53 @@
 import { Mic, MicOff, MonitorUp, PhoneOff, Video, VideoOff } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { defaultLocale, type Locale } from "@/lib/i18n/config";
+import { messagesFor } from "@/lib/i18n/messages";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
-interface SessionToolbarProps {
+export interface SessionToolbarCapabilities {
+  canPublishAudio: boolean;
+  canPublishVideo: boolean;
+  canShareScreen: boolean;
+}
+
+interface SessionToolbarProps extends Partial<SessionToolbarCapabilities> {
   cameraEnabled?: boolean;
   microphoneEnabled?: boolean;
   screenShareEnabled?: boolean;
+  locale?: Locale;
 }
 
 export function SessionToolbar({
+  canPublishAudio = true,
+  canPublishVideo = true,
+  canShareScreen = true,
   cameraEnabled = true,
   microphoneEnabled = true,
   screenShareEnabled = false,
+  locale = defaultLocale,
 }: Readonly<SessionToolbarProps>) {
+  const text = messagesFor(locale).sessions;
   const controls = [
     {
-      label: microphoneEnabled ? "Mute microphone" : "Unmute microphone",
+      available: canPublishAudio,
+      label: microphoneEnabled ? text.muteMicrophone : text.unmuteMicrophone,
       icon: microphoneEnabled ? Mic : MicOff,
       pressed: microphoneEnabled,
     },
     {
-      label: cameraEnabled ? "Turn camera off" : "Turn camera on",
+      available: canPublishVideo,
+      label: cameraEnabled ? text.turnCameraOff : text.turnCameraOn,
       icon: cameraEnabled ? Video : VideoOff,
       pressed: cameraEnabled,
     },
-    { label: "Share screen", icon: MonitorUp, pressed: screenShareEnabled },
-  ];
+    {
+      available: canShareScreen,
+      label: text.shareScreen,
+      icon: MonitorUp,
+      pressed: screenShareEnabled,
+    },
+  ].filter(({ available }) => available);
 
   return (
     <TooltipProvider>
@@ -57,7 +78,7 @@ export function SessionToolbar({
         <Tooltip>
           <TooltipTrigger asChild>
             <Button
-              aria-label="Leave session"
+              aria-label={text.leaveSession}
               className="size-10 rounded-xl bg-rose-500 text-white transition-all duration-200 hover:bg-rose-400 active:scale-95"
               size="icon"
               variant="destructive"
@@ -66,7 +87,7 @@ export function SessionToolbar({
             </Button>
           </TooltipTrigger>
           <TooltipContent side="top" sideOffset={10}>
-            Leave session
+            {text.leaveSession}
           </TooltipContent>
         </Tooltip>
       </div>

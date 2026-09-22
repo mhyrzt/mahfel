@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/nextjs";
 
-import { AdmissionQueue } from "./admission-queue";
+import { AdmissionQueue } from "../components/admission-queue";
 
 const meta = {
   title: "Sessions/Admission Queue",
@@ -20,3 +20,14 @@ type Story = StoryObj<typeof meta>;
 export const Waiting: Story = {};
 
 export const Empty: Story = { args: { requests: [] } };
+
+export const Persian: Story = {
+  args: { locale: "fa" },
+  decorators: [
+    (Story) => (
+      <div dir="rtl" lang="fa">
+        <Story />
+      </div>
+    ),
+  ],
+};

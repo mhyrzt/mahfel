@@ -4,16 +4,23 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { defaultLocale, type Locale } from "@/lib/i18n/config";
+import { messagesFor } from "@/lib/i18n/messages";
 
 import type { Participant } from "./session-types";
 
-export function ParticipantRoster({ participants }: Readonly<{ participants: Participant[] }>) {
+export function ParticipantRoster({
+  participants,
+  locale = defaultLocale,
+}: Readonly<{ participants: Participant[]; locale?: Locale }>) {
+  const text = messagesFor(locale).sessions;
+
   return (
     <Card className="h-full shadow-none">
       <CardHeader className="flex-row items-center justify-between space-y-0">
         <CardTitle className="flex items-center gap-2 text-base">
           <UsersRound className="size-4" aria-hidden="true" />
-          Participants
+          {text.participants}
         </CardTitle>
         <Badge variant="secondary">{participants.length}</Badge>
       </CardHeader>
@@ -21,7 +28,7 @@ export function ParticipantRoster({ participants }: Readonly<{ participants: Par
         {participants.length === 0 ? (
           <div className="flex h-full flex-col items-center justify-center gap-2 px-6 text-center text-sm text-muted-foreground">
             <UsersRound className="size-6" aria-hidden="true" />
-            No one has joined this session yet.
+            {text.emptyRoster}
           </div>
         ) : (
           <ScrollArea className="h-full px-6 pb-6">
@@ -36,15 +43,20 @@ export function ParticipantRoster({ participants }: Readonly<{ participants: Par
                     </Avatar>
                     <div className="min-w-0">
                       <p className="truncate text-sm font-medium">{participant.name}</p>
-                      <p className="text-xs capitalize text-muted-foreground">{participant.role}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {text.roles[participant.role]}
+                      </p>
                     </div>
                   </div>
                   {participant.muted ? (
-                    <MicOff className="size-4 shrink-0 text-muted-foreground" aria-label="Muted" />
+                    <MicOff
+                      className="size-4 shrink-0 text-muted-foreground"
+                      aria-label={text.muted}
+                    />
                   ) : (
                     <Mic
                       className="size-4 shrink-0 text-muted-foreground"
-                      aria-label="Microphone on"
+                      aria-label={text.microphoneOn}
                     />
                   )}
                 </li>

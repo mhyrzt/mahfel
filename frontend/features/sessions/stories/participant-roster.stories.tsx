@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/nextjs";
 
-import { ParticipantRoster } from "./participant-roster";
+import { ParticipantRoster } from "../components/participant-roster";
 
 const participants = [
   { id: "a", name: "Ritsuko Akagi", initials: "RA", role: "moderator" as const },
@@ -21,3 +21,14 @@ type Story = StoryObj<typeof meta>;
 export const Populated: Story = {};
 
 export const Empty: Story = { args: { participants: [] } };
+
+export const Persian: Story = {
+  args: { locale: "fa" },
+  decorators: [
+    (Story) => (
+      <div dir="rtl" lang="fa">
+        <Story />
+      </div>
+    ),
+  ],
+};
