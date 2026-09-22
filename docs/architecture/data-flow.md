@@ -72,8 +72,44 @@ sequenceDiagram
 
 Management is capability-gated for the target and audited. A code is a bearer capability, so its
 expiry and revocation are enforced on redemption rather than stored as a derived flag, and the code
-never appears in logs or metric labels (ADR 0021). Redemption and the confirmation flow that follows
-it belong to M4-14 (TASK-130).
+never appears in logs or metric labels (ADR 0021).
+
+## Invite redemption
+
+```mermaid
+sequenceDiagram
+  participant B as Holder browser
+  participant A as mahfel-api
+  participant P as PostgreSQL
+  participant R as Redis
+  B->>A: POST /v1/invite-links/redeem {code}
+  A->>R: Count the attempt (principal and address)
+  alt over budget
+    A-->>B: 404, identical to an invalid code
+  else within budget
+    A->>A: Normalize the code
+    A->>P: Look up, and resolve the target
+    alt unknown, expired, revoked, or target gone
+      A-->>B: 404, identical to an invalid code
+    else usable
+      alt caller already has access
+        A-->>B: 200 already_member
+      else
+        A->>P: Insert a pending request (origin invite_link)
+        A-->>B: 200 waiting
+        Note over A: A manager approves or rejects
+        A->>P: Session request: participant and interval
+        A->>P: Room request: durable room membership
+      end
+    end
+  end
+```
+
+Redemption resolves and queues; it never joins. Session-link approval grants attendance in that
+session only and no membership, so the holder may be asked again later. Room-link approval grants
+durable membership and needs no live session, because the room outlives any one session. Every
+unusable code returns one identical error and attempts are rate-limited first, so the endpoint cannot
+be used to enumerate valid codes.
 
 ## Admission
 

@@ -195,6 +195,33 @@ outlive their target's operational lifetime. Resolution looks the target up and 
 is gone. Reaping stale links is intentionally deferred; the invariant is that a link with a missing
 target is never redeemable.
 
+#### Redemption
+
+Redeeming a code resolves its target and, unless the caller already has access, queues a request for
+approval. It never joins: resolution and admission are separate steps, and joining stays the join
+path's job.
+
+- **One failure for every unusable code.** A malformed code, an unknown one, an expired or revoked
+  link, a target whose row is gone, and an archived room all return the same error. A caller cannot
+  learn whether a code exists, whether it once existed, or whether its shape was even valid.
+- **Attempts are counted before the code is read**, so a rate-limited attempt is indistinguishable
+  from an invalid one and cannot be used to probe for free. Counters live in Redis, scoped per
+  principal and per source address.
+- **A source address is only trusted from the configured proxy.** Outside that, `X-Forwarded-For` is
+  ignored and the socket peer is used, because trusting the header unconditionally would let any
+  client forge a fresh budget.
+- **The code travels in the request body**, never as a path segment, because paths are recorded by
+  access logs and `Referer` headers. It is logged nowhere.
+- **The room is always recorded** on a pending request, because authorization resolves against it for
+  both scopes. A session id distinguishes the scopes: present means the request is for that one
+  session, absent means it is for the room itself.
+
+What approval grants depends on which it was. A **session** link grants attendance in that session
+only and creates no durable membership, so the holder may be asked again at the next session. A
+**room** link grants durable room membership with the `member` role, and later joins bypass the
+confirmation step. A room approval needs no live session; a session approval does, because attending
+a session that is not live is not meaningful.
+
 Management endpoints are `POST`/`GET /v1/rooms/{room_id}/invite-links`,
 `POST`/`GET /v1/sessions/{session_id}/invite-links`, `POST /v1/invite-links/{link_id}/revoke`, and
 `POST /v1/invite-links/{link_id}/rotate`. Redemption and the confirmation flow that follows it are

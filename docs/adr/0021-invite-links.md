@@ -47,6 +47,10 @@ Constraints that shaped the decision:
 - Link management (create, list, revoke, rotate, regenerate) requires the `manage_session`
   capability or the equivalent room-management authority for the target. Authorization stays
   deny-by-default and server-side.
+- A pending request records which of the two it is. A **session** request asks to attend one live
+  session and requires that session to be live when it is approved. A **room** request asks to join
+  the room and requires no session at all, because room membership outlives any one session and that
+  is what makes a room link durable onboarding. Both are authorized against the target's room.
 
 ## Consequences
 
