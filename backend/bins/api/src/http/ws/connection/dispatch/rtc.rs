@@ -19,6 +19,7 @@ pub(super) async fn handle_create_transport(
     };
     match media.create_transport(room, principal.actor_id).await {
         Ok((tid, ice_p, ice_c, dtls_p)) => {
+            c.own_transport(room, tid.clone());
             send_ok(
                 c,
                 rid,

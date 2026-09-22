@@ -36,5 +36,12 @@ pub(crate) async fn end(
         },
     )
     .await?;
+    state
+        .realtime
+        .speakers
+        .clear_session(session.id, &state.realtime.registry);
+    if let Err(error) = state.realtime.media.clear_room_media(session.room_id).await {
+        tracing::warn!(?error, room_id = %session.room_id, "could not clear ended session media");
+    }
     Ok(Json(session.into()))
 }

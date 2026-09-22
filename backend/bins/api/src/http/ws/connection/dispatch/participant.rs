@@ -45,7 +45,7 @@ pub(super) async fn handle_join(
 
     // Deny by default: the application guard authorizes against membership and
     // visibility, and M4-06 admission policy extends this same path.
-    let participant = match join_session(
+    let (participant, room_id) = match join_session(
         state.stores.participants.as_ref(),
         state.stores.participation.as_ref(),
         state.stores.admissions.as_ref(),
@@ -60,7 +60,10 @@ pub(super) async fn handle_join(
     )
     .await
     {
-        Ok(JoinOutcome::Joined(participant)) => participant,
+        Ok(JoinOutcome::Joined {
+            participant,
+            room_id,
+        }) => (participant, room_id),
         // Authorized but not yet admitted: the caller is waiting, so it holds no
         // participant identity and can attach to no session resources.
         Ok(JoinOutcome::Waiting(request)) => {
@@ -81,11 +84,31 @@ pub(super) async fn handle_join(
         }
     };
 
-    registry.joined(id, session_id, participant.id);
+    registry.joined(id, room_id, session_id, participant.id);
     connection
         .send(ServerMessage::Joined {
             session_id: session_id.to_string(),
             participant_id: participant.id.to_string(),
+        })
+        .await?;
+    state
+        .speakers
+        .replay_room(
+            room_id,
+            registry,
+            state.stores.participants.as_ref(),
+            state.stores.sessions.as_ref(),
+        )
+        .await;
+    connection
+        .send(ServerMessage::ActiveSpeakers {
+            session_id: session_id.to_string(),
+            participant_ids: state
+                .speakers
+                .current(session_id)
+                .iter()
+                .map(ToString::to_string)
+                .collect(),
         })
         .await?;
     registry.broadcast_to_session_except(
@@ -119,6 +142,8 @@ pub(super) async fn handle_leave(
     // Whether this is the last connection the participant holds here. Detached
     // before the count, so this connection is not counted against itself.
     registry.left(id);
+    state.speakers.prune(registry);
+    close_owned_transports(connection, state).await;
     let remaining = registry.connection_count_for_participant(session_id, principal.actor_id);
 
     // A participant is present while at least one connection is live (AC 7), so
@@ -170,6 +195,22 @@ pub(super) async fn handle_leave(
                     message: "leave rejected".to_owned(),
                 })
                 .await
+        }
+    }
+}
+
+/// Only this connection's transports are closed; a second device remains live.
+pub(in crate::http::ws::connection) async fn close_owned_transports(
+    connection: &mut Connection,
+    state: &WsState,
+) {
+    for (room_id, transport_id) in connection.take_transports() {
+        if let Err(error) = state
+            .media
+            .close_transport(room_id, transport_id.clone())
+            .await
+        {
+            tracing::warn!(?error, %room_id, %transport_id, "failed to close disconnected transport");
         }
     }
 }

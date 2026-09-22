@@ -82,6 +82,13 @@ pub(super) async fn app(
             rooms: Arc::clone(&rooms),
             blocks: Arc::clone(&blocks),
         },
+        shutdown.clone(),
+    );
+    realtime.speakers.spawn(
+        Arc::clone(&media),
+        realtime.registry.clone(),
+        Arc::clone(&participants),
+        Arc::clone(&sessions),
         shutdown,
     );
 

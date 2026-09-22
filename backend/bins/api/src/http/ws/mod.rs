@@ -3,6 +3,7 @@ mod connection;
 mod envelope;
 mod metrics;
 mod registry;
+mod speaker;
 mod state;
 
 pub use config::WsConfig;

@@ -6,6 +6,7 @@ use crate::http::ws::{
 };
 use axum::extract::ws::{CloseFrame, Message};
 use futures_util::SinkExt;
+use mahfel_domain::RoomId;
 use tokio::time::timeout;
 
 /// Write half of a connection, bounded by the configured write timeout.
@@ -16,6 +17,7 @@ pub(super) struct Connection {
     sink: SocketSink,
     config: WsConfig,
     metrics: WsMetrics,
+    owned_transports: Vec<(RoomId, String)>,
 }
 
 impl Connection {
@@ -25,6 +27,7 @@ impl Connection {
             sink,
             config,
             metrics,
+            owned_transports: Vec::new(),
         }
     }
 
@@ -92,5 +95,13 @@ impl Connection {
 
     pub(super) fn metrics(&self) -> &WsMetrics {
         &self.metrics
+    }
+
+    pub(super) fn own_transport(&mut self, room_id: RoomId, transport_id: String) {
+        self.owned_transports.push((room_id, transport_id));
+    }
+
+    pub(super) fn take_transports(&mut self) -> Vec<(RoomId, String)> {
+        std::mem::take(&mut self.owned_transports)
     }
 }

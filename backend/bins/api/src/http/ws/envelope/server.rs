@@ -45,6 +45,11 @@ pub enum ServerMessage {
         session_id: String,
         participant_id: String,
     },
+    /// A complete ordered snapshot, including an empty list for silence.
+    ActiveSpeakers {
+        session_id: String,
+        participant_ids: Vec<String>,
+    },
     /// `code` is stable and machine-readable; `message` carries no internal
     /// detail.
     JoinRejected {

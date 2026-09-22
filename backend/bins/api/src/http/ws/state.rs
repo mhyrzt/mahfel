@@ -1,3 +1,4 @@
+use super::speaker::SpeakerProjection;
 use super::{config::WsConfig, metrics::WsMetrics, registry::ConnectionRegistry};
 use crate::http::auth::RequestAuthenticator;
 use mahfel_application::ports::{
@@ -22,6 +23,7 @@ pub struct ParticipationStores {
 #[derive(Clone)]
 pub struct WsState {
     pub registry: ConnectionRegistry,
+    pub speakers: SpeakerProjection,
     pub config: WsConfig,
     pub metrics: WsMetrics,
     pub authenticator: Arc<dyn RequestAuthenticator>,
@@ -43,6 +45,7 @@ impl WsState {
         let registry = ConnectionRegistry::new(config.max_connections, metrics.clone());
         Self {
             registry,
+            speakers: SpeakerProjection::default(),
             config,
             metrics,
             authenticator,

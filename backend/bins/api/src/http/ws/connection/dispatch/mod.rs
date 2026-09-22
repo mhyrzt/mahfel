@@ -4,6 +4,7 @@ mod participant;
 mod rtc;
 
 pub use helpers::protocol_error;
+pub(super) use participant::close_owned_transports;
 
 use super::{CLOSE_PROTOCOL_ERROR, writer::Connection};
 use crate::http::ws::{

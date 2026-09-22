@@ -2598,6 +2598,7 @@ dependencies = [
  "mahfel-media-client",
  "mahfel-postgres",
  "mahfel-redis",
+ "mahfel-rtc-protocol",
  "mahfel-telemetry",
  "mediasoup",
  "prometheus",

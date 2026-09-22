@@ -2488,6 +2488,7 @@ struct WsHarness {
     addr: SocketAddr,
     shutdown: watch::Sender<bool>,
     registry: prometheus::Registry,
+    realtime: WsState,
     _task: JoinHandle<std::io::Result<()>>,
 }
 
@@ -2555,7 +2556,7 @@ async fn serve_ws_with_stores(
         invites: Arc::new(FakeInviteStore::default()),
         code_index: Arc::new(FakeCoordination::default()),
         source_address: Arc::new(crate::http::source_address::SourceAddressResolver::default()),
-        realtime,
+        realtime: realtime.clone(),
         turn: turn_settings(),
     };
     let listener = TcpListener::bind("127.0.0.1:0").await.expect("bind");
@@ -2569,6 +2570,7 @@ async fn serve_ws_with_stores(
         addr,
         shutdown: shutdown_tx,
         registry,
+        realtime,
         _task: task,
     }
 }
@@ -2588,6 +2590,19 @@ async fn send(socket: &mut ClientSocket, frame: &str) {
 }
 
 async fn next(socket: &mut ClientSocket) -> ClientWsMessage {
+    loop {
+        let frame = next_raw(socket).await;
+        if frame
+            .to_text()
+            .is_ok_and(|text| text.contains(r#""type":"active_speakers""#))
+        {
+            continue;
+        }
+        return frame;
+    }
+}
+
+async fn next_raw(socket: &mut ClientSocket) -> ClientWsMessage {
     loop {
         match socket
             .next()
@@ -2764,7 +2779,7 @@ async fn serve_ws_with_verifier(verifier: TokenVerifier, config: WsConfig) -> Ws
         invites: Arc::new(FakeInviteStore::default()),
         code_index: Arc::new(FakeCoordination::default()),
         source_address: Arc::new(crate::http::source_address::SourceAddressResolver::default()),
-        realtime,
+        realtime: realtime.clone(),
         turn: turn_settings(),
     };
     let listener = TcpListener::bind("127.0.0.1:0").await.expect("bind");
@@ -2778,6 +2793,7 @@ async fn serve_ws_with_verifier(verifier: TokenVerifier, config: WsConfig) -> Ws
         addr,
         shutdown: shutdown_tx,
         registry,
+        realtime,
         _task: task,
     }
 }
@@ -3475,7 +3491,7 @@ async fn serve_ws_with(
         invites: Arc::new(FakeInviteStore::default()),
         code_index: Arc::new(FakeCoordination::default()),
         source_address: Arc::new(crate::http::source_address::SourceAddressResolver::default()),
-        realtime,
+        realtime: realtime.clone(),
         turn: turn_settings(),
     };
     let listener = TcpListener::bind("127.0.0.1:0").await.expect("bind");
@@ -3489,6 +3505,7 @@ async fn serve_ws_with(
         addr,
         shutdown: shutdown_tx,
         registry,
+        realtime,
         _task: task,
     }
 }
@@ -3666,6 +3683,89 @@ async fn websocket_join_peers_see_the_roster_change() {
         text.contains(r#""type":"participant_joined""#),
         "an existing member must see the roster change: {text}"
     );
+}
+
+#[tokio::test]
+async fn speaker_snapshots_reach_only_joined_connections_with_stable_participant_ids() {
+    let (rooms, sessions, participants, session) = participation_fixture();
+    let harness = serve_ws_with(Some(principal()), rooms, sessions, participants).await;
+
+    let mut joined_socket = connect(harness.addr).await;
+    authenticate(&mut joined_socket).await;
+    send(
+        &mut joined_socket,
+        &format!(r#"{{"v":1,"type":"join","session_id":"{}"}}"#, session.id),
+    )
+    .await;
+    let joined = next_raw(&mut joined_socket)
+        .await
+        .to_text()
+        .expect("joined frame")
+        .to_owned();
+    let participant_id = joined
+        .split(r#""participant_id":""#)
+        .nth(1)
+        .and_then(|tail| tail.split('"').next())
+        .expect("stable participant id");
+    let initial = next_raw(&mut joined_socket)
+        .await
+        .to_text()
+        .expect("snapshot")
+        .to_owned();
+    assert!(initial.contains(r#""type":"active_speakers""#));
+    assert!(initial.contains(r#""participant_ids":[]"#));
+
+    let mut unjoined_socket = connect(harness.addr).await;
+    authenticate(&mut unjoined_socket).await;
+
+    harness
+        .realtime
+        .speakers
+        .apply(
+            mahfel_rtc_protocol::media::WatchActiveSpeakersResponse {
+                room_id: session.room_id.to_string(),
+                actor_ids: vec![principal().actor_id.to_string()],
+                reset: false,
+            },
+            &harness.realtime.registry,
+            harness.realtime.stores.participants.as_ref(),
+            harness.realtime.stores.sessions.as_ref(),
+        )
+        .await;
+    let event = next_raw(&mut joined_socket)
+        .await
+        .to_text()
+        .expect("speaker event")
+        .to_owned();
+    assert!(event.contains(r#""type":"active_speakers""#), "{event}");
+    assert!(
+        event.contains(participant_id),
+        "event uses stable roster identity: {event}"
+    );
+    assert!(
+        tokio::time::timeout(
+            std::time::Duration::from_millis(100),
+            unjoined_socket.next()
+        )
+        .await
+        .is_err(),
+        "a merely authenticated socket must not see a session speaker event"
+    );
+
+    let mut late_socket = connect(harness.addr).await;
+    authenticate(&mut late_socket).await;
+    send(
+        &mut late_socket,
+        &format!(r#"{{"v":1,"type":"join","session_id":"{}"}}"#, session.id),
+    )
+    .await;
+    let _ = next_raw(&mut late_socket).await;
+    let late_snapshot = next_raw(&mut late_socket)
+        .await
+        .to_text()
+        .expect("late speaker snapshot")
+        .to_owned();
+    assert!(late_snapshot.contains(participant_id), "{late_snapshot}");
 }
 
 // --- Participation record transport tests (TASK-123) ---

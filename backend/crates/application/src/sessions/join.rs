@@ -6,7 +6,7 @@ use crate::ports::{
 };
 use mahfel_domain::{
     ActorId, AdmissionOrigin, AdmissionRequest, Participant, ParticipantError,
-    ParticipationInterval, SessionId, SessionStatus,
+    ParticipationInterval, RoomId, SessionId, SessionStatus,
 };
 use time::OffsetDateTime;
 
@@ -14,8 +14,6 @@ use time::OffsetDateTime;
 pub struct JoinSession {
     pub actor: ActorId,
     pub session_id: SessionId,
-    /// Where this attempt came from, recorded on a waiting request so an
-    /// operator can tell an explicit join from an invite-link redemption.
     pub origin: AdmissionOrigin,
 }
 
@@ -27,7 +25,10 @@ pub struct JoinSession {
 /// rather than a UI convention.
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum JoinOutcome {
-    Joined(Participant),
+    Joined {
+        participant: Participant,
+        room_id: RoomId,
+    },
     Waiting(AdmissionRequest),
 }
 
@@ -36,7 +37,7 @@ impl JoinOutcome {
     #[must_use]
     pub fn participant(self) -> Option<Participant> {
         match self {
-            Self::Joined(participant) => Some(participant),
+            Self::Joined { participant, .. } => Some(participant),
             Self::Waiting(_) => None,
         }
     }
@@ -123,7 +124,10 @@ where
             participant_id = %existing.id,
             outcome = "ok"
         );
-        return Ok(JoinOutcome::Joined(existing));
+        return Ok(JoinOutcome::Joined {
+            participant: existing,
+            room_id: room.id,
+        });
     }
 
     let participant = Participant::join(command.session_id, command.actor, now);
@@ -145,7 +149,10 @@ where
         participant_id = %participant.id,
         outcome = "ok"
     );
-    Ok(JoinOutcome::Joined(participant))
+    Ok(JoinOutcome::Joined {
+        participant,
+        room_id: room.id,
+    })
 }
 
 /// Open the interval for an accepted join.

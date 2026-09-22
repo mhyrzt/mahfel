@@ -74,6 +74,9 @@ pub(super) async fn run(
     )
     .await;
 
+    // This also covers EOF, heartbeat timeout, write failure, and shutdown.
+    dispatch::close_owned_transports(connection, state).await;
+
     // A transport can vanish without a `leave` frame: a dropped socket, a
     // heartbeat timeout, a write failure, or a server shutdown. Close the
     // durable interval here so connected time is recorded for every exit path,
@@ -94,6 +97,7 @@ pub(super) async fn run(
     }
 
     drop(registration);
+    state.speakers.prune(registry);
     // The loop only ends by returning an error; an `Ok` completion is
     // unreachable and mapped defensively.
     outcome.err().unwrap_or(DisconnectReason::ClientClose)

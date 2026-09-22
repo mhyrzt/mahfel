@@ -15,6 +15,7 @@ mahfel-config = { path = "../../crates/config" }
 mahfel-domain = { path = "../../crates/domain" }
 mahfel-keycloak = { path = "../../crates/keycloak" }
 mahfel-media-client = { path = "../../crates/media-client" }
+mahfel-rtc-protocol = { path = "../../crates/rtc-protocol" }
 mahfel-postgres = { path = "../../crates/postgres" }
 mahfel-redis = { path = "../../crates/redis" }
 mahfel-telemetry = { path = "../../crates/telemetry" }

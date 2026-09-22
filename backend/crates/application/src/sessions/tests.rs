@@ -1454,7 +1454,7 @@ async fn a_repeated_join_while_waiting_reuses_the_same_request() {
         .expect("authorized");
         match outcome {
             super::JoinOutcome::Waiting(request) => request_ids.push(request.id),
-            super::JoinOutcome::Joined(_) => panic!("lobby must not admit directly"),
+            super::JoinOutcome::Joined { .. } => panic!("lobby must not admit directly"),
         }
     }
 
