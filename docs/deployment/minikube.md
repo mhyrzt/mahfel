@@ -12,11 +12,13 @@ Keycloak, and the application (at least 4 CPUs and 8 GiB of memory is a useful s
 From the repository root:
 
 ```bash
-just minikube-start
-just minikube-build
-just minikube-up
-just minikube-status
+just minikube-init
+just minikube-bootstrap
 ```
+
+Initialize the cluster once. `just minikube-bootstrap` builds and deploys the apps and keeps HTTPS
+forwarding open until interrupted. Host ports 80 and 443 must be free. Run `just minikube-status`
+in another terminal to inspect the stack.
 
 The first media image build is slow because mediasoup builds native components. `build` builds
 the API, media, worker, and web Docker targets and loads the resulting `:local` images into
@@ -37,30 +39,26 @@ networking correctly.
 
 ## Browser HTTPS
 
-Keep this running in a second terminal:
+`just minikube-bootstrap` starts forwarding automatically. When running the steps individually,
+keep this running in a second terminal:
 
 ```bash
 just minikube-forward
 ```
 
-The forward binds only `127.0.0.1:80` and `127.0.0.1:443`. These ports must be free; stop the
-Compose Caddy profile first if it owns them. The existing `*.mahfel.localhost` names resolve to
-loopback on normal development hosts. Export the Minikube Caddy root certificate:
+The forward prompts for `sudo` because ports 80 and 443 are privileged. It uses your kubectl
+configuration and binds only `127.0.0.1:80` and `127.0.0.1:443`. These ports must be free. The
+existing `*.mahfel.localhost` names resolve to loopback on normal development hosts. `just minikube-up`
+exports and trusts the Minikube Caddy CA
+on the host. If it could not prompt for `sudo`, or the CA changes, run this in an interactive terminal:
 
 ```bash
 just minikube-cert
 ```
 
-Install `.local/minikube/root.crt` in the host or browser trust store before opening
-`https://mahfel.localhost`, `https://api.mahfel.localhost`, or
-`https://auth.mahfel.localhost`. The Minikube Caddy has its own CA; the Compose Caddy certificate
-does not trust it. The API and web pods mount that CA to reach Keycloak at its issuer URL.
-On Linux with `update-ca-certificates`, for example:
-
-```bash
-sudo install -m 0644 .local/minikube/root.crt /usr/local/share/ca-certificates/mahfel-minikube.crt
-sudo update-ca-certificates
-```
+The CA is saved at `.local/minikube/root.crt`. The Minikube Caddy has its own CA; the Compose Caddy
+certificate does not trust it. The API and web pods mount the Minikube CA to reach Keycloak at its
+issuer URL.
 
 Some browsers use a separate trust store. Follow that browser's certificate import workflow if
 HTTPS still reports an untrusted issuer.

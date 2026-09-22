@@ -1,14 +1,16 @@
 set dotenv-load
 
+[group('General')]
 default:
     @just --list
 
 # Remove local build, test, Storybook, and documentation artifacts.
+[group('Local development')]
 clean:
     rm -rf backend/target frontend/.next frontend/out frontend/storybook-static frontend/coverage site
 
-# Create local environment files without overwriting existing values, then initialize Caddy's
-# persistent local HTTPS certificate and trust it on the host.
+# Create local env files, start Caddy, and trust its HTTPS certificate.
+[group('Local development')]
 bootstrap:
     #!/usr/bin/env bash
     set -euo pipefail
@@ -29,64 +31,86 @@ bootstrap:
     just caddy
 
 # Start only Caddy, without infrastructure or application dependencies.
+[group('Local development')]
 caddy:
     docker compose --profile caddy up -d caddy
     just trust-local-ca
 
 # Forward arbitrary recipes and arguments to the backend Justfile.
+[group('Components')]
 backend *args:
     just --justfile backend/justfile {{args}}
 
 # Forward arbitrary recipes and arguments to the frontend Justfile.
+[group('Components')]
 frontend *args:
     just --justfile frontend/justfile {{args}}
 
 # Forward arbitrary recipes and arguments to the protobuf Justfile.
+[group('Components')]
 proto *args:
     just --justfile proto/justfile {{args}}
 
 # Build the strict MkDocs site.
+[group('Documentation')]
 docs:
     mkdocs build --strict
 
 # Start the local MkDocs development server.
+[group('Documentation')]
 docs-serve:
     mkdocs serve
 
-# Start the local single-node Kubernetes cluster used by the Minikube profile.
-minikube-start:
+# Initialize the local single-node Kubernetes cluster used by the Minikube profile.
+[group('Minikube')]
+minikube-init:
     minikube start --driver=docker --cpus=4 --memory=8192
     kubectl config use-context minikube
 
+# Build and deploy Minikube, then keep local HTTPS forwarded.
+[group('Minikube')]
+minikube-bootstrap:
+    just minikube-build
+    just minikube-up
+    just minikube-forward
+
 # Build the four application images and load them into Minikube.
+[group('Minikube')]
 minikube-build:
     ./deploy/minikube/minikube.sh build
 
-# Apply the local Kubernetes stack in dependency order.
+# Apply the local Kubernetes stack and trust its HTTPS certificate on the host.
+[group('Minikube')]
 minikube-up:
     ./deploy/minikube/minikube.sh up
 
-# Keep local HTTP and HTTPS forwarded to the Minikube Caddy pod.
+# Forward local HTTP and HTTPS to Minikube Caddy (requires sudo).
+[group('Minikube')]
 minikube-forward:
     ./deploy/minikube/minikube.sh forward
 
-# Export the Minikube Caddy root CA to .local/minikube/root.crt.
+# Export and trust the Minikube Caddy root CA on the host.
+[group('Minikube')]
 minikube-cert:
     ./deploy/minikube/minikube.sh cert
 
 # Show pods, services, Jobs, and persistent volumes in the Mahfel namespace.
+[group('Minikube')]
 minikube-status:
     ./deploy/minikube/minikube.sh status
 
 # Remove the local Mahfel namespace and its Kubernetes resources.
+[group('Minikube')]
 minikube-down:
     ./deploy/minikube/minikube.sh down
 
 # Stop the Minikube cluster without deleting its profile or cached images.
+[group('Minikube')]
 minikube-stop:
     minikube stop
 
 # Start selected Compose profiles; no arguments starts all profiles.
+[group('Compose')]
 compose-up *profiles:
     #!/usr/bin/env bash
     set -euo pipefail
@@ -98,14 +122,17 @@ compose-up *profiles:
     if printf '%s\n' "${selected[@]}" | grep -qx mahfel; then just trust-local-ca; fi
 
 # Stop the local Compose stack. Named volumes are retained.
+[group('Compose')]
 compose-down:
     docker compose down
 
 # Stop every Compose profile and remove all named volumes for a fresh local start.
+[group('Compose')]
 compose-clean:
     docker compose --profile mahfel --profile infrastructure --profile observability down --volumes --remove-orphans
 
 # Follow logs from selected Compose profiles; no arguments means all profiles.
+[group('Compose')]
 compose-logs *profiles:
     #!/usr/bin/env bash
     set -euo pipefail
@@ -116,6 +143,7 @@ compose-logs *profiles:
     docker compose "${flags[@]}" logs -f
 
 # Install and trust Caddy's generated local HTTPS root certificate.
+[group('Local development')]
 trust-local-ca:
     #!/usr/bin/env bash
     set -euo pipefail

@@ -93,6 +93,26 @@ installs/trusts Caddy's local CA. `just compose-up` then starts all three Compos
 To start infrastructure, use `just compose-up infrastructure`. To start only Caddy for certificate
 or host-upstream work, use `just caddy`.
 
+## Minikube
+
+```bash
+just minikube-init
+just minikube-bootstrap
+```
+
+Initialize the cluster once. `just minikube-bootstrap` builds and deploys the images, then keeps
+local HTTPS forwarding open until you stop the command. Host ports 80 and 443 must be free.
+`just minikube-up` exports the Minikube Caddy CA to `.local/minikube/root.crt` and installs it in
+the host trust store; this step may prompt for `sudo`. The forwarding step also prompts for `sudo`
+to bind host ports 80 and 443. Open `https://mahfel.localhost` when forwarding starts.
+Run `just minikube-cert` to export and trust the CA again if the Minikube Caddy certificate changes.
+Restart open browsers after trusting it.
+If `sudo` cannot prompt during `just minikube-up`, run `just minikube-cert` from an interactive
+terminal to finish host trust after the cluster is ready.
+On a first start, pulling the infrastructure and initialization images can take several minutes.
+If a rollout or job times out, `just minikube-up` prints the affected pod status, recent events,
+and available container logs.
+
 ## Host-run development
 
 To iterate on Rust or Next.js without rebuilding application images, start only infrastructure:

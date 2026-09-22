@@ -33,6 +33,7 @@ spec:
           readinessProbe:
             exec: {command: [rabbitmq-diagnostics, -q, ping]}
             periodSeconds: 10
+            timeoutSeconds: 10
           volumeMounts: [{name: data, mountPath: /var/lib/rabbitmq}]
       volumes: [{name: data, persistentVolumeClaim: {claimName: rabbitmq-data}}]
 ---
