@@ -1,0 +1,23 @@
+[package]
+name = "mahfel-storage"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+aws-sdk-s3 = "=1.145.0"
+mahfel-application = { path = "../application" }
+mahfel-config = { path = "../config" }
+tokio.workspace = true
+thiserror.workspace = true
+
+[lints]
+workspace = true
+
+[dev-dependencies]
+base64 = "0.22"
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"] }
+sha2 = "0.10"
+testcontainers = "0.28.0"
+uuid.workspace = true

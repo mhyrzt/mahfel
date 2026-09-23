@@ -16,6 +16,10 @@ spec:
           imagePullPolicy: Never
           env:
             - {name: MAHFEL_CONFIG_PROFILE, value: docker}
+            - name: MAHFEL_DATABASE__PASSWORD
+              valueFrom: {secretKeyRef: {name: local-credentials, key: postgres-password}}
+            - name: MAHFEL_STORAGE__SECRET_KEY
+              valueFrom: {secretKeyRef: {name: local-credentials, key: rustfs-secret-key}}
             - name: MAHFEL_WORKER__AMQP_URL
               valueFrom: {secretKeyRef: {name: local-credentials, key: rabbitmq-url}}
           ports: [{containerPort: 9103}]

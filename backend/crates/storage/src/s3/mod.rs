@@ -1,0 +1,7 @@
+mod adapter;
+mod client;
+mod objects;
+mod presigned;
+mod storage;
+
+pub use storage::S3FileStorage;

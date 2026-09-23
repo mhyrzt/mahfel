@@ -213,6 +213,7 @@ up() {
 
   step 'Running database seed and storage initialization'
   kubectl -n "${namespace}" apply -f "${apps_dir}/seed.yaml" >/dev/null
+  kubectl -n "${namespace}" delete job rustfs-init --ignore-not-found >/dev/null
   kubectl -n "${namespace}" apply -f "${infra_dir}/rustfs-init.yaml" >/dev/null
   wait_for_job mahfel-seed 5m
   wait_for_job rustfs-init 15m

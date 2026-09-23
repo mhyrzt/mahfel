@@ -1,6 +1,6 @@
 use crate::{
     ApiSettings, DatabaseSettings, KeycloakSettings, MediaSettings, OidcSettings, RedisSettings,
-    SettingsError, TelemetrySettings, TurnSettings, WorkerSettings,
+    SettingsError, StorageSettings, TelemetrySettings, TurnSettings, WorkerSettings,
 };
 use config::{Config, Environment, File};
 use serde::Deserialize;
@@ -12,6 +12,7 @@ pub struct Settings {
     pub oidc: OidcSettings,
     pub keycloak: KeycloakSettings,
     pub database: DatabaseSettings,
+    pub storage: StorageSettings,
     pub media: MediaSettings,
     pub redis: RedisSettings,
     pub worker: WorkerSettings,

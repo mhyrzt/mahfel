@@ -45,6 +45,15 @@ idle_timeout_seconds = 600
 max_lifetime_seconds = 1800
 migrate_on_start = false
 
+[storage]
+internal_endpoint = "http://rustfs:9000"
+public_endpoint = "https://s3.mahfel.localhost"
+region = "us-east-1"
+bucket = "mahfel-local"
+access_key = "mahfel"
+secret_key = "mahfel-local-only-secret"
+force_path_style = true
+
 [media]
 grpc_bind = "0.0.0.0:50051"
 operations_bind = "0.0.0.0:9102"

@@ -28,6 +28,8 @@ spec:
           imagePullPolicy: Never
           env:
             - {name: MAHFEL_CONFIG_PROFILE, value: docker}
+            - name: MAHFEL_STORAGE__SECRET_KEY
+              valueFrom: {secretKeyRef: {name: local-credentials, key: rustfs-secret-key}}
             - {name: MAHFEL_DATABASE__HOST, value: postgres}
             - {name: MAHFEL_DATABASE__USER, value: mahfel}
             - {name: MAHFEL_DATABASE__NAME, value: mahfel}

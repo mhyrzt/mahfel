@@ -12,6 +12,7 @@ members = [
   "crates/messaging",
   "crates/postgres",
   "crates/redis",
+  "crates/storage",
   "crates/rtc",
   "crates/rtc-protocol",
   "crates/telemetry",
