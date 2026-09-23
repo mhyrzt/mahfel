@@ -4,6 +4,7 @@ title: M6-03 Presigned upload
 status: To Do
 assignee: []
 created_date: '2026-09-08 00:31'
+updated_date: '2026-09-23 01:12'
 labels: []
 milestone: m-6
 dependencies: []
@@ -27,3 +28,9 @@ Dependencies: M6-01, M6-02
 <!-- AC:BEGIN -->
 - [ ] #1 Browser uploads directly; oversized/wrong checksum cannot become ready metadata.
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Design note: PDFs, single images, and ordered image sequences can be presentation assets uploaded directly to S3-compatible storage through the presigned flow. Keep these as durable artifacts rather than media-plane streams; recording will reference the artifact and capture presenter slide-change events under M9.
+<!-- SECTION:NOTES:END -->

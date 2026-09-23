@@ -4,6 +4,7 @@ title: M6-06 Validation/security strategy
 status: To Do
 assignee: []
 created_date: '2026-09-08 00:31'
+updated_date: '2026-09-23 01:13'
 labels: []
 milestone: m-6
 dependencies: []
@@ -27,3 +28,9 @@ Dependencies: M6-03
 <!-- AC:BEGIN -->
 - [ ] #1 Threat model documented; executable/polyglot test fixtures follow chosen policy.
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Design note: Presentation uploads need explicit allowed PDF and raster-image formats, content sniffing, file-size and page or image-count limits, and any required image normalization. Do not trust client MIME types or extensions.
+<!-- SECTION:NOTES:END -->

@@ -4,6 +4,7 @@ title: M7-02 Yrs synchronization gateway
 status: To Do
 assignee: []
 created_date: '2026-09-08 00:31'
+updated_date: '2026-09-23 01:13'
 labels: []
 milestone: m-7
 dependencies: []
@@ -27,3 +28,9 @@ Dependencies: M1-05, M7-01
 <!-- AC:BEGIN -->
 - [ ] #1 Two clients on different API replicas converge under concurrent updates.
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Design note: Whiteboard and text-editor viewport is shared room state. A participant pan, zoom, or scroll updates the view for everyone; order competing changes deterministically so the latest accepted action wins. Keep shared navigation distinct from per-user awareness.
+<!-- SECTION:NOTES:END -->
