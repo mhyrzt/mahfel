@@ -18,8 +18,9 @@ use mahfel_application::policy::ServerCapabilityResolver;
 use mahfel_application::ports::{
     AdmissionStore, AttributeError, BlockStore, BoxFuture, Capability, CapabilityContext,
     CapabilityResolver, CapabilitySet, ChatStore, CoordinationError, CoordinationStore,
-    InviteStore, ParticipantStore, ParticipationStore, Principal, ProvisionedIdentity, RoomStore,
-    ServicePrincipalStore, SessionStore, StoreError, UserAttributeWriter,
+    FileStorage, FileStorageError, FileStore, InviteStore, ParticipantStore, ParticipationStore,
+    PresignedFileRequest, Principal, ProvisionedIdentity, RoomStore, ServicePrincipalStore,
+    SessionStore, StoreError, StoredFile, UserAttributeWriter,
 };
 use mahfel_application::service_principals::{CreateServicePrincipal, create_service_principal};
 use mahfel_application::users::{IdentityProvisioner, SyncIdentity, SyncIdentityError};
@@ -29,11 +30,12 @@ use mahfel_config::TurnSettings;
 use mahfel_domain::{
     ActorId, ActorKind, AdmissionOrigin, AdmissionRequest, AdmissionRequestId,
     AdmissionRequestStatus, AdmissionTarget, ChatChannel, ChatChannelId, ChatMessage,
-    ChatMessageCursor, ChatMessageDraft, ChatMessageId, ChatMessagePage, DisplayName, Identity,
-    IntervalId, InviteCode, InviteLink, InviteLinkId, InviteLinkStatus, InviteTarget,
-    InviteTargetKind, Issuer, Participant, ParticipantId, ParticipantStatus, ParticipationInterval,
-    Room, RoomId, RoomMember, RoomRole, RoomTitle, RoomVisibility, ServicePrincipal,
-    ServicePrincipalStatus, Session, SessionId, SessionStatus, Subject, User, UserStatus,
+    ChatMessageCursor, ChatMessageDraft, ChatMessageId, ChatMessagePage, DisplayName, FileContext,
+    FileId, FileObject, FileStatus, Identity, IntervalId, InviteCode, InviteLink, InviteLinkId,
+    InviteLinkStatus, InviteTarget, InviteTargetKind, Issuer, Participant, ParticipantId,
+    ParticipantStatus, ParticipationInterval, Room, RoomId, RoomMember, RoomRole, RoomTitle,
+    RoomVisibility, ServicePrincipal, ServicePrincipalStatus, Session, SessionId, SessionStatus,
+    Subject, User, UserStatus,
 };
 use mahfel_media_client::GrpcMediaGateway;
 use prometheus::Encoder;
@@ -53,6 +55,118 @@ use tokio_tungstenite::{
 };
 use tower::ServiceExt;
 use uuid::Uuid;
+
+#[derive(Default)]
+struct FakeFileStore;
+
+impl FileStore for FakeFileStore {
+    fn context_room(
+        &self,
+        context: FileContext,
+    ) -> BoxFuture<'_, Result<Option<RoomId>, StoreError>> {
+        Box::pin(async move {
+            Ok(match context {
+                FileContext::Room(id) => Some(id),
+                _ => None,
+            })
+        })
+    }
+    fn insert<'a>(&'a self, _file: &'a FileObject) -> BoxFuture<'a, Result<(), StoreError>> {
+        Box::pin(async { Err(StoreError::Unexpected("unused fake".into())) })
+    }
+    fn get(&self, _id: FileId) -> BoxFuture<'_, Result<Option<FileObject>, StoreError>> {
+        Box::pin(async { Ok(None) })
+    }
+    fn list(
+        &self,
+        _context: FileContext,
+        _limit: u32,
+        _offset: u64,
+    ) -> BoxFuture<'_, Result<Vec<FileObject>, StoreError>> {
+        Box::pin(async { Ok(Vec::new()) })
+    }
+    fn transition<'a>(
+        &'a self,
+        _id: FileId,
+        _from: FileStatus,
+        _to: FileStatus,
+        _verified_mime: Option<&'a str>,
+        _now: OffsetDateTime,
+    ) -> BoxFuture<'a, Result<bool, StoreError>> {
+        Box::pin(async { Ok(false) })
+    }
+    fn pending_before(
+        &self,
+        _before: OffsetDateTime,
+        _limit: u32,
+    ) -> BoxFuture<'_, Result<Vec<FileObject>, StoreError>> {
+        Box::pin(async { Ok(Vec::new()) })
+    }
+    fn remove(&self, _id: FileId) -> BoxFuture<'_, Result<(), StoreError>> {
+        Box::pin(async { Ok(()) })
+    }
+    fn publish<'a>(
+        &'a self,
+        _id: FileId,
+        _key: &'a str,
+        _mime: &'a str,
+        _now: OffsetDateTime,
+    ) -> BoxFuture<'a, Result<bool, StoreError>> {
+        Box::pin(async { Ok(false) })
+    }
+    fn record_download(
+        &self,
+        _id: FileId,
+        _actor: ActorId,
+        _now: OffsetDateTime,
+    ) -> BoxFuture<'_, Result<(), StoreError>> {
+        Box::pin(async { Ok(()) })
+    }
+}
+
+#[derive(Default)]
+struct FakeFileStorage;
+
+impl FileStorage for FakeFileStorage {
+    fn presign_upload<'a>(
+        &'a self,
+        _key: &'a str,
+        _content_type: &'a str,
+        _size_bytes: u64,
+        _checksum_sha256: &'a str,
+        _expiry: Duration,
+    ) -> BoxFuture<'a, Result<PresignedFileRequest, FileStorageError>> {
+        Box::pin(async { Err(FileStorageError::Unavailable) })
+    }
+    fn read<'a>(
+        &'a self,
+        _key: &'a str,
+        _max_bytes: u64,
+    ) -> BoxFuture<'a, Result<StoredFile, FileStorageError>> {
+        Box::pin(async { Err(FileStorageError::NotFound) })
+    }
+    fn presign_download<'a>(
+        &'a self,
+        _key: &'a str,
+        _file_name: &'a str,
+        _expiry: Duration,
+    ) -> BoxFuture<'a, Result<PresignedFileRequest, FileStorageError>> {
+        Box::pin(async { Err(FileStorageError::Unavailable) })
+    }
+    fn delete<'a>(&'a self, _key: &'a str) -> BoxFuture<'a, Result<(), FileStorageError>> {
+        Box::pin(async { Ok(()) })
+    }
+    fn promote<'a>(
+        &'a self,
+        _from: &'a str,
+        _to: &'a str,
+    ) -> BoxFuture<'a, Result<(), FileStorageError>> {
+        Box::pin(async { Ok(()) })
+    }
+    fn check_bucket(&self) -> BoxFuture<'_, Result<(), FileStorageError>> {
+        Box::pin(async { Ok(()) })
+    }
+}
 
 #[derive(Clone, Default)]
 struct FakeChatStore;
@@ -1403,6 +1517,8 @@ fn state_with(
     let realtime = ws_state(principal.clone());
     let (service_auth, service_principals) = service_seams(FakeServicePrincipalStore::default());
     AppState {
+        files: Arc::new(FakeFileStore),
+        storage: Arc::new(FakeFileStorage),
         chat: Arc::new(FakeChatStore),
         service: "mahfel-api-test",
         version: "0.1.0",
@@ -1480,6 +1596,8 @@ fn authenticated_room_app(principal: Principal, store: FakeRoomStore) -> Router 
     let realtime = ws_state(Some(principal.clone()));
     let (service_auth, service_principals) = service_seams(FakeServicePrincipalStore::default());
     api_router(AppState {
+        files: Arc::new(FakeFileStore),
+        storage: Arc::new(FakeFileStorage),
         chat: Arc::new(FakeChatStore),
         service: "mahfel-api-test",
         version: "0.1.0",
@@ -1968,6 +2086,43 @@ async fn room_is_404_for_a_non_member() {
 }
 
 #[tokio::test]
+async fn file_listing_requires_current_context_access() {
+    let store = FakeRoomStore::default();
+    let room = store.seed_room(
+        "Files",
+        other_principal().actor_id,
+        RoomVisibility::InviteOnly,
+    );
+    store.add_raw_member(room.id, principal().actor_id, RoomRole::Member);
+    let uri = format!("/v1/files?context_kind=room&context_id={}", room.id);
+
+    let member = authenticated_room_app(principal(), store.clone());
+    let response = member
+        .oneshot(
+            Request::builder()
+                .uri(&uri)
+                .body(Body::empty())
+                .expect("request"),
+        )
+        .await
+        .expect("response");
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let stranger = principal_with("00000000-0000-0000-0000-000000000011");
+    let non_member = authenticated_room_app(stranger, store);
+    let response = non_member
+        .oneshot(
+            Request::builder()
+                .uri(uri)
+                .body(Body::empty())
+                .expect("request"),
+        )
+        .await
+        .expect("response");
+    assert_eq!(response.status(), StatusCode::NOT_FOUND);
+}
+
+#[tokio::test]
 async fn room_list_returns_only_joined_rooms() {
     let store = FakeRoomStore::default();
     store.seed_room("Owned", principal().actor_id, RoomVisibility::InviteOnly);
@@ -2256,6 +2411,8 @@ fn session_app(
     let realtime = ws_state(principal.clone());
     let (service_auth, service_principals) = service_seams(FakeServicePrincipalStore::default());
     api_router(AppState {
+        files: Arc::new(FakeFileStore),
+        storage: Arc::new(FakeFileStorage),
         chat: Arc::new(FakeChatStore),
         service: "mahfel-api-test",
         version: "0.1.0",
@@ -2534,6 +2691,8 @@ fn policy_session_app(
     let realtime = ws_state(principal.clone());
     let (service_auth, service_principals) = service_seams(FakeServicePrincipalStore::default());
     api_router(AppState {
+        files: Arc::new(FakeFileStore),
+        storage: Arc::new(FakeFileStorage),
         chat: Arc::new(FakeChatStore),
         service: "mahfel-api-test",
         version: "0.1.0",
@@ -2704,6 +2863,8 @@ async fn serve_ws_with_stores(
     );
     let (service_auth, service_principals) = service_seams(FakeServicePrincipalStore::default());
     let state = AppState {
+        files: Arc::new(FakeFileStore),
+        storage: Arc::new(FakeFileStorage),
         chat: Arc::new(FakeChatStore),
         service: "mahfel-api-test",
         version: "0.1.0",
@@ -2926,6 +3087,8 @@ async fn serve_ws_with_verifier(verifier: TokenVerifier, config: WsConfig) -> Ws
     );
     let (service_auth, service_principals) = service_seams(FakeServicePrincipalStore::default());
     let state = AppState {
+        files: Arc::new(FakeFileStore),
+        storage: Arc::new(FakeFileStorage),
         chat: Arc::new(FakeChatStore),
         service: "mahfel-api-test",
         version: "0.1.0",
@@ -3374,6 +3537,8 @@ fn service_app(
     let realtime = ws_state(principal.clone());
     let (service_auth, service_principals) = service_seams(service_store);
     api_router(AppState {
+        files: Arc::new(FakeFileStore),
+        storage: Arc::new(FakeFileStorage),
         chat: Arc::new(FakeChatStore),
         service: "mahfel-api-test",
         version: "0.1.0",
@@ -3638,6 +3803,8 @@ async fn serve_ws_with(
     );
     let (service_auth, service_principals) = service_seams(FakeServicePrincipalStore::default());
     let state = AppState {
+        files: Arc::new(FakeFileStore),
+        storage: Arc::new(FakeFileStorage),
         chat: Arc::new(FakeChatStore),
         service: "mahfel-api-test",
         version: "0.1.0",
@@ -4089,6 +4256,8 @@ fn participation_app(
     let realtime = ws_state(principal.clone());
     let (service_auth, service_principals) = service_seams(FakeServicePrincipalStore::default());
     api_router(AppState {
+        files: Arc::new(FakeFileStore),
+        storage: Arc::new(FakeFileStorage),
         chat: Arc::new(FakeChatStore),
         service: "mahfel-api-test",
         version: "0.1.0",
@@ -4348,6 +4517,8 @@ fn invite_app(
     let realtime = ws_state(principal.clone());
     let (service_auth, service_principals) = service_seams(FakeServicePrincipalStore::default());
     api_router(AppState {
+        files: Arc::new(FakeFileStore),
+        storage: Arc::new(FakeFileStorage),
         chat: Arc::new(FakeChatStore),
         service: "mahfel-api-test",
         version: "0.1.0",
@@ -4741,6 +4912,8 @@ fn admission_app(
     let realtime = ws_state(principal.clone());
     let (service_auth, service_principals) = service_seams(FakeServicePrincipalStore::default());
     api_router(AppState {
+        files: Arc::new(FakeFileStore),
+        storage: Arc::new(FakeFileStorage),
         chat: Arc::new(FakeChatStore),
         service: "mahfel-api-test",
         version: "0.1.0",
@@ -4774,6 +4947,8 @@ fn redeem_app(
     let realtime = ws_state(principal.clone());
     let (service_auth, service_principals) = service_seams(FakeServicePrincipalStore::default());
     api_router(AppState {
+        files: Arc::new(FakeFileStore),
+        storage: Arc::new(FakeFileStorage),
         chat: Arc::new(FakeChatStore),
         service: "mahfel-api-test",
         version: "0.1.0",

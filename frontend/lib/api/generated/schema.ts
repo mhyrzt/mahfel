@@ -131,6 +131,91 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/files": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List ready files in a context */
+    get: operations["listFiles"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/files/uploads": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Authorize a direct S3 upload */
+    post: operations["initiateFileUpload"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/files/{file_id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post?: never;
+    /** Delete a file and its object */
+    delete: operations["deleteFile"];
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/files/{file_id}/complete": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Verify an uploaded object */
+    post: operations["completeFileUpload"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/files/{file_id}/download": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Authorize a direct S3 download */
+    get: operations["downloadFile"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/v1/health": {
     parameters: {
       query?: never;
@@ -858,8 +943,51 @@ export interface components {
       details?: unknown;
       message: string;
     };
+    FileContextInput: {
+      /** Format: uuid */
+      context_id: string;
+      context_kind: components["schemas"]["FileContextKind"];
+      /** Format: int32 */
+      limit?: number | null;
+      /** Format: int64 */
+      offset?: number | null;
+    };
+    /** @enum {string} */
+    FileContextKind: "room" | "session" | "chat_message" | "avatar" | "recording";
+    FileListResponse: {
+      files: components["schemas"]["FileResponse"][];
+    };
+    FileResponse: {
+      checksum_sha256: string;
+      /** Format: uuid */
+      context_id: string;
+      context_kind: components["schemas"]["FileContextKind"];
+      /** Format: date-time */
+      created_at: string;
+      file_name: string;
+      /** Format: uuid */
+      id: string;
+      mime: string;
+      /** Format: uuid */
+      owner_id: string;
+      /** Format: int64 */
+      size_bytes: number;
+      status: string;
+      /** Format: date-time */
+      updated_at: string;
+    };
     HealthResponse: {
       status: string;
+    };
+    InitiateUploadRequest: {
+      checksum_sha256: string;
+      /** Format: uuid */
+      context_id: string;
+      context_kind: components["schemas"]["FileContextKind"];
+      file_name: string;
+      mime: string;
+      /** Format: int64 */
+      size_bytes: number;
     };
     IntervalResponse: {
       actor_id: string;
@@ -1093,6 +1221,17 @@ export interface components {
     SetSessionAccessRequest: {
       admission?: null | components["schemas"]["AdmissionPolicyDto"];
       visibility?: null | components["schemas"]["SessionVisibilityDto"];
+    };
+    SignedFileResponse: {
+      /** Format: int64 */
+      expires_in_seconds: number;
+      file: components["schemas"]["FileResponse"];
+      headers: components["schemas"]["SignedHeader"][];
+      url: string;
+    };
+    SignedHeader: {
+      name: string;
+      value: string;
     };
     StatusResponse: {
       node_id: string;
@@ -1501,6 +1640,252 @@ export interface operations {
       };
       /** @description Validation failed */
       422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
+      };
+    };
+  };
+  listFiles: {
+    parameters: {
+      query: {
+        /** @description room, session, chat_message, avatar, or recording */
+        context_kind: components["schemas"]["FileContextKind"];
+        /** @description Context identifier */
+        context_id: string;
+        /** @description Page size, 1-100; defaults to 50 */
+        limit?: number;
+        /** @description Number of files to skip */
+        offset?: number;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Ready files */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["FileListResponse"];
+        };
+      };
+      /** @description Authentication required */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
+      };
+      /** @description Context not found or inaccessible */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
+      };
+    };
+  };
+  initiateFileUpload: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["InitiateUploadRequest"];
+      };
+    };
+    responses: {
+      /** @description Short-lived signed PUT and required headers */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["SignedFileResponse"];
+        };
+      };
+      /** @description Authentication required */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
+      };
+      /** @description Context not found or inaccessible */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
+      };
+      /** @description Invalid file metadata */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
+      };
+      /** @description Storage unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
+      };
+    };
+  };
+  deleteFile: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description File identifier */
+        file_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description File removed */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Authentication required */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
+      };
+      /** @description File not found or inaccessible */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
+      };
+    };
+  };
+  completeFileUpload: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description File identifier */
+        file_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Verified file */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["FileResponse"];
+        };
+      };
+      /** @description Authentication required */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
+      };
+      /** @description File not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
+      };
+      /** @description File cannot be completed */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
+      };
+      /** @description Object failed verification */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
+      };
+    };
+  };
+  downloadFile: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description File identifier */
+        file_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Short-lived signed GET */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["SignedFileResponse"];
+        };
+      };
+      /** @description Authentication required */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
+      };
+      /** @description File not found or inaccessible */
+      404: {
         headers: {
           [name: string]: unknown;
         };

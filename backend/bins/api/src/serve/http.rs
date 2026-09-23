@@ -6,12 +6,15 @@ use crate::settings;
 use anyhow::Result;
 use axum::Router;
 use mahfel_application::{
-    policy::ServerCapabilityResolver, ports::UserAttributeWriter, users::IdentityProvisioner,
+    policy::ServerCapabilityResolver,
+    ports::{FileStorage, UserAttributeWriter},
+    users::IdentityProvisioner,
 };
 use mahfel_config::Settings;
 use mahfel_domain::NodeId;
 use mahfel_media_client::GrpcMediaGateway;
 use mahfel_postgres::PostgresStores;
+use mahfel_storage::{S3FileStorage, S3Settings};
 use std::sync::Arc;
 use tokio::sync::watch;
 
@@ -58,6 +61,13 @@ pub(super) async fn app(
     );
     let rooms: Arc<dyn mahfel_application::ports::RoomStore> = Arc::new(stores.rooms.clone());
     let chat: Arc<dyn mahfel_application::ports::ChatStore> = Arc::new(stores.chat.clone());
+    let files: Arc<dyn mahfel_application::ports::FileStore> = Arc::new(stores.files.clone());
+    let storage: Arc<dyn FileStorage> =
+        Arc::new(S3FileStorage::new(S3Settings::from(&settings.storage)));
+    storage
+        .check_bucket()
+        .await
+        .map_err(|error| anyhow::anyhow!("S3 bucket check failed: {error}"))?;
     let sessions: Arc<dyn mahfel_application::ports::SessionStore> =
         Arc::new(stores.sessions.clone());
     let participants: Arc<dyn mahfel_application::ports::ParticipantStore> =
@@ -118,6 +128,8 @@ pub(super) async fn app(
         linker,
         rooms,
         chat,
+        files,
+        storage,
         sessions,
         participation,
         admissions,

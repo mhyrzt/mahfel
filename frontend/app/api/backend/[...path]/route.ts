@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerAccessToken } from "@/lib/auth/server";
 import { serverApiBaseUrl } from "@/lib/api/config";
 
-const ALLOWLIST = /^v1\/(auth|rooms|echo|status|health)(\/.*)?$/;
+const ALLOWLIST = /^v1\/(auth|rooms|files|echo|status|health)(\/.*)?$/;
 
 const REQUEST_HEADERS_TO_DROP = new Set([
   "accept-encoding",

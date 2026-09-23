@@ -20,6 +20,7 @@ mahfel-media-client = { path = "../../crates/media-client" }
 mahfel-rtc-protocol = { path = "../../crates/rtc-protocol" }
 mahfel-postgres = { path = "../../crates/postgres" }
 mahfel-redis = { path = "../../crates/redis" }
+mahfel-storage = { path = "../../crates/storage" }
 mahfel-telemetry = { path = "../../crates/telemetry" }
 prometheus.workspace = true
 serde.workspace = true
@@ -42,7 +43,6 @@ url.workspace = true
 sha1 = "0.10"
 base64 = "0.22"
 time.workspace = true
-mediasoup.workspace = true
 
 [dev-dependencies]
 base64 = "0.22"

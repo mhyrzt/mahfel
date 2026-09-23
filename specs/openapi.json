@@ -464,6 +464,333 @@
         ]
       }
     },
+    "/v1/files": {
+      "get": {
+        "tags": [
+          "files"
+        ],
+        "summary": "List ready files in a context",
+        "operationId": "listFiles",
+        "parameters": [
+          {
+            "name": "context_kind",
+            "in": "query",
+            "description": "room, session, chat_message, avatar, or recording",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/FileContextKind"
+            }
+          },
+          {
+            "name": "context_id",
+            "in": "query",
+            "description": "Context identifier",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Page size, 1-100; defaults to 50",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "description": "Number of files to skip",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Ready files",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FileListResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Context not found or inaccessible",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/files/uploads": {
+      "post": {
+        "tags": [
+          "files"
+        ],
+        "summary": "Authorize a direct S3 upload",
+        "operationId": "initiateFileUpload",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InitiateUploadRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Short-lived signed PUT and required headers",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SignedFileResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Context not found or inaccessible",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid file metadata",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Storage unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/files/{file_id}": {
+      "delete": {
+        "tags": [
+          "files"
+        ],
+        "summary": "Delete a file and its object",
+        "operationId": "deleteFile",
+        "parameters": [
+          {
+            "name": "file_id",
+            "in": "path",
+            "description": "File identifier",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "File removed"
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "File not found or inaccessible",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/files/{file_id}/complete": {
+      "post": {
+        "tags": [
+          "files"
+        ],
+        "summary": "Verify an uploaded object",
+        "operationId": "completeFileUpload",
+        "parameters": [
+          {
+            "name": "file_id",
+            "in": "path",
+            "description": "File identifier",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Verified file",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FileResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "File not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "File cannot be completed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Object failed verification",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/files/{file_id}/download": {
+      "get": {
+        "tags": [
+          "files"
+        ],
+        "summary": "Authorize a direct S3 download",
+        "operationId": "downloadFile",
+        "parameters": [
+          {
+            "name": "file_id",
+            "in": "path",
+            "description": "File identifier",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Short-lived signed GET",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SignedFileResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "File not found or inaccessible",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/health": {
       "get": {
         "tags": [
@@ -3705,6 +4032,120 @@
           }
         }
       },
+      "FileContextInput": {
+        "type": "object",
+        "required": [
+          "context_kind",
+          "context_id"
+        ],
+        "properties": {
+          "context_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "context_kind": {
+            "$ref": "#/components/schemas/FileContextKind"
+          },
+          "limit": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "minimum": 0
+          },
+          "offset": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "minimum": 0
+          }
+        }
+      },
+      "FileContextKind": {
+        "type": "string",
+        "enum": [
+          "room",
+          "session",
+          "chat_message",
+          "avatar",
+          "recording"
+        ]
+      },
+      "FileListResponse": {
+        "type": "object",
+        "required": [
+          "files"
+        ],
+        "properties": {
+          "files": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FileResponse"
+            }
+          }
+        }
+      },
+      "FileResponse": {
+        "type": "object",
+        "required": [
+          "id",
+          "owner_id",
+          "context_kind",
+          "context_id",
+          "status",
+          "file_name",
+          "mime",
+          "size_bytes",
+          "checksum_sha256",
+          "created_at",
+          "updated_at"
+        ],
+        "properties": {
+          "checksum_sha256": {
+            "type": "string"
+          },
+          "context_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "context_kind": {
+            "$ref": "#/components/schemas/FileContextKind"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "file_name": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "mime": {
+            "type": "string"
+          },
+          "owner_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "size_bytes": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "status": {
+            "type": "string"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
       "HealthResponse": {
         "type": "object",
         "required": [
@@ -3713,6 +4154,40 @@
         "properties": {
           "status": {
             "type": "string"
+          }
+        }
+      },
+      "InitiateUploadRequest": {
+        "type": "object",
+        "required": [
+          "context_kind",
+          "context_id",
+          "file_name",
+          "mime",
+          "size_bytes",
+          "checksum_sha256"
+        ],
+        "properties": {
+          "checksum_sha256": {
+            "type": "string"
+          },
+          "context_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "context_kind": {
+            "$ref": "#/components/schemas/FileContextKind"
+          },
+          "file_name": {
+            "type": "string"
+          },
+          "mime": {
+            "type": "string"
+          },
+          "size_bytes": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
           }
         }
       },
@@ -4468,6 +4943,49 @@
                 "description": "Omit to clear an override and inherit the room's value again."
               }
             ]
+          }
+        }
+      },
+      "SignedFileResponse": {
+        "type": "object",
+        "required": [
+          "file",
+          "url",
+          "headers",
+          "expires_in_seconds"
+        ],
+        "properties": {
+          "expires_in_seconds": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "file": {
+            "$ref": "#/components/schemas/FileResponse"
+          },
+          "headers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SignedHeader"
+            }
+          },
+          "url": {
+            "type": "string"
+          }
+        }
+      },
+      "SignedHeader": {
+        "type": "object",
+        "required": [
+          "name",
+          "value"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "value": {
+            "type": "string"
           }
         }
       },

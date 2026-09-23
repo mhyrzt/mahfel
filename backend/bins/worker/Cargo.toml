@@ -8,7 +8,10 @@ license.workspace = true
 [dependencies]
 anyhow.workspace = true
 mahfel-config = { path = "../../crates/config" }
+mahfel-application = { path = "../../crates/application" }
 mahfel-messaging = { path = "../../crates/messaging" }
+mahfel-postgres = { path = "../../crates/postgres" }
+mahfel-storage = { path = "../../crates/storage" }
 mahfel-telemetry = { path = "../../crates/telemetry" }
 tokio.workspace = true
 tracing.workspace = true

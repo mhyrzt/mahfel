@@ -61,15 +61,27 @@ fn document_error_responses(operation: &mut Operation) {
     info(
         title = "Mahfel API",
         version = env!("CARGO_PKG_VERSION"),
-        description = "Control-plane REST API. Protected routes use Authorization: Bearer. User requests use Keycloak access tokens; supported service-principal routes also accept Mahfel keys. Provisioning requires a Keycloak access token."
+        description = r#"Control-plane REST API.
+Protected routes require an Authorization: Bearer token. User requests use Keycloak access tokens. Supported service-principal routes also accept Mahfel keys. Provisioning requires a Keycloak access token."#
     ),
     modifiers(&AuthScheme),
     security(("bearerAuth" = [])),
+    tags(
+        (name = "files", description = "Context-authorized file metadata and direct S3 transfers")
+    ),
     paths(
+        // System and health endpoints
         super::status::status,
         super::health::health,
         super::echo::list,
         super::echo::create,
+        // Files
+        super::files::upload::initiate,
+        super::files::upload::complete,
+        super::files::download::download,
+        super::files::library::list,
+        super::files::library::remove,
+        // Identity and service principals
         super::identity::provision,
         super::identity::me,
         super::admin::ping,
@@ -107,6 +119,7 @@ fn document_error_responses(operation: &mut Operation) {
         super::invite::manage::rotate,
         super::rooms::admission::get_admission,
         super::rooms::admission::set_admission,
+        // Session access and lifecycle
         super::sessions::access::get_access,
         super::sessions::access::set_access,
         super::sessions::access::get_lobby,
@@ -130,6 +143,13 @@ fn document_error_responses(operation: &mut Operation) {
         super::admin::service_principals::dto::CreatedServicePrincipalResponse,
         super::admin::service_principals::dto::RotatedServicePrincipalKeyResponse,
         super::echo::EchoPayload,
+        super::files::FileContextKind,
+        super::files::FileContextInput,
+        super::files::InitiateUploadRequest,
+        super::files::FileResponse,
+        super::files::SignedFileResponse,
+        super::files::SignedHeader,
+        super::files::FileListResponse,
         crate::http::pagination::PaginationMeta,
         crate::http::pagination::Paginated<super::echo::EchoPayload>,
         crate::http::pagination::Paginated<super::rooms::dto::RoomResponse>,
@@ -185,6 +205,11 @@ pub(crate) const REST_PATH_TEMPLATES: &[&str] = &[
     "/v1/status",
     "/v1/health",
     "/v1/echo",
+    "/v1/files",
+    "/v1/files/uploads",
+    "/v1/files/{file_id}/complete",
+    "/v1/files/{file_id}/download",
+    "/v1/files/{file_id}",
     "/v1/auth/provision",
     "/v1/auth/me",
     "/v1/admin/ping",
