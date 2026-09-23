@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
+import { cookies } from "next/headers";
 
+import { isTheme, themeCookieName } from "@/features/appearance/theme";
 import { directionForLocale } from "@/lib/i18n/config";
 import { getLocale } from "@/lib/i18n/server";
 
@@ -16,9 +18,12 @@ export const metadata: Metadata = {
 
 export default async function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   const locale = await getLocale();
+  const cookieStore = await cookies();
+  const themeCookie = cookieStore.get(themeCookieName)?.value;
+  const theme = isTheme(themeCookie) ? themeCookie : "system";
 
   return (
-    <html dir={directionForLocale(locale)} lang={locale}>
+    <html data-theme={theme} dir={directionForLocale(locale)} lang={locale}>
       <body>{children}</body>
     </html>
   );

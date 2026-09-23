@@ -21,7 +21,7 @@ const itemClassName =
   "flex min-w-0 flex-col items-center justify-center gap-1 rounded-md px-2 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
 
 export function MobileNavigation({ locale }: Readonly<{ locale: Locale }>) {
-  const pathname = usePathname();
+  const pathname = usePathname() ?? "";
   const text = messagesFor(locale).shell;
   const isRoomsActive = pathname.startsWith("/rooms");
   const isSessionsActive = pathname.startsWith("/sessions");

@@ -2,6 +2,12 @@ import type { Locale } from "./config";
 
 export interface Messages {
   language: Record<Locale, string>;
+  appearance: {
+    label: string;
+    light: string;
+    dark: string;
+    system: string;
+  };
   shell: {
     workspaceNavigation: string;
     mobileNavigation: string;
@@ -20,8 +26,10 @@ export interface Messages {
     eyebrow: string;
     title: string;
     description: string;
-    classroomsComingLater: string;
-    api: string;
+    signIn: string;
+    supportingText: string;
+    status: string;
+    footer: string;
   };
   sessions: {
     participants: string;
@@ -73,6 +81,7 @@ export interface Messages {
 const messages: Record<Locale, Messages> = {
   en: {
     language: { en: "English", fa: "Persian" },
+    appearance: { label: "Appearance", light: "Light", dark: "Dark", system: "System" },
     shell: {
       workspaceNavigation: "Workspace navigation",
       mobileNavigation: "Mobile workspace navigation",
@@ -88,12 +97,14 @@ const messages: Record<Locale, Messages> = {
       createMenuDescription: "Choose what you would like to add to your workspace.",
     },
     home: {
-      eyebrow: "Foundation ready",
-      title: "Mahfel",
+      eyebrow: "A place to meet",
+      title: "Good conversations start here.",
       description:
-        "An education-focused realtime communication and collaboration platform. Product features will be built on this independently deployable web foundation.",
-      classroomsComingLater: "Classrooms coming later",
-      api: "API",
+        "Meet, share ideas, and work together in a space that keeps people and conversation at the center.",
+      signIn: "Sign in to Mahfel",
+      supportingText: "A little more room for the conversations that matter.",
+      status: "Ready when you are",
+      footer: "Thoughtfully made for people, in every language.",
     },
     sessions: {
       participants: "Participants",
@@ -144,6 +155,7 @@ const messages: Record<Locale, Messages> = {
   },
   fa: {
     language: { en: "English", fa: "فارسی" },
+    appearance: { label: "پوسته", light: "روشن", dark: "تیره", system: "سیستم" },
     shell: {
       workspaceNavigation: "ناوبری فضای کاری",
       mobileNavigation: "ناوبری فضای کاری در موبایل",
@@ -159,12 +171,14 @@ const messages: Record<Locale, Messages> = {
       createMenuDescription: "انتخاب کنید چه چیزی به فضای کاری اضافه شود.",
     },
     home: {
-      eyebrow: "زیرساخت آماده است",
-      title: "محفل",
+      eyebrow: "جایی برای دیدار",
+      title: "گفت‌وگوهای خوب از اینجا شروع می‌شوند.",
       description:
-        "یک پلتفرم ارتباط و همکاری بلادرنگ با تمرکز بر آموزش. قابلیت‌های محصول بر این زیرساخت مستقل وب ساخته می‌شوند.",
-      classroomsComingLater: "کلاس‌ها به‌زودی",
-      api: "API",
+        "دور هم جمع شوید، ایده‌ها را به اشتراک بگذارید و با تمرکز بر آدم‌ها و گفت‌وگوها همکاری کنید.",
+      signIn: "ورود به محفل",
+      supportingText: "فضایی بیشتر برای گفت‌وگوهایی که اهمیت دارند.",
+      status: "هر وقت آماده‌اید",
+      footer: "با دقت برای آدم‌ها و به هر زبان ساخته شده است.",
     },
     sessions: {
       participants: "شرکت‌کنندگان",
