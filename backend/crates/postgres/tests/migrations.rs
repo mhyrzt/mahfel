@@ -1,12 +1,13 @@
 use mahfel_application::ports::{
-    IdentityProfile, IdentityStore, RoomStore, SessionStore, StoreError, UserStore,
+    ChatStore, IdentityProfile, IdentityStore, RoomStore, SessionStore, StoreError, UserStore,
 };
 use mahfel_domain::{
-    ActorId, AvatarUrl, DisplayName, EmailAddress, Issuer, Room, RoomMember, RoomRole, RoomTitle,
-    RoomVisibility, Session, Subject, User,
+    ActorId, AvatarUrl, ChatChannel, ChatChannelId, ChatMessageDraft, ChatMessageId, DisplayName,
+    EmailAddress, Issuer, Room, RoomMember, RoomRole, RoomTitle, RoomVisibility, Session, Subject,
+    User,
 };
 use mahfel_postgres::{
-    ConnectionSettings, PoolSettings, PostgresIdentityStore, PostgresRoomStore,
+    ConnectionSettings, PoolSettings, PostgresChatStore, PostgresIdentityStore, PostgresRoomStore,
     PostgresSessionStore, PostgresUserStore, connect, migrate,
 };
 use sqlx::PgPool;
@@ -125,7 +126,7 @@ async fn verify_migrations_and_stores(
     let migration_count = sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM _sqlx_migrations")
         .fetch_one(pool)
         .await?;
-    assert_eq!(migration_count, 11, "each migration must be recorded once");
+    assert_eq!(migration_count, 12, "each migration must be recorded once");
 
     let migration_tables = sqlx::query_scalar::<_, i64>(
         "SELECT COUNT(*) FROM pg_class WHERE relname = '_sqlx_migrations'",
@@ -224,6 +225,7 @@ async fn verify_migrations_and_stores(
     let rooms = PostgresRoomStore::new(pool.clone());
     let sessions = PostgresSessionStore::new(pool.clone());
     let identities = PostgresIdentityStore::new(pool.clone());
+    let chat = PostgresChatStore::new(pool.clone());
 
     let user = User::create(DisplayName::new("Ada Lovelace".to_owned())?, now);
     users.insert(&user).await?;
@@ -254,6 +256,47 @@ async fn verify_migrations_and_stores(
     assert_eq!(
         rooms.list_for_member(user.id, 10, 0).await?,
         vec![room.clone()]
+    );
+
+    let first_channel = ChatChannel::for_room(ChatChannelId::new(), room.id, now);
+    let first_draft = ChatMessageDraft::new(
+        ChatMessageId::new(),
+        user.id,
+        "Persistent room message".to_owned(),
+        now,
+    )?;
+    let first_message = chat.create_message(&first_channel, &first_draft).await?;
+    assert_eq!(first_message.channel_id, first_channel.id);
+
+    let later_channel = ChatChannel::for_room(ChatChannelId::new(), room.id, now);
+    let later_draft = ChatMessageDraft::new(
+        ChatMessageId::new(),
+        user.id,
+        "Another message in the same channel".to_owned(),
+        now,
+    )?;
+    let later_message = chat.create_message(&later_channel, &later_draft).await?;
+    assert_eq!(
+        later_message.channel_id, first_message.channel_id,
+        "each room must resolve to its stable chat channel"
+    );
+
+    let outsider = User::create(DisplayName::new("Katherine Johnson".to_owned())?, now);
+    users.insert(&outsider).await?;
+    let unauthorized_channel = ChatChannel::for_room(ChatChannelId::new(), room.id, now);
+    let unauthorized_draft = ChatMessageDraft::new(
+        ChatMessageId::new(),
+        outsider.id,
+        "This must not persist".to_owned(),
+        now,
+    )?;
+    assert!(
+        matches!(
+            chat.create_message(&unauthorized_channel, &unauthorized_draft)
+                .await,
+            Err(StoreError::NotFound(_))
+        ),
+        "a non-member must not create room chat messages"
     );
 
     // A missing referenced user must surface as a typed adapter error rather
@@ -296,6 +339,41 @@ async fn verify_migrations_and_stores(
     let restarted_users = PostgresUserStore::new(restarted_pool.clone());
     let restarted_rooms = PostgresRoomStore::new(restarted_pool.clone());
     let restarted_sessions = PostgresSessionStore::new(restarted_pool.clone());
+    let stored_chat_messages = sqlx::query_scalar::<_, i64>(
+        "SELECT COUNT(*) FROM mahfel.chat_messages WHERE channel_id = $1",
+    )
+    .bind(first_message.channel_id.as_uuid())
+    .fetch_one(&restarted_pool)
+    .await?;
+    assert_eq!(
+        stored_chat_messages, 2,
+        "room chat messages must survive a pool restart"
+    );
+    let stored_message = sqlx::query_as::<_, (uuid::Uuid, uuid::Uuid, String)>(
+        "SELECT channel_id, author_actor_id, body \
+         FROM mahfel.chat_messages WHERE id = $1",
+    )
+    .bind(first_message.id.as_uuid())
+    .fetch_one(&restarted_pool)
+    .await?;
+    assert_eq!(
+        stored_message,
+        (
+            first_message.channel_id.as_uuid(),
+            user.id.as_uuid(),
+            "Persistent room message".to_owned(),
+        )
+    );
+    let unauthorized_message_exists = sqlx::query_scalar::<_, bool>(
+        "SELECT EXISTS (SELECT 1 FROM mahfel.chat_messages WHERE id = $1)",
+    )
+    .bind(unauthorized_draft.id.as_uuid())
+    .fetch_one(&restarted_pool)
+    .await?;
+    assert!(
+        !unauthorized_message_exists,
+        "unauthorized message content must not be stored"
+    );
 
     assert_eq!(restarted_users.get(user.id).await?, Some(user.clone()));
     assert_eq!(restarted_rooms.get(room.id).await?, Some(room.clone()));

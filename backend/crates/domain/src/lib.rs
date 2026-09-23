@@ -8,6 +8,7 @@
 mod actor;
 mod admission;
 mod block;
+mod chat;
 mod identity;
 mod ids;
 mod invite;
@@ -28,6 +29,9 @@ pub use admission::{
     AdmissionRequestStatus, AdmissionTarget, MAX_PENDING_PER_SESSION,
 };
 pub use block::{Block, BlockError, BlockId, BlockScope};
+pub use chat::{
+    ChatChannel, ChatChannelId, ChatMessage, ChatMessageDraft, ChatMessageError, ChatMessageId,
+};
 pub use identity::{Identity, IdentityId};
 pub use ids::NodeId;
 pub use invite::{

@@ -1139,6 +1139,57 @@
         }
       }
     },
+    "/v1/rooms/{room_id}/messages": {
+      "post": {
+        "tags": [
+          "chat"
+        ],
+        "operationId": "createRoomMessage",
+        "parameters": [
+          {
+            "name": "room_id",
+            "in": "path",
+            "description": "Room chat channel",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateChatMessageRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Message created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChatMessageResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "404": {
+            "description": "Room not found or caller is not a member"
+          },
+          "422": {
+            "description": "Message content is invalid"
+          }
+        }
+      }
+    },
     "/v1/rooms/{room_id}/sessions": {
       "get": {
         "tags": [
@@ -2039,6 +2090,41 @@
           }
         }
       },
+      "ChatMessageResponse": {
+        "type": "object",
+        "required": [
+          "id",
+          "channel_id",
+          "author_id",
+          "content",
+          "created_at"
+        ],
+        "properties": {
+          "author_id": {
+            "type": "string"
+          },
+          "channel_id": {
+            "type": "string"
+          },
+          "content": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "deleted_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "id": {
+            "type": "string"
+          }
+        }
+      },
       "CorrectIntervalRequest": {
         "type": "object",
         "required": [
@@ -2073,6 +2159,17 @@
           "erroneous",
           "manual_adjustment"
         ]
+      },
+      "CreateChatMessageRequest": {
+        "type": "object",
+        "required": [
+          "content"
+        ],
+        "properties": {
+          "content": {
+            "type": "string"
+          }
+        }
       },
       "CreateRoomInviteLinkRequest": {
         "type": "object",

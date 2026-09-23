@@ -66,3 +66,5 @@ impl StoreError {
         Self::Unexpected(err.to_string())
     }
 }
+pub mod chat_store;
+pub use chat_store::ChatStore;

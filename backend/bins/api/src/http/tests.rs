@@ -17,8 +17,8 @@ use futures_util::{SinkExt, StreamExt};
 use mahfel_application::policy::ServerCapabilityResolver;
 use mahfel_application::ports::{
     AdmissionStore, AttributeError, BlockStore, BoxFuture, Capability, CapabilityContext,
-    CapabilityResolver, CapabilitySet, CoordinationError, CoordinationStore, InviteStore,
-    ParticipantStore, ParticipationStore, Principal, ProvisionedIdentity, RoomStore,
+    CapabilityResolver, CapabilitySet, ChatStore, CoordinationError, CoordinationStore,
+    InviteStore, ParticipantStore, ParticipationStore, Principal, ProvisionedIdentity, RoomStore,
     ServicePrincipalStore, SessionStore, StoreError, UserAttributeWriter,
 };
 use mahfel_application::service_principals::{CreateServicePrincipal, create_service_principal};
@@ -28,11 +28,12 @@ use mahfel_auth::{TokenVerifier, TokenVerifierConfig};
 use mahfel_config::TurnSettings;
 use mahfel_domain::{
     ActorId, ActorKind, AdmissionOrigin, AdmissionRequest, AdmissionRequestId,
-    AdmissionRequestStatus, AdmissionTarget, DisplayName, Identity, IntervalId, InviteCode,
-    InviteLink, InviteLinkId, InviteLinkStatus, InviteTarget, InviteTargetKind, Issuer,
-    Participant, ParticipantId, ParticipantStatus, ParticipationInterval, Room, RoomId, RoomMember,
-    RoomRole, RoomTitle, RoomVisibility, ServicePrincipal, ServicePrincipalStatus, Session,
-    SessionId, SessionStatus, Subject, User, UserStatus,
+    AdmissionRequestStatus, AdmissionTarget, ChatChannel, ChatMessage, ChatMessageDraft,
+    DisplayName, Identity, IntervalId, InviteCode, InviteLink, InviteLinkId, InviteLinkStatus,
+    InviteTarget, InviteTargetKind, Issuer, Participant, ParticipantId, ParticipantStatus,
+    ParticipationInterval, Room, RoomId, RoomMember, RoomRole, RoomTitle, RoomVisibility,
+    ServicePrincipal, ServicePrincipalStatus, Session, SessionId, SessionStatus, Subject, User,
+    UserStatus,
 };
 use mahfel_media_client::GrpcMediaGateway;
 use prometheus::Encoder;
@@ -52,6 +53,19 @@ use tokio_tungstenite::{
 };
 use tower::ServiceExt;
 use uuid::Uuid;
+
+#[derive(Clone, Default)]
+struct FakeChatStore;
+
+impl ChatStore for FakeChatStore {
+    fn create_message<'a>(
+        &'a self,
+        channel: &'a ChatChannel,
+        draft: &'a ChatMessageDraft,
+    ) -> BoxFuture<'a, Result<ChatMessage, StoreError>> {
+        Box::pin(async move { Ok(ChatMessage::from_draft(channel.id, draft.clone())) })
+    }
+}
 
 #[derive(Clone, Default)]
 struct FakeRoomStore {
@@ -1312,6 +1326,7 @@ fn state_with(
     let realtime = ws_state(principal.clone());
     let (service_auth, service_principals) = service_seams(FakeServicePrincipalStore::default());
     AppState {
+        chat: Arc::new(FakeChatStore),
         service: "mahfel-api-test",
         version: "0.1.0",
         node_id: "node-test".to_owned(),
@@ -1388,6 +1403,7 @@ fn authenticated_room_app(principal: Principal, store: FakeRoomStore) -> Router 
     let realtime = ws_state(Some(principal.clone()));
     let (service_auth, service_principals) = service_seams(FakeServicePrincipalStore::default());
     api_router(AppState {
+        chat: Arc::new(FakeChatStore),
         service: "mahfel-api-test",
         version: "0.1.0",
         node_id: "node-test".to_owned(),
@@ -2165,6 +2181,7 @@ fn session_app(
     let realtime = ws_state(principal.clone());
     let (service_auth, service_principals) = service_seams(FakeServicePrincipalStore::default());
     api_router(AppState {
+        chat: Arc::new(FakeChatStore),
         service: "mahfel-api-test",
         version: "0.1.0",
         node_id: "node-test".to_owned(),
@@ -2371,6 +2388,7 @@ fn policy_session_app(
     let realtime = ws_state(principal.clone());
     let (service_auth, service_principals) = service_seams(FakeServicePrincipalStore::default());
     api_router(AppState {
+        chat: Arc::new(FakeChatStore),
         service: "mahfel-api-test",
         version: "0.1.0",
         node_id: "node-test".to_owned(),
@@ -2540,6 +2558,7 @@ async fn serve_ws_with_stores(
     );
     let (service_auth, service_principals) = service_seams(FakeServicePrincipalStore::default());
     let state = AppState {
+        chat: Arc::new(FakeChatStore),
         service: "mahfel-api-test",
         version: "0.1.0",
         node_id: "node-test".to_owned(),
@@ -2763,6 +2782,7 @@ async fn serve_ws_with_verifier(verifier: TokenVerifier, config: WsConfig) -> Ws
     );
     let (service_auth, service_principals) = service_seams(FakeServicePrincipalStore::default());
     let state = AppState {
+        chat: Arc::new(FakeChatStore),
         service: "mahfel-api-test",
         version: "0.1.0",
         node_id: "node-test".to_owned(),
@@ -3212,6 +3232,7 @@ fn service_app(
     let realtime = ws_state(principal.clone());
     let (service_auth, service_principals) = service_seams(service_store);
     api_router(AppState {
+        chat: Arc::new(FakeChatStore),
         service: "mahfel-api-test",
         version: "0.1.0",
         node_id: "node-test".to_owned(),
@@ -3475,6 +3496,7 @@ async fn serve_ws_with(
     );
     let (service_auth, service_principals) = service_seams(FakeServicePrincipalStore::default());
     let state = AppState {
+        chat: Arc::new(FakeChatStore),
         service: "mahfel-api-test",
         version: "0.1.0",
         node_id: "node-test".to_owned(),
@@ -3927,6 +3949,7 @@ fn participation_app(
     let realtime = ws_state(principal.clone());
     let (service_auth, service_principals) = service_seams(FakeServicePrincipalStore::default());
     api_router(AppState {
+        chat: Arc::new(FakeChatStore),
         service: "mahfel-api-test",
         version: "0.1.0",
         node_id: "node-test".to_owned(),
@@ -4187,6 +4210,7 @@ fn invite_app(
     let realtime = ws_state(principal.clone());
     let (service_auth, service_principals) = service_seams(FakeServicePrincipalStore::default());
     api_router(AppState {
+        chat: Arc::new(FakeChatStore),
         service: "mahfel-api-test",
         version: "0.1.0",
         node_id: "node-test".to_owned(),
@@ -4581,6 +4605,7 @@ fn admission_app(
     let realtime = ws_state(principal.clone());
     let (service_auth, service_principals) = service_seams(FakeServicePrincipalStore::default());
     api_router(AppState {
+        chat: Arc::new(FakeChatStore),
         service: "mahfel-api-test",
         version: "0.1.0",
         node_id: "node-test".to_owned(),
@@ -4613,6 +4638,7 @@ fn redeem_app(
     let realtime = ws_state(principal.clone());
     let (service_auth, service_principals) = service_seams(FakeServicePrincipalStore::default());
     api_router(AppState {
+        chat: Arc::new(FakeChatStore),
         service: "mahfel-api-test",
         version: "0.1.0",
         node_id: "node-test".to_owned(),

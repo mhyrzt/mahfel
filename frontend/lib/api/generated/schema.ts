@@ -376,6 +376,22 @@ export interface paths {
     patch: operations["change_role"];
     trace?: never;
   };
+  "/v1/rooms/{room_id}/messages": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post: operations["createRoomMessage"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/v1/rooms/{room_id}/sessions": {
     parameters: {
       query?: never;
@@ -708,6 +724,16 @@ export interface components {
       participant_id: string;
       session_id: string;
     };
+    ChatMessageResponse: {
+      author_id: string;
+      channel_id: string;
+      content: string;
+      /** Format: date-time */
+      created_at: string;
+      /** Format: date-time */
+      deleted_at?: string | null;
+      id: string;
+    };
     CorrectIntervalRequest: {
       /**
        * Format: date-time
@@ -728,6 +754,9 @@ export interface components {
      * @enum {string}
      */
     CorrectionReasonDto: "wrong_end" | "wrong_start" | "erroneous" | "manual_adjustment";
+    CreateChatMessageRequest: {
+      content: string;
+    };
     CreateRoomInviteLinkRequest: {
       /**
        * Format: int64
@@ -2202,6 +2231,54 @@ export interface operations {
       };
       /** @description The last manager cannot be demoted */
       409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  createRoomMessage: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Room chat channel */
+        room_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["CreateChatMessageRequest"];
+      };
+    };
+    responses: {
+      /** @description Message created */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ChatMessageResponse"];
+        };
+      };
+      /** @description Authentication required */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Room not found or caller is not a member */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Message content is invalid */
+      422: {
         headers: {
           [name: string]: unknown;
         };
