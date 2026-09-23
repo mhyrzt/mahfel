@@ -7,7 +7,9 @@ license.workspace = true
 
 [dependencies]
 anyhow.workspace = true
+asyncapi-rust = "=0.5.0"
 axum.workspace = true
+clap = { version = "4.6", features = ["derive"] }
 futures-util.workspace = true
 mahfel-application = { path = "../../crates/application" }
 mahfel-auth = { path = "../../crates/auth" }
@@ -22,6 +24,7 @@ mahfel-telemetry = { path = "../../crates/telemetry" }
 prometheus.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+schemars = { version = "1.1", features = ["derive"] }
 sqlx.workspace = true
 thiserror.workspace = true
 tonic.workspace = true

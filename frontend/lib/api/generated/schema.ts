@@ -11,6 +11,7 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
+    /** Check administrative access */
     get: operations["ping"];
     put?: never;
     post?: never;
@@ -27,8 +28,10 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
+    /** List service principals */
     get: operations["adminListServicePrincipals"];
     put?: never;
+    /** Create a service principal */
     post: operations["adminCreateServicePrincipal"];
     delete?: never;
     options?: never;
@@ -46,6 +49,7 @@ export interface paths {
     get?: never;
     put?: never;
     post?: never;
+    /** Revoke a service principal */
     delete: operations["adminRevokeServicePrincipal"];
     options?: never;
     head?: never;
@@ -61,6 +65,7 @@ export interface paths {
     };
     get?: never;
     put?: never;
+    /** Rotate a service principal key */
     post: operations["adminRotateServicePrincipalKey"];
     delete?: never;
     options?: never;
@@ -115,8 +120,10 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
+    /** List example payloads */
     get: operations["listEchoPayloads"];
     put?: never;
+    /** Create an example payload */
     post: operations["createEchoPayload"];
     delete?: never;
     options?: never;
@@ -131,6 +138,7 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
+    /** Check process liveness */
     get: operations["health"];
     put?: never;
     post?: never;
@@ -234,8 +242,10 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
+    /** List rooms */
     get: operations["list_rooms"];
     put?: never;
+    /** Create a room */
     post: operations["createRoom"];
     delete?: never;
     options?: never;
@@ -250,12 +260,14 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
+    /** Get a room */
     get: operations["get_room"];
     put?: never;
     post?: never;
     delete?: never;
     options?: never;
     head?: never;
+    /** Update a room */
     patch: operations["update"];
     trace?: never;
   };
@@ -290,6 +302,7 @@ export interface paths {
     };
     get?: never;
     put?: never;
+    /** Archive a room */
     post: operations["archive"];
     delete?: never;
     options?: never;
@@ -332,6 +345,7 @@ export interface paths {
     };
     get?: never;
     put?: never;
+    /** Join a room */
     post: operations["join"];
     delete?: never;
     options?: never;
@@ -348,6 +362,7 @@ export interface paths {
     };
     get?: never;
     put?: never;
+    /** Add a room member */
     post: operations["add"];
     delete?: never;
     options?: never;
@@ -365,6 +380,7 @@ export interface paths {
     get?: never;
     put?: never;
     post?: never;
+    /** Remove a room member */
     delete: operations["remove"];
     options?: never;
     head?: never;
@@ -383,8 +399,10 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
+    /** List room messages */
     get: operations["listRoomMessages"];
     put?: never;
+    /** Send a room message */
     post: operations["createRoomMessage"];
     delete?: never;
     options?: never;
@@ -402,9 +420,11 @@ export interface paths {
     get?: never;
     put?: never;
     post?: never;
+    /** Delete a room message */
     delete: operations["deleteRoomMessage"];
     options?: never;
     head?: never;
+    /** Edit a room message */
     patch: operations["editRoomMessage"];
     trace?: never;
   };
@@ -415,13 +435,10 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
-    /**
-     * Manager-scoped in this task; member visibility arrives with the capability
-     *     model (M4-04). A room holds a bounded number of occurrences, so the list is
-     *     returned whole rather than paginated.
-     */
+    /** List a room's sessions for a manager, newest first. */
     get: operations["list_sessions"];
     put?: never;
+    /** Schedule a session */
     post: operations["schedule"];
     delete?: never;
     options?: never;
@@ -436,17 +453,15 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
-    /**
-     * Manager-scoped in this task; member visibility arrives with the capability
-     *     model (M4-04).
-     */
+    /** Get a session visible to a room manager. */
     get: operations["get_session"];
     put?: never;
     post?: never;
     delete?: never;
     options?: never;
     head?: never;
-    patch?: never;
+    /** Update session title and schedule */
+    patch: operations["updateSessionDetails"];
     trace?: never;
   };
   "/v1/sessions/{session_id}/access": {
@@ -501,6 +516,7 @@ export interface paths {
     };
     get?: never;
     put?: never;
+    /** Cancel a session */
     post: operations["cancel"];
     delete?: never;
     options?: never;
@@ -538,6 +554,7 @@ export interface paths {
     };
     get?: never;
     put?: never;
+    /** End a live session */
     post: operations["end"];
     delete?: never;
     options?: never;
@@ -665,6 +682,7 @@ export interface paths {
     };
     get?: never;
     put?: never;
+    /** Start a scheduled session */
     post: operations["start"];
     delete?: never;
     options?: never;
@@ -679,6 +697,7 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
+    /** Get service status */
     get: operations["status"];
     put?: never;
     post?: never;
@@ -804,10 +823,17 @@ export interface components {
     };
     CreateSessionRequest: {
       /**
+       * Format: int32
+       * @description Optional advisory length in minutes, from 1 through 10080.
+       */
+      scheduled_duration_minutes?: number | null;
+      /**
        * Format: date-time
        * @description Optional advisory start instant. A session may also be ad-hoc.
        */
       scheduled_start_at?: string | null;
+      /** @description Optional custom title. Otherwise the room's current title is displayed. */
+      title?: string | null;
     };
     CreatedServicePrincipalResponse: {
       /** @description Raw API key, returned exactly once and never stored in the clear. */
@@ -823,6 +849,14 @@ export interface components {
     };
     EditChatMessageRequest: {
       content: string;
+    };
+    ErrorBody: {
+      error: components["schemas"]["ErrorDetail"];
+    };
+    ErrorDetail: {
+      code: string;
+      details?: unknown;
+      message: string;
     };
     HealthResponse: {
       status: string;
@@ -1028,11 +1062,16 @@ export interface components {
       ended_at?: string | null;
       id: string;
       room_id: string;
+      /** Format: int32 */
+      scheduled_duration_minutes?: number | null;
       /** Format: date-time */
       scheduled_start_at?: string | null;
       /** Format: date-time */
       started_at?: string | null;
       status: components["schemas"]["SessionStatusDto"];
+      /** @description Effective display title, using the current room title when no custom title is set. */
+      title: string;
+      title_overridden: boolean;
       /** Format: date-time */
       updated_at: string;
       visibility?: null | components["schemas"]["SessionVisibilityDto"];
@@ -1071,6 +1110,20 @@ export interface components {
       title?: string | null;
       visibility?: null | components["schemas"]["RoomVisibilityDto"];
     };
+    UpdateSessionDetailsRequest: {
+      /**
+       * Format: int32
+       * @description Omit to keep, null to clear, or provide 1 through 10080 minutes.
+       */
+      scheduled_duration_minutes?: number | null;
+      /**
+       * Format: date-time
+       * @description Omit to keep, null to clear, or provide an RFC3339 instant.
+       */
+      scheduled_start_at?: string | null;
+      /** @description Omit to keep, null to clear, or provide a custom title. */
+      title?: string | null;
+    };
   };
   responses: never;
   parameters: never;
@@ -1103,14 +1156,18 @@ export interface operations {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
       };
       /** @description Permission denied */
       403: {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
       };
     };
   };
@@ -1137,14 +1194,18 @@ export interface operations {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
       };
       /** @description Permission denied */
       403: {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
       };
     };
   };
@@ -1175,28 +1236,36 @@ export interface operations {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
       };
       /** @description Permission denied */
       403: {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
       };
       /** @description Name already exists */
       409: {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
       };
       /** @description Invalid name */
       422: {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
       };
     };
   };
@@ -1224,21 +1293,27 @@ export interface operations {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
       };
       /** @description Permission denied */
       403: {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
       };
       /** @description Service principal not found */
       404: {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
       };
     };
   };
@@ -1268,28 +1343,36 @@ export interface operations {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
       };
       /** @description Permission denied */
       403: {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
       };
       /** @description Service principal not found */
       404: {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
       };
       /** @description Service principal is revoked */
       409: {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
       };
     };
   };
@@ -1316,14 +1399,18 @@ export interface operations {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
       };
       /** @description Account not provisioned */
       403: {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
       };
     };
   };
@@ -1350,14 +1437,18 @@ export interface operations {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
       };
       /** @description Identity provider unavailable */
       503: {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
       };
     };
   };
@@ -1413,7 +1504,9 @@ export interface operations {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
       };
     };
   };
@@ -1464,28 +1557,36 @@ export interface operations {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
       };
       /** @description Code is unknown, expired, revoked, or the rate limit was reached */
       404: {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
       };
       /** @description The target's lobby is at capacity */
       409: {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
       };
       /** @description The rate limiter is unavailable */
       503: {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
       };
     };
   };
@@ -1515,21 +1616,27 @@ export interface operations {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
       };
       /** @description Link does not exist or its target is not managed by the caller */
       404: {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
       };
       /** @description Link is already revoked */
       409: {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
       };
     };
   };
@@ -1563,21 +1670,27 @@ export interface operations {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
       };
       /** @description Link does not exist or its target is not managed by the caller */
       404: {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
       };
       /** @description Requested expiry is out of range */
       422: {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
       };
     };
   };
@@ -1611,28 +1724,36 @@ export interface operations {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
       };
       /** @description Caller is not a manager */
       403: {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
       };
       /** @description Interval not found */
       404: {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
       };
       /** @description Interval already superseded or the correction is invalid */
       409: {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
       };
     };
   };
@@ -1664,7 +1785,9 @@ export interface operations {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
       };
     };
   };
@@ -1695,14 +1818,18 @@ export interface operations {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
       };
       /** @description Invalid room title */
       422: {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
       };
     };
   };
@@ -1732,14 +1859,18 @@ export interface operations {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
       };
       /** @description Room does not exist or the caller is not a member */
       404: {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
       };
     };
   };
@@ -1773,35 +1904,45 @@ export interface operations {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
       };
       /** @description Caller is not a manager */
       403: {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
       };
       /** @description Room does not exist or the caller is not a member */
       404: {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
       };
       /** @description Room is archived */
       409: {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
       };
       /** @description Invalid room title */
       422: {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
       };
     };
   };
@@ -1831,21 +1972,27 @@ export interface operations {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
       };
       /** @description Caller does not manage the room */
       403: {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
       };
       /** @description Room does not exist or is not visible to the caller */
       404: {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
       };
     };
   };
@@ -1879,28 +2026,36 @@ export interface operations {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
       };
       /** @description Caller does not manage the room */
       403: {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
       };
       /** @description Room does not exist or is not visible to the caller */
       404: {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
       };
       /** @description Room is archived */
       409: {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
       };
     };
   };
@@ -1930,28 +2085,36 @@ export interface operations {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
       };
       /** @description Caller is not a manager */
       403: {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
       };
       /** @description Room does not exist or the caller is not a member */
       404: {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
       };
       /** @description Room is already archived */
       409: {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
       };
     };
   };
@@ -1984,21 +2147,27 @@ export interface operations {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
       };
       /** @description Caller does not manage the room */
       403: {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
       };
       /** @description Room does not exist or is not visible to the caller */
       404: {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
       };
     };
   };
@@ -2032,28 +2201,36 @@ export interface operations {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
       };
       /** @description Caller does not manage the room */
       403: {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
       };
       /** @description Room does not exist or is not visible to the caller */
       404: {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
       };
       /** @description Requested expiry is out of range */
       422: {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
       };
     };
   };
@@ -2083,21 +2260,27 @@ export interface operations {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
       };
       /** @description Room does not exist or is invite-only */
       404: {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
       };
       /** @description Room is archived */
       409: {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
       };
     };
   };
@@ -2131,28 +2314,36 @@ export interface operations {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
       };
       /** @description Caller is not a manager */
       403: {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
       };
       /** @description Room, caller, or target user not found */
       404: {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
       };
       /** @description User is already a member */
       409: {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
       };
     };
   };
@@ -2182,28 +2373,36 @@ export interface operations {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
       };
       /** @description Caller is not a manager */
       403: {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
       };
       /** @description Room, caller, or member not found */
       404: {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
       };
       /** @description The last manager cannot be removed */
       409: {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
       };
     };
   };
@@ -2239,28 +2438,36 @@ export interface operations {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
       };
       /** @description Caller is not a manager */
       403: {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
       };
       /** @description Room, caller, or member not found */
       404: {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
       };
       /** @description The last manager cannot be demoted */
       409: {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
       };
     };
   };
@@ -2295,21 +2502,27 @@ export interface operations {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
       };
       /** @description Authentication required */
       401: {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
       };
       /** @description Room not found or caller is not a member */
       404: {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
       };
     };
   };
@@ -2343,21 +2556,27 @@ export interface operations {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
       };
       /** @description Room not found or caller is not a member */
       404: {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
       };
       /** @description Message content is invalid */
       422: {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
       };
     };
   };
@@ -2389,14 +2608,18 @@ export interface operations {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
       };
       /** @description Message not found or caller cannot delete it */
       404: {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
       };
     };
   };
@@ -2432,28 +2655,36 @@ export interface operations {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
       };
       /** @description Message not found or caller is not its author */
       404: {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
       };
       /** @description Message is deleted or its edit window expired */
       409: {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
       };
       /** @description Message content is invalid */
       422: {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
       };
     };
   };
@@ -2483,21 +2714,27 @@ export interface operations {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
       };
       /** @description Caller is not a manager */
       403: {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
       };
       /** @description Room does not exist or the caller is not a member */
       404: {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
       };
     };
   };
@@ -2531,28 +2768,45 @@ export interface operations {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
       };
-      /** @description Caller is not a manager */
+      /** @description Caller lacks manage_session */
       403: {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
       };
       /** @description Room does not exist or the caller is not a member */
       404: {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
       };
       /** @description A live session already exists for the room */
       409: {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
+      };
+      /** @description Invalid title or advisory duration */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
       };
     };
   };
@@ -2582,21 +2836,90 @@ export interface operations {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
       };
       /** @description Caller is not a manager */
       403: {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
       };
       /** @description Session does not exist or the caller cannot see its room */
       404: {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
+      };
+    };
+  };
+  updateSessionDetails: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Session identifier (UUID) */
+        session_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["UpdateSessionDetailsRequest"];
+      };
+    };
+    responses: {
+      /** @description Session details updated */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["SessionResponse"];
+        };
+      };
+      /** @description Authentication required */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
+      };
+      /** @description Caller lacks manage_session */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
+      };
+      /** @description Session or room is not visible */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
+      };
+      /** @description Invalid title or advisory duration */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
       };
     };
   };
@@ -2626,21 +2949,27 @@ export interface operations {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
       };
       /** @description Caller does not manage the session's room */
       403: {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
       };
       /** @description Session does not exist or is not visible to the caller */
       404: {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
       };
     };
   };
@@ -2674,28 +3003,36 @@ export interface operations {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
       };
       /** @description Caller does not manage the session's room */
       403: {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
       };
       /** @description Session does not exist or is not visible to the caller */
       404: {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
       };
       /** @description An override would loosen the room's settings */
       422: {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
       };
     };
   };
@@ -2725,14 +3062,18 @@ export interface operations {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
       };
       /** @description The caller has no pending request for this session */
       404: {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
       };
     };
   };
@@ -2762,28 +3103,36 @@ export interface operations {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
       };
       /** @description Caller is not a manager */
       403: {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
       };
       /** @description Session does not exist or the caller cannot see its room */
       404: {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
       };
       /** @description Invalid transition */
       409: {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
       };
     };
   };
@@ -2813,14 +3162,18 @@ export interface operations {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
       };
       /** @description Session does not exist or the caller cannot see its room */
       404: {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
       };
     };
   };
@@ -2850,28 +3203,36 @@ export interface operations {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
       };
       /** @description Caller is not a manager */
       403: {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
       };
       /** @description Session does not exist or the caller cannot see its room */
       404: {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
       };
       /** @description Invalid transition */
       409: {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
       };
     };
   };
@@ -2904,21 +3265,27 @@ export interface operations {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
       };
       /** @description Caller does not manage the session's room */
       403: {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
       };
       /** @description Session does not exist or is not visible to the caller */
       404: {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
       };
     };
   };
@@ -2952,28 +3319,36 @@ export interface operations {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
       };
       /** @description Caller does not manage the session's room */
       403: {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
       };
       /** @description Session does not exist or is not visible to the caller */
       404: {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
       };
       /** @description Requested expiry is out of range */
       422: {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
       };
     };
   };
@@ -3003,21 +3378,27 @@ export interface operations {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
       };
       /** @description Caller does not manage the session's room */
       403: {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
       };
       /** @description Session does not exist or is not visible to the caller */
       404: {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
       };
     };
   };
@@ -3049,35 +3430,45 @@ export interface operations {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
       };
       /** @description Caller does not manage the session's room */
       403: {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
       };
       /** @description Session does not exist, or the principal is not waiting */
       404: {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
       };
       /** @description The request was already decided */
       409: {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
       };
       /** @description Media placement is unavailable */
       503: {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
       };
     };
   };
@@ -3107,28 +3498,36 @@ export interface operations {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
       };
       /** @description Caller does not manage the session's room */
       403: {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
       };
       /** @description Session does not exist, or the principal is not waiting */
       404: {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
       };
       /** @description The request was already decided */
       409: {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
       };
     };
   };
@@ -3160,14 +3559,18 @@ export interface operations {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
       };
       /** @description Session, participant record, or caller visibility not found */
       404: {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
       };
     };
   };
@@ -3197,21 +3600,27 @@ export interface operations {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
       };
       /** @description Caller is not a manager */
       403: {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
       };
       /** @description Session does not exist or the caller cannot see its room */
       404: {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
       };
     };
   };
@@ -3241,28 +3650,36 @@ export interface operations {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
       };
-      /** @description Caller is not a manager */
+      /** @description Caller lacks manage_session */
       403: {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
       };
       /** @description Session does not exist or the caller cannot see its room */
       404: {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
       };
       /** @description Invalid transition or a live session already exists */
       409: {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
       };
     };
   };
@@ -3309,7 +3726,9 @@ export interface operations {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
       };
     };
   };

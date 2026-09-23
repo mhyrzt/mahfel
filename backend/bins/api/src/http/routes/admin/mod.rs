@@ -18,6 +18,7 @@ pub(crate) struct AdminResponse {
 #[utoipa::path(
     get,
     path = "/v1/admin/ping",
+    summary = "Check administrative access",
     tag = "admin",
     responses(
         (status = 200, description = "Admin access granted", body = AdminResponse),

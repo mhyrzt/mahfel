@@ -1,7 +1,16 @@
 use serde::{Deserialize, Serialize};
 
 /// Frames sent by the server.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(
+    Debug,
+    Clone,
+    PartialEq,
+    Eq,
+    Serialize,
+    Deserialize,
+    asyncapi_rust::schemars::JsonSchema,
+    asyncapi_rust::ToAsyncApiMessage,
+)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum ServerMessage {
     Welcome {
@@ -21,7 +30,6 @@ pub enum ServerMessage {
     Bye {
         reason: String,
     },
-    // --- Session participation (M4-02) ---
     /// A reconnect to the same session returns the same `participant_id`.
     Joined {
         session_id: String,
@@ -56,7 +64,6 @@ pub enum ServerMessage {
         code: String,
         message: String,
     },
-    // --- Moderation (M4-05) ---
     /// A participant's mute state changed. Fanned out to the session so every
     /// client's roster reflects it, and sent to the target so it can stop
     /// sending media.
@@ -96,7 +103,6 @@ pub enum ServerMessage {
         session_id: Option<String>,
         actor_id: String,
     },
-    // --- RTC responses ---
     TransportCreated {
         room_id: String,
         transport_id: String,

@@ -1,7 +1,7 @@
+mod api_docs_export;
 mod cli;
 mod http;
 mod migrate;
-mod openapi_export;
 mod seed;
 mod serve;
 mod settings;
@@ -12,9 +12,12 @@ use mahfel_telemetry::init_tracing;
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let command = cli::command().context("parse command")?;
-    if let cli::Command::OpenApiExport { path } = command {
-        return openapi_export::run(&path);
+    let command = cli::command();
+    if let cli::Command::ApiDocs {
+        command: cli::ApiDocsCommand::Export { directory },
+    } = command
+    {
+        return api_docs_export::run(&directory);
     }
 
     let settings = Settings::load().context("load configuration")?;
@@ -24,6 +27,6 @@ async fn main() -> Result<()> {
         cli::Command::Serve => serve::run(settings).await,
         cli::Command::Migrate => migrate::run(settings).await,
         cli::Command::Seed { path } => seed::run(settings, path).await,
-        cli::Command::OpenApiExport { .. } => unreachable!(),
+        cli::Command::ApiDocs { .. } => unreachable!(),
     }
 }

@@ -1,7 +1,16 @@
 use serde::{Deserialize, Serialize};
 
 /// Frames accepted from a client.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(
+    Debug,
+    Clone,
+    PartialEq,
+    Eq,
+    Serialize,
+    Deserialize,
+    asyncapi_rust::schemars::JsonSchema,
+    asyncapi_rust::ToAsyncApiMessage,
+)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum ClientMessage {
     /// Authenticate the connection. `token` is validated by the authenticator;
@@ -11,20 +20,20 @@ pub enum ClientMessage {
         token: Option<String>,
     },
     /// Reply to the sender only.
+    #[asyncapi(message_name = "ClientEcho")]
     Echo {
         text: String,
     },
     /// Fan out to every authenticated connection.
+    #[asyncapi(message_name = "ClientBroadcast")]
     Broadcast {
         text: String,
     },
-    // --- Session participation (M4-02) ---
     /// A reconnect resolves to the same participant as an earlier join.
     Join {
         session_id: String,
     },
     Leave {},
-    // --- Moderation (M4-05) ---
     /// Mute another participant's media for one source.
     ///
     /// `kind` is "temporary" (the target may clear it) or "permanent" (only a
@@ -73,7 +82,6 @@ pub enum ClientMessage {
         session_id: Option<String>,
         actor_id: String,
     },
-    // --- RTC signaling (M3-06) ---
     CreateTransport {
         room_id: String,
     },

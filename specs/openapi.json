@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Mahfel API",
-    "description": "Control-plane REST API. Requests are authenticated with a Keycloak access token that the API verifies as a resource server (ADR 0019).",
+    "description": "Control-plane REST API. Protected routes use Authorization: Bearer. User requests use Keycloak access tokens; supported service-principal routes also accept Mahfel keys. Provisioning requires a Keycloak access token.",
     "license": {
       "name": "AGPL-3.0-or-later",
       "identifier": "AGPL-3.0-or-later"
@@ -15,6 +15,7 @@
         "tags": [
           "admin"
         ],
+        "summary": "Check administrative access",
         "operationId": "ping",
         "responses": {
           "200": {
@@ -28,10 +29,24 @@
             }
           },
           "401": {
-            "description": "Authentication required"
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
           },
           "403": {
-            "description": "Permission denied"
+            "description": "Permission denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
           }
         }
       }
@@ -41,6 +56,7 @@
         "tags": [
           "admin"
         ],
+        "summary": "List service principals",
         "operationId": "adminListServicePrincipals",
         "responses": {
           "200": {
@@ -57,10 +73,24 @@
             }
           },
           "401": {
-            "description": "Authentication required"
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
           },
           "403": {
-            "description": "Permission denied"
+            "description": "Permission denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
           }
         }
       },
@@ -68,6 +98,7 @@
         "tags": [
           "admin"
         ],
+        "summary": "Create a service principal",
         "operationId": "adminCreateServicePrincipal",
         "requestBody": {
           "content": {
@@ -91,16 +122,44 @@
             }
           },
           "401": {
-            "description": "Authentication required"
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
           },
           "403": {
-            "description": "Permission denied"
+            "description": "Permission denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
           },
           "409": {
-            "description": "Name already exists"
+            "description": "Name already exists",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
           },
           "422": {
-            "description": "Invalid name"
+            "description": "Invalid name",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
           }
         }
       }
@@ -110,6 +169,7 @@
         "tags": [
           "admin"
         ],
+        "summary": "Revoke a service principal",
         "operationId": "adminRevokeServicePrincipal",
         "parameters": [
           {
@@ -127,13 +187,34 @@
             "description": "Service principal revoked"
           },
           "401": {
-            "description": "Authentication required"
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
           },
           "403": {
-            "description": "Permission denied"
+            "description": "Permission denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
           },
           "404": {
-            "description": "Service principal not found"
+            "description": "Service principal not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
           }
         }
       }
@@ -143,6 +224,7 @@
         "tags": [
           "admin"
         ],
+        "summary": "Rotate a service principal key",
         "operationId": "adminRotateServicePrincipalKey",
         "parameters": [
           {
@@ -167,16 +249,44 @@
             }
           },
           "401": {
-            "description": "Authentication required"
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
           },
           "403": {
-            "description": "Permission denied"
+            "description": "Permission denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
           },
           "404": {
-            "description": "Service principal not found"
+            "description": "Service principal not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
           },
           "409": {
-            "description": "Service principal is revoked"
+            "description": "Service principal is revoked",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
           }
         }
       }
@@ -200,10 +310,24 @@
             }
           },
           "401": {
-            "description": "Authentication required"
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
           },
           "403": {
-            "description": "Account not provisioned"
+            "description": "Account not provisioned",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
           }
         }
       }
@@ -228,10 +352,24 @@
             }
           },
           "401": {
-            "description": "Authentication required"
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
           },
           "503": {
-            "description": "Identity provider unavailable"
+            "description": "Identity provider unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
           }
         }
       }
@@ -241,6 +379,7 @@
         "tags": [
           "echo"
         ],
+        "summary": "List example payloads",
         "operationId": "listEchoPayloads",
         "parameters": [
           {
@@ -277,12 +416,16 @@
               }
             }
           }
-        }
+        },
+        "security": [
+          {}
+        ]
       },
       "post": {
         "tags": [
           "echo"
         ],
+        "summary": "Create an example payload",
         "operationId": "createEchoPayload",
         "requestBody": {
           "content": {
@@ -306,9 +449,19 @@
             }
           },
           "422": {
-            "description": "Validation failed"
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
           }
-        }
+        },
+        "security": [
+          {}
+        ]
       }
     },
     "/v1/health": {
@@ -316,6 +469,7 @@
         "tags": [
           "status"
         ],
+        "summary": "Check process liveness",
         "operationId": "health",
         "responses": {
           "200": {
@@ -328,7 +482,10 @@
               }
             }
           }
-        }
+        },
+        "security": [
+          {}
+        ]
       }
     },
     "/v1/invite-links/redeem": {
@@ -361,16 +518,44 @@
             }
           },
           "401": {
-            "description": "Authentication required"
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
           },
           "404": {
-            "description": "Code is unknown, expired, revoked, or the rate limit was reached"
+            "description": "Code is unknown, expired, revoked, or the rate limit was reached",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
           },
           "409": {
-            "description": "The target's lobby is at capacity"
+            "description": "The target's lobby is at capacity",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
           },
           "503": {
-            "description": "The rate limiter is unavailable"
+            "description": "The rate limiter is unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
           }
         }
       }
@@ -406,13 +591,34 @@
             }
           },
           "401": {
-            "description": "Authentication required"
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
           },
           "404": {
-            "description": "Link does not exist or its target is not managed by the caller"
+            "description": "Link does not exist or its target is not managed by the caller",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
           },
           "409": {
-            "description": "Link is already revoked"
+            "description": "Link is already revoked",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
           }
         }
       }
@@ -458,13 +664,34 @@
             }
           },
           "401": {
-            "description": "Authentication required"
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
           },
           "404": {
-            "description": "Link does not exist or its target is not managed by the caller"
+            "description": "Link does not exist or its target is not managed by the caller",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
           },
           "422": {
-            "description": "Requested expiry is out of range"
+            "description": "Requested expiry is out of range",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
           }
         }
       }
@@ -510,16 +737,44 @@
             }
           },
           "401": {
-            "description": "Authentication required"
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
           },
           "403": {
-            "description": "Caller is not a manager"
+            "description": "Caller is not a manager",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
           },
           "404": {
-            "description": "Interval not found"
+            "description": "Interval not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
           },
           "409": {
-            "description": "Interval already superseded or the correction is invalid"
+            "description": "Interval already superseded or the correction is invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
           }
         }
       }
@@ -529,6 +784,7 @@
         "tags": [
           "rooms"
         ],
+        "summary": "List rooms",
         "operationId": "list_rooms",
         "parameters": [
           {
@@ -566,7 +822,14 @@
             }
           },
           "401": {
-            "description": "Authentication required"
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
           }
         }
       },
@@ -574,6 +837,7 @@
         "tags": [
           "rooms"
         ],
+        "summary": "Create a room",
         "operationId": "createRoom",
         "requestBody": {
           "content": {
@@ -597,10 +861,24 @@
             }
           },
           "401": {
-            "description": "Authentication required"
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
           },
           "422": {
-            "description": "Invalid room title"
+            "description": "Invalid room title",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
           }
         }
       }
@@ -610,6 +888,7 @@
         "tags": [
           "rooms"
         ],
+        "summary": "Get a room",
         "operationId": "get_room",
         "parameters": [
           {
@@ -634,10 +913,24 @@
             }
           },
           "401": {
-            "description": "Authentication required"
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
           },
           "404": {
-            "description": "Room does not exist or the caller is not a member"
+            "description": "Room does not exist or the caller is not a member",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
           }
         }
       },
@@ -645,6 +938,7 @@
         "tags": [
           "rooms"
         ],
+        "summary": "Update a room",
         "operationId": "update",
         "parameters": [
           {
@@ -679,19 +973,54 @@
             }
           },
           "401": {
-            "description": "Authentication required"
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
           },
           "403": {
-            "description": "Caller is not a manager"
+            "description": "Caller is not a manager",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
           },
           "404": {
-            "description": "Room does not exist or the caller is not a member"
+            "description": "Room does not exist or the caller is not a member",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
           },
           "409": {
-            "description": "Room is archived"
+            "description": "Room is archived",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
           },
           "422": {
-            "description": "Invalid room title"
+            "description": "Invalid room title",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
           }
         }
       }
@@ -726,13 +1055,34 @@
             }
           },
           "401": {
-            "description": "Authentication required"
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
           },
           "403": {
-            "description": "Caller does not manage the room"
+            "description": "Caller does not manage the room",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
           },
           "404": {
-            "description": "Room does not exist or is not visible to the caller"
+            "description": "Room does not exist or is not visible to the caller",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
           }
         }
       },
@@ -776,16 +1126,44 @@
             }
           },
           "401": {
-            "description": "Authentication required"
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
           },
           "403": {
-            "description": "Caller does not manage the room"
+            "description": "Caller does not manage the room",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
           },
           "404": {
-            "description": "Room does not exist or is not visible to the caller"
+            "description": "Room does not exist or is not visible to the caller",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
           },
           "409": {
-            "description": "Room is archived"
+            "description": "Room is archived",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
           }
         }
       }
@@ -795,6 +1173,7 @@
         "tags": [
           "rooms"
         ],
+        "summary": "Archive a room",
         "operationId": "archive",
         "parameters": [
           {
@@ -819,16 +1198,44 @@
             }
           },
           "401": {
-            "description": "Authentication required"
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
           },
           "403": {
-            "description": "Caller is not a manager"
+            "description": "Caller is not a manager",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
           },
           "404": {
-            "description": "Room does not exist or the caller is not a member"
+            "description": "Room does not exist or the caller is not a member",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
           },
           "409": {
-            "description": "Room is already archived"
+            "description": "Room is already archived",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
           }
         }
       }
@@ -875,13 +1282,34 @@
             }
           },
           "401": {
-            "description": "Authentication required"
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
           },
           "403": {
-            "description": "Caller does not manage the room"
+            "description": "Caller does not manage the room",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
           },
           "404": {
-            "description": "Room does not exist or is not visible to the caller"
+            "description": "Room does not exist or is not visible to the caller",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
           }
         }
       },
@@ -925,16 +1353,44 @@
             }
           },
           "401": {
-            "description": "Authentication required"
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
           },
           "403": {
-            "description": "Caller does not manage the room"
+            "description": "Caller does not manage the room",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
           },
           "404": {
-            "description": "Room does not exist or is not visible to the caller"
+            "description": "Room does not exist or is not visible to the caller",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
           },
           "422": {
-            "description": "Requested expiry is out of range"
+            "description": "Requested expiry is out of range",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
           }
         }
       }
@@ -944,6 +1400,7 @@
         "tags": [
           "rooms"
         ],
+        "summary": "Join a room",
         "operationId": "join",
         "parameters": [
           {
@@ -968,13 +1425,34 @@
             }
           },
           "401": {
-            "description": "Authentication required"
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
           },
           "404": {
-            "description": "Room does not exist or is invite-only"
+            "description": "Room does not exist or is invite-only",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
           },
           "409": {
-            "description": "Room is archived"
+            "description": "Room is archived",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
           }
         }
       }
@@ -984,6 +1462,7 @@
         "tags": [
           "rooms"
         ],
+        "summary": "Add a room member",
         "operationId": "add",
         "parameters": [
           {
@@ -1018,16 +1497,44 @@
             }
           },
           "401": {
-            "description": "Authentication required"
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
           },
           "403": {
-            "description": "Caller is not a manager"
+            "description": "Caller is not a manager",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
           },
           "404": {
-            "description": "Room, caller, or target user not found"
+            "description": "Room, caller, or target user not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
           },
           "409": {
-            "description": "User is already a member"
+            "description": "User is already a member",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
           }
         }
       }
@@ -1037,6 +1544,7 @@
         "tags": [
           "rooms"
         ],
+        "summary": "Remove a room member",
         "operationId": "remove",
         "parameters": [
           {
@@ -1063,16 +1571,44 @@
             "description": "Member removed"
           },
           "401": {
-            "description": "Authentication required"
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
           },
           "403": {
-            "description": "Caller is not a manager"
+            "description": "Caller is not a manager",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
           },
           "404": {
-            "description": "Room, caller, or member not found"
+            "description": "Room, caller, or member not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
           },
           "409": {
-            "description": "The last manager cannot be removed"
+            "description": "The last manager cannot be removed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
           }
         }
       },
@@ -1125,16 +1661,44 @@
             }
           },
           "401": {
-            "description": "Authentication required"
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
           },
           "403": {
-            "description": "Caller is not a manager"
+            "description": "Caller is not a manager",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
           },
           "404": {
-            "description": "Room, caller, or member not found"
+            "description": "Room, caller, or member not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
           },
           "409": {
-            "description": "The last manager cannot be demoted"
+            "description": "The last manager cannot be demoted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
           }
         }
       }
@@ -1144,6 +1708,7 @@
         "tags": [
           "chat"
         ],
+        "summary": "List room messages",
         "operationId": "listRoomMessages",
         "parameters": [
           {
@@ -1189,13 +1754,34 @@
             }
           },
           "400": {
-            "description": "Invalid cursor"
+            "description": "Invalid cursor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
           },
           "401": {
-            "description": "Authentication required"
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
           },
           "404": {
-            "description": "Room not found or caller is not a member"
+            "description": "Room not found or caller is not a member",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
           }
         }
       },
@@ -1203,6 +1789,7 @@
         "tags": [
           "chat"
         ],
+        "summary": "Send a room message",
         "operationId": "createRoomMessage",
         "parameters": [
           {
@@ -1238,13 +1825,34 @@
             }
           },
           "401": {
-            "description": "Authentication required"
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
           },
           "404": {
-            "description": "Room not found or caller is not a member"
+            "description": "Room not found or caller is not a member",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
           },
           "422": {
-            "description": "Message content is invalid"
+            "description": "Message content is invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
           }
         }
       }
@@ -1254,6 +1862,7 @@
         "tags": [
           "chat"
         ],
+        "summary": "Delete a room message",
         "operationId": "deleteRoomMessage",
         "parameters": [
           {
@@ -1289,10 +1898,24 @@
             }
           },
           "401": {
-            "description": "Authentication required"
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
           },
           "404": {
-            "description": "Message not found or caller cannot delete it"
+            "description": "Message not found or caller cannot delete it",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
           }
         }
       },
@@ -1300,6 +1923,7 @@
         "tags": [
           "chat"
         ],
+        "summary": "Edit a room message",
         "operationId": "editRoomMessage",
         "parameters": [
           {
@@ -1345,16 +1969,44 @@
             }
           },
           "401": {
-            "description": "Authentication required"
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
           },
           "404": {
-            "description": "Message not found or caller is not its author"
+            "description": "Message not found or caller is not its author",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
           },
           "409": {
-            "description": "Message is deleted or its edit window expired"
+            "description": "Message is deleted or its edit window expired",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
           },
           "422": {
-            "description": "Message content is invalid"
+            "description": "Message content is invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
           }
         }
       }
@@ -1364,7 +2016,7 @@
         "tags": [
           "sessions"
         ],
-        "summary": "Manager-scoped in this task; member visibility arrives with the capability\nmodel (M4-04). A room holds a bounded number of occurrences, so the list is\nreturned whole rather than paginated.",
+        "summary": "List a room's sessions for a manager, newest first.",
         "operationId": "list_sessions",
         "parameters": [
           {
@@ -1392,13 +2044,34 @@
             }
           },
           "401": {
-            "description": "Authentication required"
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
           },
           "403": {
-            "description": "Caller is not a manager"
+            "description": "Caller is not a manager",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
           },
           "404": {
-            "description": "Room does not exist or the caller is not a member"
+            "description": "Room does not exist or the caller is not a member",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
           }
         }
       },
@@ -1406,6 +2079,7 @@
         "tags": [
           "sessions"
         ],
+        "summary": "Schedule a session",
         "operationId": "schedule",
         "parameters": [
           {
@@ -1440,16 +2114,54 @@
             }
           },
           "401": {
-            "description": "Authentication required"
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
           },
           "403": {
-            "description": "Caller is not a manager"
+            "description": "Caller lacks manage_session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
           },
           "404": {
-            "description": "Room does not exist or the caller is not a member"
+            "description": "Room does not exist or the caller is not a member",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
           },
           "409": {
-            "description": "A live session already exists for the room"
+            "description": "A live session already exists for the room",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid title or advisory duration",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
           }
         }
       }
@@ -1459,7 +2171,7 @@
         "tags": [
           "sessions"
         ],
-        "summary": "Manager-scoped in this task; member visibility arrives with the capability\nmodel (M4-04).",
+        "summary": "Get a session visible to a room manager.",
         "operationId": "get_session",
         "parameters": [
           {
@@ -1484,13 +2196,114 @@
             }
           },
           "401": {
-            "description": "Authentication required"
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
           },
           "403": {
-            "description": "Caller is not a manager"
+            "description": "Caller is not a manager",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
           },
           "404": {
-            "description": "Session does not exist or the caller cannot see its room"
+            "description": "Session does not exist or the caller cannot see its room",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "sessions"
+        ],
+        "summary": "Update session title and schedule",
+        "operationId": "updateSessionDetails",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "description": "Session identifier (UUID)",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateSessionDetailsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Session details updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Caller lacks manage_session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Session or room is not visible",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid title or advisory duration",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
           }
         }
       }
@@ -1525,13 +2338,34 @@
             }
           },
           "401": {
-            "description": "Authentication required"
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
           },
           "403": {
-            "description": "Caller does not manage the session's room"
+            "description": "Caller does not manage the session's room",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
           },
           "404": {
-            "description": "Session does not exist or is not visible to the caller"
+            "description": "Session does not exist or is not visible to the caller",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
           }
         }
       },
@@ -1575,16 +2409,44 @@
             }
           },
           "401": {
-            "description": "Authentication required"
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
           },
           "403": {
-            "description": "Caller does not manage the session's room"
+            "description": "Caller does not manage the session's room",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
           },
           "404": {
-            "description": "Session does not exist or is not visible to the caller"
+            "description": "Session does not exist or is not visible to the caller",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
           },
           "422": {
-            "description": "An override would loosen the room's settings"
+            "description": "An override would loosen the room's settings",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
           }
         }
       }
@@ -1620,10 +2482,24 @@
             }
           },
           "401": {
-            "description": "Authentication required"
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
           },
           "404": {
-            "description": "The caller has no pending request for this session"
+            "description": "The caller has no pending request for this session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
           }
         }
       }
@@ -1633,6 +2509,7 @@
         "tags": [
           "sessions"
         ],
+        "summary": "Cancel a session",
         "operationId": "cancel",
         "parameters": [
           {
@@ -1657,16 +2534,44 @@
             }
           },
           "401": {
-            "description": "Authentication required"
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
           },
           "403": {
-            "description": "Caller is not a manager"
+            "description": "Caller is not a manager",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
           },
           "404": {
-            "description": "Session does not exist or the caller cannot see its room"
+            "description": "Session does not exist or the caller cannot see its room",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
           },
           "409": {
-            "description": "Invalid transition"
+            "description": "Invalid transition",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
           }
         }
       }
@@ -1702,10 +2607,24 @@
             }
           },
           "401": {
-            "description": "Authentication required"
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
           },
           "404": {
-            "description": "Session does not exist or the caller cannot see its room"
+            "description": "Session does not exist or the caller cannot see its room",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
           }
         }
       }
@@ -1715,6 +2634,7 @@
         "tags": [
           "sessions"
         ],
+        "summary": "End a live session",
         "operationId": "end",
         "parameters": [
           {
@@ -1739,16 +2659,44 @@
             }
           },
           "401": {
-            "description": "Authentication required"
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
           },
           "403": {
-            "description": "Caller is not a manager"
+            "description": "Caller is not a manager",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
           },
           "404": {
-            "description": "Session does not exist or the caller cannot see its room"
+            "description": "Session does not exist or the caller cannot see its room",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
           },
           "409": {
-            "description": "Invalid transition"
+            "description": "Invalid transition",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
           }
         }
       }
@@ -1794,13 +2742,34 @@
             }
           },
           "401": {
-            "description": "Authentication required"
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
           },
           "403": {
-            "description": "Caller does not manage the session's room"
+            "description": "Caller does not manage the session's room",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
           },
           "404": {
-            "description": "Session does not exist or is not visible to the caller"
+            "description": "Session does not exist or is not visible to the caller",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
           }
         }
       },
@@ -1843,16 +2812,44 @@
             }
           },
           "401": {
-            "description": "Authentication required"
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
           },
           "403": {
-            "description": "Caller does not manage the session's room"
+            "description": "Caller does not manage the session's room",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
           },
           "404": {
-            "description": "Session does not exist or is not visible to the caller"
+            "description": "Session does not exist or is not visible to the caller",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
           },
           "422": {
-            "description": "Requested expiry is out of range"
+            "description": "Requested expiry is out of range",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
           }
         }
       }
@@ -1887,13 +2884,34 @@
             }
           },
           "401": {
-            "description": "Authentication required"
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
           },
           "403": {
-            "description": "Caller does not manage the session's room"
+            "description": "Caller does not manage the session's room",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
           },
           "404": {
-            "description": "Session does not exist or is not visible to the caller"
+            "description": "Session does not exist or is not visible to the caller",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
           }
         }
       }
@@ -1937,19 +2955,54 @@
             }
           },
           "401": {
-            "description": "Authentication required"
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
           },
           "403": {
-            "description": "Caller does not manage the session's room"
+            "description": "Caller does not manage the session's room",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
           },
           "404": {
-            "description": "Session does not exist, or the principal is not waiting"
+            "description": "Session does not exist, or the principal is not waiting",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
           },
           "409": {
-            "description": "The request was already decided"
+            "description": "The request was already decided",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
           },
           "503": {
-            "description": "Media placement is unavailable"
+            "description": "Media placement is unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
           }
         }
       }
@@ -1986,16 +3039,44 @@
             "description": "Principal rejected"
           },
           "401": {
-            "description": "Authentication required"
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
           },
           "403": {
-            "description": "Caller does not manage the session's room"
+            "description": "Caller does not manage the session's room",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
           },
           "404": {
-            "description": "Session does not exist, or the principal is not waiting"
+            "description": "Session does not exist, or the principal is not waiting",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
           },
           "409": {
-            "description": "The request was already decided"
+            "description": "The request was already decided",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
           }
         }
       }
@@ -2040,10 +3121,24 @@
             }
           },
           "401": {
-            "description": "Authentication required"
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
           },
           "404": {
-            "description": "Session, participant record, or caller visibility not found"
+            "description": "Session, participant record, or caller visibility not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
           }
         }
       }
@@ -2079,13 +3174,34 @@
             }
           },
           "401": {
-            "description": "Authentication required"
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
           },
           "403": {
-            "description": "Caller is not a manager"
+            "description": "Caller is not a manager",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
           },
           "404": {
-            "description": "Session does not exist or the caller cannot see its room"
+            "description": "Session does not exist or the caller cannot see its room",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
           }
         }
       }
@@ -2095,6 +3211,7 @@
         "tags": [
           "sessions"
         ],
+        "summary": "Start a scheduled session",
         "operationId": "start",
         "parameters": [
           {
@@ -2119,16 +3236,44 @@
             }
           },
           "401": {
-            "description": "Authentication required"
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
           },
           "403": {
-            "description": "Caller is not a manager"
+            "description": "Caller lacks manage_session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
           },
           "404": {
-            "description": "Session does not exist or the caller cannot see its room"
+            "description": "Session does not exist or the caller cannot see its room",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
           },
           "409": {
-            "description": "Invalid transition or a live session already exists"
+            "description": "Invalid transition or a live session already exists",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
           }
         }
       }
@@ -2138,6 +3283,7 @@
         "tags": [
           "status"
         ],
+        "summary": "Get service status",
         "operationId": "status",
         "responses": {
           "200": {
@@ -2150,7 +3296,10 @@
               }
             }
           }
-        }
+        },
+        "security": [
+          {}
+        ]
       }
     },
     "/v1/turn/credentials": {
@@ -2173,7 +3322,14 @@
             }
           },
           "401": {
-            "description": "unauthorized"
+            "description": "unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -2440,6 +3596,16 @@
       "CreateSessionRequest": {
         "type": "object",
         "properties": {
+          "scheduled_duration_minutes": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "Optional advisory length in minutes, from 1 through 10080.",
+            "maximum": 10080,
+            "minimum": 1
+          },
           "scheduled_start_at": {
             "type": [
               "string",
@@ -2447,6 +3613,15 @@
             ],
             "format": "date-time",
             "description": "Optional advisory start instant. A session may also be ad-hoc."
+          },
+          "title": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Optional custom title. Otherwise the room's current title is displayed.",
+            "maxLength": 300,
+            "minLength": 1
           }
         }
       },
@@ -2499,6 +3674,33 @@
         ],
         "properties": {
           "content": {
+            "type": "string"
+          }
+        }
+      },
+      "ErrorBody": {
+        "type": "object",
+        "required": [
+          "error"
+        ],
+        "properties": {
+          "error": {
+            "$ref": "#/components/schemas/ErrorDetail"
+          }
+        }
+      },
+      "ErrorDetail": {
+        "type": "object",
+        "required": [
+          "code",
+          "message"
+        ],
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "details": {},
+          "message": {
             "type": "string"
           }
         }
@@ -3132,6 +4334,8 @@
           "id",
           "room_id",
           "status",
+          "title",
+          "title_overridden",
           "created_at",
           "updated_at"
         ],
@@ -3163,6 +4367,14 @@
           "room_id": {
             "type": "string"
           },
+          "scheduled_duration_minutes": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "minimum": 0
+          },
           "scheduled_start_at": {
             "type": [
               "string",
@@ -3179,6 +4391,13 @@
           },
           "status": {
             "$ref": "#/components/schemas/SessionStatusDto"
+          },
+          "title": {
+            "type": "string",
+            "description": "Effective display title, using the current room title when no custom title is set."
+          },
+          "title_overridden": {
+            "type": "boolean"
           },
           "updated_at": {
             "type": "string",
@@ -3319,7 +4538,51 @@
             ]
           }
         }
+      },
+      "UpdateSessionDetailsRequest": {
+        "type": "object",
+        "properties": {
+          "scheduled_duration_minutes": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "Omit to keep, null to clear, or provide 1 through 10080 minutes.",
+            "maximum": 10080,
+            "minimum": 1
+          },
+          "scheduled_start_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "Omit to keep, null to clear, or provide an RFC3339 instant."
+          },
+          "title": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Omit to keep, null to clear, or provide a custom title.",
+            "maxLength": 300,
+            "minLength": 1
+          }
+        }
+      }
+    },
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "Keycloak access token, or a Mahfel service principal key where supported"
       }
     }
-  }
+  },
+  "security": [
+    {
+      "bearerAuth": []
+    }
+  ]
 }

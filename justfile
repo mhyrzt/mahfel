@@ -61,10 +61,10 @@ docs:
 docs-serve:
     mkdocs serve
 
-# Export the API-owned OpenAPI document used by frontend type generation.
+# Export the API-owned REST and WebSocket contracts.
 [group('Contracts')]
-openapi-export:
-    just backend openapi-export
+api-docs-export:
+    just backend api-docs-export
 
 # Forward Minikube recipes and arguments to the deployment Justfile.
 [group('Components')]

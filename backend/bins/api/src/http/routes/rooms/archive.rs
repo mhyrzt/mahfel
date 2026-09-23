@@ -10,6 +10,7 @@ use uuid::Uuid;
 #[utoipa::path(
     post,
     path = "/v1/rooms/{room_id}/archive",
+    summary = "Archive a room",
     tag = "rooms",
     params(("room_id" = String, Path, description = "Room identifier (UUID)")),
     responses(

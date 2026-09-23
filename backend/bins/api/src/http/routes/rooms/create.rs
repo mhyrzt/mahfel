@@ -14,6 +14,7 @@ use mahfel_application::{
 #[utoipa::path(
     post,
     path = "/v1/rooms",
+    summary = "Create a room",
     operation_id = "createRoom",
     tag = "rooms",
     request_body = CreateRoomRequest,

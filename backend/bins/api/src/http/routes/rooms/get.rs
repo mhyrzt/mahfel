@@ -10,6 +10,7 @@ use uuid::Uuid;
 #[utoipa::path(
     get,
     path = "/v1/rooms/{room_id}",
+    summary = "Get a room",
     tag = "rooms",
     params(("room_id" = String, Path, description = "Room identifier (UUID)")),
     responses(

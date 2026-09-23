@@ -1,0 +1,1700 @@
+{
+  "asyncapi": "3.0.0",
+  "channels": {
+    "signaling": {
+      "address": "/v1/ws",
+      "messages": {
+        "ActiveSpeakers": {
+          "$ref": "#/components/messages/ActiveSpeakers"
+        },
+        "Auth": {
+          "$ref": "#/components/messages/Auth"
+        },
+        "BlockPrincipal": {
+          "$ref": "#/components/messages/BlockPrincipal"
+        },
+        "Broadcast": {
+          "$ref": "#/components/messages/Broadcast"
+        },
+        "Bye": {
+          "$ref": "#/components/messages/Bye"
+        },
+        "ClientBroadcast": {
+          "$ref": "#/components/messages/ClientBroadcast"
+        },
+        "ClientEcho": {
+          "$ref": "#/components/messages/ClientEcho"
+        },
+        "ConnectTransport": {
+          "$ref": "#/components/messages/ConnectTransport"
+        },
+        "Consume": {
+          "$ref": "#/components/messages/Consume"
+        },
+        "Consumed": {
+          "$ref": "#/components/messages/Consumed"
+        },
+        "ConsumerPaused": {
+          "$ref": "#/components/messages/ConsumerPaused"
+        },
+        "ConsumerResumed": {
+          "$ref": "#/components/messages/ConsumerResumed"
+        },
+        "CreateTransport": {
+          "$ref": "#/components/messages/CreateTransport"
+        },
+        "Echo": {
+          "$ref": "#/components/messages/Echo"
+        },
+        "Error": {
+          "$ref": "#/components/messages/Error"
+        },
+        "Join": {
+          "$ref": "#/components/messages/Join"
+        },
+        "JoinRejected": {
+          "$ref": "#/components/messages/JoinRejected"
+        },
+        "JoinWaiting": {
+          "$ref": "#/components/messages/JoinWaiting"
+        },
+        "Joined": {
+          "$ref": "#/components/messages/Joined"
+        },
+        "Leave": {
+          "$ref": "#/components/messages/Leave"
+        },
+        "Left": {
+          "$ref": "#/components/messages/Left"
+        },
+        "MuteParticipant": {
+          "$ref": "#/components/messages/MuteParticipant"
+        },
+        "ParticipantJoined": {
+          "$ref": "#/components/messages/ParticipantJoined"
+        },
+        "ParticipantLeft": {
+          "$ref": "#/components/messages/ParticipantLeft"
+        },
+        "ParticipantMuted": {
+          "$ref": "#/components/messages/ParticipantMuted"
+        },
+        "ParticipantRemoved": {
+          "$ref": "#/components/messages/ParticipantRemoved"
+        },
+        "ParticipantUnmuted": {
+          "$ref": "#/components/messages/ParticipantUnmuted"
+        },
+        "PauseConsumer": {
+          "$ref": "#/components/messages/PauseConsumer"
+        },
+        "PrincipalBlocked": {
+          "$ref": "#/components/messages/PrincipalBlocked"
+        },
+        "PrincipalUnblocked": {
+          "$ref": "#/components/messages/PrincipalUnblocked"
+        },
+        "Produce": {
+          "$ref": "#/components/messages/Produce"
+        },
+        "Produced": {
+          "$ref": "#/components/messages/Produced"
+        },
+        "RemoveParticipant": {
+          "$ref": "#/components/messages/RemoveParticipant"
+        },
+        "ResumeConsumer": {
+          "$ref": "#/components/messages/ResumeConsumer"
+        },
+        "TransportConnected": {
+          "$ref": "#/components/messages/TransportConnected"
+        },
+        "TransportCreated": {
+          "$ref": "#/components/messages/TransportCreated"
+        },
+        "UnblockPrincipal": {
+          "$ref": "#/components/messages/UnblockPrincipal"
+        },
+        "UnmuteParticipant": {
+          "$ref": "#/components/messages/UnmuteParticipant"
+        },
+        "Welcome": {
+          "$ref": "#/components/messages/Welcome"
+        }
+      }
+    }
+  },
+  "components": {
+    "messages": {
+      "ActiveSpeakers": {
+        "contentType": "application/json",
+        "name": "ActiveSpeakers",
+        "payload": {
+          "description": "A complete ordered snapshot, including an empty list for silence.",
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "participant_ids": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "session_id": {
+              "type": "string"
+            },
+            "type": {
+              "const": "active_speakers",
+              "type": "string"
+            },
+            "v": {
+              "const": 1,
+              "default": 1,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "type",
+            "session_id",
+            "participant_ids",
+            "v"
+          ],
+          "type": "object"
+        },
+        "title": "ActiveSpeakers"
+      },
+      "Auth": {
+        "contentType": "application/json",
+        "name": "Auth",
+        "payload": {
+          "description": "Authenticate the connection. `token` is validated by the authenticator;\nthe interim development authenticator ignores it.",
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "token": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "type": {
+              "const": "auth",
+              "type": "string"
+            },
+            "v": {
+              "const": 1,
+              "default": 1,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "type"
+          ],
+          "type": "object"
+        },
+        "title": "Auth"
+      },
+      "BlockPrincipal": {
+        "contentType": "application/json",
+        "name": "BlockPrincipal",
+        "payload": {
+          "description": "Bar a principal from a room or a session. Unlike removal, this holds.",
+          "properties": {
+            "actor_id": {
+              "type": "string"
+            },
+            "expires_at": {
+              "description": "Unix seconds. Omitted means until explicitly lifted.",
+              "format": "int64",
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "id": {
+              "type": "string"
+            },
+            "reason": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "room_id": {
+              "description": "A room block bars every session in that room; a session block is\nnarrower. Exactly one of these is set.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "session_id": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "type": {
+              "const": "block_principal",
+              "type": "string"
+            },
+            "v": {
+              "const": 1,
+              "default": 1,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "type",
+            "actor_id"
+          ],
+          "type": "object"
+        },
+        "title": "BlockPrincipal"
+      },
+      "Broadcast": {
+        "contentType": "application/json",
+        "name": "Broadcast",
+        "payload": {
+          "properties": {
+            "from": {
+              "type": "string"
+            },
+            "id": {
+              "type": "string"
+            },
+            "text": {
+              "type": "string"
+            },
+            "type": {
+              "const": "broadcast",
+              "type": "string"
+            },
+            "v": {
+              "const": 1,
+              "default": 1,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "type",
+            "from",
+            "text",
+            "v"
+          ],
+          "type": "object"
+        },
+        "title": "Broadcast"
+      },
+      "Bye": {
+        "contentType": "application/json",
+        "name": "Bye",
+        "payload": {
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "reason": {
+              "type": "string"
+            },
+            "type": {
+              "const": "bye",
+              "type": "string"
+            },
+            "v": {
+              "const": 1,
+              "default": 1,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "type",
+            "reason",
+            "v"
+          ],
+          "type": "object"
+        },
+        "title": "Bye"
+      },
+      "ClientBroadcast": {
+        "contentType": "application/json",
+        "name": "ClientBroadcast",
+        "payload": {
+          "description": "Fan out to every authenticated connection.",
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "text": {
+              "type": "string"
+            },
+            "type": {
+              "const": "broadcast",
+              "type": "string"
+            },
+            "v": {
+              "const": 1,
+              "default": 1,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "type",
+            "text"
+          ],
+          "type": "object"
+        },
+        "title": "ClientBroadcast"
+      },
+      "ClientEcho": {
+        "contentType": "application/json",
+        "name": "ClientEcho",
+        "payload": {
+          "description": "Reply to the sender only.",
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "text": {
+              "type": "string"
+            },
+            "type": {
+              "const": "echo",
+              "type": "string"
+            },
+            "v": {
+              "const": 1,
+              "default": 1,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "type",
+            "text"
+          ],
+          "type": "object"
+        },
+        "title": "ClientEcho"
+      },
+      "ConnectTransport": {
+        "contentType": "application/json",
+        "name": "ConnectTransport",
+        "payload": {
+          "properties": {
+            "dtls_parameters": {
+              "type": "string"
+            },
+            "id": {
+              "type": "string"
+            },
+            "room_id": {
+              "type": "string"
+            },
+            "transport_id": {
+              "type": "string"
+            },
+            "type": {
+              "const": "connect_transport",
+              "type": "string"
+            },
+            "v": {
+              "const": 1,
+              "default": 1,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "type",
+            "room_id",
+            "transport_id",
+            "dtls_parameters"
+          ],
+          "type": "object"
+        },
+        "title": "ConnectTransport"
+      },
+      "Consume": {
+        "contentType": "application/json",
+        "name": "Consume",
+        "payload": {
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "producer_id": {
+              "type": "string"
+            },
+            "room_id": {
+              "type": "string"
+            },
+            "rtp_capabilities": {
+              "type": "string"
+            },
+            "transport_id": {
+              "type": "string"
+            },
+            "type": {
+              "const": "consume",
+              "type": "string"
+            },
+            "v": {
+              "const": 1,
+              "default": 1,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "type",
+            "room_id",
+            "transport_id",
+            "producer_id",
+            "rtp_capabilities"
+          ],
+          "type": "object"
+        },
+        "title": "Consume"
+      },
+      "Consumed": {
+        "contentType": "application/json",
+        "name": "Consumed",
+        "payload": {
+          "properties": {
+            "consumer_id": {
+              "type": "string"
+            },
+            "id": {
+              "type": "string"
+            },
+            "paused": {
+              "type": "boolean"
+            },
+            "room_id": {
+              "type": "string"
+            },
+            "rtp_parameters": {
+              "type": "string"
+            },
+            "type": {
+              "const": "consumed",
+              "type": "string"
+            },
+            "v": {
+              "const": 1,
+              "default": 1,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "type",
+            "room_id",
+            "consumer_id",
+            "rtp_parameters",
+            "paused",
+            "v"
+          ],
+          "type": "object"
+        },
+        "title": "Consumed"
+      },
+      "ConsumerPaused": {
+        "contentType": "application/json",
+        "name": "ConsumerPaused",
+        "payload": {
+          "properties": {
+            "consumer_id": {
+              "type": "string"
+            },
+            "id": {
+              "type": "string"
+            },
+            "room_id": {
+              "type": "string"
+            },
+            "type": {
+              "const": "consumer_paused",
+              "type": "string"
+            },
+            "v": {
+              "const": 1,
+              "default": 1,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "type",
+            "room_id",
+            "consumer_id",
+            "v"
+          ],
+          "type": "object"
+        },
+        "title": "ConsumerPaused"
+      },
+      "ConsumerResumed": {
+        "contentType": "application/json",
+        "name": "ConsumerResumed",
+        "payload": {
+          "properties": {
+            "consumer_id": {
+              "type": "string"
+            },
+            "id": {
+              "type": "string"
+            },
+            "room_id": {
+              "type": "string"
+            },
+            "type": {
+              "const": "consumer_resumed",
+              "type": "string"
+            },
+            "v": {
+              "const": 1,
+              "default": 1,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "type",
+            "room_id",
+            "consumer_id",
+            "v"
+          ],
+          "type": "object"
+        },
+        "title": "ConsumerResumed"
+      },
+      "CreateTransport": {
+        "contentType": "application/json",
+        "name": "CreateTransport",
+        "payload": {
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "room_id": {
+              "type": "string"
+            },
+            "type": {
+              "const": "create_transport",
+              "type": "string"
+            },
+            "v": {
+              "const": 1,
+              "default": 1,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "type",
+            "room_id"
+          ],
+          "type": "object"
+        },
+        "title": "CreateTransport"
+      },
+      "Echo": {
+        "contentType": "application/json",
+        "name": "Echo",
+        "payload": {
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "text": {
+              "type": "string"
+            },
+            "type": {
+              "const": "echo",
+              "type": "string"
+            },
+            "v": {
+              "const": 1,
+              "default": 1,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "type",
+            "text",
+            "v"
+          ],
+          "type": "object"
+        },
+        "title": "Echo"
+      },
+      "Error": {
+        "contentType": "application/json",
+        "name": "Error",
+        "payload": {
+          "properties": {
+            "code": {
+              "type": "string"
+            },
+            "id": {
+              "type": "string"
+            },
+            "message": {
+              "type": "string"
+            },
+            "type": {
+              "const": "error",
+              "type": "string"
+            },
+            "v": {
+              "const": 1,
+              "default": 1,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "type",
+            "code",
+            "message",
+            "v"
+          ],
+          "type": "object"
+        },
+        "title": "Error"
+      },
+      "Join": {
+        "contentType": "application/json",
+        "name": "Join",
+        "payload": {
+          "description": "A reconnect resolves to the same participant as an earlier join.",
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "session_id": {
+              "type": "string"
+            },
+            "type": {
+              "const": "join",
+              "type": "string"
+            },
+            "v": {
+              "const": 1,
+              "default": 1,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "type",
+            "session_id"
+          ],
+          "type": "object"
+        },
+        "title": "Join"
+      },
+      "JoinRejected": {
+        "contentType": "application/json",
+        "name": "JoinRejected",
+        "payload": {
+          "description": "`code` is stable and machine-readable; `message` carries no internal\ndetail.",
+          "properties": {
+            "code": {
+              "type": "string"
+            },
+            "id": {
+              "type": "string"
+            },
+            "message": {
+              "type": "string"
+            },
+            "type": {
+              "const": "join_rejected",
+              "type": "string"
+            },
+            "v": {
+              "const": 1,
+              "default": 1,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "type",
+            "code",
+            "message",
+            "v"
+          ],
+          "type": "object"
+        },
+        "title": "JoinRejected"
+      },
+      "JoinWaiting": {
+        "contentType": "application/json",
+        "name": "JoinWaiting",
+        "payload": {
+          "description": "The caller is authorized but not yet admitted. No participant exists\nuntil a capable principal approves the request.",
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "request_id": {
+              "type": "string"
+            },
+            "session_id": {
+              "type": "string"
+            },
+            "type": {
+              "const": "join_waiting",
+              "type": "string"
+            },
+            "v": {
+              "const": 1,
+              "default": 1,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "type",
+            "session_id",
+            "request_id",
+            "v"
+          ],
+          "type": "object"
+        },
+        "title": "JoinWaiting"
+      },
+      "Joined": {
+        "contentType": "application/json",
+        "name": "Joined",
+        "payload": {
+          "description": "A reconnect to the same session returns the same `participant_id`.",
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "participant_id": {
+              "type": "string"
+            },
+            "session_id": {
+              "type": "string"
+            },
+            "type": {
+              "const": "joined",
+              "type": "string"
+            },
+            "v": {
+              "const": 1,
+              "default": 1,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "type",
+            "session_id",
+            "participant_id",
+            "v"
+          ],
+          "type": "object"
+        },
+        "title": "Joined"
+      },
+      "Leave": {
+        "contentType": "application/json",
+        "name": "Leave",
+        "payload": {
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "type": {
+              "const": "leave",
+              "type": "string"
+            },
+            "v": {
+              "const": 1,
+              "default": 1,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "type"
+          ],
+          "type": "object"
+        },
+        "title": "Leave"
+      },
+      "Left": {
+        "contentType": "application/json",
+        "name": "Left",
+        "payload": {
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "participant_id": {
+              "type": "string"
+            },
+            "session_id": {
+              "type": "string"
+            },
+            "type": {
+              "const": "left",
+              "type": "string"
+            },
+            "v": {
+              "const": 1,
+              "default": 1,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "type",
+            "session_id",
+            "participant_id",
+            "v"
+          ],
+          "type": "object"
+        },
+        "title": "Left"
+      },
+      "MuteParticipant": {
+        "contentType": "application/json",
+        "name": "MuteParticipant",
+        "payload": {
+          "description": "Mute another participant's media for one source.\n\n`kind` is \"temporary\" (the target may clear it) or \"permanent\" (only a\nmoderator may). `source` defaults to the microphone.",
+          "properties": {
+            "actor_id": {
+              "description": "The target's actor id, not a connection: moderation resolves across\nall of a participant's connections.",
+              "type": "string"
+            },
+            "id": {
+              "type": "string"
+            },
+            "kind": {
+              "type": "string"
+            },
+            "session_id": {
+              "type": "string"
+            },
+            "source": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "type": {
+              "const": "mute_participant",
+              "type": "string"
+            },
+            "v": {
+              "const": 1,
+              "default": 1,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "type",
+            "session_id",
+            "actor_id",
+            "kind"
+          ],
+          "type": "object"
+        },
+        "title": "MuteParticipant"
+      },
+      "ParticipantJoined": {
+        "contentType": "application/json",
+        "name": "ParticipantJoined",
+        "payload": {
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "participant_id": {
+              "type": "string"
+            },
+            "session_id": {
+              "type": "string"
+            },
+            "type": {
+              "const": "participant_joined",
+              "type": "string"
+            },
+            "v": {
+              "const": 1,
+              "default": 1,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "type",
+            "session_id",
+            "participant_id",
+            "v"
+          ],
+          "type": "object"
+        },
+        "title": "ParticipantJoined"
+      },
+      "ParticipantLeft": {
+        "contentType": "application/json",
+        "name": "ParticipantLeft",
+        "payload": {
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "participant_id": {
+              "type": "string"
+            },
+            "session_id": {
+              "type": "string"
+            },
+            "type": {
+              "const": "participant_left",
+              "type": "string"
+            },
+            "v": {
+              "const": 1,
+              "default": 1,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "type",
+            "session_id",
+            "participant_id",
+            "v"
+          ],
+          "type": "object"
+        },
+        "title": "ParticipantLeft"
+      },
+      "ParticipantMuted": {
+        "contentType": "application/json",
+        "name": "ParticipantMuted",
+        "payload": {
+          "description": "A participant's mute state changed. Fanned out to the session so every\nclient's roster reflects it, and sent to the target so it can stop\nsending media.",
+          "properties": {
+            "actor_id": {
+              "type": "string"
+            },
+            "id": {
+              "type": "string"
+            },
+            "kind": {
+              "description": "\"temporary\" or \"permanent\".",
+              "type": "string"
+            },
+            "participant_id": {
+              "type": "string"
+            },
+            "session_id": {
+              "type": "string"
+            },
+            "source": {
+              "type": "string"
+            },
+            "type": {
+              "const": "participant_muted",
+              "type": "string"
+            },
+            "v": {
+              "const": 1,
+              "default": 1,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "type",
+            "session_id",
+            "participant_id",
+            "actor_id",
+            "kind",
+            "source",
+            "v"
+          ],
+          "type": "object"
+        },
+        "title": "ParticipantMuted"
+      },
+      "ParticipantRemoved": {
+        "contentType": "application/json",
+        "name": "ParticipantRemoved",
+        "payload": {
+          "description": "A participation ended. `reason` is \"removed\" today; carried explicitly so\na later reason does not need a new frame.",
+          "properties": {
+            "actor_id": {
+              "type": "string"
+            },
+            "id": {
+              "type": "string"
+            },
+            "participant_id": {
+              "type": "string"
+            },
+            "reason": {
+              "type": "string"
+            },
+            "session_id": {
+              "type": "string"
+            },
+            "type": {
+              "const": "participant_removed",
+              "type": "string"
+            },
+            "v": {
+              "const": 1,
+              "default": 1,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "type",
+            "session_id",
+            "participant_id",
+            "actor_id",
+            "reason",
+            "v"
+          ],
+          "type": "object"
+        },
+        "title": "ParticipantRemoved"
+      },
+      "ParticipantUnmuted": {
+        "contentType": "application/json",
+        "name": "ParticipantUnmuted",
+        "payload": {
+          "properties": {
+            "actor_id": {
+              "type": "string"
+            },
+            "id": {
+              "type": "string"
+            },
+            "participant_id": {
+              "type": "string"
+            },
+            "session_id": {
+              "type": "string"
+            },
+            "source": {
+              "type": "string"
+            },
+            "type": {
+              "const": "participant_unmuted",
+              "type": "string"
+            },
+            "v": {
+              "const": 1,
+              "default": 1,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "type",
+            "session_id",
+            "participant_id",
+            "actor_id",
+            "source",
+            "v"
+          ],
+          "type": "object"
+        },
+        "title": "ParticipantUnmuted"
+      },
+      "PauseConsumer": {
+        "contentType": "application/json",
+        "name": "PauseConsumer",
+        "payload": {
+          "properties": {
+            "consumer_id": {
+              "type": "string"
+            },
+            "id": {
+              "type": "string"
+            },
+            "room_id": {
+              "type": "string"
+            },
+            "type": {
+              "const": "pause_consumer",
+              "type": "string"
+            },
+            "v": {
+              "const": 1,
+              "default": 1,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "type",
+            "room_id",
+            "consumer_id"
+          ],
+          "type": "object"
+        },
+        "title": "PauseConsumer"
+      },
+      "PrincipalBlocked": {
+        "contentType": "application/json",
+        "name": "PrincipalBlocked",
+        "payload": {
+          "properties": {
+            "actor_id": {
+              "type": "string"
+            },
+            "id": {
+              "type": "string"
+            },
+            "room_id": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "session_id": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "type": {
+              "const": "principal_blocked",
+              "type": "string"
+            },
+            "v": {
+              "const": 1,
+              "default": 1,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "type",
+            "actor_id",
+            "v"
+          ],
+          "type": "object"
+        },
+        "title": "PrincipalBlocked"
+      },
+      "PrincipalUnblocked": {
+        "contentType": "application/json",
+        "name": "PrincipalUnblocked",
+        "payload": {
+          "properties": {
+            "actor_id": {
+              "type": "string"
+            },
+            "id": {
+              "type": "string"
+            },
+            "room_id": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "session_id": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "type": {
+              "const": "principal_unblocked",
+              "type": "string"
+            },
+            "v": {
+              "const": 1,
+              "default": 1,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "type",
+            "actor_id",
+            "v"
+          ],
+          "type": "object"
+        },
+        "title": "PrincipalUnblocked"
+      },
+      "Produce": {
+        "contentType": "application/json",
+        "name": "Produce",
+        "payload": {
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "kind": {
+              "type": "string"
+            },
+            "room_id": {
+              "type": "string"
+            },
+            "rtp_parameters": {
+              "type": "string"
+            },
+            "source": {
+              "description": "\"microphone\" | \"camera\" | \"screen\". Omitted means the kind's obvious\nmeaning: audio is a microphone and video is a camera. This selects\nwhich producers a moderation action applies to; it is never\nauthorization.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "transport_id": {
+              "type": "string"
+            },
+            "type": {
+              "const": "produce",
+              "type": "string"
+            },
+            "v": {
+              "const": 1,
+              "default": 1,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "type",
+            "room_id",
+            "transport_id",
+            "kind",
+            "rtp_parameters"
+          ],
+          "type": "object"
+        },
+        "title": "Produce"
+      },
+      "Produced": {
+        "contentType": "application/json",
+        "name": "Produced",
+        "payload": {
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "producer_id": {
+              "type": "string"
+            },
+            "room_id": {
+              "type": "string"
+            },
+            "type": {
+              "const": "produced",
+              "type": "string"
+            },
+            "v": {
+              "const": 1,
+              "default": 1,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "type",
+            "room_id",
+            "producer_id",
+            "v"
+          ],
+          "type": "object"
+        },
+        "title": "Produced"
+      },
+      "RemoveParticipant": {
+        "contentType": "application/json",
+        "name": "RemoveParticipant",
+        "payload": {
+          "description": "End a participant's participation in this session. They may rejoin.",
+          "properties": {
+            "actor_id": {
+              "type": "string"
+            },
+            "id": {
+              "type": "string"
+            },
+            "session_id": {
+              "type": "string"
+            },
+            "type": {
+              "const": "remove_participant",
+              "type": "string"
+            },
+            "v": {
+              "const": 1,
+              "default": 1,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "type",
+            "session_id",
+            "actor_id"
+          ],
+          "type": "object"
+        },
+        "title": "RemoveParticipant"
+      },
+      "ResumeConsumer": {
+        "contentType": "application/json",
+        "name": "ResumeConsumer",
+        "payload": {
+          "properties": {
+            "consumer_id": {
+              "type": "string"
+            },
+            "id": {
+              "type": "string"
+            },
+            "room_id": {
+              "type": "string"
+            },
+            "type": {
+              "const": "resume_consumer",
+              "type": "string"
+            },
+            "v": {
+              "const": 1,
+              "default": 1,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "type",
+            "room_id",
+            "consumer_id"
+          ],
+          "type": "object"
+        },
+        "title": "ResumeConsumer"
+      },
+      "TransportConnected": {
+        "contentType": "application/json",
+        "name": "TransportConnected",
+        "payload": {
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "room_id": {
+              "type": "string"
+            },
+            "transport_id": {
+              "type": "string"
+            },
+            "type": {
+              "const": "transport_connected",
+              "type": "string"
+            },
+            "v": {
+              "const": 1,
+              "default": 1,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "type",
+            "room_id",
+            "transport_id",
+            "v"
+          ],
+          "type": "object"
+        },
+        "title": "TransportConnected"
+      },
+      "TransportCreated": {
+        "contentType": "application/json",
+        "name": "TransportCreated",
+        "payload": {
+          "properties": {
+            "dtls_parameters": {
+              "type": "string"
+            },
+            "ice_candidates": {
+              "type": "string"
+            },
+            "ice_parameters": {
+              "type": "string"
+            },
+            "id": {
+              "type": "string"
+            },
+            "room_id": {
+              "type": "string"
+            },
+            "transport_id": {
+              "type": "string"
+            },
+            "type": {
+              "const": "transport_created",
+              "type": "string"
+            },
+            "v": {
+              "const": 1,
+              "default": 1,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "type",
+            "room_id",
+            "transport_id",
+            "ice_parameters",
+            "ice_candidates",
+            "dtls_parameters",
+            "v"
+          ],
+          "type": "object"
+        },
+        "title": "TransportCreated"
+      },
+      "UnblockPrincipal": {
+        "contentType": "application/json",
+        "name": "UnblockPrincipal",
+        "payload": {
+          "properties": {
+            "actor_id": {
+              "type": "string"
+            },
+            "id": {
+              "type": "string"
+            },
+            "room_id": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "session_id": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "type": {
+              "const": "unblock_principal",
+              "type": "string"
+            },
+            "v": {
+              "const": 1,
+              "default": 1,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "type",
+            "actor_id"
+          ],
+          "type": "object"
+        },
+        "title": "UnblockPrincipal"
+      },
+      "UnmuteParticipant": {
+        "contentType": "application/json",
+        "name": "UnmuteParticipant",
+        "payload": {
+          "description": "Clear a mute. A target may clear its own temporary mute; a permanent one\nneeds a moderator.",
+          "properties": {
+            "actor_id": {
+              "type": "string"
+            },
+            "id": {
+              "type": "string"
+            },
+            "session_id": {
+              "type": "string"
+            },
+            "source": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "type": {
+              "const": "unmute_participant",
+              "type": "string"
+            },
+            "v": {
+              "const": 1,
+              "default": 1,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "type",
+            "session_id",
+            "actor_id"
+          ],
+          "type": "object"
+        },
+        "title": "UnmuteParticipant"
+      },
+      "Welcome": {
+        "contentType": "application/json",
+        "name": "Welcome",
+        "payload": {
+          "properties": {
+            "connection_id": {
+              "type": "string"
+            },
+            "id": {
+              "type": "string"
+            },
+            "type": {
+              "const": "welcome",
+              "type": "string"
+            },
+            "v": {
+              "const": 1,
+              "default": 1,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "type",
+            "connection_id",
+            "v"
+          ],
+          "type": "object"
+        },
+        "title": "Welcome"
+      }
+    }
+  },
+  "info": {
+    "description": "JSON signaling over /v1/ws. The API receives client messages and sends server messages. Authenticate with a bearer token on the upgrade request or an auth message before other messages.",
+    "title": "Mahfel WebSocket API",
+    "version": "1.0.0"
+  },
+  "operations": {
+    "receiveClientMessage": {
+      "action": "receive",
+      "channel": {
+        "$ref": "#/channels/signaling"
+      },
+      "messages": [
+        {
+          "$ref": "#/components/messages/Auth"
+        },
+        {
+          "$ref": "#/components/messages/ClientEcho"
+        },
+        {
+          "$ref": "#/components/messages/ClientBroadcast"
+        },
+        {
+          "$ref": "#/components/messages/Join"
+        },
+        {
+          "$ref": "#/components/messages/Leave"
+        },
+        {
+          "$ref": "#/components/messages/MuteParticipant"
+        },
+        {
+          "$ref": "#/components/messages/UnmuteParticipant"
+        },
+        {
+          "$ref": "#/components/messages/RemoveParticipant"
+        },
+        {
+          "$ref": "#/components/messages/BlockPrincipal"
+        },
+        {
+          "$ref": "#/components/messages/UnblockPrincipal"
+        },
+        {
+          "$ref": "#/components/messages/CreateTransport"
+        },
+        {
+          "$ref": "#/components/messages/ConnectTransport"
+        },
+        {
+          "$ref": "#/components/messages/Produce"
+        },
+        {
+          "$ref": "#/components/messages/Consume"
+        },
+        {
+          "$ref": "#/components/messages/PauseConsumer"
+        },
+        {
+          "$ref": "#/components/messages/ResumeConsumer"
+        }
+      ]
+    },
+    "sendServerMessage": {
+      "action": "send",
+      "channel": {
+        "$ref": "#/channels/signaling"
+      },
+      "messages": [
+        {
+          "$ref": "#/components/messages/Welcome"
+        },
+        {
+          "$ref": "#/components/messages/Echo"
+        },
+        {
+          "$ref": "#/components/messages/Broadcast"
+        },
+        {
+          "$ref": "#/components/messages/Error"
+        },
+        {
+          "$ref": "#/components/messages/Bye"
+        },
+        {
+          "$ref": "#/components/messages/Joined"
+        },
+        {
+          "$ref": "#/components/messages/Left"
+        },
+        {
+          "$ref": "#/components/messages/JoinWaiting"
+        },
+        {
+          "$ref": "#/components/messages/ParticipantJoined"
+        },
+        {
+          "$ref": "#/components/messages/ParticipantLeft"
+        },
+        {
+          "$ref": "#/components/messages/ActiveSpeakers"
+        },
+        {
+          "$ref": "#/components/messages/JoinRejected"
+        },
+        {
+          "$ref": "#/components/messages/ParticipantMuted"
+        },
+        {
+          "$ref": "#/components/messages/ParticipantUnmuted"
+        },
+        {
+          "$ref": "#/components/messages/ParticipantRemoved"
+        },
+        {
+          "$ref": "#/components/messages/PrincipalBlocked"
+        },
+        {
+          "$ref": "#/components/messages/PrincipalUnblocked"
+        },
+        {
+          "$ref": "#/components/messages/TransportCreated"
+        },
+        {
+          "$ref": "#/components/messages/TransportConnected"
+        },
+        {
+          "$ref": "#/components/messages/Produced"
+        },
+        {
+          "$ref": "#/components/messages/Consumed"
+        },
+        {
+          "$ref": "#/components/messages/ConsumerPaused"
+        },
+        {
+          "$ref": "#/components/messages/ConsumerResumed"
+        }
+      ]
+    }
+  }
+}

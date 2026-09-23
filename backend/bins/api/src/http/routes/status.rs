@@ -17,7 +17,9 @@ pub(crate) fn route() -> Router<AppState> {
 #[utoipa::path(
     get,
     path = "/v1/status",
+    summary = "Get service status",
     tag = "status",
+    security(()),
     responses((status = 200, description = "Service status", body = StatusResponse)),
 )]
 pub(crate) async fn status(State(state): State<AppState>) -> Json<StatusResponse> {

@@ -6,14 +6,15 @@ use axum::{
 use mahfel_application::ErrorKind;
 use serde::Serialize;
 use serde_json::Value;
+use utoipa::ToSchema;
 
-#[derive(Debug, Serialize)]
-struct ErrorBody {
+#[derive(Debug, Serialize, ToSchema)]
+pub(crate) struct ErrorBody {
     error: ErrorDetail,
 }
 
-#[derive(Debug, Serialize)]
-struct ErrorDetail {
+#[derive(Debug, Serialize, ToSchema)]
+pub(crate) struct ErrorDetail {
     code: String,
     message: String,
     #[serde(skip_serializing_if = "Option::is_none")]

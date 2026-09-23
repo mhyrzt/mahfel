@@ -8,4 +8,5 @@ mod code;
 mod mapping;
 
 pub use api_error::ApiError;
+pub(crate) use api_error::{ErrorBody, ErrorDetail};
 pub(crate) use mapping::api_error_from;

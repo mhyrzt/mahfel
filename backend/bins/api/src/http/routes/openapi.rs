@@ -1,16 +1,70 @@
 use utoipa::OpenApi;
+use utoipa::openapi::security::{HttpAuthScheme, HttpBuilder, SecurityScheme};
+use utoipa::openapi::{Content, Ref, RefOr, path::Operation};
 
-/// REST contract generated from the transport handlers and schemas.
-///
-/// The WebSocket gateway is intentionally absent: it is not REST (ADR 0015).
+struct AuthScheme;
+
+impl utoipa::Modify for AuthScheme {
+    fn modify(&self, doc: &mut utoipa::openapi::OpenApi) {
+        doc.components
+            .get_or_insert_with(Default::default)
+            .add_security_scheme(
+            "bearerAuth",
+            SecurityScheme::Http(
+                HttpBuilder::new()
+                    .scheme(HttpAuthScheme::Bearer)
+                    .description(Some(
+                        "Keycloak access token, or a Mahfel service principal key where supported",
+                    ))
+                    .build(),
+            ),
+        );
+        for path in doc.paths.paths.values_mut() {
+            for operation in [
+                &mut path.get,
+                &mut path.put,
+                &mut path.post,
+                &mut path.delete,
+                &mut path.options,
+                &mut path.head,
+                &mut path.patch,
+                &mut path.trace,
+            ]
+            .into_iter()
+            .flatten()
+            {
+                document_error_responses(operation);
+            }
+        }
+    }
+}
+
+fn document_error_responses(operation: &mut Operation) {
+    for (status, response) in &mut operation.responses.responses {
+        if !status.starts_with('4') && !status.starts_with('5') {
+            continue;
+        }
+        let RefOr::T(response) = response else {
+            continue;
+        };
+        if response.content.is_empty() {
+            response.content.insert(
+                "application/json".to_owned(),
+                Content::new(Some(Ref::from_schema_name("ErrorBody"))),
+            );
+        }
+    }
+}
+
 #[derive(OpenApi)]
 #[openapi(
     info(
         title = "Mahfel API",
         version = env!("CARGO_PKG_VERSION"),
-        description = "Control-plane REST API. Requests are authenticated with a Keycloak access \
-                       token that the API verifies as a resource server (ADR 0019)."
+        description = "Control-plane REST API. Protected routes use Authorization: Bearer. User requests use Keycloak access tokens; supported service-principal routes also accept Mahfel keys. Provisioning requires a Keycloak access token."
     ),
+    modifiers(&AuthScheme),
+    security(("bearerAuth" = [])),
     paths(
         super::status::status,
         super::health::health,
@@ -65,6 +119,8 @@ use utoipa::OpenApi;
         crate::http::turn::turn_credentials,
     ),
     components(schemas(
+        crate::http::error::ErrorBody,
+        crate::http::error::ErrorDetail,
         super::status::StatusResponse,
         super::health::HealthResponse,
         super::identity::ProfileResponse,

@@ -1,110 +1,75 @@
-use anyhow::Result;
-use std::{ffi::OsStr, path::PathBuf};
+use std::path::PathBuf;
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+use clap::{Parser, Subcommand};
+
+#[derive(Parser)]
+#[command(name = "mahfel-api")]
+struct Cli {
+    #[command(subcommand)]
+    command: Option<Command>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Subcommand)]
 pub(crate) enum Command {
     Serve,
     Migrate,
-    OpenApiExport {
-        path: PathBuf,
+    ApiDocs {
+        #[command(subcommand)]
+        command: ApiDocsCommand,
     },
-    /// Apply development seeds. An explicit file or directory overrides the
-    /// embedded defaults.
     Seed {
         path: Option<PathBuf>,
     },
 }
 
-pub(crate) fn command() -> Result<Command> {
-    parse(std::env::args_os().skip(1))
+#[derive(Clone, Debug, Eq, PartialEq, Subcommand)]
+pub(crate) enum ApiDocsCommand {
+    Export {
+        #[arg(default_value = "specs")]
+        directory: PathBuf,
+    },
 }
 
-fn parse(mut arguments: impl Iterator<Item = std::ffi::OsString>) -> Result<Command> {
-    let Some(command) = arguments.next() else {
-        return Ok(Command::Serve);
-    };
-    match command.as_os_str() {
-        value if value == OsStr::new("serve") => {
-            reject_extra(&mut arguments, "serve")?;
-            Ok(Command::Serve)
-        }
-        value if value == OsStr::new("migrate") => {
-            reject_extra(&mut arguments, "migrate")?;
-            Ok(Command::Migrate)
-        }
-        value if value == OsStr::new("openapi") => parse_openapi(&mut arguments),
-        value if value == OsStr::new("seed") => {
-            let path = arguments
-                .next()
-                .filter(|arg| !arg.is_empty())
-                .map(PathBuf::from);
-            reject_extra(&mut arguments, "seed")?;
-            Ok(Command::Seed { path })
-        }
-        value => anyhow::bail!("unknown command: {}", value.to_string_lossy()),
-    }
-}
-
-fn parse_openapi(arguments: &mut impl Iterator<Item = std::ffi::OsString>) -> Result<Command> {
-    let Some(action) = arguments.next() else {
-        anyhow::bail!("missing command after `openapi`; expected `export`");
-    };
-    if action != OsStr::new("export") {
-        anyhow::bail!(
-            "unknown openapi command: {}; expected `export`",
-            action.to_string_lossy()
-        );
-    }
-    let path = arguments
-        .next()
-        .filter(|value| !value.is_empty())
-        .map(PathBuf::from)
-        .unwrap_or_else(|| PathBuf::from("openapi/mahfel-api.json"));
-    reject_extra(arguments, "openapi export")?;
-    Ok(Command::OpenApiExport { path })
-}
-
-fn reject_extra(
-    arguments: &mut impl Iterator<Item = std::ffi::OsString>,
-    name: &str,
-) -> Result<()> {
-    if arguments.next().is_some() {
-        anyhow::bail!("unexpected extra arguments for `{name}`");
-    }
-    Ok(())
+pub(crate) fn command() -> Command {
+    Cli::parse().command.unwrap_or(Command::Serve)
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{Command, parse};
-    use std::{ffi::OsString, path::PathBuf};
-
-    fn parse_values(values: &[&str]) -> anyhow::Result<Command> {
-        parse(values.iter().map(OsString::from))
-    }
+    use super::{ApiDocsCommand, Cli, Command};
+    use clap::Parser;
+    use std::path::PathBuf;
 
     #[test]
-    fn defaults_openapi_export_to_the_repository_artifact() {
+    fn defaults_api_docs_export_to_the_repository_directory() {
+        let cli =
+            Cli::try_parse_from(["mahfel-api", "api-docs", "export"]).expect("command parses");
         assert_eq!(
-            parse_values(&["openapi", "export"]).expect("command parses"),
-            Command::OpenApiExport {
-                path: PathBuf::from("openapi/mahfel-api.json"),
-            }
+            cli.command,
+            Some(Command::ApiDocs {
+                command: ApiDocsCommand::Export {
+                    directory: PathBuf::from("specs"),
+                },
+            })
         );
     }
 
     #[test]
-    fn accepts_an_openapi_export_path() {
+    fn accepts_an_api_docs_export_directory() {
+        let cli = Cli::try_parse_from(["mahfel-api", "api-docs", "export", "contracts"])
+            .expect("command parses");
         assert_eq!(
-            parse_values(&["openapi", "export", "contract.json"]).expect("command parses"),
-            Command::OpenApiExport {
-                path: PathBuf::from("contract.json"),
-            }
+            cli.command,
+            Some(Command::ApiDocs {
+                command: ApiDocsCommand::Export {
+                    directory: PathBuf::from("contracts"),
+                },
+            })
         );
     }
 
     #[test]
-    fn rejects_unknown_openapi_commands() {
-        assert!(parse_values(&["openapi", "serve"]).is_err());
+    fn rejects_unknown_api_docs_commands() {
+        assert!(Cli::try_parse_from(["mahfel-api", "api-docs", "serve"]).is_err());
     }
 }

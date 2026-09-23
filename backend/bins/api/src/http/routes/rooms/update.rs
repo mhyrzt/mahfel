@@ -13,6 +13,7 @@ use uuid::Uuid;
 #[utoipa::path(
     patch,
     path = "/v1/rooms/{room_id}",
+    summary = "Update a room",
     tag = "rooms",
     params(("room_id" = String, Path, description = "Room identifier (UUID)")),
     request_body = UpdateRoomRequest,

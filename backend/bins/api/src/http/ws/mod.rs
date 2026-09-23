@@ -1,3 +1,4 @@
+pub(crate) mod asyncapi;
 mod config;
 mod connection;
 mod envelope;

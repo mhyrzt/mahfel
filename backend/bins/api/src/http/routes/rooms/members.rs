@@ -13,6 +13,7 @@ use uuid::Uuid;
 #[utoipa::path(
     post,
     path = "/v1/rooms/{room_id}/members",
+    summary = "Add a room member",
     tag = "rooms",
     params(("room_id" = String, Path, description = "Room identifier (UUID)")),
     request_body = AddMemberRequest,
@@ -44,6 +45,7 @@ pub(crate) async fn add(
 #[utoipa::path(
     delete,
     path = "/v1/rooms/{room_id}/members/{user_id}",
+    summary = "Remove a room member",
     tag = "rooms",
     params(
         ("room_id" = String, Path, description = "Room identifier (UUID)"),

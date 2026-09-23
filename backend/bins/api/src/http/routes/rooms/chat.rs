@@ -77,6 +77,7 @@ pub(crate) struct EditChatMessageRequest {
 #[utoipa::path(
     get,
     path = "/v1/rooms/{room_id}/messages",
+    summary = "List room messages",
     operation_id = "listRoomMessages",
     tag = "chat",
     params(
@@ -121,6 +122,7 @@ pub(crate) async fn list_messages(
 #[utoipa::path(
     post,
     path = "/v1/rooms/{room_id}/messages",
+    summary = "Send a room message",
     operation_id = "createRoomMessage",
     tag = "chat",
     params(("room_id" = Uuid, Path, description = "Room chat channel")),
@@ -153,6 +155,7 @@ pub(crate) async fn create_message(
 #[utoipa::path(
     patch,
     path = "/v1/rooms/{room_id}/messages/{message_id}",
+    summary = "Edit a room message",
     operation_id = "editRoomMessage",
     tag = "chat",
     params(
@@ -190,6 +193,7 @@ pub(crate) async fn edit_message(
 #[utoipa::path(
     delete,
     path = "/v1/rooms/{room_id}/messages/{message_id}",
+    summary = "Delete a room message",
     operation_id = "deleteRoomMessage",
     tag = "chat",
     params(

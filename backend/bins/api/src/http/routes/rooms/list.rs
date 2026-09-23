@@ -9,6 +9,7 @@ use mahfel_application::rooms::list_joined;
 #[utoipa::path(
     get,
     path = "/v1/rooms",
+    summary = "List rooms",
     tag = "rooms",
     params(
         ("page" = Option<u64>, Query, description = "Page number, 1-based"),
