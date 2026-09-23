@@ -375,6 +375,31 @@ impl SessionStore for FakeSessionStore {
         })
     }
 
+    fn save_details<'a>(
+        &'a self,
+        session: &'a Session,
+        fields: mahfel_application::ports::SessionDetailsFields,
+    ) -> BoxFuture<'a, Result<Session, StoreError>> {
+        Box::pin(async move {
+            let mut sessions = self.sessions.lock().expect("fake store lock");
+            let slot = sessions
+                .iter_mut()
+                .find(|existing| existing.id == session.id)
+                .ok_or_else(|| StoreError::NotFound(session.id.to_string()))?;
+            if fields.title {
+                slot.title = session.title.clone();
+            }
+            if fields.scheduled_start_at {
+                slot.scheduled_start_at = session.scheduled_start_at;
+            }
+            if fields.scheduled_duration_minutes {
+                slot.scheduled_duration_minutes = session.scheduled_duration_minutes;
+            }
+            slot.updated_at = session.updated_at;
+            Ok(slot.clone())
+        })
+    }
+
     fn list_for_room(&self, room_id: RoomId) -> BoxFuture<'_, Result<Vec<Session>, StoreError>> {
         Box::pin(async move {
             Ok(self
@@ -2222,8 +2247,6 @@ async fn malformed_room_id_maps_to_error_envelope() {
     assert_eq!(error_code(&json), Some("invalid_input"));
 }
 
-// --- Session lifecycle transport tests (TASK-26) ---
-
 /// Router with a supplied room and session store, optionally authenticated.
 fn session_app(
     principal: Option<Principal>,
@@ -2318,6 +2341,79 @@ async fn manager_can_schedule_start_and_end_a_session() {
     assert_eq!(resp.status(), StatusCode::OK);
     let json = response_json(resp).await;
     assert_eq!(json.as_array().map(Vec::len), Some(1));
+}
+
+#[tokio::test]
+async fn session_details_patch_preserves_omitted_fields_and_allows_ended_edits() {
+    let rooms = FakeRoomStore::default();
+    let mut room = rooms.seed_room("Algebra", principal().actor_id, RoomVisibility::InviteOnly);
+    let app = session_app(
+        Some(principal()),
+        rooms.clone(),
+        FakeSessionStore::default(),
+    );
+    let created = send_json(
+        &app,
+        Method::POST,
+        &format!("/v1/rooms/{}/sessions", room.id),
+        r#"{"title":"Lesson","scheduled_duration_minutes":90}"#,
+    )
+    .await;
+    assert_eq!(created.status(), StatusCode::CREATED);
+    let json = response_json(created).await;
+    assert_eq!(json["title"], "Lesson");
+    assert_eq!(json["scheduled_duration_minutes"], 90);
+    let id = json["id"].as_str().expect("session id");
+
+    let ended = send_json(&app, Method::POST, &format!("/v1/sessions/{id}/start"), "").await;
+    assert_eq!(ended.status(), StatusCode::OK);
+    let ended = send_json(&app, Method::POST, &format!("/v1/sessions/{id}/end"), "").await;
+    assert_eq!(ended.status(), StatusCode::OK);
+
+    let changed = send_json(
+        &app,
+        Method::PATCH,
+        &format!("/v1/sessions/{id}"),
+        r#"{"title":"After class"}"#,
+    )
+    .await;
+    assert_eq!(changed.status(), StatusCode::OK);
+    let json = response_json(changed).await;
+    assert_eq!(json["status"], "ended");
+    assert_eq!(json["title"], "After class");
+    assert_eq!(json["scheduled_duration_minutes"], 90);
+
+    let cleared = send_json(
+        &app,
+        Method::PATCH,
+        &format!("/v1/sessions/{id}"),
+        r#"{"title":null,"scheduled_duration_minutes":null}"#,
+    )
+    .await;
+    assert_eq!(cleared.status(), StatusCode::OK);
+    let json = response_json(cleared).await;
+    assert_eq!(json["title"], "Algebra");
+    assert_eq!(json["title_overridden"], false);
+    assert!(json["scheduled_duration_minutes"].is_null());
+
+    room.rename(
+        RoomTitle::new("Renamed room".to_owned()).expect("title"),
+        OffsetDateTime::now_utc(),
+    )
+    .expect("rename");
+    rooms.save(&room).await.expect("save room");
+    let fetched = send_json(&app, Method::GET, &format!("/v1/sessions/{id}"), "").await;
+    assert_eq!(fetched.status(), StatusCode::OK);
+    assert_eq!(response_json(fetched).await["title"], "Renamed room");
+
+    let invalid = send_json(
+        &app,
+        Method::PATCH,
+        &format!("/v1/sessions/{id}"),
+        r#"{"scheduled_duration_minutes":10081}"#,
+    )
+    .await;
+    assert_eq!(invalid.status(), StatusCode::UNPROCESSABLE_ENTITY);
 }
 
 #[tokio::test]
@@ -2427,8 +2523,6 @@ async fn session_routes_require_authentication() {
     .await;
     assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
 }
-
-// --- Session capability introspection (TASK-124) ---
 
 /// Router whose authorization uses the real policy, so the capability endpoint
 /// answers from resolved membership rather than a test fake.
@@ -2713,8 +2807,6 @@ async fn wait_for_metric(registry: &prometheus::Registry, needle: &str) {
     }
     panic!("metric not observed: {needle}");
 }
-
-// --- Real-token WS helpers (TASK-121) ---
 
 const WS_ISSUER_AUDIENCE: &str = "mahfel-api";
 const WS_KEY_ID: &str = "test-key";
@@ -3065,7 +3157,7 @@ async fn websocket_rejects_clients_at_capacity() {
     wait_for_metric(&harness.registry, "websocket_connections_rejected_total 1").await;
 }
 
-// Real-token WS integration tests (TASK-121)
+// Real-token WS integration tests
 
 #[tokio::test]
 async fn ws_header_auth_with_valid_token_succeeds() {
@@ -3271,8 +3363,6 @@ async fn ws_auth_times_out_if_no_frame() {
     )
     .await;
 }
-
-// --- Service principal transport tests (TASK-114) ---
 
 /// Router with shared service principal seams and a supplied room store.
 fn service_app(
@@ -3988,8 +4078,6 @@ async fn speaker_snapshots_reach_only_joined_connections_with_stable_participant
     assert!(late_snapshot.contains(participant_id), "{late_snapshot}");
 }
 
-// --- Participation record transport tests (TASK-123) ---
-
 /// Router whose participation store the caller controls, so interval fixtures
 /// can be seeded directly.
 fn participation_app(
@@ -4248,8 +4336,6 @@ async fn a_non_manager_cannot_correct_an_interval() {
 
     assert_eq!(resp.status(), StatusCode::FORBIDDEN);
 }
-
-// --- Invite link transport tests (TASK-129) ---
 
 /// Router whose invite store the caller controls, so link fixtures and
 /// collision retries can be driven directly.
@@ -4645,8 +4731,6 @@ async fn an_unknown_link_id_is_not_found() {
     assert_eq!(resp.status(), StatusCode::NOT_FOUND);
 }
 
-// --- Admission and lobby transport tests (M4-06) ---
-
 /// Router whose admission store the caller controls.
 fn admission_app(
     principal: Option<Principal>,
@@ -4976,8 +5060,6 @@ async fn deciding_a_request_that_is_not_waiting_is_a_conflict() {
     assert_eq!(resp.status(), StatusCode::CONFLICT);
 }
 
-// --- Invite redemption transport tests (TASK-130 / M4-14) ---
-
 #[tokio::test]
 async fn redeeming_a_room_link_reports_waiting() {
     let manager = ActorId::new();
@@ -5110,7 +5192,6 @@ async fn redemption_requires_authentication() {
     assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
 }
 
-// --- Moderation over WebSocket (M4-05, criterion 5) ---
 //
 // These drive the real connection handler against a real socket, so they prove
 // that a moderation action reaches the affected client as a frame rather than

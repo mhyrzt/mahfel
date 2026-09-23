@@ -1,4 +1,4 @@
-//! Session participation frames (M4-02).
+//! Session participation frames.
 //!
 //! The durable participant identity and the join authorization live in the
 //! application layer; this module is the transport adapter. It resolves the
@@ -85,8 +85,6 @@ pub(super) async fn handle_join(
         }
     }
 
-    // Deny by default: the application guard authorizes against membership and
-    // visibility, and M4-06 admission policy extends this same path.
     let (participant, room_id) = match join_session(
         state.stores.participants.as_ref(),
         state.stores.participation.as_ref(),
@@ -272,7 +270,7 @@ pub(in crate::http::ws::connection) async fn close_owned_transports(
 /// Map a join failure to a stable machine-readable code.
 ///
 /// The message never carries internal detail: a non-member must not learn
-/// whether the session exists (AC 2).
+/// whether the session exists.
 fn join_rejection_code(error: &SessionOperationError) -> &'static str {
     match error {
         SessionOperationError::NotFound => "not_found",
@@ -283,5 +281,6 @@ fn join_rejection_code(error: &SessionOperationError) -> &'static str {
         | SessionOperationError::Participant(_) => "conflict",
         SessionOperationError::Store(_) | SessionOperationError::Participation(_) => "unavailable",
         SessionOperationError::Admission(_) => "admission_unavailable",
+        SessionOperationError::Validation(_) => "invalid_request",
     }
 }

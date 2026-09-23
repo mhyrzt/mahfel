@@ -9,11 +9,7 @@ pub struct ListSessions {
     pub room_id: RoomId,
 }
 
-/// List a room's sessions, newest first.
-///
-/// Scoped to room managers in this task. Member visibility is deferred to the
-/// capability model (M4-04), which will express the read capability once it
-/// exists rather than hardcoding a role here.
+/// List a room's sessions, newest first. Only room managers may read the list.
 pub async fn list_sessions<R, S>(
     sessions: &R,
     rooms: &S,

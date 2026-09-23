@@ -7,9 +7,7 @@ use mahfel_application::sessions::{ListSessions, list_sessions as run_list_sessi
 use mahfel_domain::RoomId;
 use uuid::Uuid;
 
-/// Manager-scoped in this task; member visibility arrives with the capability
-/// model (M4-04). A room holds a bounded number of occurrences, so the list is
-/// returned whole rather than paginated.
+/// List a room's sessions for a manager, newest first.
 #[utoipa::path(
     get,
     path = "/v1/rooms/{room_id}/sessions",
@@ -36,7 +34,16 @@ pub(crate) async fn list_sessions(
         },
     )
     .await?;
+    let room = state
+        .rooms
+        .get(RoomId::from_uuid(room_id))
+        .await
+        .map_err(|_| ApiError::internal("room lookup failed"))?
+        .ok_or_else(|| ApiError::internal("room missing"))?;
     Ok(Json(
-        sessions.into_iter().map(SessionResponse::from).collect(),
+        sessions
+            .into_iter()
+            .map(|session| SessionResponse::from_session(session, room.title.as_str()))
+            .collect(),
     ))
 }

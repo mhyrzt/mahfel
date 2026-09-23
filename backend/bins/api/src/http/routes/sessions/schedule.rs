@@ -1,4 +1,4 @@
-use super::dto::{CreateSessionRequest, SessionResponse};
+use super::dto::{CreateSessionRequest, SessionResponse, response_with_room};
 use crate::http::{
     auth::Authenticated,
     error::ApiError,
@@ -13,15 +13,17 @@ use uuid::Uuid;
 #[utoipa::path(
     post,
     path = "/v1/rooms/{room_id}/sessions",
+    summary = "Schedule a session",
     tag = "sessions",
     params(("room_id" = String, Path, description = "Room identifier (UUID)")),
     request_body = CreateSessionRequest,
     responses(
         (status = 201, description = "Session scheduled", body = SessionResponse),
         (status = 401, description = "Authentication required"),
-        (status = 403, description = "Caller is not a manager"),
+        (status = 403, description = "Caller lacks manage_session"),
         (status = 404, description = "Room does not exist or the caller is not a member"),
         (status = 409, description = "A live session already exists for the room"),
+        (status = 422, description = "Invalid title or advisory duration"),
     ),
 )]
 pub(crate) async fn schedule(
@@ -34,11 +36,16 @@ pub(crate) async fn schedule(
         state.sessions.as_ref(),
         state.rooms.as_ref(),
         ScheduleSession {
-            actor: principal.actor_id,
+            principal,
             room_id: RoomId::from_uuid(room_id),
+            title: body.title,
             scheduled_start_at: body.scheduled_start_at,
+            scheduled_duration_minutes: body.scheduled_duration_minutes,
         },
     )
     .await?;
-    Ok((StatusCode::CREATED, Json(session.into())))
+    Ok((
+        StatusCode::CREATED,
+        Json(response_with_room(&state, session).await?),
+    ))
 }

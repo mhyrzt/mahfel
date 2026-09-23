@@ -1,4 +1,4 @@
-//! Redemption tests: the AC 1-5 surface.
+//! Invite redemption tests.
 //!
 //! These live in the application crate because redemption is the use case that
 //! has to hold the non-enumerating and rate-limit properties together.
@@ -227,6 +227,31 @@ impl SessionStore for FakeSessions {
                 *slot = session.clone();
             }
             Ok(())
+        })
+    }
+
+    fn save_details<'a>(
+        &'a self,
+        session: &'a Session,
+        fields: crate::ports::SessionDetailsFields,
+    ) -> BoxFuture<'a, Result<Session, StoreError>> {
+        Box::pin(async move {
+            let mut sessions = self.sessions.lock().expect("lock");
+            let slot = sessions
+                .iter_mut()
+                .find(|existing| existing.id == session.id)
+                .ok_or_else(|| StoreError::NotFound(session.id.to_string()))?;
+            if fields.title {
+                slot.title = session.title.clone();
+            }
+            if fields.scheduled_start_at {
+                slot.scheduled_start_at = session.scheduled_start_at;
+            }
+            if fields.scheduled_duration_minutes {
+                slot.scheduled_duration_minutes = session.scheduled_duration_minutes;
+            }
+            slot.updated_at = session.updated_at;
+            Ok(slot.clone())
         })
     }
 
@@ -842,10 +867,7 @@ async fn an_existing_member_skips_the_lobby() {
     let redeemed = redeem(&f, member, link.code.as_str())
         .await
         .expect("redeem");
-    assert!(
-        !redeemed.is_waiting(),
-        "an explicit member never waits (AC 1)"
-    );
+    assert!(!redeemed.is_waiting(), "an explicit member never waits");
     assert!(
         f.admissions.all().is_empty(),
         "no request is queued for a member"
@@ -907,8 +929,6 @@ async fn every_unusable_code_returns_the_same_error() {
 #[tokio::test]
 async fn a_link_whose_target_is_gone_fails_closed() {
     let f = fixture();
-    // TASK-129 defers reaping, so a row can outlive its target. It must not be
-    // redeemable, and the failure must not be distinguishable.
     let link = link_for(&f, InviteTarget::Session(SessionId::new()), 7);
 
     let result = redeem(&f, ActorId::new(), link.code.as_str()).await;
@@ -972,7 +992,7 @@ async fn approving_a_room_link_grants_membership_and_never_management() {
 
     assert!(
         grant.participant().is_none(),
-        "a room approval grants membership, not session participation (AC 3)"
+        "a room approval grants membership, not session participation"
     );
     let membership = f
         .rooms
@@ -1014,7 +1034,7 @@ async fn approving_a_session_link_grants_no_membership() {
 
     assert!(
         grant.participant().is_some(),
-        "a session approval admits to that session (AC 2)"
+        "a session approval admits to that session"
     );
     assert!(
         !f.rooms.is_member(f.room.id, newcomer),
@@ -1133,10 +1153,7 @@ async fn a_member_who_cannot_manage_cannot_decide() {
         OffsetDateTime::now_utc(),
     )
     .await;
-    assert!(
-        result.is_err(),
-        "a plain member must not approve an invite (AC 4)"
-    );
+    assert!(result.is_err(), "a plain member must not approve an invite");
     assert!(
         !f.rooms.is_member(f.room.id, newcomer),
         "a denied decision grants nothing"
@@ -1172,6 +1189,6 @@ async fn rejecting_terminates_the_waiting_state_and_grants_nothing() {
             .all()
             .iter()
             .all(|request| !request.is_pending()),
-        "rejection ends the waiting state (AC 4)"
+        "rejection ends the waiting state"
     );
 }

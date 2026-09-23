@@ -1,9 +1,10 @@
 use mahfel_application::ports::{
-    MediaPlacement, MediaPlacementStore, RoomStore, SessionStore, StoreError, UserStore,
+    MediaPlacement, MediaPlacementStore, RoomStore, SessionDetailsFields, SessionStore, StoreError,
+    UserStore,
 };
 use mahfel_domain::{
     DisplayName, NodeId, Room, RoomId, RoomMember, RoomRole, RoomTitle, RoomVisibility, Session,
-    SessionStatus, User,
+    SessionDurationMinutes, SessionStatus, SessionTitle, User,
 };
 use mahfel_postgres::{
     ConnectionSettings, PoolSettings, PostgresMediaPlacementStore, PostgresRoomStore,
@@ -135,7 +136,13 @@ async fn verify_sessions(pool: &PgPool) -> Result<(), Box<dyn Error>> {
         .await?;
 
     // Two scheduled sessions for one room.
-    let first = Session::schedule(room.id, None, now);
+    let mut first = Session::schedule(room.id, None, now);
+    first.set_details(
+        Some(SessionTitle::new("Lecture".to_owned())?),
+        None,
+        Some(SessionDurationMinutes::new(90)?),
+        now,
+    );
     sessions.insert(&first).await?;
     let second = Session::schedule(room.id, None, now + Duration::from_secs(1));
     sessions.insert(&second).await?;
@@ -148,10 +155,73 @@ async fn verify_sessions(pool: &PgPool) -> Result<(), Box<dyn Error>> {
         "another room has no sessions"
     );
 
+    let stale_details = first.clone();
+    let invalid_duration =
+        sqlx::query("UPDATE mahfel.sessions SET scheduled_duration_minutes = 10081 WHERE id = $1")
+            .bind(first.id.as_uuid())
+            .execute(pool)
+            .await;
+    assert!(
+        invalid_duration.is_err(),
+        "database must reject overlong duration"
+    );
+    let invalid_title = sqlx::query("UPDATE mahfel.sessions SET title = '' WHERE id = $1")
+        .bind(first.id.as_uuid())
+        .execute(pool)
+        .await;
+    assert!(invalid_title.is_err(), "database must reject empty title");
+
     // Only one session may be live at a time; the losing write conflicts.
-    let mut first = first;
     first.start(now + Duration::from_secs(1))?;
     sessions.save(&first).await?;
+    let mut stale_details = stale_details;
+    stale_details.set_details(None, None, None, now + Duration::from_secs(2));
+    let after_details = sessions
+        .save_details(
+            &stale_details,
+            SessionDetailsFields {
+                title: true,
+                scheduled_start_at: true,
+                scheduled_duration_minutes: true,
+            },
+        )
+        .await?;
+    assert_eq!(after_details.status, SessionStatus::Live);
+    assert!(after_details.title.is_none());
+    assert!(after_details.scheduled_duration_minutes.is_none());
+
+    // Two edits based on the same old row must preserve independently
+    // supplied fields even when they finish in sequence.
+    let mut title_edit = after_details.clone();
+    let mut duration_edit = after_details.clone();
+    title_edit.title = Some(SessionTitle::new("Revised".to_owned())?);
+    duration_edit.scheduled_duration_minutes = Some(SessionDurationMinutes::new(45)?);
+    sessions
+        .save_details(
+            &title_edit,
+            SessionDetailsFields {
+                title: true,
+                ..SessionDetailsFields::default()
+            },
+        )
+        .await?;
+    let combined = sessions
+        .save_details(
+            &duration_edit,
+            SessionDetailsFields {
+                scheduled_duration_minutes: true,
+                ..SessionDetailsFields::default()
+            },
+        )
+        .await?;
+    assert_eq!(
+        combined.title.as_ref().map(SessionTitle::as_str),
+        Some("Revised")
+    );
+    assert_eq!(
+        combined.scheduled_duration_minutes.map(|value| value.get()),
+        Some(45)
+    );
 
     let mut second = second;
     second.start(now + Duration::from_secs(2))?;

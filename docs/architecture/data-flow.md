@@ -34,11 +34,11 @@ sequenceDiagram
   participant A as mahfel-api
   participant P as PostgreSQL
   C->>A: POST /v1/rooms/{room_id}/sessions
-  A->>P: Require manager membership of the room
+  A->>P: Resolve manage_session for the room
   A->>P: Insert session (scheduled)
   A-->>C: 201 session
   C->>A: POST /v1/sessions/{session_id}/start
-  A->>P: Require manager membership, then update to live
+  A->>P: Resolve manage_session, then update to live
   A-->>C: 200 session (live)
   C->>A: POST /v1/sessions/{session_id}/end
   A->>P: Require manager membership, then update to ended
@@ -48,8 +48,12 @@ sequenceDiagram
 A session moves `scheduled` to `live` to `ended`, or `scheduled` to `cancelled`; any other
 transition is rejected with `409` and leaves the row unchanged. At most one session per room may be
 `live`; a partial unique index makes a concurrent second start fail with `409` instead of creating a
-second live session. Every accepted action writes a structured `audit` log line. Sessions are
-scheduled and controlled by room managers only. Member-facing join lives in the session-join flow
+second live session. The optional planned start never gates an explicit start, and the optional
+1–10080 minute duration never triggers an automatic end. A session may have a custom title; absent
+one, reads display the room's current title. `PATCH /v1/sessions/{session_id}` may change or clear
+title and advisory schedule fields in any state, including ended/cancelled, with the
+`manage_session` capability. Every accepted action writes a structured `audit` log line. Scheduling
+and starting require `manage_session`; end and cancel remain manager-scoped. Member-facing join lives in the session-join flow
 below, and connected time is recorded durably in `mahfel.participation_intervals` (M4-03): a join
 opens an interval, a leave or any transport disconnect closes it, and ending a session sweeps any
 interval still open so none outlives its session.

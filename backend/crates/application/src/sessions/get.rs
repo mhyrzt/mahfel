@@ -9,10 +9,7 @@ pub struct GetSession {
     pub session_id: SessionId,
 }
 
-/// Load one session.
-///
-/// Scoped to room managers in this task, matching [`list_sessions`](super::list_sessions);
-/// member visibility arrives with the capability model (M4-04).
+/// Load one session for a room manager.
 pub async fn get_session<R, S>(
     sessions: &R,
     rooms: &S,

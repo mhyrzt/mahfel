@@ -2,6 +2,7 @@ use crate::admission::AdmissionPolicy;
 use crate::ids::entity_id;
 use crate::room::{Room, RoomId, RoomVisibility};
 use crate::status::status_conversion;
+use crate::validation::{SessionDurationMinutes, SessionTitle};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use time::OffsetDateTime;
@@ -88,7 +89,9 @@ pub struct Session {
     pub visibility: Option<SessionVisibility>,
     /// Session-level override of the room's admission policy. `None` inherits.
     pub admission: Option<AdmissionPolicy>,
+    pub title: Option<SessionTitle>,
     pub scheduled_start_at: Option<OffsetDateTime>,
+    pub scheduled_duration_minutes: Option<SessionDurationMinutes>,
     pub started_at: Option<OffsetDateTime>,
     pub ended_at: Option<OffsetDateTime>,
     pub created_at: OffsetDateTime,
@@ -108,12 +111,29 @@ impl Session {
             status: SessionStatus::Scheduled,
             visibility: None,
             admission: None,
+            title: None,
             scheduled_start_at,
+            scheduled_duration_minutes: None,
             started_at: None,
             ended_at: None,
             created_at: now,
             updated_at: now,
         }
+    }
+
+    /// Change the optional display details in any lifecycle state. A missing
+    /// title inherits the room's current title at read time.
+    pub fn set_details(
+        &mut self,
+        title: Option<SessionTitle>,
+        scheduled_start_at: Option<OffsetDateTime>,
+        scheduled_duration_minutes: Option<SessionDurationMinutes>,
+        now: OffsetDateTime,
+    ) {
+        self.title = title;
+        self.scheduled_start_at = scheduled_start_at;
+        self.scheduled_duration_minutes = scheduled_duration_minutes;
+        self.updated_at = now;
     }
 
     pub fn start(&mut self, now: OffsetDateTime) -> Result<(), SessionError> {
@@ -239,6 +259,33 @@ mod tests {
         assert!(session.cancel(now).is_err());
         assert!(session.end(now).is_ok());
         assert_eq!(session.status, SessionStatus::Ended);
+    }
+
+    #[test]
+    fn advisory_details_do_not_drive_lifecycle() {
+        let now = OffsetDateTime::now_utc();
+        let future = now + time::Duration::days(2);
+        let mut session = Session::schedule(RoomId::new(), Some(future), now);
+        session.set_details(
+            Some(SessionTitle::new("  Seminar  ".to_owned()).expect("valid title")),
+            Some(future),
+            Some(SessionDurationMinutes::new(120).expect("valid duration")),
+            now,
+        );
+        assert_eq!(
+            session.title.as_ref().map(SessionTitle::as_str),
+            Some("Seminar")
+        );
+        assert!(
+            session.start(now).is_ok(),
+            "planned start never gates start"
+        );
+        assert_eq!(session.status, SessionStatus::Live);
+        session.end(now).expect("explicit end");
+        session.set_details(None, None, None, now);
+        assert_eq!(session.status, SessionStatus::Ended);
+        assert!(session.title.is_none());
+        assert!(session.scheduled_duration_minutes.is_none());
     }
 
     fn room_with(visibility: RoomVisibility, admission: AdmissionPolicy) -> Room {

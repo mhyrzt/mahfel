@@ -6,6 +6,7 @@ use thiserror::Error;
 /// defensive constraint; these types are the authoritative validation.
 pub const MAX_DISPLAY_NAME_LEN: usize = 200;
 pub const MAX_ROOM_TITLE_LEN: usize = 300;
+pub const MAX_SESSION_DURATION_MINUTES: u32 = 7 * 24 * 60;
 pub const MAX_ISSUER_LEN: usize = 500;
 pub const MAX_SUBJECT_LEN: usize = 500;
 pub const MAX_EMAIL_LEN: usize = 320;
@@ -67,6 +68,39 @@ impl RoomTitle {
     #[must_use]
     pub fn as_str(&self) -> &str {
         &self.0
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(transparent)]
+pub struct SessionTitle(String);
+
+impl SessionTitle {
+    pub fn new(value: String) -> Result<Self, ValidationError> {
+        validate_text(value, MAX_ROOM_TITLE_LEN).map(Self)
+    }
+
+    #[must_use]
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(transparent)]
+pub struct SessionDurationMinutes(u32);
+
+impl SessionDurationMinutes {
+    pub fn new(value: u32) -> Result<Self, ValidationError> {
+        if !(1..=MAX_SESSION_DURATION_MINUTES).contains(&value) {
+            return Err(ValidationError::InvalidFormat);
+        }
+        Ok(Self(value))
+    }
+
+    #[must_use]
+    pub const fn get(self) -> u32 {
+        self.0
     }
 }
 
@@ -165,6 +199,21 @@ mod tests {
         assert!(RoomTitle::new("ok".to_owned()).is_ok());
         let long = "a".repeat(MAX_ROOM_TITLE_LEN + 1);
         assert!(RoomTitle::new(long).is_err());
+    }
+
+    #[test]
+    fn session_details_match_room_title_and_bounded_duration() {
+        assert!(SessionTitle::new("  ".to_owned()).is_err());
+        assert!(SessionTitle::new("a".repeat(MAX_ROOM_TITLE_LEN + 1)).is_err());
+        assert_eq!(
+            SessionTitle::new("  Class  ".to_owned())
+                .expect("title")
+                .as_str(),
+            "Class"
+        );
+        assert!(SessionDurationMinutes::new(0).is_err());
+        assert!(SessionDurationMinutes::new(MAX_SESSION_DURATION_MINUTES).is_ok());
+        assert!(SessionDurationMinutes::new(MAX_SESSION_DURATION_MINUTES + 1).is_err());
     }
 
     #[test]

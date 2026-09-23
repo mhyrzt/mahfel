@@ -1,14 +1,17 @@
 use super::error::SessionOperationError;
+use crate::ports::Principal;
 use crate::ports::{RoomStore, SessionStore, StoreError};
-use crate::rooms::require_manager;
-use mahfel_domain::{ActorId, RoomId, Session};
+use crate::sessions::guard::require_manage_session;
+use mahfel_domain::{RoomId, Session, SessionDurationMinutes, SessionTitle};
 use time::OffsetDateTime;
 
 #[derive(Debug, Clone)]
 pub struct ScheduleSession {
-    pub actor: ActorId,
+    pub principal: Principal,
     pub room_id: RoomId,
+    pub title: Option<String>,
     pub scheduled_start_at: Option<OffsetDateTime>,
+    pub scheduled_duration_minutes: Option<u32>,
 }
 
 /// Manager-only: schedule a new session for a room.
@@ -24,11 +27,17 @@ where
     R: SessionStore + ?Sized,
     S: RoomStore + ?Sized,
 {
-    require_manager(rooms, command.room_id, command.actor).await?;
-    let session = Session::schedule(
-        command.room_id,
+    require_manage_session(rooms, command.room_id, &command.principal).await?;
+    let now = OffsetDateTime::now_utc();
+    let mut session = Session::schedule(command.room_id, command.scheduled_start_at, now);
+    session.set_details(
+        command.title.map(SessionTitle::new).transpose()?,
         command.scheduled_start_at,
-        OffsetDateTime::now_utc(),
+        command
+            .scheduled_duration_minutes
+            .map(SessionDurationMinutes::new)
+            .transpose()?,
+        now,
     );
     sessions
         .insert(&session)
@@ -40,7 +49,7 @@ where
     tracing::info!(
         target: "audit",
         action = "session.schedule",
-        actor_id = %command.actor,
+        actor_id = %command.principal.actor_id,
         room_id = %session.room_id,
         session_id = %session.id,
         outcome = "ok"

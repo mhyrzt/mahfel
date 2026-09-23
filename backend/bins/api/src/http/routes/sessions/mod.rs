@@ -1,6 +1,7 @@
 pub(crate) mod access;
 pub(crate) mod cancel;
 pub(crate) mod capabilities;
+pub(crate) mod details;
 pub(crate) mod dto;
 pub(crate) mod end;
 pub(crate) mod error;
@@ -21,7 +22,10 @@ pub(crate) fn route() -> Router<AppState> {
             "/rooms/{room_id}/sessions",
             get(list::list_sessions).post(schedule::schedule),
         )
-        .route("/sessions/{session_id}", get(get::get_session))
+        .route(
+            "/sessions/{session_id}",
+            get(get::get_session).patch(details::update),
+        )
         .route(
             "/sessions/{session_id}/capabilities",
             get(capabilities::get_capabilities),

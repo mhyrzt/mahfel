@@ -39,7 +39,7 @@ pub use participant_store::ParticipantStore;
 pub use participation_store::{ParticipantDuration, ParticipationStore};
 pub use room_store::RoomStore;
 pub use service_principal_store::ServicePrincipalStore;
-pub use session_store::SessionStore;
+pub use session_store::{SessionDetailsFields, SessionStore};
 pub use user_attribute::{AttributeError, UserAttributeWriter};
 pub use user_store::UserStore;
 

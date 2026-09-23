@@ -46,9 +46,15 @@ whose roles are `manager` and `member`. A room's identity is its id alone, so ti
 unique. A `Session` (table `mahfel.sessions`) is a live occurrence of a room with an explicit state
 machine — `scheduled` to `live` to `ended`, or `scheduled` to `cancelled` — and at most one session
 per room may be `live` at a time, enforced by a partial unique index so concurrent starts cannot both
-win. Scheduling, starting, ending, and cancelling are manager-only (`/v1/rooms/{room_id}/sessions`
-and `/v1/sessions/{session_id}/{start,end,cancel}`); service principals participate by being
-managers of the rooms they own, and every lifecycle action writes a structured audit log. Reading a
+win. Scheduling and starting require `manage_session`; ending and cancelling remain manager-only
+(`POST /v1/rooms/{room_id}/sessions` and `/v1/sessions/{session_id}/{start,end,cancel}`). Service
+principals participate by managing their rooms, and every lifecycle action writes a structured
+audit log. Reading a
+session's optional title, planned start, and planned duration is part of its response. Without a
+custom title, the response uses the room's current title. Planned duration is 1–10080 minutes and
+informational: it never starts or ends a session. `PATCH /v1/sessions/{session_id}` changes or
+clears each detail independently, including after end or cancellation, subject to `manage_session`;
+the update writes a structured audit event and touches no lifecycle columns. Reading a
 room's sessions is manager-scoped, while a session a caller may join is readable when resolving its
 own capabilities (M4-04, `GET /v1/sessions/{session_id}/capabilities`). Domain
 types remain independent of SQLx; the `mahfel-postgres` adapters (`Postgres*Store`) implement the

@@ -1,4 +1,5 @@
 pub mod cancel;
+pub mod details;
 pub mod end;
 pub mod error;
 pub mod get;
@@ -11,6 +12,7 @@ pub mod start;
 pub mod visibility;
 
 pub use cancel::{CancelSession, cancel_session};
+pub use details::{UpdateSessionDetails, update_session_details};
 pub use end::{EndSession, end_session};
 pub use error::SessionOperationError;
 pub use get::{GetSession, get_session};

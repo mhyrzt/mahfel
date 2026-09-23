@@ -1,20 +1,34 @@
 use super::{
     CancelSession, EndSession, GetSession, JoinSession, LeaveSession, ListSessions,
-    ScheduleSession, SessionOperationError, StartSession, cancel_session, end_session, get_session,
-    join_session, leave_session, list_sessions, preflight_join, schedule_session, start_session,
+    ScheduleSession, SessionOperationError, StartSession, UpdateSessionDetails, cancel_session,
+    end_session, get_session, join_session, leave_session, list_sessions, preflight_join,
+    schedule_session, start_session, update_session_details,
 };
 use crate::ports::{
-    AdmissionStore, BlockStore, BoxFuture, ParticipantStore, ParticipationStore, RoomStore,
-    SessionStore, StoreError,
+    AdmissionStore, BlockStore, BoxFuture, ParticipantStore, ParticipationStore, Principal,
+    RoomStore, SessionStore, StoreError,
 };
 use mahfel_domain::{
-    ActorId, AdmissionOrigin, AdmissionPolicy, AdmissionRequest, AdmissionRequestId,
+    ActorId, ActorKind, AdmissionOrigin, AdmissionPolicy, AdmissionRequest, AdmissionRequestId,
     AdmissionRequestStatus, AdmissionTarget, IntervalId, Participant, ParticipantId,
     ParticipantStatus, ParticipationInterval, Room, RoomId, RoomMember, RoomRole, RoomTitle,
     RoomVisibility, Session, SessionError, SessionId, SessionStatus,
 };
 use std::sync::{Arc, Mutex};
 use time::OffsetDateTime;
+
+fn principal(actor_id: ActorId) -> Principal {
+    Principal {
+        actor_id,
+        kind: ActorKind::User,
+        display_name: None,
+        avatar_url: None,
+        email: None,
+        email_verified: false,
+        username: None,
+        roles: Vec::new(),
+    }
+}
 
 #[derive(Clone, Default)]
 struct FakeRoomStore {
@@ -401,6 +415,31 @@ impl SessionStore for FakeSessionStore {
                 .ok_or_else(|| StoreError::NotFound(session.id.to_string()))?;
             *slot = session.clone();
             Ok(())
+        })
+    }
+
+    fn save_details<'a>(
+        &'a self,
+        session: &'a Session,
+        fields: crate::ports::SessionDetailsFields,
+    ) -> BoxFuture<'a, Result<Session, StoreError>> {
+        Box::pin(async move {
+            let mut sessions = self.sessions.lock().expect("lock");
+            let slot = sessions
+                .iter_mut()
+                .find(|existing| existing.id == session.id)
+                .ok_or_else(|| StoreError::NotFound(session.id.to_string()))?;
+            if fields.title {
+                slot.title = session.title.clone();
+            }
+            if fields.scheduled_start_at {
+                slot.scheduled_start_at = session.scheduled_start_at;
+            }
+            if fields.scheduled_duration_minutes {
+                slot.scheduled_duration_minutes = session.scheduled_duration_minutes;
+            }
+            slot.updated_at = session.updated_at;
+            Ok(slot.clone())
         })
     }
 
@@ -1041,9 +1080,11 @@ async fn non_manager_is_denied_and_non_member_is_hidden() {
         &sessions,
         &rooms,
         ScheduleSession {
-            actor: member,
+            principal: principal(member),
             room_id: room.id,
+            title: None,
             scheduled_start_at: None,
+            scheduled_duration_minutes: None,
         },
     )
     .await;
@@ -1056,9 +1097,11 @@ async fn non_manager_is_denied_and_non_member_is_hidden() {
         &sessions,
         &rooms,
         ScheduleSession {
-            actor: stranger,
+            principal: principal(stranger),
             room_id: room.id,
+            title: None,
             scheduled_start_at: None,
+            scheduled_duration_minutes: None,
         },
     )
     .await;
@@ -1066,6 +1109,139 @@ async fn non_manager_is_denied_and_non_member_is_hidden() {
         matches!(hidden, Err(super::SessionOperationError::NotFound)),
         "a non-member must not learn the room exists, got {hidden:?}"
     );
+}
+
+#[tokio::test]
+async fn session_details_are_validated_and_editable_in_every_state() {
+    let rooms = FakeRoomStore::default();
+    let sessions = FakeSessionStore::default();
+    let owner = actor();
+    let room = rooms.seed_room(owner);
+    let member = actor();
+    rooms.add_member(room.id, member, RoomRole::Member);
+
+    let invalid = schedule_session(
+        &sessions,
+        &rooms,
+        ScheduleSession {
+            principal: principal(owner),
+            room_id: room.id,
+            title: Some("  ".to_owned()),
+            scheduled_start_at: None,
+            scheduled_duration_minutes: Some(0),
+        },
+    )
+    .await;
+    assert!(matches!(invalid, Err(SessionOperationError::Validation(_))));
+
+    for status in [
+        SessionStatus::Scheduled,
+        SessionStatus::Live,
+        SessionStatus::Ended,
+        SessionStatus::Cancelled,
+    ] {
+        let mut session = scheduled(room.id);
+        let now = OffsetDateTime::now_utc();
+        match status {
+            SessionStatus::Scheduled => {}
+            SessionStatus::Live => session.start(now).expect("start"),
+            SessionStatus::Ended => {
+                session.start(now).expect("start");
+                session.end(now).expect("end");
+            }
+            SessionStatus::Cancelled => session.cancel(now).expect("cancel"),
+        }
+        sessions.seed(session.clone());
+
+        let denied = update_session_details(
+            &sessions,
+            &rooms,
+            UpdateSessionDetails {
+                principal: principal(member),
+                session_id: session.id,
+                title: Some(Some("Denied".to_owned())),
+                scheduled_start_at: None,
+                scheduled_duration_minutes: None,
+            },
+        )
+        .await;
+        assert!(matches!(denied, Err(SessionOperationError::Forbidden)));
+
+        let updated = update_session_details(
+            &sessions,
+            &rooms,
+            UpdateSessionDetails {
+                principal: principal(owner),
+                session_id: session.id,
+                title: Some(Some("  Custom  ".to_owned())),
+                scheduled_start_at: None,
+                scheduled_duration_minutes: Some(Some(30)),
+            },
+        )
+        .await
+        .expect("update details");
+        assert_eq!(updated.status, status);
+        assert_eq!(
+            updated.title.as_ref().map(|value| value.as_str()),
+            Some("Custom")
+        );
+        assert_eq!(
+            updated.scheduled_duration_minutes.map(|value| value.get()),
+            Some(30)
+        );
+
+        let cleared = update_session_details(
+            &sessions,
+            &rooms,
+            UpdateSessionDetails {
+                principal: principal(owner),
+                session_id: session.id,
+                title: Some(None),
+                scheduled_start_at: None,
+                scheduled_duration_minutes: Some(None),
+            },
+        )
+        .await
+        .expect("clear details");
+        assert!(cleared.title.is_none());
+        assert!(cleared.scheduled_duration_minutes.is_none());
+        assert_eq!(cleared.status, status);
+    }
+}
+
+#[tokio::test]
+async fn capable_admin_can_start_before_the_planned_time() {
+    let rooms = FakeRoomStore::default();
+    let sessions = FakeSessionStore::default();
+    let room = rooms.seed_room(actor());
+    let mut admin = principal(actor());
+    admin.roles.push("admin".to_owned());
+    let future = OffsetDateTime::now_utc() + time::Duration::days(2);
+    let scheduled = schedule_session(
+        &sessions,
+        &rooms,
+        ScheduleSession {
+            principal: admin.clone(),
+            room_id: room.id,
+            title: None,
+            scheduled_start_at: Some(future),
+            scheduled_duration_minutes: Some(60),
+        },
+    )
+    .await
+    .expect("admin has manage_session");
+    let live = start_session(
+        &sessions,
+        &rooms,
+        StartSession {
+            principal: admin,
+            session_id: scheduled.id,
+        },
+    )
+    .await
+    .expect("planned start is advisory");
+    assert_eq!(live.status, SessionStatus::Live);
+    assert!(live.started_at.expect("start time") < future);
 }
 
 #[tokio::test]
@@ -1143,9 +1319,11 @@ async fn manager_can_schedule_start_end_and_cancel() {
         &sessions,
         &rooms,
         ScheduleSession {
-            actor: owner,
+            principal: principal(owner),
             room_id: room.id,
+            title: None,
             scheduled_start_at: None,
+            scheduled_duration_minutes: None,
         },
     )
     .await
@@ -1156,7 +1334,7 @@ async fn manager_can_schedule_start_end_and_cancel() {
         &sessions,
         &rooms,
         StartSession {
-            actor: owner,
+            principal: principal(owner),
             session_id: scheduled_session.id,
         },
     )
@@ -1209,7 +1387,7 @@ async fn second_live_session_conflicts() {
         &sessions,
         &rooms,
         StartSession {
-            actor: owner,
+            principal: principal(owner),
             session_id: first.id,
         },
     )
@@ -1220,7 +1398,7 @@ async fn second_live_session_conflicts() {
         &sessions,
         &rooms,
         StartSession {
-            actor: owner,
+            principal: principal(owner),
             session_id: second.id,
         },
     )
@@ -1313,8 +1491,6 @@ async fn an_outsider_cannot_load_a_private_session() {
         "an outsider must not learn the session exists, got {denied:?}"
     );
 }
-
-// --- Admission and lobby (M4-06) ---
 
 /// A live fixture whose room requires approval, so a join waits.
 async fn lobby_fixture() -> (
@@ -1778,8 +1954,6 @@ async fn ending_a_session_retires_the_lobby() {
         "the session itself still ends"
     );
 }
-
-// --- blocks barring a join (M4-05, AC 4 and 5) ---
 
 /// Seed one active block, so a join test can prove the guard reads it.
 fn seeded_blocks(scope: mahfel_domain::BlockScope, subject: ActorId) -> FakeBlockStore {

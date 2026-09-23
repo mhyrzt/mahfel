@@ -1,4 +1,4 @@
-use super::dto::SessionResponse;
+use super::dto::{SessionResponse, response_with_room};
 use crate::http::{
     auth::Authenticated, error::ApiError, extractor::ValidatedPath, state::AppState,
 };
@@ -11,6 +11,7 @@ use uuid::Uuid;
 #[utoipa::path(
     post,
     path = "/v1/sessions/{session_id}/end",
+    summary = "End a live session",
     tag = "sessions",
     params(("session_id" = String, Path, description = "Session identifier (UUID)")),
     responses(
@@ -59,5 +60,5 @@ pub(crate) async fn end(
             tracing::warn!(?error, room_id = %session.room_id, "could not resolve ended session media node");
         }
     }
-    Ok(Json(session.into()))
+    Ok(Json(response_with_room(&state, session).await?))
 }

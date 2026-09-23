@@ -1,4 +1,4 @@
-use super::dto::SessionResponse;
+use super::dto::{SessionResponse, response_with_room};
 use crate::http::{
     auth::Authenticated, error::ApiError, extractor::ValidatedPath, state::AppState,
 };
@@ -7,8 +7,7 @@ use mahfel_application::sessions::{GetSession, get_session as load_session};
 use mahfel_domain::SessionId;
 use uuid::Uuid;
 
-/// Manager-scoped in this task; member visibility arrives with the capability
-/// model (M4-04).
+/// Get a session visible to a room manager.
 #[utoipa::path(
     get,
     path = "/v1/sessions/{session_id}",
@@ -35,5 +34,5 @@ pub(crate) async fn get_session(
         },
     )
     .await?;
-    Ok(Json(session.into()))
+    Ok(Json(response_with_room(&state, session).await?))
 }

@@ -54,6 +54,6 @@ pub use status::InvalidStatus;
 pub use user::{User, UserError, UserStatus};
 pub use validation::{
     AvatarUrl, DisplayName, EmailAddress, Issuer, MAX_AVATAR_URL_LEN, MAX_DISPLAY_NAME_LEN,
-    MAX_EMAIL_LEN, MAX_ISSUER_LEN, MAX_ROOM_TITLE_LEN, MAX_SUBJECT_LEN, RoomTitle, Subject,
-    ValidationError,
+    MAX_EMAIL_LEN, MAX_ISSUER_LEN, MAX_ROOM_TITLE_LEN, MAX_SESSION_DURATION_MINUTES,
+    MAX_SUBJECT_LEN, RoomTitle, SessionDurationMinutes, SessionTitle, Subject, ValidationError,
 };

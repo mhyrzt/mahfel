@@ -1,4 +1,3 @@
-//! Moderation use-case tests (M4-05).
 //!
 //! These exercise the ordering the module promises: capability first, then the
 //! authoritative target lookup, then durable state, then media enforcement.
@@ -20,8 +19,6 @@ use std::{
     sync::{Arc, Mutex},
 };
 use time::OffsetDateTime;
-
-// --- fakes ---
 
 #[derive(Clone, Default)]
 struct FakeRooms {
@@ -204,6 +201,31 @@ impl SessionStore for FakeSessions {
                 *slot = session.clone();
             }
             Ok(())
+        })
+    }
+
+    fn save_details<'a>(
+        &'a self,
+        session: &'a Session,
+        fields: crate::ports::SessionDetailsFields,
+    ) -> BoxFuture<'a, Result<Session, StoreError>> {
+        Box::pin(async move {
+            let mut sessions = self.sessions.lock().expect("lock");
+            let slot = sessions
+                .iter_mut()
+                .find(|existing| existing.id == session.id)
+                .ok_or_else(|| StoreError::NotFound(session.id.to_string()))?;
+            if fields.title {
+                slot.title = session.title.clone();
+            }
+            if fields.scheduled_start_at {
+                slot.scheduled_start_at = session.scheduled_start_at;
+            }
+            if fields.scheduled_duration_minutes {
+                slot.scheduled_duration_minutes = session.scheduled_duration_minutes;
+            }
+            slot.updated_at = session.updated_at;
+            Ok(slot.clone())
         })
     }
 
@@ -562,8 +584,6 @@ impl MediaGateway for FakeMedia {
     }
 }
 
-// --- fixture ---
-
 struct Fixture {
     rooms: FakeRooms,
     sessions: FakeSessions,
@@ -615,8 +635,6 @@ fn mute_command(actor: ActorId, subject: ActorId, session: Session) -> MuteComma
         source: MutedSource::Microphone,
     }
 }
-
-// --- capability (AC 1) ---
 
 #[tokio::test]
 async fn a_member_cannot_mute_another_participant() {
@@ -696,8 +714,6 @@ async fn a_manager_can_mute() {
     );
 }
 
-// --- identity (AC 7) ---
-
 #[tokio::test]
 async fn muting_a_non_participant_fails_before_any_media_call() {
     let f = fixture();
@@ -740,8 +756,6 @@ async fn muting_a_participant_who_left_fails() {
     .await;
     assert!(matches!(result, Err(ModerationError::NotFound)));
 }
-
-// --- two mutes (AC 2) ---
 
 #[tokio::test]
 async fn the_target_clears_their_own_temporary_mute() {
@@ -846,8 +860,6 @@ async fn a_manager_clears_a_permanent_mute() {
     .expect("manager unmute");
 }
 
-// --- source targeting (AC 10) ---
-
 #[tokio::test]
 async fn stopping_a_screen_share_leaves_the_microphone_alone() {
     let f = fixture();
@@ -872,8 +884,6 @@ async fn stopping_a_screen_share_leaves_the_microphone_alone() {
         "only the screen source is affected"
     );
 }
-
-// --- enforcement failure ---
 
 #[tokio::test]
 async fn a_media_failure_is_reported_as_degraded_and_leaves_the_mute_recorded() {
@@ -928,8 +938,6 @@ async fn a_healthy_mute_is_not_degraded() {
 
     assert!(!outcome.degraded);
 }
-
-// --- remove (AC 4) ---
 
 #[tokio::test]
 async fn removing_ends_participation_and_closes_producers() {
@@ -1013,8 +1021,6 @@ async fn a_member_cannot_remove() {
         "a denied removal must not close anything"
     );
 }
-
-// --- block (AC 4, 5) ---
 
 #[tokio::test]
 async fn blocking_creates_one_durable_block() {
@@ -1220,8 +1226,6 @@ async fn blocking_from_an_unknown_session_fails() {
     assert!(matches!(result, Err(ModerationError::NotFound)));
 }
 
-// --- the resolver is used, not bypassed ---
-
 /// A resolver that grants nothing, to prove the capability check is real.
 struct DenyAllResolver;
 
@@ -1268,8 +1272,6 @@ fn the_policy_grants_moderation_to_a_manager_but_not_a_member() {
     let deny = DenyAllResolver.resolve(&principal, CapabilityContext::global());
     assert!(!deny.has(Capability::MuteOthers));
 }
-
-// --- reconcile (AC 12) ---
 
 #[tokio::test]
 async fn a_withdrawn_capability_closes_every_source() {
@@ -1361,8 +1363,6 @@ async fn the_capability_for_a_source_is_the_one_that_permits_it() {
         Capability::ShareScreen
     );
 }
-
-// --- block composes removal ---
 
 #[tokio::test]
 async fn blocking_ejects_a_principal_who_is_present() {
