@@ -77,8 +77,11 @@ kubectl -n mahfel logs job/mahfel-seed
 
 S3 is at `https://s3.mahfel.localhost`; the RustFS console is at
 `https://storage.mahfel.localhost`. RabbitMQ management is at
-`https://rabbitmq.mahfel.localhost`. Internal gRPC and operations ports remain ClusterIP only.
-No observability stack is installed by this local profile.
+`https://rabbitmq.mahfel.localhost`. Grafana is at `https://grafana.mahfel.localhost` and includes
+Prometheus, Loki, and Tempo data sources. Prometheus scrapes the API, media, and worker operations
+endpoints plus kube-state-metrics and node-exporter; its data is retained for seven days. Internal
+gRPC, operations, and Prometheus ports remain ClusterIP only. Node-exporter reports the Minikube
+node environment (a Docker container when using the Docker driver), not the physical host's metrics.
 
 ## Media tests
 

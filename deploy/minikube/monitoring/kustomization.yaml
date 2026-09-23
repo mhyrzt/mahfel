@@ -4,4 +4,6 @@ resources:
   - alloy.yaml
   - grafana.yaml
   - loki.yaml
+  - prometheus.yaml
   - tempo.yaml
+  - exporters.yaml
