@@ -55,7 +55,7 @@ fn a_participant_stays_present_while_one_connection_is_live() {
     assert_eq!(
         registry.connection_count_for_participant(session, actor),
         1,
-        "presence holds while another connection is live (AC 7)"
+        "presence holds while another connection is live"
     );
 }
 

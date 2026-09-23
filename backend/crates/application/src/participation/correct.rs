@@ -19,7 +19,7 @@ pub struct CorrectInterval {
 /// Manager-only: replace an interval with a corrected one.
 ///
 /// The original row is marked superseded and retained, so the original
-/// measurement and the reason it changed both survive (AC 4). The replacement
+/// measurement and the reason it changed both survive. The replacement
 /// is inserted in the same transaction, so a reader never observes the
 /// participant with zero active intervals because the swap was partial.
 pub async fn correct_interval<P, S, R>(

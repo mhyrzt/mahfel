@@ -1,7 +1,7 @@
 use super::{BoxFuture, StoreError};
 use mahfel_domain::{InviteCode, InviteLink, InviteLinkId, InviteTargetKind};
 
-/// Persistence for revocable invite links (M4-13).
+/// Persistence for revocable invite links.
 ///
 /// Codes are stored plaintext because redemption looks them up directly
 /// (ADR 0021). Methods return [`BoxFuture`] so the port is dyn-compatible

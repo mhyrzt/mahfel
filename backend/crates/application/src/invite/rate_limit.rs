@@ -1,5 +1,3 @@
-//! Bounded rate limiting for invite-code attempts (M4-13).
-//!
 //! A shared code is a bearer capability, so redemption must not help enumerate
 //! valid codes (ADR 0021). Counting lives behind [`CoordinationStore`] because
 //! the window must be shared across replicas and is replaceable state. Both a

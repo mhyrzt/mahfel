@@ -1,7 +1,7 @@
 use super::{BoxFuture, StoreError};
 use mahfel_domain::{ActorId, Block, BlockId, BlockScope, RoomId, SessionId};
 
-/// Persistence for durable blocks (M4-05).
+/// Persistence for durable blocks.
 ///
 /// A block is durable rather than ephemeral: its whole purpose is to outlive a
 /// participation, so a cache flush or a node restart must not let a blocked

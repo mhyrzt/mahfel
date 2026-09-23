@@ -11,9 +11,7 @@ impl ConnectionRegistry {
     ///
     /// Moderation uses this rather than the `_except` form because the whole
     /// roster needs to reflect the change, and the target in particular must
-    /// learn that it was muted or removed. Replica-local, so a session spanning
-    /// replicas propagates only within each replica until the M5-03 fanout hub
-    /// (TASK-34).
+    /// learn that it was muted or removed. Delivery is replica-local.
     pub fn broadcast_to_session(&self, session_id: SessionId, message: &ServerMessage) {
         let targets: Vec<Uuid> = self
             .lock()
@@ -47,9 +45,7 @@ impl ConnectionRegistry {
     /// except the originating one.
     ///
     /// The originator already received a direct acknowledgement, and telling it
-    /// that it joined when it *is* the participant is noise. Replica-local, so
-    /// a session spanning replicas propagates only within each replica until
-    /// the M5-03 fanout hub (TASK-34).
+    /// that it joined when it *is* the participant is noise.
     pub fn broadcast_to_session_except(
         &self,
         session_id: SessionId,

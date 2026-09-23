@@ -1,5 +1,3 @@
-//! Redeem an invite link and drive the confirmation flow (M4-14).
-//!
 //! A code is a bearer capability, so redemption is where the security posture
 //! actually has to hold:
 //!
@@ -179,8 +177,7 @@ where
 
     match link.target {
         InviteTarget::Session(session_id) => {
-            // A session whose row is gone cannot be joined, and TASK-129
-            // deliberately defers reaping, so this must fail closed.
+            // A link can outlive its session; a missing session must fail closed.
             sessions.get(session_id).await?.ok_or_else(unusable)?;
             Ok(AdmissionTarget::Session(session_id))
         }

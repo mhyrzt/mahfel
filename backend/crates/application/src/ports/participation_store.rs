@@ -12,7 +12,7 @@ pub struct ParticipantDuration {
     pub open_intervals: u32,
 }
 
-/// Persistence for durable participation records (M4-03).
+/// Persistence for durable participation records.
 ///
 /// Intervals are append-only: a correction supersedes the original row rather
 /// than updating it, so history survives. Methods return [`BoxFuture`] so the

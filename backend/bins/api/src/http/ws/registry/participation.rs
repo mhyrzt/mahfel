@@ -98,8 +98,8 @@ impl ConnectionRegistry {
     ///
     /// Presence is derived from this: a participant is present while at least
     /// one connection is live, so a participant on two devices stays present
-    /// when one closes (AC 7). Replica-local, so a participant with devices on
-    /// two replicas is counted once per replica until the M5-03 hub lands.
+    /// when one closes. A participant with devices on two replicas is counted
+    /// once per replica.
     pub fn connection_count_for_participant(
         &self,
         session_id: SessionId,

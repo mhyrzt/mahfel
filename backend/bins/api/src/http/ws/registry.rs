@@ -35,18 +35,13 @@ struct Connection {
     room_id: Option<RoomId>,
     participant_id: Option<ParticipantId>,
     /// Guards against a stale intent landing after a reconnect: an operation
-    /// tagged with an older generation is a no-op. The guard is replica-local
-    /// because this registry is process-local; cross-replica ordering belongs
-    /// to the connection hub in M5-03 (TASK-34).
+    /// tagged with an older generation is a no-op. The guard is replica-local.
     generation: u64,
 }
 
 /// In-process registry of authenticated connections.
 ///
-/// Fan-out is process-local. Cross-replica delivery is deliberately out of
-/// scope until the M5-03 connection hub (TASK-34), which owns the
-/// pub-sub-versus-streams decision and sequence/dedupe. Participation helpers
-/// below inherit that scope: they see only connections on this replica.
+/// Fan-out and participation queries see only connections on this replica.
 #[derive(Clone)]
 pub struct ConnectionRegistry {
     inner: Arc<Inner>,

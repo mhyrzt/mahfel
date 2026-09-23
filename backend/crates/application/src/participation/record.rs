@@ -65,7 +65,7 @@ where
 
 /// Close every open interval in a session, stopping the clock at `ended_at`.
 ///
-/// The end-of-session sweep (AC 5). Called when a session ends, so no interval
+/// The end-of-session sweep. Called when a session ends, so no interval
 /// survives it. Idempotent, and returns how many it closed so the caller can
 /// audit a real change rather than a repeat.
 pub async fn close_session_intervals<P>(

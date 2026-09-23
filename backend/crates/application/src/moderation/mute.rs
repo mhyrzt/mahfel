@@ -1,5 +1,3 @@
-//! Mute and unmute a participant (M4-05).
-//!
 //! Two mutes, and they are not degrees of the same thing:
 //!
 //! - a **temporary** mute is a reset the target clears themselves;

@@ -1,4 +1,4 @@
-//! Moderation frames: mute, unmute, remove, block, unblock (M4-05).
+//! Moderation frames: mute, unmute, remove, block, unblock.
 //!
 //! The transport adapter only. Capability resolution, the authoritative target
 //! lookup, and the ordering of state change against media enforcement all live

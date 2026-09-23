@@ -1,5 +1,3 @@
-//! Moderation use cases (M4-05).
-//!
 //! Capability-gated actions that work for any vertical: a moderator mutes,
 //! unmutes, removes, blocks, or unblocks. A vertical maps its vocabulary onto
 //! the capabilities rather than adding engine roles (ADR 0020).

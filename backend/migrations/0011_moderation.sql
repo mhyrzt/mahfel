@@ -1,5 +1,3 @@
--- Moderation: mute state on a participant, and durable blocks (M4-05).
---
 -- Mute is a state of a participation, not of a person. Leaving is terminal, so
 -- a rejoin creates a new participant row and clears the mute. Keeping someone
 -- out after they leave is a block, which is why the two live in different

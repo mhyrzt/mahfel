@@ -4,7 +4,7 @@ use mahfel_domain::{
     SessionId,
 };
 
-/// Persistence for pending admission requests (M4-06, M4-14).
+/// Persistence for pending admission requests.
 ///
 /// A pending request is durable rather than ephemeral: the waiting principal is
 /// looking at a waiting screen, so losing the row to a cache flush would

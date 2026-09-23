@@ -13,7 +13,6 @@ pub struct Envelope<T> {
     pub message: T,
 }
 
-// Used by `#[serde(default = ...)]` above.
 #[allow(clippy::trivially_copy_pass_by_ref)]
 fn protocol_version() -> u8 {
     PROTOCOL_VERSION

@@ -1,5 +1,3 @@
-//! Admission and lobby use cases (M4-06).
-
 pub mod decide;
 pub mod error;
 pub mod lobby;

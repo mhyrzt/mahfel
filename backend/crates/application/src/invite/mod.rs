@@ -1,9 +1,4 @@
-//! Invite link management and the redemption primitives (M4-13).
-//!
-//! Management — create, list, revoke, rotate, regenerate — is capability-gated
-//! and deny-by-default (AC 3). Redemption's confirmation flow is M4-14; what
-//! lives here is what redemption leans on: code normalization, the
-//! non-enumerating failure surface, and the rate limiter that bounds attempts.
+//! Capability-gated invite links and non-enumerating redemption.
 
 pub mod code;
 pub mod create;

@@ -33,7 +33,7 @@ pub struct SessionParticipation {
 /// Manager-only: every participant's connected time in one session.
 ///
 /// Manager-gated because the summary exposes another actor's activity, which is
-/// roster-level information (AC 2). The session is loaded first so a caller
+/// roster-level information. The session is loaded first so a caller
 /// cannot tell a missing session from an invisible one.
 pub async fn session_participation<P, S, R>(
     participation: &P,

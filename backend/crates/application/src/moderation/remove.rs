@@ -1,5 +1,3 @@
-//! Remove a participant from a session, and block a principal (M4-05).
-//!
 //! Remove and block are orthogonal, and collapsing them would erase the
 //! distinction:
 //!
