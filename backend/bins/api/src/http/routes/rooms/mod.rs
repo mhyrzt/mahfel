@@ -13,7 +13,7 @@ pub(crate) mod update;
 use crate::http::state::AppState;
 use axum::{
     Router,
-    routing::{delete, get, post},
+    routing::{delete, get, patch, post},
 };
 
 pub(crate) fn route() -> Router<AppState> {
@@ -21,7 +21,14 @@ pub(crate) fn route() -> Router<AppState> {
         .route("/rooms", get(list::list_rooms).post(create::create))
         .route("/rooms/{room_id}", get(get::get_room).patch(update::update))
         .route("/rooms/{room_id}/join", post(join::join))
-        .route("/rooms/{room_id}/messages", post(chat::create_message))
+        .route(
+            "/rooms/{room_id}/messages",
+            get(chat::list_messages).post(chat::create_message),
+        )
+        .route(
+            "/rooms/{room_id}/messages/{message_id}",
+            patch(chat::edit_message).delete(chat::delete_message),
+        )
         .route(
             "/rooms/{room_id}/admission",
             get(admission::get_admission).put(admission::set_admission),

@@ -28,12 +28,12 @@ use mahfel_auth::{TokenVerifier, TokenVerifierConfig};
 use mahfel_config::TurnSettings;
 use mahfel_domain::{
     ActorId, ActorKind, AdmissionOrigin, AdmissionRequest, AdmissionRequestId,
-    AdmissionRequestStatus, AdmissionTarget, ChatChannel, ChatMessage, ChatMessageDraft,
-    DisplayName, Identity, IntervalId, InviteCode, InviteLink, InviteLinkId, InviteLinkStatus,
-    InviteTarget, InviteTargetKind, Issuer, Participant, ParticipantId, ParticipantStatus,
-    ParticipationInterval, Room, RoomId, RoomMember, RoomRole, RoomTitle, RoomVisibility,
-    ServicePrincipal, ServicePrincipalStatus, Session, SessionId, SessionStatus, Subject, User,
-    UserStatus,
+    AdmissionRequestStatus, AdmissionTarget, ChatChannel, ChatChannelId, ChatMessage,
+    ChatMessageCursor, ChatMessageDraft, ChatMessageId, ChatMessagePage, DisplayName, Identity,
+    IntervalId, InviteCode, InviteLink, InviteLinkId, InviteLinkStatus, InviteTarget,
+    InviteTargetKind, Issuer, Participant, ParticipantId, ParticipantStatus, ParticipationInterval,
+    Room, RoomId, RoomMember, RoomRole, RoomTitle, RoomVisibility, ServicePrincipal,
+    ServicePrincipalStatus, Session, SessionId, SessionStatus, Subject, User, UserStatus,
 };
 use mahfel_media_client::GrpcMediaGateway;
 use prometheus::Encoder;
@@ -64,6 +64,58 @@ impl ChatStore for FakeChatStore {
         draft: &'a ChatMessageDraft,
     ) -> BoxFuture<'a, Result<ChatMessage, StoreError>> {
         Box::pin(async move { Ok(ChatMessage::from_draft(channel.id, draft.clone())) })
+    }
+
+    fn list_messages<'a>(
+        &'a self,
+        _room_id: RoomId,
+        _actor_id: ActorId,
+        _before: Option<&'a ChatMessageCursor>,
+        _limit: u32,
+    ) -> BoxFuture<'a, Result<ChatMessagePage, StoreError>> {
+        Box::pin(async {
+            Ok(ChatMessagePage {
+                messages: Vec::new(),
+                next_cursor: None,
+            })
+        })
+    }
+
+    fn edit_message<'a>(
+        &'a self,
+        room_id: RoomId,
+        actor_id: ActorId,
+        message_id: ChatMessageId,
+        content: &'a str,
+        now: time::OffsetDateTime,
+    ) -> BoxFuture<'a, Result<ChatMessage, StoreError>> {
+        Box::pin(async move {
+            let draft = ChatMessageDraft::new(message_id, actor_id, content.to_owned(), now)
+                .map_err(|error| StoreError::Unexpected(error.to_string()))?;
+            let mut message = ChatMessage::from_draft(ChatChannelId::new(), draft.clone());
+            message.edited_at = Some(now);
+            let _ = room_id;
+            Ok(message)
+        })
+    }
+
+    fn delete_message<'a>(
+        &'a self,
+        room_id: RoomId,
+        actor_id: ActorId,
+        message_id: ChatMessageId,
+        now: time::OffsetDateTime,
+    ) -> BoxFuture<'a, Result<ChatMessage, StoreError>> {
+        Box::pin(async move {
+            let draft = ChatMessageDraft::new(message_id, actor_id, "deleted".to_owned(), now)
+                .map_err(|error| StoreError::Unexpected(error.to_string()))?;
+            let message = ChatMessage::from_draft(ChatChannelId::new(), draft);
+            let _ = room_id;
+            Ok(ChatMessage {
+                deleted_at: Some(now),
+                ..message
+            })
+        })
     }
 }
 

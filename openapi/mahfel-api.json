@@ -1140,6 +1140,65 @@
       }
     },
     "/v1/rooms/{room_id}/messages": {
+      "get": {
+        "tags": [
+          "chat"
+        ],
+        "operationId": "listRoomMessages",
+        "parameters": [
+          {
+            "name": "room_id",
+            "in": "path",
+            "description": "Room chat channel",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "description": "Opaque cursor from the previous page",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Page size, 1-100; defaults to 50",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "minimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Newest-first chat messages",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChatMessageHistoryResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid cursor"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "404": {
+            "description": "Room not found or caller is not a member"
+          }
+        }
+      },
       "post": {
         "tags": [
           "chat"
@@ -1183,6 +1242,116 @@
           },
           "404": {
             "description": "Room not found or caller is not a member"
+          },
+          "422": {
+            "description": "Message content is invalid"
+          }
+        }
+      }
+    },
+    "/v1/rooms/{room_id}/messages/{message_id}": {
+      "delete": {
+        "tags": [
+          "chat"
+        ],
+        "operationId": "deleteRoomMessage",
+        "parameters": [
+          {
+            "name": "room_id",
+            "in": "path",
+            "description": "Room identifier",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "message_id",
+            "in": "path",
+            "description": "Message identifier",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Message soft-deleted by its author within 15 minutes or by a room manager",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChatMessageResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "404": {
+            "description": "Message not found or caller cannot delete it"
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "chat"
+        ],
+        "operationId": "editRoomMessage",
+        "parameters": [
+          {
+            "name": "room_id",
+            "in": "path",
+            "description": "Room identifier",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "message_id",
+            "in": "path",
+            "description": "Message identifier",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EditChatMessageRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Message edited; authors may edit within 15 minutes of creation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChatMessageResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "404": {
+            "description": "Message not found or caller is not its author"
+          },
+          "409": {
+            "description": "Message is deleted or its edit window expired"
           },
           "422": {
             "description": "Message content is invalid"
@@ -2090,13 +2259,32 @@
           }
         }
       },
+      "ChatMessageHistoryResponse": {
+        "type": "object",
+        "required": [
+          "messages"
+        ],
+        "properties": {
+          "messages": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ChatMessageResponse"
+            }
+          },
+          "next_cursor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
       "ChatMessageResponse": {
         "type": "object",
         "required": [
           "id",
           "channel_id",
           "author_id",
-          "content",
           "created_at"
         ],
         "properties": {
@@ -2107,13 +2295,24 @@
             "type": "string"
           },
           "content": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Null for soft-deleted messages; prior text is preserved in revision audit data."
           },
           "created_at": {
             "type": "string",
             "format": "date-time"
           },
           "deleted_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "edited_at": {
             "type": [
               "string",
               "null"
@@ -2286,6 +2485,17 @@
         ],
         "properties": {
           "message": {
+            "type": "string"
+          }
+        }
+      },
+      "EditChatMessageRequest": {
+        "type": "object",
+        "required": [
+          "content"
+        ],
+        "properties": {
+          "content": {
             "type": "string"
           }
         }

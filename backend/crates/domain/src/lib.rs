@@ -30,7 +30,8 @@ pub use admission::{
 };
 pub use block::{Block, BlockError, BlockId, BlockScope};
 pub use chat::{
-    ChatChannel, ChatChannelId, ChatMessage, ChatMessageDraft, ChatMessageError, ChatMessageId,
+    CHAT_AUTHOR_MUTATION_WINDOW, ChatChannel, ChatChannelId, ChatMessage, ChatMessageCursor,
+    ChatMessageDraft, ChatMessageError, ChatMessageId, ChatMessagePage,
 };
 pub use identity::{Identity, IdentityId};
 pub use ids::NodeId;

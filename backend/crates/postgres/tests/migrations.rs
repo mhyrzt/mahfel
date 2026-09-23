@@ -17,7 +17,7 @@ use testcontainers::{
     core::{IntoContainerPort, WaitFor},
     runners::AsyncRunner,
 };
-use time::OffsetDateTime;
+use time::{Duration as TimeDuration, OffsetDateTime};
 use url::Url;
 use uuid::Uuid;
 
@@ -126,7 +126,18 @@ async fn verify_migrations_and_stores(
     let migration_count = sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM _sqlx_migrations")
         .fetch_one(pool)
         .await?;
-    assert_eq!(migration_count, 12, "each migration must be recorded once");
+    assert!(
+        migration_count >= 13,
+        "all chat migrations must be recorded"
+    );
+    let max_migration_version =
+        sqlx::query_scalar::<_, i64>("SELECT MAX(version) FROM _sqlx_migrations")
+            .fetch_one(pool)
+            .await?;
+    assert_eq!(
+        max_migration_version, migration_count,
+        "migration versions must be contiguous and recorded once"
+    );
 
     let migration_tables = sqlx::query_scalar::<_, i64>(
         "SELECT COUNT(*) FROM pg_class WHERE relname = '_sqlx_migrations'",
@@ -273,7 +284,7 @@ async fn verify_migrations_and_stores(
         ChatMessageId::new(),
         user.id,
         "Another message in the same channel".to_owned(),
-        now,
+        now + TimeDuration::seconds(1),
     )?;
     let later_message = chat.create_message(&later_channel, &later_draft).await?;
     assert_eq!(
@@ -281,8 +292,35 @@ async fn verify_migrations_and_stores(
         "each room must resolve to its stable chat channel"
     );
 
+    let first_page = chat.list_messages(room.id, user.id, None, 1).await?;
+    assert_eq!(first_page.messages, vec![later_message.clone()]);
+    let cursor = first_page.next_cursor.expect("more chat history exists");
+    let inserted_after_page = ChatMessageDraft::new(
+        ChatMessageId::new(),
+        user.id,
+        "Inserted after the first page".to_owned(),
+        now + TimeDuration::seconds(2),
+    )?;
+    chat.create_message(&first_channel, &inserted_after_page)
+        .await?;
+    let second_page = chat
+        .list_messages(room.id, user.id, Some(&cursor), 10)
+        .await?;
+    assert_eq!(second_page.messages, vec![first_message.clone()]);
+    assert!(
+        second_page.next_cursor.is_none(),
+        "a newer insert must not shift an existing keyset boundary"
+    );
+
     let outsider = User::create(DisplayName::new("Katherine Johnson".to_owned())?, now);
     users.insert(&outsider).await?;
+    assert!(
+        matches!(
+            chat.list_messages(room.id, outsider.id, None, 10).await,
+            Err(StoreError::NotFound(_))
+        ),
+        "a nonmember must not read room chat history"
+    );
     let unauthorized_channel = ChatChannel::for_room(ChatChannelId::new(), room.id, now);
     let unauthorized_draft = ChatMessageDraft::new(
         ChatMessageId::new(),
@@ -298,6 +336,80 @@ async fn verify_migrations_and_stores(
         ),
         "a non-member must not create room chat messages"
     );
+
+    let edited = chat
+        .edit_message(
+            room.id,
+            user.id,
+            first_message.id,
+            "Edited room message",
+            now + TimeDuration::seconds(3),
+        )
+        .await?;
+    assert_eq!(edited.content, "Edited room message");
+    assert_eq!(edited.edited_at, Some(now + TimeDuration::seconds(3)));
+    assert!(matches!(
+        chat.edit_message(
+            room.id,
+            user.id,
+            first_message.id,
+            "Too late",
+            now + TimeDuration::minutes(16),
+        )
+        .await,
+        Err(StoreError::Conflict(_))
+    ));
+
+    let chat_member = User::create(DisplayName::new("Katherine Member".to_owned())?, now);
+    users.insert(&chat_member).await?;
+    rooms
+        .add_member(&RoomMember::new(
+            room.id,
+            chat_member.id,
+            RoomRole::Member,
+            now,
+        ))
+        .await?;
+    let member_channel = ChatChannel::for_room(ChatChannelId::new(), room.id, now);
+    let member_draft = ChatMessageDraft::new(
+        ChatMessageId::new(),
+        chat_member.id,
+        "Member message for manager moderation".to_owned(),
+        now + TimeDuration::seconds(4),
+    )?;
+    let member_message = chat.create_message(&member_channel, &member_draft).await?;
+    assert!(matches!(
+        chat.delete_message(
+            room.id,
+            chat_member.id,
+            first_message.id,
+            now + TimeDuration::seconds(5),
+        )
+        .await,
+        Err(StoreError::NotFound(_))
+    ));
+    let moderated = chat
+        .delete_message(
+            room.id,
+            user.id,
+            member_message.id,
+            now + TimeDuration::minutes(20),
+        )
+        .await?;
+    assert_eq!(moderated.deleted_at, Some(now + TimeDuration::minutes(20)));
+    let revisions = sqlx::query_as::<_, (uuid::Uuid, String, String)>(
+        "SELECT message_id, revision_kind, prior_body \
+         FROM mahfel.chat_message_revisions ORDER BY created_at, id",
+    )
+    .fetch_all(pool)
+    .await?;
+    assert_eq!(revisions.len(), 2);
+    assert_eq!(revisions[0].0, first_message.id.as_uuid());
+    assert_eq!(revisions[0].1, "edited");
+    assert_eq!(revisions[0].2, "Persistent room message");
+    assert_eq!(revisions[1].0, member_message.id.as_uuid());
+    assert_eq!(revisions[1].1, "deleted");
+    assert_eq!(revisions[1].2, "Member message for manager moderation");
 
     // A missing referenced user must surface as a typed adapter error rather
     // than a generic storage failure.
@@ -346,7 +458,7 @@ async fn verify_migrations_and_stores(
     .fetch_one(&restarted_pool)
     .await?;
     assert_eq!(
-        stored_chat_messages, 2,
+        stored_chat_messages, 4,
         "room chat messages must survive a pool restart"
     );
     let stored_message = sqlx::query_as::<_, (uuid::Uuid, uuid::Uuid, String)>(
@@ -361,7 +473,7 @@ async fn verify_migrations_and_stores(
         (
             first_message.channel_id.as_uuid(),
             user.id.as_uuid(),
-            "Persistent room message".to_owned(),
+            "Edited room message".to_owned(),
         )
     );
     let unauthorized_message_exists = sqlx::query_scalar::<_, bool>(

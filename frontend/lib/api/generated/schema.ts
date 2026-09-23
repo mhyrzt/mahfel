@@ -383,13 +383,29 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
-    get?: never;
+    get: operations["listRoomMessages"];
     put?: never;
     post: operations["createRoomMessage"];
     delete?: never;
     options?: never;
     head?: never;
     patch?: never;
+    trace?: never;
+  };
+  "/v1/rooms/{room_id}/messages/{message_id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post?: never;
+    delete: operations["deleteRoomMessage"];
+    options?: never;
+    head?: never;
+    patch: operations["editRoomMessage"];
     trace?: never;
   };
   "/v1/rooms/{room_id}/sessions": {
@@ -724,14 +740,21 @@ export interface components {
       participant_id: string;
       session_id: string;
     };
+    ChatMessageHistoryResponse: {
+      messages: components["schemas"]["ChatMessageResponse"][];
+      next_cursor?: string | null;
+    };
     ChatMessageResponse: {
       author_id: string;
       channel_id: string;
-      content: string;
+      /** @description Null for soft-deleted messages; prior text is preserved in revision audit data. */
+      content?: string | null;
       /** Format: date-time */
       created_at: string;
       /** Format: date-time */
       deleted_at?: string | null;
+      /** Format: date-time */
+      edited_at?: string | null;
       id: string;
     };
     CorrectIntervalRequest: {
@@ -797,6 +820,9 @@ export interface components {
     /** @description Placeholder payload used by contract tests until real resource routes land. */
     EchoPayload: {
       message: string;
+    };
+    EditChatMessageRequest: {
+      content: string;
     };
     HealthResponse: {
       status: string;
@@ -2238,6 +2264,55 @@ export interface operations {
       };
     };
   };
+  listRoomMessages: {
+    parameters: {
+      query?: {
+        /** @description Opaque cursor from the previous page */
+        cursor?: string;
+        /** @description Page size, 1-100; defaults to 50 */
+        limit?: number;
+      };
+      header?: never;
+      path: {
+        /** @description Room chat channel */
+        room_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Newest-first chat messages */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ChatMessageHistoryResponse"];
+        };
+      };
+      /** @description Invalid cursor */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Authentication required */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Room not found or caller is not a member */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
   createRoomMessage: {
     parameters: {
       query?: never;
@@ -2272,6 +2347,102 @@ export interface operations {
       };
       /** @description Room not found or caller is not a member */
       404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Message content is invalid */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  deleteRoomMessage: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Room identifier */
+        room_id: string;
+        /** @description Message identifier */
+        message_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Message soft-deleted by its author within 15 minutes or by a room manager */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ChatMessageResponse"];
+        };
+      };
+      /** @description Authentication required */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Message not found or caller cannot delete it */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  editRoomMessage: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Room identifier */
+        room_id: string;
+        /** @description Message identifier */
+        message_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["EditChatMessageRequest"];
+      };
+    };
+    responses: {
+      /** @description Message edited; authors may edit within 15 minutes of creation */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ChatMessageResponse"];
+        };
+      };
+      /** @description Authentication required */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Message not found or caller is not its author */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Message is deleted or its edit window expired */
+      409: {
         headers: {
           [name: string]: unknown;
         };

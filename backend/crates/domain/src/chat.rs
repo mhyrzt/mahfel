@@ -5,6 +5,8 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use time::OffsetDateTime;
 
+pub const CHAT_AUTHOR_MUTATION_WINDOW: time::Duration = time::Duration::minutes(15);
+
 entity_id!(ChatChannelId);
 entity_id!(ChatMessageId);
 
@@ -67,6 +69,7 @@ pub struct ChatMessage {
     pub author_id: ActorId,
     pub content: String,
     pub created_at: OffsetDateTime,
+    pub edited_at: Option<OffsetDateTime>,
     /// Set by soft deletion; the row remains as a tombstone for stable history.
     pub deleted_at: Option<OffsetDateTime>,
 }
@@ -80,7 +83,30 @@ impl ChatMessage {
             author_id: draft.author_id,
             content: draft.content,
             created_at: draft.created_at,
+            edited_at: None,
             deleted_at: None,
         }
     }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct ChatMessageCursor {
+    pub created_at: OffsetDateTime,
+    pub message_id: ChatMessageId,
+}
+
+impl ChatMessageCursor {
+    #[must_use]
+    pub const fn new(created_at: OffsetDateTime, message_id: ChatMessageId) -> Self {
+        Self {
+            created_at,
+            message_id,
+        }
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct ChatMessagePage {
+    pub messages: Vec<ChatMessage>,
+    pub next_cursor: Option<ChatMessageCursor>,
 }
