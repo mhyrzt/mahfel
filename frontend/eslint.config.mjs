@@ -104,6 +104,7 @@ export default defineConfig([
     "build/**",
     "storybook-static/**",
     "lib/api/generated/**",
+    "lib/websocket/generated/**",
     "next-env.d.ts",
   ]),
 ]);

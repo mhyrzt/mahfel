@@ -1,30 +1,14 @@
 "use client";
 
-export type WsRtcMessage =
-  | { type: "createTransport"; room_id: string; id?: string }
-  | {
-      type: "connectTransport";
-      room_id: string;
-      transport_id: string;
-      dtls_parameters: string;
-      id?: string;
-    }
-  | {
-      type: "produce";
-      room_id: string;
-      transport_id: string;
-      kind: string;
-      rtp_parameters: string;
-      id?: string;
-    }
-  | {
-      type: "consume";
-      room_id: string;
-      transport_id: string;
-      producer_id: string;
-      rtp_capabilities: string;
-      id?: string;
-    };
+import type {
+  Auth,
+  ConnectTransport,
+  Consume,
+  CreateTransport,
+  Produce,
+} from "./generated/messages";
+
+export type WsRtcMessage = CreateTransport | ConnectTransport | Produce | Consume;
 
 export class RtcWsClient {
   private ws: WebSocket | null = null;
@@ -37,7 +21,8 @@ export class RtcWsClient {
       const ws = new WebSocket(this.url);
       ws.onopen = () => {
         if (token) {
-          ws.send(JSON.stringify({ v: 1, type: "auth", token }));
+          const auth = { v: 1, type: "auth", token } satisfies Auth;
+          ws.send(JSON.stringify(auth));
         }
         this.ws = ws;
         ws.onmessage = (ev) => this.handleMessage(ev.data as string);

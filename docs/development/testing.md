@@ -41,17 +41,25 @@ The REST contract is generated from the transport code with `utoipa` (ADR 0015).
 serves the machine-readable document at `GET /v1/openapi.json`, and the interactive Scalar UI at
 `/docs` on the private operations listener (ADR 0011). A unit test asserts that every REST route
 template appears in the generated document, so a new route cannot be silently undocumented.
+The document marks protected routes with bearer authentication, lists public routes explicitly,
+and gives documented error responses the shared JSON error envelope.
 
-Export the code-first document to `openapi/mahfel-api.json`, then generate the frontend REST
-types at `frontend/lib/api/generated/schema.ts` whenever the REST contract changes:
+Export both code-first documents to `specs/`, then generate frontend REST and WebSocket types
+whenever either contract changes:
 
 ```bash
-just openapi-export
+just api-docs-export
 just frontend generate-api
 ```
 
-The generated types describe REST only. The WebSocket protocol remains a separately maintained
-typed transport contract.
+The generated REST types live at `frontend/lib/api/generated/schema.ts`; WebSocket message types
+live at `frontend/lib/websocket/generated/messages.ts`. The WebSocket contract is generated from
+the client and server message enums with `asyncapi-rust` (ADR 0024). The export command writes
+`specs/openapi.json` and `specs/asyncapi.json`. Its WebSocket operations use the API's perspective:
+`receiveClientMessage` accepts client frames and `sendServerMessage` emits server frames. Each
+payload includes the protocol version `v` and optional correlation `id`; clients should send
+`v: 1`. Authenticate with a bearer token on the upgrade request or send an `auth` frame before
+other client frames. The generated frontend types do not validate incoming frames at runtime.
 
 An interactive Bruno collection for manual and end-to-end requests is planned under `bruno/`
 (ADR 0016) and is not yet present; the directory holds a placeholder.

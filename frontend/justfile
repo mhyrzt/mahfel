@@ -28,7 +28,7 @@ lint:
 typecheck:
     bun run typecheck
 
-# Generate REST contract types from the API-owned contract artifact.
+# Generate REST and WebSocket types from the API-owned contract artifacts.
 generate-api:
     bun run generate:api
 
