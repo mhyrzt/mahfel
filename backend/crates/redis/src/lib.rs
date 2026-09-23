@@ -11,10 +11,12 @@ mod keys;
 mod media_placement;
 mod media_registry;
 mod metrics;
+mod session_presence;
 mod settings;
 
 pub use client::{RedisCoordination, RedisMessage};
 pub use error::RedisError;
 pub use keys::Keys;
 pub use metrics::RedisMetrics;
+pub use session_presence::SessionPresenceSnapshot;
 pub use settings::RedisConnectionSettings;

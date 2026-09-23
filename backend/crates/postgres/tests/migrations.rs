@@ -5,11 +5,11 @@ use mahfel_application::ports::{
 use mahfel_domain::{
     ActorId, AvatarUrl, ChatChannel, ChatChannelId, ChatMessageDraft, ChatMessageId, DisplayName,
     EmailAddress, FileContext, FileObject, FileStatus, Issuer, Room, RoomMember, RoomRole,
-    RoomTitle, RoomVisibility, Session, Subject, User,
+    RoomTitle, RoomVisibility, Session, SessionId, Subject, User,
 };
 use mahfel_postgres::{
     ConnectionSettings, PoolSettings, PostgresChatStore, PostgresFileStore, PostgresIdentityStore,
-    PostgresRoomStore, PostgresSessionStore, PostgresUserStore, connect,
+    PostgresRoomStore, PostgresSessionLifecycle, PostgresSessionStore, PostgresUserStore, connect,
     migrate,
 };
 use sqlx::PgPool;
@@ -118,6 +118,19 @@ async fn verify_migrations_and_stores(
     connection: &ConnectionSettings,
 ) -> Result<(), Box<dyn Error>> {
     migrate(pool).await?;
+
+    let lifecycle = PostgresSessionLifecycle::new(pool.clone());
+    let session = SessionId::new();
+    let actor = ActorId::new();
+    let guard = lifecycle.lock(session, actor).await?;
+    assert!(
+        tokio::time::timeout(Duration::from_millis(100), lifecycle.lock(session, actor))
+            .await
+            .is_err(),
+        "the same actor/session must serialize across callers"
+    );
+    drop(guard);
+    tokio::time::timeout(Duration::from_secs(3), lifecycle.lock(session, actor)).await??;
 
     // Re-running migrations on an already-migrated database must be a no-op.
     // The connection pins `search_path=public` because the database role and

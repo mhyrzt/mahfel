@@ -84,6 +84,13 @@ pub enum ServerMessage {
         session_id: String,
         participant_id: String,
     },
+    /// Complete live roster. The version lets clients discard an older frame
+    /// after reconnect or a delayed cross-replica wakeup.
+    SessionRoster {
+        session_id: String,
+        version: u64,
+        participant_ids: Vec<String>,
+    },
     /// A complete ordered snapshot, including an empty list for silence.
     ActiveSpeakers {
         session_id: String,

@@ -130,8 +130,10 @@ Participation separates durable identity from transport:
   "at most one active participant" a database invariant, so a reconnect, a second device, or a racing
   join cannot create a duplicate. Leaving is terminal, so history is append-only and the same actor
   may participate again later.
-- **Ephemeral** (in-process `ConnectionRegistry`). How many transports an actor currently holds, and
-  which is newest, is volatile. A participant is present while at least one connection is live.
+- **Ephemeral** (Redis connection leases and each API replica's `ConnectionRegistry`). A
+  participant is present while at least one unexpired connection lease exists on any replica.
+  Each lease has a unique connection token, is renewed while the socket runs, and expires after 45
+  seconds if its replica dies. Redis is replaceable coordination state, never participant history.
 
 The **multi-device policy** is: one participant identity per `(session, actor)`, and any number of
 concurrent connections. Joining from a second device reuses the durable participant rather than
@@ -139,33 +141,24 @@ creating a new one, and the roster shows one entry. An operation that targets th
 or a removal, M4-05) must therefore resolve across every connection that actor holds, not one
 transport.
 
-An explicit `leave` ends the durable participation when the actor's last local connection leaves.
-An unexpected transport loss removes local presence and closes the connected-time interval after
-the last local connection, but leaves the participant row active so reconnect reuses its ID and
-opens a new interval. Join and departure for one `(session, actor)` are serialized on each API
-replica; a connection generation prevents cleanup captured before a rejoin from detaching the
-newer registration. Last-device departure emits `participant_left` to the replica-local roster.
+An explicit `leave` ends durable participation only after the last connection lease across all API
+replicas is removed. An unexpected socket loss removes its own lease and closes the connected-time
+interval only after global presence reaches zero; the participant row remains active so a reconnect
+reuses its ID. A PostgreSQL advisory lock serializes join and last departure for each
+`(session, actor)` across replicas. The lock uses a separate small connection pool so a join can
+still use the ordinary stores while holding it.
 
-#### Known limitations
+Redis pub/sub wakes each replica when a lease changes. A versioned `session_roster` frame contains
+the complete set of live participant IDs. Each replica also polls Redis every two seconds and sends
+snapshots to its local sockets, so a dropped pub/sub subscriber or missed notice cannot leave a
+roster stale indefinitely. The session's Redis lease set is bounded to 2,000 connections; local
+outbound queues are bounded too. A Redis failure denies a new join or leave and disconnects a socket
+whose lease cannot be renewed, rather than treating an unavailable global count as zero.
 
-These apply only when more than one API replica runs before the realtime fanout work
-(M5-03, TASK-34) lands. On a single replica they do not arise.
-
-- **The generation guard is replica-local.** Each connection carries a monotonic generation per
-  `(session, actor)`, used to make a stale intent — a cleanup completing after a reconnect, or a
-  delayed frame — a no-op. It is meaningful only within one API replica, because the registry is
-  process-local and has no view of another replica's connections. Cross-replica ordering is not
-  solved here; it needs Redis pub/sub (ADR 0017) and belongs to the connection-hub work in M5-03.
-- **Roster fan-out is replica-local.** `participant_joined` / `participant_left` propagate only to
-  connections on the same replica. A session spanning replicas produces partial roster updates until
-  the M5-03 fanout hub exists.
-- **Presence is per-replica.** "At least one live connection" is counted within one replica, so a
-  participant with one device on replica A and one on replica B is counted once per replica.
-
-These are consequences of the existing single-replica registry boundary, not of the participation
-model. The durable identity, uniqueness, and history guarantees hold regardless of replica count.
-M1-06 (TASK-7) delivered the Redis coordination adapter but never wired connection state onto it;
-the fanout decision and the connection hub are M5-03.
+The connection generation guard remains **replica-local**. It orders repeated actions on one
+connection in that process; it is not compared between replicas. Globally unique connection tokens
+ensure an older cleanup removes only its own Redis lease. PostgreSQL still enforces one active
+participant row per `(session, actor)` and owns durable history.
 
 ### Participation records
 

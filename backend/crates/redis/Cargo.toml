@@ -15,11 +15,11 @@ serde_json.workspace = true
 thiserror.workspace = true
 tokio.workspace = true
 tracing.workspace = true
+uuid.workspace = true
 
 [dev-dependencies]
 testcontainers = "0.28.0"
 tokio.workspace = true
-uuid.workspace = true
 
 [lints]
 workspace = true

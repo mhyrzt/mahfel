@@ -32,6 +32,7 @@ impl ConnectionRegistry {
             connection.session_id = Some(session_id);
             connection.room_id = Some(room_id);
             connection.participant_id = Some(participant_id);
+            connection.roster_version = None;
             connection.generation = generation;
         }
         generation
@@ -51,6 +52,7 @@ impl ConnectionRegistry {
         connection.session_id = None;
         connection.room_id = None;
         connection.participant_id = None;
+        connection.roster_version = None;
         true
     }
 

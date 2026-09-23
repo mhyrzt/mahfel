@@ -8,6 +8,7 @@ mod error;
 mod metrics;
 mod migrations;
 mod pool;
+mod session_lifecycle;
 mod settings;
 mod stores;
 
@@ -15,6 +16,7 @@ pub use error::DatabaseError;
 pub use metrics::PoolMetrics;
 pub use migrations::migrate;
 pub use pool::{connect, ping};
+pub use session_lifecycle::{PostgresSessionLifecycle, SessionLifecycleGuard};
 pub use settings::{ConnectionSettings, PoolSettings};
 pub use stores::{
     PostgresAdmissionStore, PostgresBlockStore, PostgresChatStore, PostgresFileStore,

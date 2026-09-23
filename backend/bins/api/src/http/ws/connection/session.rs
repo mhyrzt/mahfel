@@ -7,7 +7,7 @@ use crate::http::{
         envelope::{self, ClientMessage, ServerMessage},
         metrics::DisconnectReason,
         registry::{ConnectionRegistry, Outbound},
-        state::WsState,
+        state::{SESSION_PRESENCE_TTL, WsState},
     },
 };
 use axum::extract::ws::Message;
@@ -80,9 +80,39 @@ pub(super) async fn run(
     if let Some(handle) = registry.participation(id) {
         let lifecycle_lock = registry.lifecycle_lock(handle.session_id, principal.actor_id);
         let lifecycle_guard = lifecycle_lock.lock().await;
-        if registry.left_if_current(id, handle)
-            && registry.connection_count_for_participant(handle.session_id, principal.actor_id) == 0
-        {
+        let global_guard = state
+            .lock_session_actor(handle.session_id, principal.actor_id)
+            .await;
+        let remaining = match (&global_guard, &state.session_presence) {
+            (Ok(_), Some(redis)) => redis
+                .session_presence_leave(
+                    handle.session_id,
+                    id,
+                    handle.participant_id,
+                    SESSION_PRESENCE_TTL,
+                )
+                .await
+                .map(Some),
+            (Ok(_), None) => Ok(None),
+            (Err(error), _) => {
+                tracing::warn!(%error, "session lifecycle lock failed on disconnect");
+                Ok(Some(u64::MAX))
+            }
+        };
+        let remaining = match remaining {
+            Ok(Some(count)) => count,
+            Ok(None) => u64::try_from(
+                registry
+                    .connection_count_for_participant(handle.session_id, principal.actor_id)
+                    .saturating_sub(1),
+            )
+            .unwrap_or(u64::MAX),
+            Err(error) => {
+                tracing::warn!(%error, "session presence leave failed on disconnect");
+                u64::MAX
+            }
+        };
+        if registry.left_if_current(id, handle) && remaining == 0 {
             if let Err(error) = state
                 .stores
                 .participation
@@ -103,6 +133,8 @@ pub(super) async fn run(
                 },
             );
         }
+        state.wake_session();
+        drop(global_guard);
         drop(lifecycle_guard);
     }
     drop(registration);
@@ -131,6 +163,9 @@ async fn receive_loop(
     // `interval` completes its first tick immediately; schedule the first ping
     // one full interval out so it cannot race the welcome frame.
     heartbeat.reset();
+    let mut lease_heartbeat = interval(Duration::from_secs(10));
+    lease_heartbeat.set_missed_tick_behavior(MissedTickBehavior::Delay);
+    lease_heartbeat.reset();
     let heartbeat_timeout = connection.config().heartbeat_timeout;
     let mut last_seen = Instant::now();
 
@@ -173,6 +208,23 @@ async fn receive_loop(
                     return Err(DisconnectReason::HeartbeatTimeout);
                 }
                 connection.ping().await?;
+            }
+            _ = lease_heartbeat.tick() => {
+                if let (Some(redis), Some(handle)) = (&state.session_presence, registry.participation(id)) {
+                    match redis.session_presence_renew(
+                        handle.session_id, id, handle.participant_id, SESSION_PRESENCE_TTL,
+                    ).await {
+                        Ok(true) => {}
+                        Ok(false) => {
+                            tracing::warn!("session presence lease expired; disconnecting socket");
+                            return Err(DisconnectReason::Error);
+                        }
+                        Err(error) => {
+                            tracing::warn!(%error, "session presence renewal failed");
+                            return Err(DisconnectReason::Error);
+                        }
+                    }
+                }
             }
         }
     }

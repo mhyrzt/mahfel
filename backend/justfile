@@ -39,17 +39,18 @@ lint:
 
 # Run unit tests, integration tests, and Rust doctests.
 test:
-    just --justfile backend/justfile test-unit
-    just --justfile backend/justfile test-integration
-    just --justfile backend/justfile test-doc
+    just test-unit
+    just test-integration
+    just test-doc
 
 # Run library and binary unit-test targets only.
 test-unit:
-    cargo nextest run --workspace --all-features --lib --bins
+    NO_PROXY=127.0.0.1,localhost no_proxy=127.0.0.1,localhost \
+        cargo nextest run --workspace --all-features --lib --bins
 
 # Run integration-test targets with disposable Testcontainers enabled.
 test-integration:
-    MAHFEL_TESTCONTAINERS=1 \
+    MAHFEL_TESTCONTAINERS=1 NO_PROXY=127.0.0.1,localhost no_proxy=127.0.0.1,localhost \
         cargo nextest run --workspace --all-features --tests --no-capture
 
 # Run only Rust documentation tests.

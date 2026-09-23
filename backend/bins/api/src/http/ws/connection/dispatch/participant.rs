@@ -7,7 +7,7 @@
 
 use super::super::writer::Connection;
 use crate::http::{
-    ws::state::WsState,
+    ws::state::{SESSION_PRESENCE_TTL, WsState},
     ws::{envelope::ServerMessage, metrics::DisconnectReason, registry::ConnectionRegistry},
 };
 use mahfel_application::{
@@ -43,6 +43,19 @@ pub(super) async fn handle_join(
         Ok(session_id) => session_id,
         Err(rejection) => return connection.send(rejection).await,
     };
+    if let Some(current) = registry.participation(id) {
+        return connection
+            .send(ServerMessage::JoinRejected {
+                code: "already_joined".to_owned(),
+                message: if current.session_id == session_id {
+                    "connection already joined the session"
+                } else {
+                    "leave the current session before joining another"
+                }
+                .to_owned(),
+            })
+            .await;
+    }
     let lifecycle_lock = registry.lifecycle_lock(session_id, principal.actor_id);
     let lifecycle_guard = lifecycle_lock.lock().await;
 
@@ -85,6 +98,34 @@ pub(super) async fn handle_join(
         }
     }
 
+    let _global_guard = match state
+        .lock_session_actor(session_id, principal.actor_id)
+        .await
+    {
+        Ok(guard) => guard,
+        Err(error) => {
+            tracing::warn!(%error, "session lifecycle lock failed");
+            return connection
+                .send(ServerMessage::JoinRejected {
+                    code: "unavailable".to_owned(),
+                    message: "session coordination unavailable".to_owned(),
+                })
+                .await;
+        }
+    };
+    // Fail before durable participant/interval writes when coordination is
+    // unavailable. A later failure leaves the identity reusable on retry.
+    if let Some(redis) = &state.session_presence
+        && let Err(error) = redis.ping().await
+    {
+        tracing::warn!(%error, "session presence preflight failed");
+        return connection
+            .send(ServerMessage::JoinRejected {
+                code: "unavailable".to_owned(),
+                message: "session coordination unavailable".to_owned(),
+            })
+            .await;
+    }
     let (participant, room_id) = match join_session(
         state.stores.participants.as_ref(),
         state.stores.participation.as_ref(),
@@ -120,7 +161,21 @@ pub(super) async fn handle_join(
         }
     };
 
+    if let Some(redis) = &state.session_presence
+        && let Err(error) = redis
+            .session_presence_join(session_id, id, participant.id, SESSION_PRESENCE_TTL)
+            .await
+    {
+        tracing::warn!(%error, "session presence join failed");
+        return connection
+            .send(ServerMessage::JoinRejected {
+                code: "unavailable".to_owned(),
+                message: "session coordination unavailable".to_owned(),
+            })
+            .await;
+    }
     registry.joined(id, room_id, session_id, participant.id);
+    state.wake_session();
     connection
         .send(ServerMessage::Joined {
             session_id: session_id.to_string(),
@@ -179,6 +234,40 @@ pub(super) async fn handle_leave(
     let participant_id = handle.participant_id;
     let lifecycle_lock = registry.lifecycle_lock(session_id, principal.actor_id);
     let lifecycle_guard = lifecycle_lock.lock().await;
+    let _global_guard = match state
+        .lock_session_actor(session_id, principal.actor_id)
+        .await
+    {
+        Ok(guard) => guard,
+        Err(error) => {
+            tracing::warn!(%error, "session lifecycle lock failed");
+            return connection
+                .send(ServerMessage::JoinRejected {
+                    code: "unavailable".to_owned(),
+                    message: "session coordination unavailable".to_owned(),
+                })
+                .await;
+        }
+    };
+    let global_remaining = if let Some(redis) = &state.session_presence {
+        match redis
+            .session_presence_leave(session_id, id, participant_id, SESSION_PRESENCE_TTL)
+            .await
+        {
+            Ok(remaining) => Some(remaining),
+            Err(error) => {
+                tracing::warn!(%error, "session presence leave failed");
+                return connection
+                    .send(ServerMessage::JoinRejected {
+                        code: "unavailable".to_owned(),
+                        message: "session coordination unavailable".to_owned(),
+                    })
+                    .await;
+            }
+        }
+    } else {
+        None
+    };
     if !registry.left_if_current(id, handle) {
         drop(lifecycle_guard);
         return connection
@@ -188,7 +277,11 @@ pub(super) async fn handle_leave(
             })
             .await;
     }
-    let remaining = registry.connection_count_for_participant(session_id, principal.actor_id);
+    let remaining = global_remaining.unwrap_or_else(|| {
+        u64::try_from(registry.connection_count_for_participant(session_id, principal.actor_id))
+            .unwrap_or(u64::MAX)
+    });
+    state.wake_session();
     // Only the last local device ends durable participation. Serialize that
     // transition with joins so a reconnect cannot reuse a row being left.
     let outcome = if remaining == 0 {

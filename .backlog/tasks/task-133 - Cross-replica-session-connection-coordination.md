@@ -1,9 +1,11 @@
 ---
 id: TASK-133
 title: Cross-replica session connection coordination
-status: To Do
-assignee: []
+status: Done
+assignee:
+  - '@codex'
 created_date: '2026-09-21 12:17'
+updated_date: '2026-09-23 17:32'
 labels: []
 milestone: m-5
 dependencies:
@@ -32,9 +34,27 @@ Trigger: raised while implementing M4-02 (TASK-27); recorded in docs/architectur
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Clients on two API replicas in the same session observe the same roster after a join and a leave.
-- [ ] #2 A subscriber that drops and reconnects does not permanently miss roster state (resync or snapshot), given ADR 0017 pub/sub has no replay.
-- [ ] #3 Presence, meaning at least one live connection, is computed across replicas rather than once per replica.
-- [ ] #4 Generation ordering either holds across replicas or is explicitly documented as replica-scoped with the boundary named.
-- [ ] #5 Durable participation guarantees remain enforced by PostgreSQL and are unaffected by the connection hub.
+- [x] #1 Clients on two API replicas in the same session observe the same roster after a join and a leave.
+- [x] #2 A subscriber that drops and reconnects does not permanently miss roster state (resync or snapshot), given ADR 0017 pub/sub has no replay.
+- [x] #3 Presence, meaning at least one live connection, is computed across replicas rather than once per replica.
+- [x] #4 Generation ordering either holds across replicas or is explicitly documented as replica-scoped with the boundary named.
+- [x] #5 Durable participation guarantees remain enforced by PostgreSQL and are unaffected by the connection hub.
 <!-- AC:END -->
+
+## Implementation Plan
+
+<!-- SECTION:PLAN:BEGIN -->
+1. Add shared per-connection Redis leases and atomic session/actor presence transitions. 2. Serialize join and last-leave lifecycle across replicas while preserving PostgreSQL participant identity and intervals. 3. Fan out versioned roster snapshots to local WebSocket clients using Redis wakeups and periodic resync. 4. Keep local generation semantics explicit and fence stale remote cleanup by connection token. 5. Test two replicas, missed wakeups, multi-device leave, expiry, ordering, and durable participation; update contracts and architecture documentation.
+<!-- SECTION:PLAN:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Implemented namespaced Redis per-connection leases with 45-second TTL, global actor/session PostgreSQL advisory locking, versioned session_roster snapshots, pub/sub wakeups plus two-second polling recovery, and replica-local generation documentation. Tests: two-registry delivery/dedupe, real two-replica Redis fanout without a subscriber, Redis stale cleanup/expiry, advisory-lock serialization, and existing participant uniqueness. Full backend test recipe passed (361 unit, 383 integration, doc tests); backend fmt/lint, docs, generated contracts, frontend typecheck and changed generator lint passed. Test recipe now bypasses the host proxy for loopback fixtures.
+<!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Session roster and presence now converge across API replicas; last-device leave uses a shared lease count under a PostgreSQL lifecycle lock. Missed pub/sub notices recover from Redis snapshots, with durable participant identity unchanged.
+<!-- SECTION:FINAL_SUMMARY:END -->

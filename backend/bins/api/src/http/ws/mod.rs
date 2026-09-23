@@ -6,6 +6,7 @@ mod envelope;
 mod metrics;
 mod placement;
 mod registry;
+mod session_fanout;
 mod speaker;
 mod state;
 

@@ -1,6 +1,7 @@
 use super::*;
 use crate::http::ws::envelope::ChatEventPayload;
 use mahfel_domain::ParticipantId;
+use mahfel_redis::SessionPresenceSnapshot;
 
 fn registry() -> ConnectionRegistry {
     let metrics = WsMetrics::register(&prometheus::Registry::new())
@@ -82,6 +83,56 @@ async fn two_replica_hubs_apply_one_event_once_and_bound_slow_clients() {
         !second.chat_subscriptions().is_empty(),
         "the other replica remains live"
     );
+}
+
+#[tokio::test]
+async fn two_replica_hubs_deliver_versioned_rosters_once_per_connection() {
+    let first = registry();
+    let second = registry();
+    let session = SessionId::new();
+    let room = RoomId::new();
+    let alice = ParticipantId::new();
+    let bob = ParticipantId::new();
+    let id_a = Uuid::new_v4();
+    let id_b = Uuid::new_v4();
+    let (tx_a, mut rx_a) = mpsc::channel(4);
+    let (tx_b, mut rx_b) = mpsc::channel(4);
+    let _a = first.register(id_a, ActorId::new(), tx_a);
+    let _b = second.register(id_b, ActorId::new(), tx_b);
+    first.joined(id_a, room, session, alice);
+    second.joined(id_b, room, session, bob);
+    let joined = SessionPresenceSnapshot {
+        version: 2,
+        participant_ids: vec![alice, bob],
+    };
+    first.send_session_roster(session, &joined);
+    second.send_session_roster(session, &joined);
+    first.send_session_roster(session, &joined);
+    second.send_session_roster(session, &joined);
+    for receiver in [&mut rx_a, &mut rx_b] {
+        assert!(matches!(
+            receiver.try_recv(),
+            Ok(Outbound::Message(ServerMessage::SessionRoster { version: 2, participant_ids, .. }))
+                if participant_ids.len() == 2
+        ));
+        assert!(
+            receiver.try_recv().is_err(),
+            "unchanged version is not resent"
+        );
+    }
+    let left = SessionPresenceSnapshot {
+        version: 3,
+        participant_ids: vec![bob],
+    };
+    first.send_session_roster(session, &left);
+    second.send_session_roster(session, &left);
+    for receiver in [&mut rx_a, &mut rx_b] {
+        assert!(matches!(
+            receiver.try_recv(),
+            Ok(Outbound::Message(ServerMessage::SessionRoster { version: 3, participant_ids, .. }))
+                if participant_ids == vec![bob.to_string()]
+        ));
+    }
 }
 
 #[test]

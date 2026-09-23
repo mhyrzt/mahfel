@@ -13,7 +13,7 @@ use mahfel_application::{
 use mahfel_config::Settings;
 use mahfel_domain::NodeId;
 use mahfel_media_client::GrpcMediaGateway;
-use mahfel_postgres::PostgresStores;
+use mahfel_postgres::{PostgresSessionLifecycle, PostgresStores};
 use mahfel_storage::{S3FileStorage, S3Settings};
 use std::sync::Arc;
 use tokio::sync::watch;
@@ -29,6 +29,14 @@ pub(super) async fn app(
 ) -> Result<Router> {
     let origin = settings::allowed_origin(settings)?;
     let stores = PostgresStores::new(database.pool.clone());
+    // Advisory locks stay checked out while join/leave calls use the regular
+    // stores. A separate small pool avoids deadlock when the store pool is
+    // configured with a single connection.
+    let mut lifecycle_pool_settings = settings::pool(settings);
+    lifecycle_pool_settings.min_connections = 0;
+    lifecycle_pool_settings.max_connections = 4;
+    let lifecycle_pool =
+        mahfel_postgres::connect(&settings::connection(settings), lifecycle_pool_settings).await?;
     let source_address = Arc::new(
         http::source_address::SourceAddressResolver::new(settings.api.trusted_proxy.as_deref())
             .await
@@ -108,7 +116,11 @@ pub(super) async fn app(
         shutdown.clone(),
     )
     .with_placement(Arc::clone(&placement))
-    .with_chat(Arc::clone(&chat), coordination.store.clone());
+    .with_chat(Arc::clone(&chat), coordination.store.clone())
+    .with_session_presence(
+        coordination.store.clone(),
+        PostgresSessionLifecycle::new(lifecycle_pool),
+    );
     realtime.speakers.spawn_placed(
         placement,
         realtime.registry.clone(),

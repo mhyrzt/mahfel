@@ -1,5 +1,5 @@
 use mahfel_application::ports::{ChatActivityStore, CoordinationStore};
-use mahfel_domain::{ActorId, RoomId};
+use mahfel_domain::{ActorId, ParticipantId, RoomId, SessionId};
 use mahfel_redis::{RedisConnectionSettings, RedisCoordination, RedisError, RedisMetrics};
 use prometheus::Registry;
 use std::time::Duration;
@@ -168,5 +168,81 @@ async fn chat_activity_aggregates_and_expires() -> Result<(), Box<dyn std::error
     let expired = coordination.snapshot(room).await?;
     assert_eq!(expired.online_count, 0);
     assert_eq!(expired.typing_count, 0);
+    Ok(())
+}
+
+#[tokio::test]
+async fn session_presence_is_shared_deduplicated_and_resyncs_after_expiry()
+-> Result<(), Box<dyn std::error::Error>> {
+    let Some((url, _container)) = redis_target().await? else {
+        return Ok(());
+    };
+    let config = settings(&url, Duration::from_secs(2));
+    let first = RedisCoordination::connect(&config, metrics()).await?;
+    let second = RedisCoordination::connect(&config, metrics()).await?;
+    let session = SessionId::new();
+    let participant = ParticipantId::new();
+    let a = Uuid::new_v4();
+    let b = Uuid::new_v4();
+    let ttl = Duration::from_millis(250);
+    assert_eq!(
+        first
+            .session_presence_join(session, a, participant, ttl)
+            .await?,
+        1
+    );
+    assert_eq!(
+        second
+            .session_presence_join(session, b, participant, ttl)
+            .await?,
+        2
+    );
+    assert_eq!(
+        first
+            .session_presence_snapshot(session)
+            .await?
+            .participant_ids,
+        vec![participant]
+    );
+    assert_eq!(
+        first
+            .session_presence_leave(session, a, participant, ttl)
+            .await?,
+        1
+    );
+    assert_eq!(
+        first
+            .session_presence_leave(session, a, participant, ttl)
+            .await?,
+        1,
+        "stale cleanup cannot remove a newer connection on another replica"
+    );
+    assert_eq!(
+        second
+            .session_presence_snapshot(session)
+            .await?
+            .participant_ids,
+        vec![participant]
+    );
+    assert!(
+        !first
+            .session_presence_renew(session, a, participant, ttl)
+            .await?
+    );
+    assert!(
+        second
+            .session_presence_renew(session, b, participant, ttl)
+            .await?
+    );
+    tokio::time::sleep(Duration::from_millis(320)).await;
+    let expired = first.session_presence_snapshot(session).await?;
+    assert!(expired.participant_ids.is_empty());
+    assert!(expired.version > 0);
+    assert_eq!(
+        second
+            .session_presence_leave(session, b, participant, ttl)
+            .await?,
+        0
+    );
     Ok(())
 }

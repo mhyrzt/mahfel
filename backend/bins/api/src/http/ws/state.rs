@@ -7,9 +7,13 @@ use mahfel_application::ports::{
     RoomStore, SessionStore,
 };
 use mahfel_media_client::GrpcMediaGateway;
+use mahfel_postgres::{PostgresSessionLifecycle, SessionLifecycleGuard};
 use mahfel_redis::RedisCoordination;
 use std::sync::Arc;
+use std::time::Duration;
 use tokio::sync::{Notify, watch};
+
+pub const SESSION_PRESENCE_TTL: Duration = Duration::from_secs(45);
 
 /// The store seams the participation frames need, resolved together at join.
 #[derive(Clone)]
@@ -38,6 +42,9 @@ pub struct WsState {
     pub chat_activity: Option<Arc<dyn ChatActivityStore>>,
     chat_redis: Option<RedisCoordination>,
     chat_wake: Arc<Notify>,
+    pub session_presence: Option<RedisCoordination>,
+    session_lifecycle: Option<PostgresSessionLifecycle>,
+    session_wake: Arc<Notify>,
 }
 
 impl WsState {
@@ -65,6 +72,9 @@ impl WsState {
             chat_activity: None,
             chat_redis: None,
             chat_wake: Arc::new(Notify::new()),
+            session_presence: None,
+            session_lifecycle: None,
+            session_wake: Arc::new(Notify::new()),
         }
     }
 
@@ -86,6 +96,37 @@ impl WsState {
 
     pub fn wake_chat(&self) {
         self.chat_wake.notify_one();
+    }
+
+    pub fn with_session_presence(
+        mut self,
+        redis: RedisCoordination,
+        lifecycle: PostgresSessionLifecycle,
+    ) -> Self {
+        self.session_presence = Some(redis.clone());
+        self.session_lifecycle = Some(lifecycle);
+        super::session_fanout::spawn(
+            redis,
+            self.registry.clone(),
+            Arc::clone(&self.session_wake),
+            self.shutdown.clone(),
+        );
+        self
+    }
+
+    pub fn wake_session(&self) {
+        self.session_wake.notify_one();
+    }
+
+    pub async fn lock_session_actor(
+        &self,
+        session_id: mahfel_domain::SessionId,
+        actor_id: mahfel_domain::ActorId,
+    ) -> Result<Option<SessionLifecycleGuard>, sqlx::Error> {
+        match &self.session_lifecycle {
+            Some(lifecycle) => lifecycle.lock(session_id, actor_id).await.map(Some),
+            None => Ok(None),
+        }
     }
 
     pub async fn publish_chat_wakeup(&self) {

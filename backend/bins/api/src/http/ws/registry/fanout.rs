@@ -3,10 +3,46 @@
 use super::{ConnectionRegistry, Outbound};
 use crate::http::ws::envelope::ServerMessage;
 use mahfel_domain::SessionId;
+use mahfel_redis::SessionPresenceSnapshot;
 use tokio::sync::mpsc;
 use uuid::Uuid;
 
 impl ConnectionRegistry {
+    /// Every replica sends the same authoritative snapshot to its local
+    /// sockets. Per-socket version tracking prevents repeated polling from
+    /// filling outbound queues with duplicates.
+    pub fn send_session_roster(&self, session_id: SessionId, snapshot: &SessionPresenceSnapshot) {
+        let message = ServerMessage::SessionRoster {
+            session_id: session_id.to_string(),
+            version: snapshot.version,
+            participant_ids: snapshot
+                .participant_ids
+                .iter()
+                .map(ToString::to_string)
+                .collect(),
+        };
+        let mut connections = self.lock();
+        for connection in connections.values_mut() {
+            if connection.session_id != Some(session_id)
+                || connection.roster_version == Some(snapshot.version)
+            {
+                continue;
+            }
+            match connection
+                .sender
+                .try_send(Outbound::Message(message.clone()))
+            {
+                Ok(()) => {
+                    connection.roster_version = Some(snapshot.version);
+                }
+                Err(mpsc::error::TrySendError::Full(_)) => {
+                    self.inner.metrics.send_dropped();
+                }
+                Err(mpsc::error::TrySendError::Closed(_)) => {}
+            }
+        }
+    }
+
     /// Enqueue a message for every connection in a session on this replica.
     ///
     /// Moderation uses this rather than the `_except` form because the whole

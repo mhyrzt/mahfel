@@ -49,6 +49,7 @@ base64 = "0.22"
 jsonwebtoken = "9"
 time.workspace = true
 tokio-tungstenite = "0.29"
+testcontainers = "0.28.0"
 
 [lints]
 workspace = true
