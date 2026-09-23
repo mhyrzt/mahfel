@@ -32,6 +32,40 @@ pub enum JoinOutcome {
     Waiting(AdmissionRequest),
 }
 
+/// Read-only entry check used before claiming a media node. `None` means this
+/// authorized actor must enter the lobby, which allocates no media resources.
+pub async fn preflight_join<P, R, S, B>(
+    participants: &P,
+    sessions: &R,
+    rooms: &S,
+    blocks: &B,
+    command: &JoinSession,
+) -> Result<Option<RoomId>, SessionOperationError>
+where
+    P: ParticipantStore + ?Sized,
+    R: SessionStore + ?Sized,
+    S: RoomStore + ?Sized,
+    B: BlockStore + ?Sized,
+{
+    let session = sessions
+        .get(command.session_id)
+        .await?
+        .ok_or(SessionOperationError::NotFound)?;
+    if session.status != SessionStatus::Live {
+        return Err(SessionOperationError::NotLive);
+    }
+    let room = super::require_joinable(rooms, session.room_id, command.actor).await?;
+    super::require_not_blocked(blocks, room.id, command.session_id, command.actor).await?;
+    if participants
+        .get_active(command.session_id, command.actor)
+        .await?
+        .is_some()
+    {
+        return Ok(Some(room.id));
+    }
+    Ok((!session.effective_admission(&room).requires_approval()).then_some(room.id))
+}
+
 impl JoinOutcome {
     /// The participant, when the join was admitted immediately.
     #[must_use]
@@ -93,24 +127,6 @@ where
     // independent durable facts, so neither writes rows for the other.
     super::require_not_blocked(blocks, room.id, command.session_id, command.actor).await?;
 
-    if session.effective_admission(&room).requires_approval() {
-        let outcome = enqueue_admission(
-            admissions,
-            sessions,
-            rooms,
-            EnqueueAdmission {
-                actor: command.actor,
-                target: mahfel_domain::AdmissionTarget::Session(command.session_id),
-                origin: command.origin,
-            },
-            now,
-        )
-        .await?;
-        return Ok(match outcome {
-            AdmissionOutcome::Waiting(request) => JoinOutcome::Waiting(request),
-        });
-    }
-
     if let Some(existing) = participants
         .get_active(command.session_id, command.actor)
         .await?
@@ -127,6 +143,24 @@ where
         return Ok(JoinOutcome::Joined {
             participant: existing,
             room_id: room.id,
+        });
+    }
+
+    if session.effective_admission(&room).requires_approval() {
+        let outcome = enqueue_admission(
+            admissions,
+            sessions,
+            rooms,
+            EnqueueAdmission {
+                actor: command.actor,
+                target: mahfel_domain::AdmissionTarget::Session(command.session_id),
+                origin: command.origin,
+            },
+            now,
+        )
+        .await?;
+        return Ok(match outcome {
+            AdmissionOutcome::Waiting(request) => JoinOutcome::Waiting(request),
         });
     }
 

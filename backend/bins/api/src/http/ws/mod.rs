@@ -2,12 +2,15 @@ mod config;
 mod connection;
 mod envelope;
 mod metrics;
+mod placement;
 mod registry;
 mod speaker;
 mod state;
 
 pub use config::WsConfig;
 pub use metrics::WsMetrics;
+pub use placement::MediaPlacementRouter;
+pub(crate) use placement::media_room_id;
 pub use state::{ParticipationStores, WsState};
 #[cfg(test)]
 pub(super) use {envelope::ServerMessage, registry::Outbound};

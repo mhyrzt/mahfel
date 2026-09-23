@@ -122,7 +122,7 @@ pub(super) async fn handle_mute(
         state.stores.participants.as_ref(),
         state.stores.sessions.as_ref(),
         state.stores.rooms.as_ref(),
-        state.media.as_ref(),
+        state.control_media(),
         MuteCommand {
             actor: principal.actor_id,
             session_id,
@@ -202,7 +202,7 @@ pub(super) async fn handle_unmute(
         state.stores.participants.as_ref(),
         state.stores.sessions.as_ref(),
         state.stores.rooms.as_ref(),
-        state.media.as_ref(),
+        state.control_media(),
         MuteCommand {
             actor: principal.actor_id,
             session_id,
@@ -267,7 +267,7 @@ pub(super) async fn handle_remove(
         state.stores.participants.as_ref(),
         state.stores.sessions.as_ref(),
         state.stores.rooms.as_ref(),
-        state.media.as_ref(),
+        state.control_media(),
         RemoveCommand {
             actor: principal.actor_id,
             session_id,
@@ -334,7 +334,7 @@ pub(super) async fn handle_block(
         state.stores.participants.as_ref(),
         state.stores.blocks.as_ref(),
         state.stores.rooms.as_ref(),
-        state.media.as_ref(),
+        state.control_media(),
         BlockCommand {
             actor: principal.actor_id,
             scope,

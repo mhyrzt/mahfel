@@ -18,6 +18,14 @@ redis.call('ZADD', KEYS[2], now_ms + tonumber(ARGV[3]), ARGV[4])
 redis.call('PEXPIRE', KEYS[2], ARGV[3])
 return 1
 "#;
+const LIVE_NODE_SCRIPT: &str = r#"
+local now = redis.call('TIME')
+local now_ms = now[1] * 1000 + math.floor(now[2] / 1000)
+local expires = redis.call('ZSCORE', KEYS[2], ARGV[1])
+if not expires or tonumber(expires) <= now_ms then return {'', ''} end
+local values = redis.call('HMGET', KEYS[1], 'payload', 'draining')
+return {values[1] or '', values[2] or ''}
+"#;
 
 impl RedisCoordination {
     fn media_node_key(&self, node_id: &str) -> String {
@@ -30,6 +38,39 @@ impl RedisCoordination {
 }
 
 impl MediaNodeRegistry for RedisCoordination {
+    fn live_node<'a>(
+        &'a self,
+        node_id: &'a mahfel_domain::NodeId,
+    ) -> BoxFuture<'a, Result<Option<MediaNodeRecord>, CoordinationError>> {
+        Box::pin(async move {
+            let mut connection = self.manager.clone();
+            let result = tokio::time::timeout(
+                self.command_timeout,
+                redis::cmd("EVAL")
+                    .arg(LIVE_NODE_SCRIPT)
+                    .arg(2)
+                    .arg(self.media_node_key(node_id.as_str()))
+                    .arg(self.media_nodes_index())
+                    .arg(node_id.as_str())
+                    .query_async::<(String, String)>(&mut connection),
+            )
+            .await;
+            let (payload, draining) = self.finish(result).map_err(CoordinationError::from)?;
+            if payload.is_empty() {
+                return Ok(None);
+            }
+            let mut node: MediaNodeRecord = serde_json::from_str(&payload)
+                .map_err(|error| CoordinationError::Unexpected(error.to_string()))?;
+            if node.node_id != *node_id {
+                return Err(CoordinationError::Unexpected(
+                    "media node registry identity mismatch".into(),
+                ));
+            }
+            node.draining = draining == "1";
+            Ok(Some(node))
+        })
+    }
+
     fn heartbeat<'a>(
         &'a self,
         record: &'a MediaNodeRecord,

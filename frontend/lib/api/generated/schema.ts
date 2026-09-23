@@ -3072,6 +3072,13 @@ export interface operations {
         };
         content?: never;
       };
+      /** @description Media placement is unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
     };
   };
   reject_principal: {

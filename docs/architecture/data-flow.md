@@ -152,10 +152,14 @@ sequenceDiagram
   participant M as mahfel-media
   B->>A: Authenticate and request session join
   A->>P: Authorize membership and role
-  A->>R: Read or acquire room placement
-  A->>M: gRPC ensure room on selected node
-  M-->>A: Router and transport capabilities
-  A-->>B: Session metadata and signaling channel
+  A->>P: Read existing session placement
+  A->>R: Read live media-node heartbeats
+  A->>R: Atomically claim node and room slot if unplaced
+  A->>P: Insert or read one durable session decision
+  A-->>B: Joined with stable participant identity
+  B->>A: RTC signaling frames
+  A->>R: Verify assigned node still has a fresh heartbeat
+  A->>M: Private gRPC on the assigned node
 ```
 
 ## Moderation

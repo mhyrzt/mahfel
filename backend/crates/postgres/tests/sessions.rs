@@ -1,11 +1,13 @@
-use mahfel_application::ports::{RoomStore, SessionStore, StoreError, UserStore};
+use mahfel_application::ports::{
+    MediaPlacement, MediaPlacementStore, RoomStore, SessionStore, StoreError, UserStore,
+};
 use mahfel_domain::{
-    DisplayName, Room, RoomId, RoomMember, RoomRole, RoomTitle, RoomVisibility, Session,
+    DisplayName, NodeId, Room, RoomId, RoomMember, RoomRole, RoomTitle, RoomVisibility, Session,
     SessionStatus, User,
 };
 use mahfel_postgres::{
-    ConnectionSettings, PoolSettings, PostgresRoomStore, PostgresSessionStore, PostgresUserStore,
-    connect, migrate,
+    ConnectionSettings, PoolSettings, PostgresMediaPlacementStore, PostgresRoomStore,
+    PostgresSessionStore, PostgresUserStore, connect, migrate,
 };
 use sqlx::PgPool;
 use std::{error::Error, time::Duration};
@@ -172,6 +174,41 @@ async fn verify_sessions(pool: &PgPool) -> Result<(), Box<dyn Error>> {
         .filter(|session| session.status == SessionStatus::Live)
         .count();
     assert_eq!(live, 1, "exactly one live session survives the race");
+
+    // The unique durable decision wins even if a later lease returns another
+    // node. Operators can query the recorded capacity and reason directly.
+    let placements = PostgresMediaPlacementStore::new(pool.clone());
+    let chosen = MediaPlacement {
+        session_id: first.id,
+        room_id: room.id,
+        node_id: NodeId::from_deployment("media-a").expect("valid node id"),
+        max_rooms: 12,
+        active_rooms: 3,
+        reason: "weighted_available_capacity".to_owned(),
+        decided_at: now,
+    };
+    assert_eq!(
+        placements.insert_or_get(&chosen).await?.node_id,
+        chosen.node_id
+    );
+    let competing = MediaPlacement {
+        node_id: NodeId::from_deployment("media-b").expect("valid node id"),
+        ..chosen.clone()
+    };
+    assert_eq!(
+        placements.insert_or_get(&competing).await?.node_id,
+        chosen.node_id
+    );
+    let diagnostic: (String, i32, i64, String) = sqlx::query_as(
+        "SELECT node_id, max_rooms, active_rooms, reason FROM mahfel.media_placements WHERE session_id = $1",
+    )
+    .bind(first.id.as_uuid())
+    .fetch_one(pool)
+    .await?;
+    assert_eq!(diagnostic.0, "media-a");
+    assert_eq!(diagnostic.1, 12);
+    assert_eq!(diagnostic.2, 3);
+    assert_eq!(diagnostic.3, "weighted_available_capacity");
 
     // Concurrent starts for one room: exactly one write wins.
     let race_room = Room::create(

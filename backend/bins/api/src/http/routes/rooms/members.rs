@@ -64,7 +64,7 @@ pub(crate) async fn remove(
 ) -> Result<StatusCode, ApiError> {
     remove_member(
         state.rooms.as_ref(),
-        state.realtime.media.as_ref(),
+        state.realtime.control_media(),
         RoomId::from_uuid(room_id),
         principal.actor_id,
         ActorId::from_uuid(user_id),
@@ -102,7 +102,7 @@ pub(crate) async fn change_role(
 ) -> Result<Json<MemberResponse>, ApiError> {
     let member = change_member_role(
         state.rooms.as_ref(),
-        state.realtime.media.as_ref(),
+        state.realtime.control_media(),
         RoomId::from_uuid(room_id),
         principal.actor_id,
         ActorId::from_uuid(user_id),

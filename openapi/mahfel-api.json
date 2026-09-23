@@ -1947,6 +1947,9 @@
           },
           "409": {
             "description": "The request was already decided"
+          },
+          "503": {
+            "description": "Media placement is unavailable"
           }
         }
       }

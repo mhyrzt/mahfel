@@ -5,8 +5,8 @@ use crate::http::{
 };
 use axum::{Json, extract::State};
 use mahfel_application::admission::{
-    AdmissionDecision, Lobby, SessionAccess, SessionAccessView, admit, reject, set_session_access,
-    view_lobby, view_session_access,
+    AdmissionDecision, Lobby, SessionAccess, SessionAccessView, admit, preflight_session_admit,
+    reject, set_session_access, view_lobby, view_session_access,
 };
 use mahfel_domain::{ActorId, AdmissionTarget, SessionId};
 use serde::{Deserialize, Serialize};
@@ -185,6 +185,7 @@ pub(crate) async fn get_lobby(
         (status = 403, description = "Caller does not manage the session's room"),
         (status = 404, description = "Session does not exist, or the principal is not waiting"),
         (status = 409, description = "The request was already decided"),
+        (status = 503, description = "Media placement is unavailable"),
     ),
 )]
 pub(crate) async fn admit_principal(
@@ -194,17 +195,31 @@ pub(crate) async fn admit_principal(
 ) -> Result<Json<AdmittedResponse>, ApiError> {
     let session_id = SessionId::from_uuid(session_id);
     let target = ActorId::from_uuid(actor_id);
+    let command = AdmissionDecision {
+        actor: principal.actor_id,
+        target: AdmissionTarget::Session(session_id),
+        subject: target,
+    };
+    if let Some(router) = &state.realtime.placement {
+        let room_id = preflight_session_admit(
+            state.admissions.as_ref(),
+            state.sessions.as_ref(),
+            state.rooms.as_ref(),
+            &command,
+        )
+        .await?;
+        router
+            .place(session_id, room_id)
+            .await
+            .map_err(|_| ApiError::unavailable("media placement unavailable"))?;
+    }
     let grant = admit(
         state.realtime.stores.participants.as_ref(),
         state.participation.as_ref(),
         state.admissions.as_ref(),
         state.sessions.as_ref(),
         state.rooms.as_ref(),
-        AdmissionDecision {
-            actor: principal.actor_id,
-            target: AdmissionTarget::Session(session_id),
-            subject: target,
-        },
+        command,
         OffsetDateTime::now_utc(),
     )
     .await?;

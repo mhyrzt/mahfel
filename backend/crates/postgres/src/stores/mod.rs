@@ -3,6 +3,7 @@ mod block;
 mod chat;
 mod identity;
 mod invite;
+mod media_placement;
 mod participant;
 mod participation;
 mod room;
@@ -15,6 +16,7 @@ pub use block::PostgresBlockStore;
 pub use chat::PostgresChatStore;
 pub use identity::PostgresIdentityStore;
 pub use invite::PostgresInviteStore;
+pub use media_placement::PostgresMediaPlacementStore;
 pub use participant::PostgresParticipantStore;
 pub use participation::PostgresParticipationStore;
 pub use room::PostgresRoomStore;
@@ -44,6 +46,7 @@ pub struct PostgresStores {
     pub service_principals: PostgresServicePrincipalStore,
     pub blocks: PostgresBlockStore,
     pub chat: PostgresChatStore,
+    pub media_placements: PostgresMediaPlacementStore,
 }
 
 impl PostgresStores {
@@ -60,6 +63,7 @@ impl PostgresStores {
             participation: PostgresParticipationStore::new(pool.clone()),
             service_principals: PostgresServicePrincipalStore::new(pool.clone()),
             blocks: PostgresBlockStore::new(pool.clone()),
+            media_placements: PostgresMediaPlacementStore::new(pool.clone()),
             chat: PostgresChatStore::new(pool),
         }
     }

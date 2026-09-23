@@ -2,24 +2,32 @@ use super::super::writer::Connection;
 use super::helpers::{parse_room_or_send_error, send_err, send_ok};
 use crate::http::ws::{envelope::ServerMessage, metrics::DisconnectReason, state::WsState};
 use mahfel_application::ports::{Capability, Principal};
-use mahfel_domain::ProducerSource;
+use mahfel_domain::{ProducerSource, RoomId, SessionId};
 use mahfel_media_client::GrpcMediaGateway;
 use mediasoup::prelude::MediaKind;
 
+#[allow(clippy::too_many_arguments)]
 pub(super) async fn handle_create_transport(
     c: &mut Connection,
     rid: Option<String>,
     kind: &str,
     room_id: &str,
     principal: &Principal,
+    session_id: Option<SessionId>,
+    media_room: Option<RoomId>,
     media: &GrpcMediaGateway,
 ) -> Result<(), DisconnectReason> {
     let Some(room) = parse_room_or_send_error(c, rid.clone(), room_id).await else {
         return Ok(());
     };
-    match media.create_transport(room, principal.actor_id).await {
+    match media
+        .create_transport(media_room.unwrap_or(room), principal.actor_id)
+        .await
+    {
         Ok((tid, ice_p, ice_c, dtls_p)) => {
-            c.own_transport(room, tid.clone());
+            if let Some(session_id) = session_id {
+                c.own_transport(session_id, room, tid.clone());
+            }
             send_ok(
                 c,
                 rid,
@@ -38,6 +46,7 @@ pub(super) async fn handle_create_transport(
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 pub(super) async fn handle_connect_transport(
     c: &mut Connection,
     rid: Option<String>,
@@ -45,13 +54,14 @@ pub(super) async fn handle_connect_transport(
     room_id: String,
     transport_id: String,
     dtls: String,
+    media_room: Option<RoomId>,
     media: &GrpcMediaGateway,
 ) -> Result<(), DisconnectReason> {
     let Some(room) = parse_room_or_send_error(c, rid.clone(), &room_id).await else {
         return Ok(());
     };
     match media
-        .connect_transport(room, transport_id.clone(), dtls)
+        .connect_transport(media_room.unwrap_or(room), transport_id.clone(), dtls)
         .await
     {
         Ok(()) => {
@@ -97,8 +107,9 @@ pub(super) async fn handle_produce(
     source: Option<String>,
     principal: &Principal,
     state: &WsState,
+    media_room: Option<RoomId>,
+    media: &GrpcMediaGateway,
 ) -> Result<(), DisconnectReason> {
-    let media = state.media.as_ref();
     let Some(room) = parse_room_or_send_error(c, rid.clone(), &room_id).await else {
         return Ok(());
     };
@@ -160,7 +171,7 @@ pub(super) async fn handle_produce(
     }
     match media
         .produce(
-            room,
+            media_room.unwrap_or(room),
             principal.actor_id,
             transport_id.clone(),
             kind,
@@ -195,6 +206,7 @@ pub(super) async fn handle_consume(
     producer_id: String,
     rtp_cap: String,
     principal: &Principal,
+    media_room: Option<RoomId>,
     media: &GrpcMediaGateway,
 ) -> Result<(), DisconnectReason> {
     let Some(room) = parse_room_or_send_error(c, rid.clone(), &room_id).await else {
@@ -202,7 +214,7 @@ pub(super) async fn handle_consume(
     };
     match media
         .consume(
-            room,
+            media_room.unwrap_or(room),
             principal.actor_id,
             producer_id.clone(),
             transport_id.clone(),
@@ -228,12 +240,14 @@ pub(super) async fn handle_consume(
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 pub(super) async fn handle_pause(
     c: &mut Connection,
     rid: Option<String>,
     kind: &str,
     room_id: String,
     consumer_id: String,
+    media_room: Option<RoomId>,
     media: &GrpcMediaGateway,
     resume: bool,
 ) -> Result<(), DisconnectReason> {
@@ -241,9 +255,13 @@ pub(super) async fn handle_pause(
         return Ok(());
     };
     let res = if resume {
-        media.resume_consumer(room, consumer_id.clone()).await
+        media
+            .resume_consumer(media_room.unwrap_or(room), consumer_id.clone())
+            .await
     } else {
-        media.pause_consumer(room, consumer_id.clone()).await
+        media
+            .pause_consumer(media_room.unwrap_or(room), consumer_id.clone())
+            .await
     };
     match res {
         Ok(()) => {

@@ -1,6 +1,7 @@
 pub mod admission_store;
 pub mod authorization;
 pub mod block_store;
+pub mod chat_store;
 pub mod coordination;
 pub mod event_publisher;
 pub mod futures;
@@ -8,6 +9,7 @@ pub mod identity_store;
 pub mod invite_store;
 pub mod media_gateway;
 pub mod media_node_registry;
+pub mod media_placement;
 pub mod membership;
 pub mod participant_store;
 pub mod participation_store;
@@ -23,6 +25,7 @@ pub use authorization::{
     Principal, require_capability, resolve_capabilities,
 };
 pub use block_store::BlockStore;
+pub use chat_store::ChatStore;
 pub use coordination::{CoordinationError, CoordinationStore};
 pub use event_publisher::{DomainEvent, EventPublisher, PublishError};
 pub use futures::BoxFuture;
@@ -30,6 +33,7 @@ pub use identity_store::{IdentityProfile, IdentityStore, ProvisionedIdentity};
 pub use invite_store::InviteStore;
 pub use media_gateway::{MediaGateway, MediaGatewayError};
 pub use media_node_registry::{MediaNodeRecord, MediaNodeRegistry};
+pub use media_placement::{MediaPlacement, MediaPlacementLease, MediaPlacementStore};
 pub use membership::{Membership, MembershipStore};
 pub use participant_store::ParticipantStore;
 pub use participation_store::{ParticipantDuration, ParticipationStore};
@@ -66,5 +70,3 @@ impl StoreError {
         Self::Unexpected(err.to_string())
     }
 }
-pub mod chat_store;
-pub use chat_store::ChatStore;

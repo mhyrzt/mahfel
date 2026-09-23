@@ -1,7 +1,7 @@
 use super::{
     CancelSession, EndSession, GetSession, JoinSession, LeaveSession, ListSessions,
     ScheduleSession, SessionOperationError, StartSession, cancel_session, end_session, get_session,
-    join_session, leave_session, list_sessions, schedule_session, start_session,
+    join_session, leave_session, list_sessions, preflight_join, schedule_session, start_session,
 };
 use crate::ports::{
     AdmissionStore, BlockStore, BoxFuture, ParticipantStore, ParticipationStore, RoomStore,
@@ -1396,6 +1396,52 @@ async fn lobby_defers_the_join_and_grants_no_participant() {
             .pending(AdmissionTarget::Session(session.id), owner)
             .is_some(),
         "the request must be queued"
+    );
+}
+
+#[tokio::test]
+async fn an_approved_participant_can_reconnect_under_lobby_policy() {
+    let (rooms, sessions, admissions, participants, participation, room, session, owner) =
+        lobby_fixture().await;
+    let approved = Participant::join(session.id, owner, OffsetDateTime::now_utc());
+    participants
+        .insert(&approved)
+        .await
+        .expect("approved participant");
+    let command = JoinSession {
+        actor: owner,
+        session_id: session.id,
+        origin: AdmissionOrigin::Join,
+    };
+    assert_eq!(
+        preflight_join(
+            &participants,
+            &sessions,
+            &rooms,
+            &FakeBlockStore::default(),
+            &command,
+        )
+        .await
+        .expect("preflight"),
+        Some(room.id),
+    );
+    let joined = join_session(
+        &participants,
+        &participation,
+        &admissions,
+        &sessions,
+        &rooms,
+        &FakeBlockStore::default(),
+        command,
+    )
+    .await
+    .expect("reconnect")
+    .participant()
+    .expect("joined");
+    assert_eq!(joined.id, approved.id);
+    assert!(
+        admissions.all().is_empty(),
+        "approval must not queue a second request"
     );
 }
 

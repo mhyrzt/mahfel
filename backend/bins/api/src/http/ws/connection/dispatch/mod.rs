@@ -24,7 +24,6 @@ pub(super) async fn handle_text(
     principal: &Principal,
     state: &WsState,
 ) -> Result<(), DisconnectReason> {
-    let media = state.media.as_ref();
     let envelope = match envelope::parse_envelope(text) {
         Ok(env) => env,
         Err(ProtocolError::UnsupportedVersion(v)) => {
@@ -42,6 +41,42 @@ pub(super) async fn handle_text(
     };
     let rid = envelope.id.clone();
     let kind = rtc_kind(&envelope.message);
+    let rtc_participation = if let Some(raw_room) = rtc_room_id(&envelope.message) {
+        let Some(handle) = registry.participation(id) else {
+            return connection
+                .send_with_id(rid, protocol_error("not_joined", "join a session first"))
+                .await;
+        };
+        if helpers::parse_room_id(raw_room).ok() != Some(handle.room_id) {
+            return connection
+                .send_with_id(
+                    rid,
+                    protocol_error("forbidden", "room does not match joined session"),
+                )
+                .await;
+        }
+        Some(handle)
+    } else {
+        None
+    };
+    let media = if let Some(handle) = rtc_participation {
+        match state.media_for(handle.session_id, handle.room_id).await {
+            Ok(media) => media,
+            Err(_) => {
+                return connection
+                    .send_with_id(
+                        rid,
+                        protocol_error("unavailable", "assigned media node unavailable"),
+                    )
+                    .await;
+            }
+        }
+    } else {
+        std::sync::Arc::clone(&state.media)
+    };
+    let media_room = state.placement.as_ref().and_then(|_| {
+        rtc_participation.map(|handle| crate::http::ws::placement::media_room_id(handle.session_id))
+    });
 
     match envelope.message {
         ClientMessage::Echo { text } => connection.send(ServerMessage::Echo { text }).await,
@@ -134,7 +169,17 @@ pub(super) async fn handle_text(
             .await
         }
         ClientMessage::CreateTransport { room_id } => {
-            rtc::handle_create_transport(connection, rid, kind, &room_id, principal, media).await
+            rtc::handle_create_transport(
+                connection,
+                rid,
+                kind,
+                &room_id,
+                principal,
+                rtc_participation.map(|h| h.session_id),
+                media_room,
+                media.as_ref(),
+            )
+            .await
         }
         ClientMessage::ConnectTransport {
             room_id,
@@ -148,7 +193,8 @@ pub(super) async fn handle_text(
                 room_id,
                 transport_id,
                 dtls_parameters,
-                media,
+                media_room,
+                media.as_ref(),
             )
             .await
         }
@@ -170,6 +216,8 @@ pub(super) async fn handle_text(
                 source,
                 principal,
                 state,
+                media_room,
+                media.as_ref(),
             )
             .await
         }
@@ -188,18 +236,55 @@ pub(super) async fn handle_text(
                 producer_id,
                 rtp_capabilities,
                 principal,
-                media,
+                media_room,
+                media.as_ref(),
             )
             .await
         }
         ClientMessage::PauseConsumer {
             room_id,
             consumer_id,
-        } => rtc::handle_pause(connection, rid, kind, room_id, consumer_id, media, false).await,
+        } => {
+            rtc::handle_pause(
+                connection,
+                rid,
+                kind,
+                room_id,
+                consumer_id,
+                media_room,
+                media.as_ref(),
+                false,
+            )
+            .await
+        }
         ClientMessage::ResumeConsumer {
             room_id,
             consumer_id,
-        } => rtc::handle_pause(connection, rid, kind, room_id, consumer_id, media, true).await,
+        } => {
+            rtc::handle_pause(
+                connection,
+                rid,
+                kind,
+                room_id,
+                consumer_id,
+                media_room,
+                media.as_ref(),
+                true,
+            )
+            .await
+        }
+    }
+}
+
+fn rtc_room_id(message: &ClientMessage) -> Option<&str> {
+    match message {
+        ClientMessage::CreateTransport { room_id }
+        | ClientMessage::ConnectTransport { room_id, .. }
+        | ClientMessage::Produce { room_id, .. }
+        | ClientMessage::Consume { room_id, .. }
+        | ClientMessage::PauseConsumer { room_id, .. }
+        | ClientMessage::ResumeConsumer { room_id, .. } => Some(room_id),
+        _ => None,
     }
 }
 

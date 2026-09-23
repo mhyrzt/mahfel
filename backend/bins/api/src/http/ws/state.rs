@@ -1,3 +1,4 @@
+use super::placement::MediaPlacementRouter;
 use super::speaker::SpeakerProjection;
 use super::{config::WsConfig, metrics::WsMetrics, registry::ConnectionRegistry};
 use crate::http::auth::RequestAuthenticator;
@@ -28,6 +29,7 @@ pub struct WsState {
     pub metrics: WsMetrics,
     pub authenticator: Arc<dyn RequestAuthenticator>,
     pub media: Arc<GrpcMediaGateway>,
+    pub placement: Option<Arc<MediaPlacementRouter>>,
     pub stores: ParticipationStores,
     pub shutdown: watch::Receiver<bool>,
 }
@@ -50,8 +52,32 @@ impl WsState {
             metrics,
             authenticator,
             media,
+            placement: None,
             stores,
             shutdown,
+        }
+    }
+
+    pub fn with_placement(mut self, placement: Arc<MediaPlacementRouter>) -> Self {
+        self.placement = Some(placement);
+        self
+    }
+
+    pub async fn media_for(
+        &self,
+        session_id: mahfel_domain::SessionId,
+        room_id: mahfel_domain::RoomId,
+    ) -> Result<Arc<GrpcMediaGateway>, mahfel_application::placement::PlacementError> {
+        match &self.placement {
+            Some(router) => router.lookup(session_id, room_id).await,
+            None => Ok(Arc::clone(&self.media)),
+        }
+    }
+
+    pub fn control_media(&self) -> &dyn mahfel_application::ports::MediaGateway {
+        match &self.placement {
+            Some(router) => router.as_ref(),
+            None => self.media.as_ref(),
         }
     }
 }

@@ -16,7 +16,7 @@ use crate::ports::{
 };
 use mahfel_domain::{
     ActorId, AdmissionRequest, AdmissionRequestStatus, AdmissionTarget, Participant,
-    ParticipationInterval, RoomMember, RoomRole, SessionStatus,
+    ParticipationInterval, RoomId, RoomMember, RoomRole, SessionStatus,
 };
 use time::OffsetDateTime;
 
@@ -27,6 +27,34 @@ pub struct AdmissionDecision {
     pub target: AdmissionTarget,
     /// The principal whose request is being decided.
     pub subject: ActorId,
+}
+
+/// Authorize a session approval without mutating the request or participant.
+/// Placement runs after this check and before the approval's durable writes.
+pub async fn preflight_session_admit<A, T, R>(
+    admissions: &A,
+    sessions: &T,
+    rooms: &R,
+    command: &AdmissionDecision,
+) -> Result<RoomId, AdmissionOperationError>
+where
+    A: AdmissionStore + ?Sized,
+    T: SessionStore + ?Sized,
+    R: RoomStore + ?Sized,
+{
+    let AdmissionTarget::Session(session_id) = command.target else {
+        return Err(AdmissionOperationError::NotFound);
+    };
+    let request = load_decidable(admissions, command.target, command.subject).await?;
+    let room_id = authorize(rooms, sessions, request.target, command.actor).await?;
+    let session = sessions
+        .get(session_id)
+        .await?
+        .ok_or(AdmissionOperationError::NotFound)?;
+    if session.status != SessionStatus::Live {
+        return Err(AdmissionOperationError::NotLive);
+    }
+    Ok(room_id)
 }
 
 /// Approve a waiting principal.

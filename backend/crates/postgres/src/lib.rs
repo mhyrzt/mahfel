@@ -18,6 +18,7 @@ pub use pool::{connect, ping};
 pub use settings::{ConnectionSettings, PoolSettings};
 pub use stores::{
     PostgresAdmissionStore, PostgresBlockStore, PostgresChatStore, PostgresIdentityStore,
-    PostgresInviteStore, PostgresParticipantStore, PostgresParticipationStore, PostgresRoomStore,
-    PostgresServicePrincipalStore, PostgresSessionStore, PostgresStores, PostgresUserStore,
+    PostgresInviteStore, PostgresMediaPlacementStore, PostgresParticipantStore,
+    PostgresParticipationStore, PostgresRoomStore, PostgresServicePrincipalStore,
+    PostgresSessionStore, PostgresStores, PostgresUserStore,
 };

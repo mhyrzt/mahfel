@@ -6,7 +6,7 @@ pub mod lobby;
 pub mod policy;
 pub mod request;
 
-pub use decide::{AdmissionDecision, AdmissionGrant, admit, reject};
+pub use decide::{AdmissionDecision, AdmissionGrant, admit, preflight_session_admit, reject};
 pub use error::AdmissionOperationError;
 pub use lobby::{Lobby, LobbyEntry, view_lobby, view_room_lobby};
 pub use policy::{

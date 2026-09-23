@@ -27,4 +27,11 @@ pub trait MediaNodeRegistry: Send + Sync {
 
     /// An outage is an error, never an empty healthy registry.
     fn live_nodes(&self) -> BoxFuture<'_, Result<Vec<MediaNodeRecord>, CoordinationError>>;
+
+    /// Read one assigned node with a fresh heartbeat. Draining nodes remain
+    /// readable for their existing sessions.
+    fn live_node<'a>(
+        &'a self,
+        node_id: &'a NodeId,
+    ) -> BoxFuture<'a, Result<Option<MediaNodeRecord>, CoordinationError>>;
 }

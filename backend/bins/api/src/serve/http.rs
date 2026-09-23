@@ -70,6 +70,18 @@ pub(super) async fn app(
     let blocks: Arc<dyn mahfel_application::ports::BlockStore> = Arc::new(stores.blocks.clone());
     let code_index: Arc<dyn mahfel_application::ports::CoordinationStore> =
         Arc::new(coordination.store.clone());
+    let placements: Arc<dyn mahfel_application::ports::MediaPlacementStore> =
+        Arc::new(stores.media_placements.clone());
+    let leases: Arc<dyn mahfel_application::ports::MediaPlacementLease> =
+        Arc::new(coordination.store.clone());
+    let nodes: Arc<dyn mahfel_application::ports::MediaNodeRegistry> =
+        Arc::new(coordination.store.clone());
+    let placement = Arc::new(http::ws::MediaPlacementRouter::new(
+        placements,
+        leases,
+        nodes,
+        Arc::clone(&sessions),
+    ));
     let realtime = http::ws::WsState::new(
         Arc::clone(&authentication),
         http::ws::WsConfig::from(&settings.api.ws),
@@ -84,9 +96,10 @@ pub(super) async fn app(
             blocks: Arc::clone(&blocks),
         },
         shutdown.clone(),
-    );
-    realtime.speakers.spawn(
-        Arc::clone(&media),
+    )
+    .with_placement(Arc::clone(&placement));
+    realtime.speakers.spawn_placed(
+        placement,
         realtime.registry.clone(),
         Arc::clone(&participants),
         Arc::clone(&sessions),

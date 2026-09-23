@@ -7,6 +7,7 @@ use uuid::Uuid;
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) struct ParticipationHandle {
     pub session_id: SessionId,
+    pub room_id: RoomId,
     pub participant_id: ParticipantId,
     pub generation: u64,
 }
@@ -58,6 +59,7 @@ impl ConnectionRegistry {
         self.lock().get(&id).and_then(|connection| {
             Some(ParticipationHandle {
                 session_id: connection.session_id?,
+                room_id: connection.room_id?,
                 participant_id: connection.participant_id?,
                 generation: connection.generation,
             })

@@ -11,6 +11,7 @@ pub mod error;
 pub mod invite;
 pub mod moderation;
 pub mod participation;
+pub mod placement;
 pub mod policy;
 pub mod ports;
 pub mod rooms;

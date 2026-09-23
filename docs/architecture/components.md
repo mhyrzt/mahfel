@@ -110,9 +110,9 @@ so placement cannot treat an outage as an empty healthy registry.
 
 The initial capacity limit is concurrent rooms per node. It is a configuration limit, not a claim
 about participant or network capacity. Registry metrics report aggregate live and draining counts
-and heartbeat outcomes with only bounded outcome labels. M4-09 will consume the live-node reader
-for weighted, sticky placement; the current signaling path still uses its configured single media
-URL.
+and heartbeat outcomes with only bounded outcome labels. M4-09 uses the live-node reader for
+weighted first placement and resolves later signaling through the session's durable node decision.
+An assigned node that stops heartbeating makes its live session unavailable; it is not reassigned.
 
 ### Session participation and reconnect
 

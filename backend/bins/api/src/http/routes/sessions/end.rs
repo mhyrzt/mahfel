@@ -3,6 +3,7 @@ use crate::http::{
     auth::Authenticated, error::ApiError, extractor::ValidatedPath, state::AppState,
 };
 use axum::{Json, extract::State};
+use mahfel_application::ports::MediaGateway;
 use mahfel_application::sessions::{EndSession, end_session};
 use mahfel_domain::SessionId;
 use uuid::Uuid;
@@ -40,8 +41,23 @@ pub(crate) async fn end(
         .realtime
         .speakers
         .clear_session(session.id, &state.realtime.registry);
-    if let Err(error) = state.realtime.media.clear_room_media(session.room_id).await {
-        tracing::warn!(?error, room_id = %session.room_id, "could not clear ended session media");
+    match state.realtime.media_for(session.id, session.room_id).await {
+        Ok(media) => {
+            let media_room = if state.realtime.placement.is_some() {
+                crate::http::ws::media_room_id(session.id)
+            } else {
+                session.room_id
+            };
+            if let Err(error) = MediaGateway::close_room(media.as_ref(), media_room).await {
+                tracing::warn!(?error, room_id = %session.room_id, "could not release ended session room");
+                if let Err(error) = media.clear_room_media(media_room).await {
+                    tracing::warn!(?error, room_id = %session.room_id, "could not clear ended session media");
+                }
+            }
+        }
+        Err(error) => {
+            tracing::warn!(?error, room_id = %session.room_id, "could not resolve ended session media node");
+        }
     }
     Ok(Json(session.into()))
 }

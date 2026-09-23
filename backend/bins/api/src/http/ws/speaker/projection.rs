@@ -1,13 +1,75 @@
 //! Resolve media actor IDs to authorized live-session participants.
 
 use super::SpeakerProjection;
-use crate::http::ws::{envelope::ServerMessage, registry::ConnectionRegistry};
+use crate::http::ws::{
+    envelope::ServerMessage, placement::MediaPlacementRouter, registry::ConnectionRegistry,
+};
 use mahfel_application::ports::{ParticipantStore, SessionStore};
-use mahfel_domain::{ActorId, RoomId, SessionStatus};
+use mahfel_domain::{ActorId, NodeId, RoomId, SessionId, SessionStatus};
 use mahfel_rtc_protocol::media::WatchActiveSpeakersResponse;
 use uuid::Uuid;
 
 impl SpeakerProjection {
+    pub(crate) async fn apply_from_node(
+        &self,
+        frame: WatchActiveSpeakersResponse,
+        node_id: &NodeId,
+        router: &MediaPlacementRouter,
+        registry: &ConnectionRegistry,
+        participants: &dyn ParticipantStore,
+        sessions: &dyn SessionStore,
+    ) {
+        if frame.reset {
+            self.clear_for_node(node_id, router, registry, sessions)
+                .await;
+            return;
+        }
+        let Ok(media_room_uuid) = Uuid::parse_str(&frame.room_id) else {
+            return;
+        };
+        let session_id = SessionId::from_uuid(media_room_uuid);
+        let Ok(Some(session)) = sessions.get(session_id).await else {
+            return;
+        };
+        if session.status != SessionStatus::Live
+            || !registry
+                .sessions_for_room(session.room_id)
+                .contains(&session_id)
+            || !matches!(router.is_assigned(session_id, node_id).await, Ok(true))
+        {
+            return;
+        }
+        self.apply(
+            WatchActiveSpeakersResponse {
+                room_id: session.room_id.to_string(),
+                actor_ids: frame.actor_ids,
+                reset: false,
+            },
+            registry,
+            participants,
+            sessions,
+        )
+        .await;
+    }
+
+    pub(crate) async fn clear_for_node(
+        &self,
+        node_id: &NodeId,
+        router: &MediaPlacementRouter,
+        registry: &ConnectionRegistry,
+        sessions: &dyn SessionStore,
+    ) {
+        for session_id in registry.joined_sessions() {
+            if !matches!(router.is_assigned(session_id, node_id).await, Ok(true)) {
+                continue;
+            }
+            if let Ok(Some(session)) = sessions.get(session_id).await {
+                self.lock().rooms.remove(&session.room_id);
+            }
+            self.clear_session(session_id, registry);
+        }
+    }
+
     pub(crate) async fn apply(
         &self,
         frame: WatchActiveSpeakersResponse,

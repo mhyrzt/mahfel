@@ -14,6 +14,7 @@ use mahfel_application::{
     ports::Principal,
     sessions::{
         JoinOutcome, JoinSession, LeaveSession, SessionOperationError, join_session, leave_session,
+        preflight_join,
     },
 };
 use mahfel_domain::AdmissionOrigin;
@@ -45,6 +46,45 @@ pub(super) async fn handle_join(
     let lifecycle_lock = registry.lifecycle_lock(session_id, principal.actor_id);
     let lifecycle_guard = lifecycle_lock.lock().await;
 
+    let command = JoinSession {
+        actor: principal.actor_id,
+        session_id,
+        origin: AdmissionOrigin::Join,
+    };
+    // Placement must be ready before the durable participant and connected
+    // interval are written. Lobby joins allocate no media capacity.
+    if let Some(router) = &state.placement {
+        let room_id = match preflight_join(
+            state.stores.participants.as_ref(),
+            state.stores.sessions.as_ref(),
+            state.stores.rooms.as_ref(),
+            state.stores.blocks.as_ref(),
+            &command,
+        )
+        .await
+        {
+            Ok(room_id) => room_id,
+            Err(error) => {
+                return connection
+                    .send(ServerMessage::JoinRejected {
+                        code: join_rejection_code(&error).to_owned(),
+                        message: "join rejected".to_owned(),
+                    })
+                    .await;
+            }
+        };
+        if let Some(room_id) = room_id
+            && router.place(session_id, room_id).await.is_err()
+        {
+            return connection
+                .send(ServerMessage::JoinRejected {
+                    code: "unavailable".to_owned(),
+                    message: "media placement unavailable".to_owned(),
+                })
+                .await;
+        }
+    }
+
     // Deny by default: the application guard authorizes against membership and
     // visibility, and M4-06 admission policy extends this same path.
     let (participant, room_id) = match join_session(
@@ -54,11 +94,7 @@ pub(super) async fn handle_join(
         state.stores.sessions.as_ref(),
         state.stores.rooms.as_ref(),
         state.stores.blocks.as_ref(),
-        JoinSession {
-            actor: principal.actor_id,
-            session_id,
-            origin: AdmissionOrigin::Join,
-        },
+        command,
     )
     .await
     {
@@ -211,10 +247,21 @@ pub(in crate::http::ws::connection) async fn close_owned_transports(
     connection: &mut Connection,
     state: &WsState,
 ) {
-    for (room_id, transport_id) in connection.take_transports() {
-        if let Err(error) = state
-            .media
-            .close_transport(room_id, transport_id.clone())
+    for (session_id, room_id, transport_id) in connection.take_transports() {
+        let media = match state.media_for(session_id, room_id).await {
+            Ok(media) => media,
+            Err(error) => {
+                tracing::warn!(?error, %room_id, %transport_id, "cannot resolve transport media node");
+                continue;
+            }
+        };
+        let media_room = if state.placement.is_some() {
+            crate::http::ws::placement::media_room_id(session_id)
+        } else {
+            room_id
+        };
+        if let Err(error) = media
+            .close_transport(media_room, transport_id.clone())
             .await
         {
             tracing::warn!(?error, %room_id, %transport_id, "failed to close disconnected transport");
