@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Mahfel API",
-    "description": "Control-plane REST API. Protected routes use Authorization: Bearer. User requests use Keycloak access tokens; supported service-principal routes also accept Mahfel keys. Provisioning requires a Keycloak access token.",
+    "description": "Control-plane REST API.\nProtected routes require an Authorization: Bearer token. User requests use Keycloak access tokens. Supported service-principal routes also accept Mahfel keys. Provisioning requires a Keycloak access token.",
     "license": {
       "name": "AGPL-3.0-or-later",
       "identifier": "AGPL-3.0-or-later"
@@ -469,7 +469,8 @@
         "tags": [
           "files"
         ],
-        "summary": "List ready files in a context",
+        "summary": "List files in a context",
+        "description": "Returns ready files only. The caller must have read access to the selected context.",
         "operationId": "listFiles",
         "parameters": [
           {
@@ -484,7 +485,7 @@
           {
             "name": "context_id",
             "in": "query",
-            "description": "Context identifier",
+            "description": "Identifier of the selected context",
             "required": true,
             "schema": {
               "type": "string",
@@ -494,7 +495,7 @@
           {
             "name": "limit",
             "in": "query",
-            "description": "Page size, 1-100; defaults to 50",
+            "description": "Page size from 1 to 100; defaults to 50",
             "required": false,
             "schema": {
               "type": "integer",
@@ -505,7 +506,7 @@
           {
             "name": "offset",
             "in": "query",
-            "description": "Number of files to skip",
+            "description": "Number of ready files to skip",
             "required": false,
             "schema": {
               "type": "integer",
@@ -516,7 +517,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Ready files",
+            "description": "Ready files in the selected context",
             "content": {
               "application/json": {
                 "schema": {
@@ -553,7 +554,8 @@
         "tags": [
           "files"
         ],
-        "summary": "Authorize a direct S3 upload",
+        "summary": "Create a direct upload authorization",
+        "description": "Checks context access and metadata, then returns a short-lived S3 upload URL. Upload the bytes directly to storage and call the completion endpoint to verify them.",
         "operationId": "initiateFileUpload",
         "requestBody": {
           "content": {
@@ -624,13 +626,14 @@
         "tags": [
           "files"
         ],
-        "summary": "Delete a file and its object",
+        "summary": "Delete a file",
+        "description": "Removes the file metadata and its staged or published storage objects. Owners and context managers may delete it.",
         "operationId": "deleteFile",
         "parameters": [
           {
             "name": "file_id",
             "in": "path",
-            "description": "File identifier",
+            "description": "File identifier returned by upload initiation",
             "required": true,
             "schema": {
               "type": "string",
@@ -640,7 +643,7 @@
         ],
         "responses": {
           "204": {
-            "description": "File removed"
+            "description": "File and its storage objects removed"
           },
           "401": {
             "description": "Authentication required",
@@ -653,7 +656,7 @@
             }
           },
           "404": {
-            "description": "File not found or inaccessible",
+            "description": "File not found or caller cannot delete it",
             "content": {
               "application/json": {
                 "schema": {
@@ -670,13 +673,14 @@
         "tags": [
           "files"
         ],
-        "summary": "Verify an uploaded object",
+        "summary": "Complete and verify an upload",
+        "description": "Reads the staged object, verifies its size, checksum, and content, then publishes it as a ready file. Repeated completion is safe for an already-ready file.",
         "operationId": "completeFileUpload",
         "parameters": [
           {
             "name": "file_id",
             "in": "path",
-            "description": "File identifier",
+            "description": "File identifier returned by upload initiation",
             "required": true,
             "schema": {
               "type": "string",
@@ -686,7 +690,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Verified file",
+            "description": "Verified file metadata",
             "content": {
               "application/json": {
                 "schema": {
@@ -706,7 +710,7 @@
             }
           },
           "404": {
-            "description": "File not found",
+            "description": "File not found or caller is not its owner",
             "content": {
               "application/json": {
                 "schema": {
@@ -716,7 +720,7 @@
             }
           },
           "409": {
-            "description": "File cannot be completed",
+            "description": "File is not in a completable state",
             "content": {
               "application/json": {
                 "schema": {
@@ -743,13 +747,14 @@
         "tags": [
           "files"
         ],
-        "summary": "Authorize a direct S3 download",
+        "summary": "Create a direct download authorization",
+        "description": "Checks current access to the file context, records the authorization, and returns a short-lived S3 URL with private no-store caching.",
         "operationId": "downloadFile",
         "parameters": [
           {
             "name": "file_id",
             "in": "path",
-            "description": "File identifier",
+            "description": "File identifier returned by upload initiation",
             "required": true,
             "schema": {
               "type": "string",
@@ -759,7 +764,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Short-lived signed GET",
+            "description": "Short-lived signed GET and required headers",
             "content": {
               "application/json": {
                 "schema": {
@@ -4034,6 +4039,7 @@
       },
       "FileContextInput": {
         "type": "object",
+        "description": "Selects a file context and page for listing ready files.",
         "required": [
           "context_kind",
           "context_id"
@@ -4041,10 +4047,12 @@
         "properties": {
           "context_id": {
             "type": "string",
-            "format": "uuid"
+            "format": "uuid",
+            "description": "Identifier of the selected context."
           },
           "context_kind": {
-            "$ref": "#/components/schemas/FileContextKind"
+            "$ref": "#/components/schemas/FileContextKind",
+            "description": "Context type, such as `room`, `session`, or `chat_message`."
           },
           "limit": {
             "type": [
@@ -4052,6 +4060,7 @@
               "null"
             ],
             "format": "int32",
+            "description": "Maximum number of files to return, from 1 to 100.",
             "minimum": 0
           },
           "offset": {
@@ -4060,12 +4069,14 @@
               "null"
             ],
             "format": "int64",
+            "description": "Number of ready files to skip.",
             "minimum": 0
           }
         }
       },
       "FileContextKind": {
         "type": "string",
+        "description": "The resource that owns or contains a file.",
         "enum": [
           "room",
           "session",
@@ -4076,6 +4087,7 @@
       },
       "FileListResponse": {
         "type": "object",
+        "description": "Ready files visible in a context.",
         "required": [
           "files"
         ],
@@ -4090,6 +4102,7 @@
       },
       "FileResponse": {
         "type": "object",
+        "description": "File metadata returned by the API. Object bytes stay in S3-compatible storage.",
         "required": [
           "id",
           "owner_id",
@@ -4159,6 +4172,7 @@
       },
       "InitiateUploadRequest": {
         "type": "object",
+        "description": "Metadata and context used to authorize a direct upload.",
         "required": [
           "context_kind",
           "context_id",
@@ -4169,24 +4183,30 @@
         ],
         "properties": {
           "checksum_sha256": {
-            "type": "string"
+            "type": "string",
+            "description": "Base64-encoded SHA-256 checksum required by the signed upload."
           },
           "context_id": {
             "type": "string",
-            "format": "uuid"
+            "format": "uuid",
+            "description": "Identifier of the selected context."
           },
           "context_kind": {
-            "$ref": "#/components/schemas/FileContextKind"
+            "$ref": "#/components/schemas/FileContextKind",
+            "description": "Context type that will own the uploaded file."
           },
           "file_name": {
-            "type": "string"
+            "type": "string",
+            "description": "Display filename; the server stores bytes under a generated key."
           },
           "mime": {
-            "type": "string"
+            "type": "string",
+            "description": "Declared MIME type. The server verifies content before making it ready."
           },
           "size_bytes": {
             "type": "integer",
             "format": "int64",
+            "description": "Expected object size in bytes, limited to 50 MiB.",
             "minimum": 0
           }
         }
@@ -4948,6 +4968,7 @@
       },
       "SignedFileResponse": {
         "type": "object",
+        "description": "A short-lived storage URL and the headers required to use it.",
         "required": [
           "file",
           "url",
@@ -4976,6 +4997,7 @@
       },
       "SignedHeader": {
         "type": "object",
+        "description": "A header that must accompany a signed storage request.",
         "required": [
           "name",
           "value"
@@ -5101,6 +5123,12 @@
   "security": [
     {
       "bearerAuth": []
+    }
+  ],
+  "tags": [
+    {
+      "name": "files",
+      "description": "Context-authorized file metadata and direct S3 transfers"
     }
   ]
 }
