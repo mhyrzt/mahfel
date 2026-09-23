@@ -8,6 +8,7 @@ pub struct EditChatMessage {
     pub actor_id: ActorId,
     pub message_id: ChatMessageId,
     pub content: String,
+    pub mentions: Vec<ActorId>,
 }
 
 pub async fn edit_chat_message<C>(
@@ -23,13 +24,15 @@ where
         command.actor_id,
         command.content.clone(),
         now,
-    )?;
+    )?
+    .with_details(None, command.mentions.clone())?;
     Ok(chat
         .edit_message(
             command.room_id,
             command.actor_id,
             command.message_id,
             &command.content,
+            &command.mentions,
             now,
         )
         .await?)

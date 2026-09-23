@@ -9,7 +9,8 @@ use mahfel_domain::{
 };
 use mahfel_postgres::{
     ConnectionSettings, PoolSettings, PostgresChatStore, PostgresFileStore, PostgresIdentityStore,
-    PostgresRoomStore, PostgresSessionStore, PostgresUserStore, connect, migrate,
+    PostgresRoomStore, PostgresSessionStore, PostgresUserStore, connect,
+    migrate,
 };
 use sqlx::PgPool;
 use std::{error::Error, time::Duration};
@@ -435,6 +436,7 @@ async fn verify_migrations_and_stores(
             user.id,
             first_message.id,
             "Edited room message",
+            &[],
             now + TimeDuration::seconds(3),
         )
         .await?;
@@ -446,6 +448,7 @@ async fn verify_migrations_and_stores(
             user.id,
             first_message.id,
             "Too late",
+            &[],
             now + TimeDuration::minutes(16),
         )
         .await,
@@ -503,6 +506,221 @@ async fn verify_migrations_and_stores(
     assert_eq!(revisions[1].1, "deleted");
     assert_eq!(revisions[1].2, "Member message for manager moderation");
 
+    let events = chat.list_events(room.id, user.id, 0, 100).await?;
+    assert_eq!(events.len(), 6);
+    assert_eq!(
+        events
+            .iter()
+            .map(|event| event.sequence)
+            .collect::<Vec<_>>(),
+        vec![1, 2, 3, 4, 5, 6]
+    );
+    assert_eq!(events[0].message.id, first_message.id);
+    assert_eq!(events[0].message.content, "Persistent room message");
+    assert_eq!(events[3].message.content, "Edited room message");
+    assert!(events[5].message.deleted_at.is_some());
+    assert_eq!(events[5].message.content, "");
+    assert_eq!(chat.event_head(room.id, user.id).await?, 6);
+    assert_eq!(chat.list_events(room.id, user.id, 4, 100).await?.len(), 2);
+    assert!(matches!(
+        chat.list_events(room.id, outsider.id, 0, 100).await,
+        Err(StoreError::NotFound(_))
+    ));
+
+    let reply_draft = ChatMessageDraft::new(
+        ChatMessageId::new(),
+        chat_member.id,
+        "First reply".to_owned(),
+        now + TimeDuration::seconds(6),
+    )?
+    .with_details(Some(first_message.id), vec![user.id])?;
+    let reply = chat.create_message(&member_channel, &reply_draft).await?;
+    assert_eq!(reply.parent_id, Some(first_message.id));
+    assert_eq!(
+        chat.list_mentions(room.id, user.id, reply.id).await?,
+        vec![user.id]
+    );
+    let invalid_mention = ChatMessageDraft::new(
+        ChatMessageId::new(),
+        chat_member.id,
+        "Invalid mention".to_owned(),
+        now + TimeDuration::seconds(7),
+    )?
+    .with_details(None, vec![outsider.id])?;
+    assert!(matches!(
+        chat.create_message(&member_channel, &invalid_mention).await,
+        Err(StoreError::Conflict(_))
+    ));
+    let nested = ChatMessageDraft::new(
+        ChatMessageId::new(),
+        user.id,
+        "Nested reply".to_owned(),
+        now + TimeDuration::seconds(7),
+    )?
+    .with_details(Some(reply.id), vec![])?;
+    assert!(matches!(
+        chat.create_message(&first_channel, &nested).await,
+        Err(StoreError::Conflict(_))
+    ));
+    let second_reply = ChatMessageDraft::new(
+        ChatMessageId::new(),
+        user.id,
+        "Second reply".to_owned(),
+        now + TimeDuration::seconds(8),
+    )?
+    .with_details(Some(first_message.id), vec![])?;
+    let second_reply = chat.create_message(&first_channel, &second_reply).await?;
+    let first_reply_page = chat
+        .list_replies(room.id, user.id, first_message.id, None, 1)
+        .await?;
+    assert_eq!(first_reply_page.messages[0].id, second_reply.id);
+    let reply_cursor = first_reply_page.next_cursor.expect("more replies");
+    let third_reply = ChatMessageDraft::new(
+        ChatMessageId::new(),
+        user.id,
+        "Third reply".to_owned(),
+        now + TimeDuration::seconds(9),
+    )?
+    .with_details(Some(first_message.id), vec![])?;
+    chat.create_message(&first_channel, &third_reply).await?;
+    assert_eq!(
+        chat.list_replies(room.id, user.id, first_message.id, Some(&reply_cursor), 10)
+            .await?
+            .messages
+            .iter()
+            .map(|message| message.id)
+            .collect::<Vec<_>>(),
+        vec![reply.id]
+    );
+    assert!(matches!(
+        chat.list_replies(room.id, user.id, reply.id, None, 10)
+            .await,
+        Err(StoreError::Conflict(_))
+    ));
+
+    let (reaction_a, reaction_b) = tokio::join!(
+        chat.set_reaction(room.id, user.id, first_message.id, "👍", now),
+        chat.set_reaction(room.id, user.id, first_message.id, "👎", now),
+    );
+    reaction_a?;
+    reaction_b?;
+    let (counts, own) = chat
+        .list_reactions(room.id, user.id, first_message.id)
+        .await?;
+    assert_eq!(counts.iter().map(|(_, count)| *count).sum::<i64>(), 1);
+    assert!(matches!(own.as_deref(), Some("👍" | "👎")));
+    chat.set_reaction(room.id, chat_member.id, first_message.id, "❤️", now)
+        .await?;
+    let (counts, _) = chat
+        .list_reactions(room.id, user.id, first_message.id)
+        .await?;
+    assert_eq!(counts.iter().map(|(_, count)| *count).sum::<i64>(), 2);
+    chat.remove_reaction(room.id, user.id, first_message.id, now)
+        .await?;
+    chat.remove_reaction(room.id, user.id, first_message.id, now)
+        .await?;
+    assert!(matches!(
+        chat.set_reaction(room.id, outsider.id, first_message.id, "👍", now)
+            .await,
+        Err(StoreError::NotFound(_))
+    ));
+    assert!(matches!(
+        chat.set_reaction(room.id, user.id, moderated.id, "👍", now)
+            .await,
+        Err(StoreError::NotFound(_))
+    ));
+    assert_eq!(chat.read_marker(room.id, user.id).await?, 0);
+    assert_eq!(chat.advance_read_marker(room.id, user.id, 5, now).await?, 5);
+    assert_eq!(chat.advance_read_marker(room.id, user.id, 4, now).await?, 5);
+    assert_eq!(chat.read_marker(room.id, chat_member.id).await?, 0);
+    assert!(matches!(
+        chat.advance_read_marker(room.id, user.id, 10_000, now)
+            .await,
+        Err(StoreError::Conflict(_))
+    ));
+    assert!(matches!(
+        chat.read_marker(room.id, outsider.id).await,
+        Err(StoreError::NotFound(_))
+    ));
+
+    let mut attachments = Vec::new();
+    for index in 0..4 {
+        let attachment = FileObject::pending(
+            user.id,
+            FileContext::ChatMessage(reply.id),
+            format!("attachment-{index}.pdf"),
+            "application/pdf".to_owned(),
+            1024,
+            "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=".to_owned(),
+            now,
+        )?;
+        files.insert(&attachment).await?;
+        attachments.push(attachment);
+    }
+    assert!(
+        files
+            .list(FileContext::ChatMessage(reply.id), 100, 0)
+            .await?
+            .is_empty(),
+        "pending uploads must not be visible as attachments"
+    );
+    let fifth = FileObject::pending(
+        user.id,
+        FileContext::ChatMessage(reply.id),
+        "fifth.pdf".to_owned(),
+        "application/pdf".to_owned(),
+        1024,
+        "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=".to_owned(),
+        now,
+    )?;
+    assert!(matches!(
+        files.insert(&fifth).await,
+        Err(StoreError::Conflict(_))
+    ));
+    assert!(
+        files
+            .transition(
+                attachments[0].id,
+                FileStatus::Pending,
+                FileStatus::Ready,
+                Some("application/pdf"),
+                now,
+            )
+            .await?
+    );
+    assert_eq!(
+        files
+            .list(FileContext::ChatMessage(reply.id), 100, 0)
+            .await?
+            .len(),
+        1
+    );
+    let outsider_file = FileObject::pending(
+        outsider.id,
+        FileContext::ChatMessage(reply.id),
+        "outsider.pdf".to_owned(),
+        "application/pdf".to_owned(),
+        1024,
+        "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=".to_owned(),
+        now,
+    )?;
+    assert!(matches!(
+        files.insert(&outsider_file).await,
+        Err(StoreError::NotFound(_))
+    ));
+    chat.delete_message(room.id, user.id, reply.id, now + TimeDuration::minutes(20))
+        .await?;
+    assert!(
+        files
+            .list(FileContext::ChatMessage(reply.id), 100, 0)
+            .await?
+            .is_empty()
+    );
+    assert!(matches!(
+        files.insert(&fifth).await,
+        Err(StoreError::NotFound(_))
+    ));
+
     // A missing referenced user must surface as a typed adapter error rather
     // than a generic storage failure.
     let missing = rooms
@@ -543,6 +761,8 @@ async fn verify_migrations_and_stores(
     let restarted_users = PostgresUserStore::new(restarted_pool.clone());
     let restarted_rooms = PostgresRoomStore::new(restarted_pool.clone());
     let restarted_sessions = PostgresSessionStore::new(restarted_pool.clone());
+    let restarted_chat = PostgresChatStore::new(restarted_pool.clone());
+    assert_eq!(restarted_chat.read_marker(room.id, user.id).await?, 5);
     let stored_chat_messages = sqlx::query_scalar::<_, i64>(
         "SELECT COUNT(*) FROM mahfel.chat_messages WHERE channel_id = $1",
     )
@@ -550,7 +770,7 @@ async fn verify_migrations_and_stores(
     .fetch_one(&restarted_pool)
     .await?;
     assert_eq!(
-        stored_chat_messages, 4,
+        stored_chat_messages, 7,
         "room chat messages must survive a pool restart"
     );
     let stored_message = sqlx::query_as::<_, (uuid::Uuid, uuid::Uuid, String)>(

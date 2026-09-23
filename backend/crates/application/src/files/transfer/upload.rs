@@ -124,12 +124,7 @@ pub async fn complete_upload<F: FileStore + ?Sized, S: FileStorage + ?Sized>(
         {
             return Ok(ready.clone());
         }
-        if current
-            .as_ref()
-            .is_none_or(|current| current.status != FileStatus::Quarantined)
-        {
-            storage.delete(&final_key).await?;
-        }
+        storage.delete(&final_key).await?;
         return Err(FileOperationError::NotReady);
     }
     if let Err(error) = storage.delete(&file.object_key).await {

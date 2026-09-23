@@ -11,6 +11,7 @@ use tokio::sync::{Mutex as AsyncMutex, mpsc};
 
 use uuid::Uuid;
 
+mod chat;
 mod fanout;
 mod lifecycle;
 mod participation;
@@ -31,6 +32,8 @@ pub enum Outbound {
 struct Connection {
     sender: mpsc::Sender<Outbound>,
     actor_id: ActorId,
+    chat_subscriptions: HashMap<RoomId, i64>,
+    last_typing: HashMap<RoomId, std::time::Instant>,
     session_id: Option<SessionId>,
     room_id: Option<RoomId>,
     participant_id: Option<ParticipantId>,
@@ -119,6 +122,8 @@ impl ConnectionRegistry {
             Connection {
                 sender,
                 actor_id,
+                chat_subscriptions: HashMap::new(),
+                last_typing: HashMap::new(),
                 session_id: None,
                 room_id: None,
                 participant_id: None,

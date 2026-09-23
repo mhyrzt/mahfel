@@ -31,8 +31,9 @@ pub use admission::{
 };
 pub use block::{Block, BlockError, BlockId, BlockScope};
 pub use chat::{
-    CHAT_AUTHOR_MUTATION_WINDOW, ChatChannel, ChatChannelId, ChatMessage, ChatMessageCursor,
-    ChatMessageDraft, ChatMessageError, ChatMessageId, ChatMessagePage,
+    CHAT_AUTHOR_MUTATION_WINDOW, CHAT_REACTION_EMOJIS, ChatChannel, ChatChannelId, ChatEvent,
+    ChatEventKind, ChatMessage, ChatMessageCursor, ChatMessageDraft, ChatMessageError,
+    ChatMessageId, ChatMessagePage,
 };
 pub use file::{
     FileContext, FileError, FileId, FileObject, FileStatus, MAX_FILE_BYTES, MAX_OWNER_FILE_BYTES,

@@ -1,6 +1,7 @@
 pub mod admission_store;
 pub mod authorization;
 pub mod block_store;
+pub mod chat_activity;
 pub mod chat_store;
 pub mod coordination;
 pub mod event_publisher;
@@ -27,7 +28,8 @@ pub use authorization::{
     Principal, require_capability, resolve_capabilities,
 };
 pub use block_store::BlockStore;
-pub use chat_store::ChatStore;
+pub use chat_activity::{ChatActivitySnapshot, ChatActivityStore};
+pub use chat_store::{ChatReactionSnapshot, ChatStore};
 pub use coordination::{CoordinationError, CoordinationStore};
 pub use event_publisher::{DomainEvent, EventPublisher, PublishError};
 pub use file_storage::{FileStorage, FileStorageError, PresignedFileRequest, StoredFile};

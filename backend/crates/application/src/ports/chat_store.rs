@@ -1,12 +1,90 @@
 use super::{BoxFuture, StoreError};
 use mahfel_domain::{
-    ActorId, ChatChannel, ChatMessage, ChatMessageCursor, ChatMessageDraft, ChatMessageId,
-    ChatMessagePage, RoomId,
+    ActorId, ChatChannel, ChatEvent, ChatMessage, ChatMessageCursor, ChatMessageDraft,
+    ChatMessageId, ChatMessagePage, RoomId,
 };
 use time::OffsetDateTime;
 
+/// Aggregated emoji counts and the caller's own choice.
+pub type ChatReactionSnapshot = (Vec<(String, i64)>, Option<String>);
+
 /// Persistence for room-scoped chat channels and their durable messages.
 pub trait ChatStore: Send + Sync {
+    /// Private per-actor cursor, checked against current room membership.
+    fn read_marker(
+        &self,
+        room_id: RoomId,
+        actor_id: ActorId,
+    ) -> BoxFuture<'_, Result<i64, StoreError>>;
+
+    /// Move the private cursor forward, never backward or past the event head.
+    fn advance_read_marker(
+        &self,
+        room_id: RoomId,
+        actor_id: ActorId,
+        sequence: i64,
+        now: OffsetDateTime,
+    ) -> BoxFuture<'_, Result<i64, StoreError>>;
+
+    /// Current committed sequence for a room, including zero before its first
+    /// message. Used to reject impossible resume cursors.
+    fn event_head(
+        &self,
+        room_id: RoomId,
+        actor_id: ActorId,
+    ) -> BoxFuture<'_, Result<i64, StoreError>>;
+
+    /// Read committed changes after an exclusive channel sequence. Membership
+    /// is checked on every call so a revoked subscriber cannot keep receiving
+    /// room content. The result is ascending and capped by `limit`.
+    fn list_events(
+        &self,
+        room_id: RoomId,
+        actor_id: ActorId,
+        after_sequence: i64,
+        limit: u32,
+    ) -> BoxFuture<'_, Result<Vec<ChatEvent>, StoreError>>;
+
+    fn list_replies<'a>(
+        &'a self,
+        room_id: RoomId,
+        actor_id: ActorId,
+        parent_id: ChatMessageId,
+        before: Option<&'a ChatMessageCursor>,
+        limit: u32,
+    ) -> BoxFuture<'a, Result<ChatMessagePage, StoreError>>;
+
+    fn list_mentions(
+        &self,
+        room_id: RoomId,
+        actor_id: ActorId,
+        message_id: ChatMessageId,
+    ) -> BoxFuture<'_, Result<Vec<ActorId>, StoreError>>;
+
+    fn set_reaction<'a>(
+        &'a self,
+        room_id: RoomId,
+        actor_id: ActorId,
+        message_id: ChatMessageId,
+        emoji: &'a str,
+        now: OffsetDateTime,
+    ) -> BoxFuture<'a, Result<(), StoreError>>;
+
+    fn remove_reaction(
+        &self,
+        room_id: RoomId,
+        actor_id: ActorId,
+        message_id: ChatMessageId,
+        now: OffsetDateTime,
+    ) -> BoxFuture<'_, Result<(), StoreError>>;
+
+    fn list_reactions(
+        &self,
+        room_id: RoomId,
+        actor_id: ActorId,
+        message_id: ChatMessageId,
+    ) -> BoxFuture<'_, Result<ChatReactionSnapshot, StoreError>>;
+
     /// Persist a message only if its author is a current member of the channel's room.
     ///
     /// The adapter enforces membership in the same transaction as the write so a
@@ -36,6 +114,7 @@ pub trait ChatStore: Send + Sync {
         actor_id: ActorId,
         message_id: ChatMessageId,
         content: &'a str,
+        mentions: &'a [ActorId],
         now: OffsetDateTime,
     ) -> BoxFuture<'a, Result<ChatMessage, StoreError>>;
 

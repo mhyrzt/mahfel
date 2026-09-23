@@ -1,4 +1,5 @@
-use mahfel_application::ports::CoordinationStore;
+use mahfel_application::ports::{ChatActivityStore, CoordinationStore};
+use mahfel_domain::{ActorId, RoomId};
 use mahfel_redis::{RedisConnectionSettings, RedisCoordination, RedisError, RedisMetrics};
 use prometheus::Registry;
 use std::time::Duration;
@@ -76,6 +77,7 @@ async fn values_expire_and_pubsub_round_trips() -> Result<(), Box<dyn std::error
     // Pub/sub delivers the payload on a bounded queue.
     let channel = coordination.keys().channel("test-events");
     let mut receiver = coordination.subscribe(&channel).await?;
+    let mut second_replica = coordination.subscribe(&channel).await?;
     coordination.publish(&channel, b"hello").await?;
     let message = tokio::time::timeout(Duration::from_secs(3), receiver.recv())
         .await
@@ -83,6 +85,35 @@ async fn values_expire_and_pubsub_round_trips() -> Result<(), Box<dyn std::error
         .expect("message present");
     assert_eq!(message.channel, channel);
     assert_eq!(message.payload, b"hello".to_vec());
+    let duplicate = tokio::time::timeout(Duration::from_secs(3), second_replica.recv())
+        .await
+        .expect("second replica receives publish")
+        .expect("second message present");
+    assert_eq!(duplicate.payload, b"hello".to_vec());
+
+    let logical_counter = format!("rate-test:{}", Uuid::new_v4());
+    assert_eq!(
+        coordination
+            .increment_with_ttl(&logical_counter, Duration::from_millis(100))
+            .await?,
+        1
+    );
+    assert_eq!(
+        coordination
+            .increment_with_ttl(&logical_counter, Duration::from_millis(100))
+            .await?,
+        2
+    );
+    let physical_counter = coordination.keys().key("counter", &logical_counter);
+    assert!(coordination.get(&physical_counter).await?.is_some());
+    tokio::time::sleep(Duration::from_millis(180)).await;
+    assert_eq!(
+        coordination
+            .increment_with_ttl(&logical_counter, Duration::from_millis(100))
+            .await?,
+        1,
+        "a fixed window resets after its first write expires"
+    );
 
     Ok(())
 }
@@ -103,4 +134,39 @@ async fn outage_maps_to_unavailable() {
         matches!(error, RedisError::Unavailable(_)),
         "an unreachable backend must be Unavailable, got {error:?}"
     );
+}
+
+#[tokio::test]
+async fn chat_activity_aggregates_and_expires() -> Result<(), Box<dyn std::error::Error>> {
+    let Some((url, _container)) = redis_target().await? else {
+        return Ok(());
+    };
+    let coordination =
+        RedisCoordination::connect(&settings(&url, Duration::from_secs(2)), metrics()).await?;
+    let room = RoomId::new();
+    let first = ActorId::new();
+    let second = ActorId::new();
+    coordination
+        .heartbeat(room, first, Duration::from_millis(150))
+        .await?;
+    coordination
+        .heartbeat(room, first, Duration::from_millis(150))
+        .await?;
+    coordination
+        .heartbeat(room, second, Duration::from_millis(150))
+        .await?;
+    coordination
+        .set_typing(room, first, true, Duration::from_millis(100))
+        .await?;
+    let snapshot = coordination.snapshot(room).await?;
+    assert_eq!(
+        snapshot.online_count, 2,
+        "two devices of one actor count once"
+    );
+    assert_eq!(snapshot.typing_count, 1);
+    tokio::time::sleep(Duration::from_millis(220)).await;
+    let expired = coordination.snapshot(room).await?;
+    assert_eq!(expired.online_count, 0);
+    assert_eq!(expired.typing_count, 0);
+    Ok(())
 }

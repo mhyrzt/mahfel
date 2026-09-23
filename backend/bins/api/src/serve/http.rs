@@ -107,7 +107,8 @@ pub(super) async fn app(
         },
         shutdown.clone(),
     )
-    .with_placement(Arc::clone(&placement));
+    .with_placement(Arc::clone(&placement))
+    .with_chat(Arc::clone(&chat), coordination.store.clone());
     realtime.speakers.spawn_placed(
         placement,
         realtime.registry.clone(),

@@ -32,6 +32,12 @@ impl ChatChannel {
 pub enum ChatMessageError {
     #[error("message content cannot be empty")]
     EmptyContent,
+    #[error("message exceeds 4000 characters")]
+    ContentTooLong,
+    #[error("message has too many mentions")]
+    TooManyMentions,
+    #[error("message mentions an actor more than once")]
+    DuplicateMention,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -40,6 +46,8 @@ pub struct ChatMessageDraft {
     pub author_id: ActorId,
     pub content: String,
     pub created_at: OffsetDateTime,
+    pub parent_id: Option<ChatMessageId>,
+    pub mentions: Vec<ActorId>,
 }
 
 impl ChatMessageDraft {
@@ -52,13 +60,38 @@ impl ChatMessageDraft {
         if content.trim().is_empty() {
             return Err(ChatMessageError::EmptyContent);
         }
+        if content.chars().count() > 4000 {
+            return Err(ChatMessageError::ContentTooLong);
+        }
 
         Ok(Self {
             id,
             author_id,
             content,
             created_at,
+            parent_id: None,
+            mentions: Vec::new(),
         })
+    }
+
+    pub fn with_details(
+        mut self,
+        parent_id: Option<ChatMessageId>,
+        mentions: Vec<ActorId>,
+    ) -> Result<Self, ChatMessageError> {
+        if mentions.len() > 20 {
+            return Err(ChatMessageError::TooManyMentions);
+        }
+        let unique = mentions
+            .iter()
+            .copied()
+            .collect::<std::collections::HashSet<_>>();
+        if unique.len() != mentions.len() {
+            return Err(ChatMessageError::DuplicateMention);
+        }
+        self.parent_id = parent_id;
+        self.mentions = mentions;
+        Ok(self)
     }
 }
 
@@ -72,6 +105,7 @@ pub struct ChatMessage {
     pub edited_at: Option<OffsetDateTime>,
     /// Set by soft deletion; the row remains as a tombstone for stable history.
     pub deleted_at: Option<OffsetDateTime>,
+    pub parent_id: Option<ChatMessageId>,
 }
 
 impl ChatMessage {
@@ -85,6 +119,7 @@ impl ChatMessage {
             created_at: draft.created_at,
             edited_at: None,
             deleted_at: None,
+            parent_id: draft.parent_id,
         }
     }
 }
@@ -110,3 +145,30 @@ pub struct ChatMessagePage {
     pub messages: Vec<ChatMessage>,
     pub next_cursor: Option<ChatMessageCursor>,
 }
+
+/// A committed change to one room channel. Sequence numbers are gapless within
+/// a channel and can be used to resume a WebSocket subscription.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct ChatEvent {
+    pub id: uuid::Uuid,
+    pub sequence: i64,
+    pub room_id: RoomId,
+    pub kind: ChatEventKind,
+    pub message: ChatMessage,
+    pub reaction_actor_id: Option<ActorId>,
+    pub reaction_emoji: Option<String>,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ChatEventKind {
+    Created,
+    Edited,
+    Deleted,
+    ReactionSet,
+    ReactionRemoved,
+}
+
+/// One actor may react with exactly one emoji on a message. The supported set
+/// is intentionally small and stable for consistent aggregation.
+pub const CHAT_REACTION_EMOJIS: &[&str] = &["👍", "👎", "❤️", "😂", "😮", "😢"];

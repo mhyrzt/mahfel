@@ -33,7 +33,9 @@ caching, or sharing them.
 The file row references exactly one room, session, chat message, avatar actor, or recording
 session. PostgreSQL foreign keys prevent a target from being deleted while a file row still
 references it. Session and recording access resolves the room through the session; chat files
-resolve it through the message's channel. A deleted chat message cannot accept a new file.
+resolve it through the message's channel. A deleted chat message cannot accept a new file. Chat
+messages permit at most four pending, quarantined, or ready files; only ready files are visible
+to readers. Deleting a message marks its linked files for worker cleanup.
 
 | Context | Upload and read | Delete |
 | --- | --- | --- |

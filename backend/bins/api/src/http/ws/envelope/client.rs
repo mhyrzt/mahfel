@@ -29,6 +29,19 @@ pub enum ClientMessage {
     Broadcast {
         text: String,
     },
+    /// Subscribe to a persistent room channel after the last applied event.
+    SubscribeChat {
+        room_id: String,
+        after_sequence: i64,
+    },
+    UnsubscribeChat {
+        room_id: String,
+    },
+    /// Short-lived indication; stops automatically without refresh.
+    ChatTyping {
+        room_id: String,
+        active: bool,
+    },
     /// A reconnect resolves to the same participant as an earlier join.
     Join {
         session_id: String,

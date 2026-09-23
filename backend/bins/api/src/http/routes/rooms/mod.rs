@@ -1,6 +1,8 @@
 pub(crate) mod admission;
 pub(crate) mod archive;
 pub(crate) mod chat;
+pub(crate) mod chat_interactions;
+pub(crate) mod chat_read_marker;
 pub(crate) mod create;
 pub(crate) mod dto;
 pub(crate) mod error;
@@ -28,6 +30,24 @@ pub(crate) fn route() -> Router<AppState> {
         .route(
             "/rooms/{room_id}/messages/{message_id}",
             patch(chat::edit_message).delete(chat::delete_message),
+        )
+        .route(
+            "/rooms/{room_id}/messages/{message_id}/replies",
+            get(chat_interactions::list_replies).post(chat_interactions::create_reply),
+        )
+        .route(
+            "/rooms/{room_id}/messages/{message_id}/mentions",
+            get(chat_interactions::list_mentions),
+        )
+        .route(
+            "/rooms/{room_id}/messages/{message_id}/reaction",
+            get(chat_interactions::get_reactions)
+                .put(chat_interactions::set_reaction)
+                .delete(chat_interactions::remove_reaction),
+        )
+        .route(
+            "/rooms/{room_id}/read-marker",
+            get(chat_read_marker::get_marker).put(chat_read_marker::advance_marker),
         )
         .route(
             "/rooms/{room_id}/admission",

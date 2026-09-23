@@ -1,4 +1,5 @@
 use super::*;
+use crate::http::ws::envelope::ChatEventPayload;
 use mahfel_domain::ParticipantId;
 
 fn registry() -> ConnectionRegistry {
@@ -23,6 +24,64 @@ fn connected(
 fn detach(registry: &ConnectionRegistry, id: Uuid) {
     let handle = registry.participation(id).expect("joined connection");
     assert!(registry.left_if_current(id, handle));
+}
+
+#[tokio::test]
+async fn two_replica_hubs_apply_one_event_once_and_bound_slow_clients() {
+    let first = registry();
+    let second = registry();
+    let room = RoomId::new();
+    let actor = ActorId::new();
+    let id_a = Uuid::new_v4();
+    let id_b = Uuid::new_v4();
+    let (sender_a, mut receiver_a) = mpsc::channel(1);
+    let (sender_b, mut receiver_b) = mpsc::channel(1);
+    let _guard_a = first.register(id_a, actor, sender_a);
+    let _guard_b = second.register(id_b, actor, sender_b);
+    assert!(first.subscribe_chat(id_a, room, 0));
+    assert!(second.subscribe_chat(id_b, room, 0));
+    let event = ServerMessage::ChatEvent {
+        event: Box::new(ChatEventPayload {
+            room_id: room.to_string(),
+            sequence: 1,
+            event_id: Uuid::new_v4().to_string(),
+            kind: "created".to_owned(),
+            message_id: Uuid::new_v4().to_string(),
+            parent_id: None,
+            author_id: actor.to_string(),
+            reaction_actor_id: None,
+            reaction_emoji: None,
+            content: Some("hello".to_owned()),
+            created_at: "2026-01-01T00:00:00Z".to_owned(),
+            edited_at: None,
+            deleted_at: None,
+        }),
+    };
+    first.send_chat_event(id_a, room, 1, event.clone());
+    second.send_chat_event(id_b, room, 1, event.clone());
+    first.send_chat_event(id_a, room, 1, event.clone());
+    second.send_chat_event(id_b, room, 1, event.clone());
+    assert!(matches!(
+        receiver_a.try_recv(),
+        Ok(Outbound::Message(ServerMessage::ChatEvent { event })) if event.sequence == 1
+    ));
+    assert!(matches!(
+        receiver_b.try_recv(),
+        Ok(Outbound::Message(ServerMessage::ChatEvent { event })) if event.sequence == 1
+    ));
+    assert!(receiver_a.try_recv().is_err());
+    assert!(receiver_b.try_recv().is_err());
+
+    first.send_chat_event(id_a, room, 2, event.clone());
+    first.send_chat_event(id_a, room, 3, event);
+    assert!(
+        first.chat_subscriptions().is_empty(),
+        "a full outbound queue disconnects the stalled client"
+    );
+    assert!(
+        !second.chat_subscriptions().is_empty(),
+        "the other replica remains live"
+    );
 }
 
 #[test]

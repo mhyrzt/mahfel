@@ -21,6 +21,8 @@ pub enum ErrorKind {
     Forbidden,
     /// The operation conflicts with current state.
     Conflict,
+    /// A bounded request budget was exceeded.
+    RateLimited,
     /// A required dependency is temporarily unavailable. Callers should
     /// degrade rather than treat the request as malformed. Messages must not
     /// reach clients.

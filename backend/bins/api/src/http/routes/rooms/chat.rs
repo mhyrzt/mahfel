@@ -11,10 +11,10 @@ use axum::{
 };
 use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
 use mahfel_application::chat::{
-    CreateChatMessage, DeleteChatMessage, EditChatMessage, ListChatMessages, create_chat_message,
-    delete_chat_message, edit_chat_message, list_chat_messages,
+    CreateChatMessage, DeleteChatMessage, EditChatMessage, ListChatMessages, check_chat_post_rate,
+    create_chat_message, delete_chat_message, edit_chat_message, list_chat_messages,
 };
-use mahfel_domain::{ChatMessage, ChatMessageCursor, ChatMessageId, RoomId};
+use mahfel_domain::{ActorId, ChatMessage, ChatMessageCursor, ChatMessageId, RoomId};
 use serde::{Deserialize, Serialize};
 use time::OffsetDateTime;
 use utoipa::ToSchema;
@@ -23,6 +23,8 @@ use uuid::Uuid;
 #[derive(Debug, Deserialize, ToSchema)]
 pub(crate) struct CreateChatMessageRequest {
     pub(crate) content: String,
+    #[serde(default)]
+    pub(crate) mentions: Vec<Uuid>,
 }
 
 #[derive(Debug, Serialize, ToSchema)]
@@ -35,6 +37,7 @@ pub(crate) struct ChatMessageResponse {
     pub(crate) created_at: OffsetDateTime,
     pub(crate) edited_at: Option<OffsetDateTime>,
     pub(crate) deleted_at: Option<OffsetDateTime>,
+    pub(crate) parent_id: Option<String>,
 }
 
 impl From<ChatMessage> for ChatMessageResponse {
@@ -47,6 +50,7 @@ impl From<ChatMessage> for ChatMessageResponse {
             created_at: message.created_at,
             edited_at: message.edited_at,
             deleted_at: message.deleted_at,
+            parent_id: message.parent_id.map(|id| id.to_string()),
         }
     }
 }
@@ -72,6 +76,8 @@ pub(crate) struct ChatMessagePath {
 #[derive(Debug, Deserialize, ToSchema)]
 pub(crate) struct EditChatMessageRequest {
     pub(crate) content: String,
+    #[serde(default)]
+    pub(crate) mentions: Vec<Uuid>,
 }
 
 #[utoipa::path(
@@ -132,6 +138,7 @@ pub(crate) async fn list_messages(
         (status = 401, description = "Authentication required"),
         (status = 404, description = "Room not found or caller is not a member"),
         (status = 422, description = "Message content is invalid"),
+        (status = 429, description = "Chat posting limit exceeded"),
     ),
 )]
 pub(crate) async fn create_message(
@@ -140,15 +147,24 @@ pub(crate) async fn create_message(
     ValidatedPath(room_id): ValidatedPath<Uuid>,
     ValidatedJson(body): ValidatedJson<CreateChatMessageRequest>,
 ) -> Result<(StatusCode, Json<ChatMessageResponse>), ApiError> {
+    check_chat_post_rate(
+        state.code_index.as_ref(),
+        RoomId::from_uuid(room_id),
+        principal.actor_id,
+    )
+    .await?;
     let message = create_chat_message(
         state.chat.as_ref(),
         CreateChatMessage {
             room_id: mahfel_domain::RoomId::from_uuid(room_id),
             author_id: principal.actor_id,
             content: body.content,
+            parent_id: None,
+            mentions: body.mentions.into_iter().map(ActorId::from_uuid).collect(),
         },
     )
     .await?;
+    state.realtime.publish_chat_wakeup().await;
     Ok((StatusCode::CREATED, Json(message.into())))
 }
 
@@ -184,9 +200,11 @@ pub(crate) async fn edit_message(
             actor_id: principal.actor_id,
             message_id: ChatMessageId::from_uuid(path.message_id),
             content: body.content,
+            mentions: body.mentions.into_iter().map(ActorId::from_uuid).collect(),
         },
     )
     .await?;
+    state.realtime.publish_chat_wakeup().await;
     Ok(Json(message.into()))
 }
 
@@ -220,10 +238,11 @@ pub(crate) async fn delete_message(
         },
     )
     .await?;
+    state.realtime.publish_chat_wakeup().await;
     Ok(Json(message.into()))
 }
 
-fn encode_cursor(cursor: ChatMessageCursor) -> Result<String, ApiError> {
+pub(super) fn encode_cursor(cursor: ChatMessageCursor) -> Result<String, ApiError> {
     let timestamp = cursor
         .created_at
         .format(&time::format_description::well_known::Rfc3339)
@@ -231,7 +250,7 @@ fn encode_cursor(cursor: ChatMessageCursor) -> Result<String, ApiError> {
     Ok(URL_SAFE_NO_PAD.encode(format!("v1|{timestamp}|{}", cursor.message_id)))
 }
 
-fn decode_cursor(cursor: &str) -> Result<ChatMessageCursor, ApiError> {
+pub(super) fn decode_cursor(cursor: &str) -> Result<ChatMessageCursor, ApiError> {
     if cursor.len() > 256 {
         return Err(ApiError::bad_request("invalid chat cursor"));
     }

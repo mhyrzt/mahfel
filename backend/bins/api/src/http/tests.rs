@@ -172,6 +172,97 @@ impl FileStorage for FakeFileStorage {
 struct FakeChatStore;
 
 impl ChatStore for FakeChatStore {
+    fn read_marker(
+        &self,
+        _room_id: RoomId,
+        _actor_id: ActorId,
+    ) -> BoxFuture<'_, Result<i64, StoreError>> {
+        Box::pin(async { Ok(0) })
+    }
+
+    fn advance_read_marker(
+        &self,
+        _room_id: RoomId,
+        _actor_id: ActorId,
+        sequence: i64,
+        _now: time::OffsetDateTime,
+    ) -> BoxFuture<'_, Result<i64, StoreError>> {
+        Box::pin(async move { Ok(sequence) })
+    }
+
+    fn list_replies<'a>(
+        &'a self,
+        _room_id: RoomId,
+        _actor_id: ActorId,
+        _parent_id: ChatMessageId,
+        _before: Option<&'a ChatMessageCursor>,
+        _limit: u32,
+    ) -> BoxFuture<'a, Result<ChatMessagePage, StoreError>> {
+        Box::pin(async {
+            Ok(ChatMessagePage {
+                messages: Vec::new(),
+                next_cursor: None,
+            })
+        })
+    }
+
+    fn list_mentions(
+        &self,
+        _room_id: RoomId,
+        _actor_id: ActorId,
+        _message_id: ChatMessageId,
+    ) -> BoxFuture<'_, Result<Vec<ActorId>, StoreError>> {
+        Box::pin(async { Ok(Vec::new()) })
+    }
+
+    fn set_reaction<'a>(
+        &'a self,
+        _room_id: RoomId,
+        _actor_id: ActorId,
+        _message_id: ChatMessageId,
+        _emoji: &'a str,
+        _now: time::OffsetDateTime,
+    ) -> BoxFuture<'a, Result<(), StoreError>> {
+        Box::pin(async { Ok(()) })
+    }
+
+    fn remove_reaction(
+        &self,
+        _room_id: RoomId,
+        _actor_id: ActorId,
+        _message_id: ChatMessageId,
+        _now: time::OffsetDateTime,
+    ) -> BoxFuture<'_, Result<(), StoreError>> {
+        Box::pin(async { Ok(()) })
+    }
+
+    fn list_reactions(
+        &self,
+        _room_id: RoomId,
+        _actor_id: ActorId,
+        _message_id: ChatMessageId,
+    ) -> BoxFuture<'_, Result<mahfel_application::ports::ChatReactionSnapshot, StoreError>> {
+        Box::pin(async { Ok((Vec::new(), None)) })
+    }
+
+    fn event_head(
+        &self,
+        _room_id: RoomId,
+        _actor_id: ActorId,
+    ) -> BoxFuture<'_, Result<i64, StoreError>> {
+        Box::pin(async { Ok(0) })
+    }
+
+    fn list_events(
+        &self,
+        _room_id: RoomId,
+        _actor_id: ActorId,
+        _after_sequence: i64,
+        _limit: u32,
+    ) -> BoxFuture<'_, Result<Vec<mahfel_domain::ChatEvent>, StoreError>> {
+        Box::pin(async { Ok(Vec::new()) })
+    }
+
     fn create_message<'a>(
         &'a self,
         channel: &'a ChatChannel,
@@ -201,6 +292,7 @@ impl ChatStore for FakeChatStore {
         actor_id: ActorId,
         message_id: ChatMessageId,
         content: &'a str,
+        _mentions: &'a [ActorId],
         now: time::OffsetDateTime,
     ) -> BoxFuture<'a, Result<ChatMessage, StoreError>> {
         Box::pin(async move {
@@ -1659,6 +1751,40 @@ async fn response_body_string(resp: axum::response::Response) -> String {
 async fn response_json(resp: axum::response::Response) -> serde_json::Value {
     let body = response_body_string(resp).await;
     serde_json::from_str(&body).expect("valid json")
+}
+
+#[tokio::test]
+async fn chat_post_budget_and_reaction_validation_are_explicit() {
+    let app = authenticated_app();
+    let room = Uuid::new_v4();
+    for attempt in 1..=11 {
+        let request = Request::builder()
+            .method("POST")
+            .uri(format!("/v1/rooms/{room}/messages"))
+            .header("content-type", "application/json")
+            .body(Body::from(r#"{"content":"bounded chat"}"#))
+            .expect("chat request");
+        let response = app.clone().oneshot(request).await.expect("chat response");
+        assert_eq!(
+            response.status(),
+            if attempt <= 10 {
+                StatusCode::CREATED
+            } else {
+                StatusCode::TOO_MANY_REQUESTS
+            },
+        );
+    }
+    let request = Request::builder()
+        .method("PUT")
+        .uri(format!(
+            "/v1/rooms/{room}/messages/{}/reaction",
+            Uuid::new_v4()
+        ))
+        .header("content-type", "application/json")
+        .body(Body::from(r#"{"emoji":"MZ"}"#))
+        .expect("reaction request");
+    let response = app.oneshot(request).await.expect("reaction response");
+    assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY);
 }
 
 fn error_code(json: &serde_json::Value) -> Option<&str> {

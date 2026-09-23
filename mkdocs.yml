@@ -35,6 +35,7 @@ nav:
   - Architecture:
       - Overview: architecture/overview.md
       - Components: architecture/components.md
+      - Chat: architecture/chat.md
       - Networking: architecture/networking.md
       - Data flow: architecture/data-flow.md
       - Files: architecture/files.md

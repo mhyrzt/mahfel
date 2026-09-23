@@ -138,7 +138,10 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
-    /** List ready files in a context */
+    /**
+     * List files in a context
+     * @description Returns ready files only. The caller must have read access to the selected context.
+     */
     get: operations["listFiles"];
     put?: never;
     post?: never;
@@ -157,7 +160,10 @@ export interface paths {
     };
     get?: never;
     put?: never;
-    /** Authorize a direct S3 upload */
+    /**
+     * Create a direct upload authorization
+     * @description Checks context access and metadata, then returns a short-lived S3 upload URL. Upload the bytes directly to storage and call the completion endpoint to verify them.
+     */
     post: operations["initiateFileUpload"];
     delete?: never;
     options?: never;
@@ -175,7 +181,10 @@ export interface paths {
     get?: never;
     put?: never;
     post?: never;
-    /** Delete a file and its object */
+    /**
+     * Delete a file
+     * @description Removes the file metadata and its staged or published storage objects. Owners and context managers may delete it.
+     */
     delete: operations["deleteFile"];
     options?: never;
     head?: never;
@@ -191,7 +200,10 @@ export interface paths {
     };
     get?: never;
     put?: never;
-    /** Verify an uploaded object */
+    /**
+     * Complete and verify an upload
+     * @description Reads the staged object, verifies its size, checksum, and content, then publishes it as a ready file. Repeated completion is safe for an already-ready file.
+     */
     post: operations["completeFileUpload"];
     delete?: never;
     options?: never;
@@ -206,7 +218,10 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
-    /** Authorize a direct S3 download */
+    /**
+     * Create a direct download authorization
+     * @description Checks current access to the file context, records the authorization, and returns a short-lived S3 URL with private no-store caching.
+     */
     get: operations["downloadFile"];
     put?: never;
     post?: never;
@@ -511,6 +526,78 @@ export interface paths {
     head?: never;
     /** Edit a room message */
     patch: operations["editRoomMessage"];
+    trace?: never;
+  };
+  "/v1/rooms/{room_id}/messages/{message_id}/mentions": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List structured mentions on a message */
+    get: operations["listRoomMessageMentions"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/rooms/{room_id}/messages/{message_id}/reaction": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Get reaction counts and the caller's reaction */
+    get: operations["getRoomMessageReactions"];
+    /** Set the caller's single emoji reaction */
+    put: operations["setRoomMessageReaction"];
+    post?: never;
+    /** Remove the caller's reaction */
+    delete: operations["removeRoomMessageReaction"];
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/rooms/{room_id}/messages/{message_id}/replies": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List direct replies to a room message */
+    get: operations["listRoomMessageReplies"];
+    put?: never;
+    /** Reply to a root room message */
+    post: operations["createRoomMessageReply"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/rooms/{room_id}/read-marker": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Get only the caller's room read position */
+    get: operations["getRoomReadMarker"];
+    /** Move only the caller's room read position forward */
+    put: operations["advanceRoomReadMarker"];
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
     trace?: never;
   };
   "/v1/rooms/{room_id}/sessions": {
@@ -844,6 +931,13 @@ export interface components {
       participant_id: string;
       session_id: string;
     };
+    AdvanceReadMarkerRequest: {
+      /** Format: int64 */
+      sequence: number;
+    };
+    ChatMentionsResponse: {
+      actor_ids: string[];
+    };
     ChatMessageHistoryResponse: {
       messages: components["schemas"]["ChatMessageResponse"][];
       next_cursor?: string | null;
@@ -860,6 +954,7 @@ export interface components {
       /** Format: date-time */
       edited_at?: string | null;
       id: string;
+      parent_id?: string | null;
     };
     CorrectIntervalRequest: {
       /**
@@ -883,6 +978,7 @@ export interface components {
     CorrectionReasonDto: "wrong_end" | "wrong_start" | "erroneous" | "manual_adjustment";
     CreateChatMessageRequest: {
       content: string;
+      mentions?: string[];
     };
     CreateRoomInviteLinkRequest: {
       /**
@@ -934,6 +1030,7 @@ export interface components {
     };
     EditChatMessageRequest: {
       content: string;
+      mentions?: string[];
     };
     ErrorBody: {
       error: components["schemas"]["ErrorDetail"];
@@ -943,20 +1040,36 @@ export interface components {
       details?: unknown;
       message: string;
     };
+    /** @description Selects a file context and page for listing ready files. */
     FileContextInput: {
-      /** Format: uuid */
+      /**
+       * Format: uuid
+       * @description Identifier of the selected context.
+       */
       context_id: string;
+      /** @description Context type, such as `room`, `session`, or `chat_message`. */
       context_kind: components["schemas"]["FileContextKind"];
-      /** Format: int32 */
+      /**
+       * Format: int32
+       * @description Maximum number of files to return, from 1 to 100.
+       */
       limit?: number | null;
-      /** Format: int64 */
+      /**
+       * Format: int64
+       * @description Number of ready files to skip.
+       */
       offset?: number | null;
     };
-    /** @enum {string} */
+    /**
+     * @description The resource that owns or contains a file.
+     * @enum {string}
+     */
     FileContextKind: "room" | "session" | "chat_message" | "avatar" | "recording";
+    /** @description Ready files visible in a context. */
     FileListResponse: {
       files: components["schemas"]["FileResponse"][];
     };
+    /** @description File metadata returned by the API. Object bytes stay in S3-compatible storage. */
     FileResponse: {
       checksum_sha256: string;
       /** Format: uuid */
@@ -979,14 +1092,25 @@ export interface components {
     HealthResponse: {
       status: string;
     };
+    /** @description Metadata and context used to authorize a direct upload. */
     InitiateUploadRequest: {
+      /** @description Base64-encoded SHA-256 checksum required by the signed upload. */
       checksum_sha256: string;
-      /** Format: uuid */
+      /**
+       * Format: uuid
+       * @description Identifier of the selected context.
+       */
       context_id: string;
+      /** @description Context type that will own the uploaded file. */
       context_kind: components["schemas"]["FileContextKind"];
+      /** @description Display filename; the server stores bytes under a generated key. */
       file_name: string;
+      /** @description Declared MIME type. The server verifies content before making it ready. */
       mime: string;
-      /** Format: int64 */
+      /**
+       * Format: int64
+       * @description Expected object size in bytes, limited to 50 MiB.
+       */
       size_bytes: number;
     };
     IntervalResponse: {
@@ -1112,6 +1236,19 @@ export interface components {
       user_id: string;
       username?: string | null;
     };
+    ReactionCountResponse: {
+      /** Format: int64 */
+      count: number;
+      emoji: string;
+    };
+    ReactionsResponse: {
+      counts: components["schemas"]["ReactionCountResponse"][];
+      my_reaction?: string | null;
+    };
+    ReadMarkerResponse: {
+      /** Format: int64 */
+      sequence: number;
+    };
     RedeemInviteLinkRequest: {
       /** @description The code as typed or pasted. Case and separators are ignored. */
       code: string;
@@ -1218,10 +1355,14 @@ export interface components {
     SetAdmissionRequest: {
       policy: components["schemas"]["AdmissionPolicyDto"];
     };
+    SetReactionRequest: {
+      emoji: string;
+    };
     SetSessionAccessRequest: {
       admission?: null | components["schemas"]["AdmissionPolicyDto"];
       visibility?: null | components["schemas"]["SessionVisibilityDto"];
     };
+    /** @description A short-lived storage URL and the headers required to use it. */
     SignedFileResponse: {
       /** Format: int64 */
       expires_in_seconds: number;
@@ -1229,6 +1370,7 @@ export interface components {
       headers: components["schemas"]["SignedHeader"][];
       url: string;
     };
+    /** @description A header that must accompany a signed storage request. */
     SignedHeader: {
       name: string;
       value: string;
@@ -1654,11 +1796,11 @@ export interface operations {
       query: {
         /** @description room, session, chat_message, avatar, or recording */
         context_kind: components["schemas"]["FileContextKind"];
-        /** @description Context identifier */
+        /** @description Identifier of the selected context */
         context_id: string;
-        /** @description Page size, 1-100; defaults to 50 */
+        /** @description Page size from 1 to 100; defaults to 50 */
         limit?: number;
-        /** @description Number of files to skip */
+        /** @description Number of ready files to skip */
         offset?: number;
       };
       header?: never;
@@ -1667,7 +1809,7 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description Ready files */
+      /** @description Ready files in the selected context */
       200: {
         headers: {
           [name: string]: unknown;
@@ -1761,14 +1903,14 @@ export interface operations {
       query?: never;
       header?: never;
       path: {
-        /** @description File identifier */
+        /** @description File identifier returned by upload initiation */
         file_id: string;
       };
       cookie?: never;
     };
     requestBody?: never;
     responses: {
-      /** @description File removed */
+      /** @description File and its storage objects removed */
       204: {
         headers: {
           [name: string]: unknown;
@@ -1784,7 +1926,7 @@ export interface operations {
           "application/json": components["schemas"]["ErrorBody"];
         };
       };
-      /** @description File not found or inaccessible */
+      /** @description File not found or caller cannot delete it */
       404: {
         headers: {
           [name: string]: unknown;
@@ -1800,14 +1942,14 @@ export interface operations {
       query?: never;
       header?: never;
       path: {
-        /** @description File identifier */
+        /** @description File identifier returned by upload initiation */
         file_id: string;
       };
       cookie?: never;
     };
     requestBody?: never;
     responses: {
-      /** @description Verified file */
+      /** @description Verified file metadata */
       200: {
         headers: {
           [name: string]: unknown;
@@ -1825,7 +1967,7 @@ export interface operations {
           "application/json": components["schemas"]["ErrorBody"];
         };
       };
-      /** @description File not found */
+      /** @description File not found or caller is not its owner */
       404: {
         headers: {
           [name: string]: unknown;
@@ -1834,7 +1976,7 @@ export interface operations {
           "application/json": components["schemas"]["ErrorBody"];
         };
       };
-      /** @description File cannot be completed */
+      /** @description File is not in a completable state */
       409: {
         headers: {
           [name: string]: unknown;
@@ -1859,14 +2001,14 @@ export interface operations {
       query?: never;
       header?: never;
       path: {
-        /** @description File identifier */
+        /** @description File identifier returned by upload initiation */
         file_id: string;
       };
       cookie?: never;
     };
     requestBody?: never;
     responses: {
-      /** @description Short-lived signed GET */
+      /** @description Short-lived signed GET and required headers */
       200: {
         headers: {
           [name: string]: unknown;
@@ -2963,6 +3105,15 @@ export interface operations {
           "application/json": components["schemas"]["ErrorBody"];
         };
       };
+      /** @description Chat posting limit exceeded */
+      429: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
+      };
     };
   };
   deleteRoomMessage: {
@@ -3064,6 +3215,311 @@ export interface operations {
       };
       /** @description Message content is invalid */
       422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
+      };
+    };
+  };
+  listRoomMessageMentions: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        room_id: string;
+        message_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ChatMentionsResponse"];
+        };
+      };
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
+      };
+    };
+  };
+  getRoomMessageReactions: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        room_id: string;
+        message_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ReactionsResponse"];
+        };
+      };
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
+      };
+    };
+  };
+  setRoomMessageReaction: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        room_id: string;
+        message_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["SetReactionRequest"];
+      };
+    };
+    responses: {
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
+      };
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
+      };
+    };
+  };
+  removeRoomMessageReaction: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        room_id: string;
+        message_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
+      };
+    };
+  };
+  listRoomMessageReplies: {
+    parameters: {
+      query?: {
+        cursor?: string;
+        limit?: number;
+      };
+      header?: never;
+      path: {
+        room_id: string;
+        message_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ChatMessageHistoryResponse"];
+        };
+      };
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
+      };
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
+      };
+    };
+  };
+  createRoomMessageReply: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        room_id: string;
+        message_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["CreateChatMessageRequest"];
+      };
+    };
+    responses: {
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ChatMessageResponse"];
+        };
+      };
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
+      };
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
+      };
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
+      };
+      429: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
+      };
+    };
+  };
+  getRoomReadMarker: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        room_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ReadMarkerResponse"];
+        };
+      };
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
+      };
+    };
+  };
+  advanceRoomReadMarker: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        room_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["AdvanceReadMarkerRequest"];
+      };
+    };
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ReadMarkerResponse"];
+        };
+      };
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
+      };
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
+      };
+      409: {
         headers: {
           [name: string]: unknown;
         };

@@ -1,4 +1,5 @@
 pub(crate) mod asyncapi;
+mod chat_fanout;
 mod config;
 mod connection;
 mod envelope;

@@ -87,6 +87,129 @@ pub(super) async fn handle_text(
             });
             Ok(())
         }
+        ClientMessage::SubscribeChat {
+            room_id,
+            after_sequence,
+        } => {
+            let Some(chat) = &state.chat else {
+                return connection
+                    .send_with_id(rid, protocol_error("unavailable", "chat is unavailable"))
+                    .await;
+            };
+            let room = match helpers::parse_room_id(&room_id) {
+                Ok(room) => room,
+                Err(_) => {
+                    return connection
+                        .send_with_id(rid, protocol_error("invalid_room", "invalid room id"))
+                        .await;
+                }
+            };
+            let head = match chat.event_head(room, principal.actor_id).await {
+                Ok(head) => head,
+                Err(_) => {
+                    return connection
+                        .send_with_id(rid, protocol_error("forbidden", "room chat unavailable"))
+                        .await;
+                }
+            };
+            if after_sequence < 0 || after_sequence > head {
+                return connection
+                    .send_with_id(
+                        rid,
+                        protocol_error("invalid_cursor", "invalid chat event cursor"),
+                    )
+                    .await;
+            }
+            if !registry.subscribe_chat(id, room, after_sequence) {
+                return connection
+                    .send_with_id(
+                        rid,
+                        protocol_error("subscription_limit", "too many chat rooms"),
+                    )
+                    .await;
+            }
+            state.wake_chat();
+            connection
+                .send_with_id(
+                    rid,
+                    ServerMessage::ChatSubscribed {
+                        room_id: room_id.clone(),
+                        head_sequence: head,
+                    },
+                )
+                .await?;
+            if let Some(activity) = &state.chat_activity
+                && let Ok(snapshot) = activity.snapshot(room).await
+            {
+                connection
+                    .send(ServerMessage::ChatActivity {
+                        room_id,
+                        online_count: snapshot.online_count,
+                        typing_count: snapshot.typing_count,
+                    })
+                    .await?;
+            }
+            Ok(())
+        }
+        ClientMessage::UnsubscribeChat { room_id } => {
+            if let Ok(room) = helpers::parse_room_id(&room_id) {
+                registry.unsubscribe_chat(id, room);
+            }
+            Ok(())
+        }
+        ClientMessage::ChatTyping { room_id, active } => {
+            let room = match helpers::parse_room_id(&room_id) {
+                Ok(room) => room,
+                Err(_) => {
+                    return connection
+                        .send_with_id(rid, protocol_error("invalid_room", "invalid room id"))
+                        .await;
+                }
+            };
+            if !registry.is_subscribed_chat(id, room) {
+                return connection
+                    .send_with_id(
+                        rid,
+                        protocol_error("forbidden", "subscribe to room chat first"),
+                    )
+                    .await;
+            }
+            if !registry.allow_typing_update(id, room) {
+                return Ok(());
+            }
+            let Some(chat) = &state.chat else {
+                return connection
+                    .send_with_id(rid, protocol_error("forbidden", "room chat unavailable"))
+                    .await;
+            };
+            if chat.event_head(room, principal.actor_id).await.is_err() {
+                registry.unsubscribe_chat_actor(room, principal.actor_id);
+                return connection
+                    .send_with_id(rid, protocol_error("forbidden", "room chat unavailable"))
+                    .await;
+            }
+            if let Some(activity) = &state.chat_activity {
+                if activity
+                    .set_typing(
+                        room,
+                        principal.actor_id,
+                        active,
+                        std::time::Duration::from_secs(5),
+                    )
+                    .await
+                    .is_err()
+                {
+                    return connection
+                        .send_with_id(
+                            rid,
+                            protocol_error("unavailable", "chat activity unavailable"),
+                        )
+                        .await;
+                }
+                state.publish_chat_wakeup().await;
+            }
+            Ok(())
+        }
         ClientMessage::Auth { .. } => Ok(()),
         ClientMessage::Join { session_id } => {
             participant::handle_join(connection, registry, id, &session_id, principal, state).await

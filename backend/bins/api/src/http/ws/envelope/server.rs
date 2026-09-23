@@ -1,5 +1,24 @@
 use serde::{Deserialize, Serialize};
 
+#[derive(
+    Debug, Clone, PartialEq, Eq, Serialize, Deserialize, asyncapi_rust::schemars::JsonSchema,
+)]
+pub struct ChatEventPayload {
+    pub room_id: String,
+    pub sequence: i64,
+    pub event_id: String,
+    pub kind: String,
+    pub message_id: String,
+    pub parent_id: Option<String>,
+    pub author_id: String,
+    pub reaction_actor_id: Option<String>,
+    pub reaction_emoji: Option<String>,
+    pub content: Option<String>,
+    pub created_at: String,
+    pub edited_at: Option<String>,
+    pub deleted_at: Option<String>,
+}
+
 /// Frames sent by the server.
 #[derive(
     Debug,
@@ -22,6 +41,18 @@ pub enum ServerMessage {
     Broadcast {
         from: String,
         text: String,
+    },
+    ChatSubscribed {
+        room_id: String,
+        head_sequence: i64,
+    },
+    ChatActivity {
+        room_id: String,
+        online_count: u64,
+        typing_count: u64,
+    },
+    ChatEvent {
+        event: Box<ChatEventPayload>,
     },
     Error {
         code: String,

@@ -64,6 +64,45 @@ impl FileStore for PostgresFileStore {
             if owner.is_none() {
                 return Err(StoreError::MissingReference("file owner".into()));
             }
+            if let FileContext::ChatMessage(message_id) = file.context {
+                let room: Option<Uuid> = sqlx::query_scalar(
+                    "SELECT channel.room_id FROM mahfel.chat_messages message \
+                     INNER JOIN mahfel.chat_channels channel ON channel.id = message.channel_id \
+                     INNER JOIN mahfel.rooms room ON room.id = channel.room_id \
+                     WHERE message.id = $1 AND message.deleted_at IS NULL \
+                       AND room.status = 'active' FOR UPDATE OF message",
+                )
+                .bind(message_id.as_uuid())
+                .fetch_optional(&mut *tx)
+                .await
+                .map_err(sqlx_store_error)?;
+                let Some(room_id) = room else {
+                    return Err(StoreError::NotFound("chat message".into()));
+                };
+                let member: Option<Uuid> = sqlx::query_scalar(
+                    "SELECT actor_id FROM mahfel.room_memberships \
+                     WHERE room_id = $1 AND actor_id = $2 FOR SHARE",
+                )
+                .bind(room_id)
+                .bind(file.owner.as_uuid())
+                .fetch_optional(&mut *tx)
+                .await
+                .map_err(sqlx_store_error)?;
+                if member.is_none() {
+                    return Err(StoreError::NotFound("chat message".into()));
+                }
+                let existing: i64 = sqlx::query_scalar(
+                    "SELECT COUNT(*) FROM mahfel.files \
+                     WHERE chat_message_id = $1 AND status IN ('pending','quarantined','ready')",
+                )
+                .bind(message_id.as_uuid())
+                .fetch_one(&mut *tx)
+                .await
+                .map_err(sqlx_store_error)?;
+                if existing >= 4 {
+                    return Err(StoreError::Conflict("chat attachment limit reached".into()));
+                }
+            }
             let used: i64 = sqlx::query_scalar("SELECT COALESCE(sum(size_bytes), 0)::BIGINT FROM mahfel.files WHERE owner_actor_id = $1 AND status IN ('pending','quarantined','ready')")
                 .bind(file.owner.as_uuid()).fetch_one(&mut *tx).await.map_err(sqlx_store_error)?;
             if u64::try_from(used)
@@ -160,9 +199,52 @@ impl FileStore for PostgresFileStore {
         now: OffsetDateTime,
     ) -> BoxFuture<'a, Result<bool, StoreError>> {
         Box::pin(async move {
+            let mut tx = self.pool.begin().await.map_err(sqlx_store_error)?;
+            let context: Option<(Option<Uuid>, Uuid)> = sqlx::query_as(
+                "SELECT chat_message_id, owner_actor_id FROM mahfel.files \
+                 WHERE id = $1 AND status = 'quarantined'",
+            )
+            .bind(id.as_uuid())
+            .fetch_optional(&mut *tx)
+            .await
+            .map_err(sqlx_store_error)?;
+            let Some((chat_message_id, owner_id)) = context else {
+                return Ok(false);
+            };
+            if let Some(message_id) = chat_message_id {
+                let valid: Option<Uuid> = sqlx::query_scalar(
+                    "SELECT message.id FROM mahfel.chat_messages message \
+                     INNER JOIN mahfel.chat_channels channel ON channel.id = message.channel_id \
+                     INNER JOIN mahfel.room_memberships membership \
+                       ON membership.room_id = channel.room_id AND membership.actor_id = $2 \
+                     WHERE message.id = $1 AND message.deleted_at IS NULL \
+                     FOR SHARE OF message, membership",
+                )
+                .bind(message_id)
+                .bind(owner_id)
+                .fetch_optional(&mut *tx)
+                .await
+                .map_err(sqlx_store_error)?;
+                if valid.is_none() {
+                    return Ok(false);
+                }
+            }
+            let locked: Option<Uuid> = sqlx::query_scalar(
+                "SELECT id FROM mahfel.files WHERE id = $1 AND status = 'quarantined' \
+                 AND chat_message_id IS NOT DISTINCT FROM $2 FOR UPDATE",
+            )
+            .bind(id.as_uuid())
+            .bind(chat_message_id)
+            .fetch_optional(&mut *tx)
+            .await
+            .map_err(sqlx_store_error)?;
+            if locked.is_none() {
+                return Ok(false);
+            }
             let result = sqlx::query("UPDATE mahfel.files SET object_key = $2, verified_mime = $3, status = 'ready', updated_at = $4 WHERE id = $1 AND status = 'quarantined'")
                 .bind(id.as_uuid()).bind(key).bind(mime).bind(now)
-                .execute(&self.pool).await.map_err(sqlx_store_error)?;
+                .execute(&mut *tx).await.map_err(sqlx_store_error)?;
+            tx.commit().await.map_err(sqlx_store_error)?;
             Ok(result.rows_affected() == 1)
         })
     }

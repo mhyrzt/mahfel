@@ -9,6 +9,10 @@ use tokio::{sync::mpsc, time::timeout};
 
 /// Bounded queue depth for a subscription.
 const SUBSCRIBER_CAPACITY: usize = 256;
+const FIXED_WINDOW_SCRIPT: &str = "\
+local count = redis.call('INCR', KEYS[1]); \
+if count == 1 then redis.call('PEXPIRE', KEYS[1], ARGV[1]); end; \
+return count";
 
 /// A message received from a pub/sub channel.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -86,7 +90,7 @@ impl RedisCoordination {
                     channel: message.get_channel_name().to_owned(),
                     payload: message.get_payload_bytes().to_vec(),
                 };
-                if sender.send(received).await.is_err() {
+                if sender.try_send(received).is_err() {
                     break;
                 }
             }
@@ -205,21 +209,14 @@ impl CoordinationStore for RedisCoordination {
         Box::pin(async move {
             let mut connection = self.manager.clone();
             let milliseconds = u64::try_from(ttl.as_millis()).unwrap_or(u64::MAX);
-            // INCR creates the key at 1; EXPIRE then sets the window on every
-            // call. Re-arming the TTL is deliberate: a window that is refreshed
-            // by activity cannot be reset by an attacker waiting it out, and a
-            // burst near the boundary cannot extend a key indefinitely because
-            // the value, not the TTL, is what the limiter reads.
+            let namespaced = self.keys.key("counter", key);
             let result = timeout(
                 self.command_timeout,
-                redis::pipe()
-                    .atomic()
-                    .cmd("INCR")
-                    .arg(key)
-                    .cmd("EXPIRE")
-                    .arg(key)
+                redis::cmd("EVAL")
+                    .arg(FIXED_WINDOW_SCRIPT)
+                    .arg(1)
+                    .arg(&namespaced)
                     .arg(milliseconds)
-                    .ignore()
                     .query_async::<i64>(&mut connection),
             )
             .await;

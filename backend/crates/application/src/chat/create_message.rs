@@ -9,6 +9,8 @@ pub struct CreateChatMessage {
     pub room_id: RoomId,
     pub author_id: ActorId,
     pub content: String,
+    pub parent_id: Option<ChatMessageId>,
+    pub mentions: Vec<ActorId>,
 }
 
 /// Persist a message in the room's durable chat channel.
@@ -26,6 +28,7 @@ where
         command.author_id,
         command.content,
         now,
-    )?;
+    )?
+    .with_details(command.parent_id, command.mentions)?;
     Ok(chat.create_message(&channel, &draft).await?)
 }

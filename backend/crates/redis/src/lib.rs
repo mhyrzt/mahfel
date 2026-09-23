@@ -4,6 +4,7 @@
 //! outage surfaces as [`CoordinationError::Unavailable`] so callers degrade;
 //! the connection manager reconnects in the background.
 
+mod chat_activity;
 mod client;
 mod error;
 mod keys;

@@ -1,6 +1,7 @@
 mod admission;
 mod block;
 mod chat;
+mod chat_interactions;
 mod file;
 mod identity;
 mod invite;
