@@ -1,6 +1,7 @@
 # Host-development profile used by `just backend dev-*` recipes.
 [api]
 media_grpc_url = "http://127.0.0.1:50051"
+media_registry_bind = "127.0.0.1:50052"
 allowed_origin = "https://mahfel.localhost"
 # Local-only development identity, applied by `mahfel-api seed`.
 development_principal_user_id = "00000000-0000-0000-0000-000000000001"
@@ -15,6 +16,8 @@ migrate_on_start = true
 
 [media]
 announced_address = "127.0.0.1"
+grpc_advertise_url = "http://127.0.0.1:50051"
+registry_url = "http://127.0.0.1:50052"
 
 [worker]
 amqp_url = "amqp://mahfel:mahfel-local-only@127.0.0.1:5672/%2f"

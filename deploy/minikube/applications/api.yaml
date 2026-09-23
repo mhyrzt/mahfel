@@ -36,8 +36,14 @@ spec:
             - {name: MAHFEL_DATABASE__MIGRATE_ON_START, value: 'false'}
             - {name: MAHFEL_REDIS__URL, value: 'redis://redis:6379'}
             - {name: MAHFEL_API__MEDIA_GRPC_URL, value: 'http://mahfel-media:50051'}
+            - name: MAHFEL_API__MEDIA_REGISTRY_SECRET
+              valueFrom: {secretKeyRef: {name: local-credentials, key: media-registry-root}}
             - {name: SSL_CERT_FILE, value: /certs/root.crt}
-          ports: [{containerPort: 8080}, {containerPort: 9101}]
+          ports:
+            - containerPort: 8080
+            - containerPort: 9101
+            - containerPort: 50052
+              name: registry
           startupProbe:
             httpGet: {path: /health/live, port: 9101}
             failureThreshold: 30
@@ -59,4 +65,11 @@ metadata:
   name: mahfel-api
 spec:
   selector: {app: mahfel-api}
-  ports: [{name: http, port: 8080}, {name: operations, port: 9101}]
+  ports:
+    - name: http
+      port: 8080
+    - name: operations
+      port: 9101
+    - name: registry
+      port: 50052
+      targetPort: 50052

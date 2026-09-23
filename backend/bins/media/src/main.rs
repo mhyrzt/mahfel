@@ -1,5 +1,6 @@
 mod handlers;
 mod metrics;
+mod registry;
 mod service;
 mod validation;
 
@@ -34,7 +35,8 @@ async fn main() -> Result<()> {
         .context("initialize mediasoup")?,
     );
 
-    let node_id = NodeId::new();
+    let node_id = NodeId::from_deployment(settings.media.node_id.clone())
+        .ok_or_else(|| anyhow::anyhow!("invalid configured media node id"))?;
     let grpc_address = settings.media.grpc_bind.parse::<SocketAddr>()?;
     let operations_address = settings.media.operations_bind.parse::<SocketAddr>()?;
     let grpc_listener = tokio::net::TcpListener::bind(grpc_address).await?;
@@ -42,6 +44,12 @@ async fn main() -> Result<()> {
     let (operations_router, health) = operations(SERVICE, env!("CARGO_PKG_VERSION"))?;
 
     let metrics = metrics::MediaMetrics::register(&health)?;
+    let publisher = registry::RegistryPublisher::new(
+        &settings.media,
+        node_id.clone(),
+        Arc::clone(&media),
+        &health.registry(),
+    )?;
     metrics.set_all(&media).await;
     let service = MediaControlServiceImpl {
         node_id: node_id.clone(),
@@ -63,12 +71,11 @@ async fn main() -> Result<()> {
         metrics,
         shutdown_rx.clone(),
     );
-
     let grpc_shutdown = shutdown_rx.clone();
     let operations_task = tokio::spawn(serve_http(
         operations_listener,
         operations_router,
-        shutdown_rx,
+        shutdown_rx.clone(),
     ));
     let grpc_task = tokio::spawn(async move {
         Server::builder()
@@ -79,9 +86,13 @@ async fn main() -> Result<()> {
             )
             .await
     });
+    let publisher_task = publisher
+        .clone()
+        .spawn(settings.media.draining, shutdown_rx.clone());
 
     tracing::info!(%grpc_address, %operations_address, %node_id, ports=?media.ports(), "media service ready");
     shutdown_signal().await;
+    publisher.publish(true).await;
     health.set_initialized(false).await;
     let _ = shutdown_tx.send(true);
     operations_task
@@ -89,5 +100,8 @@ async fn main() -> Result<()> {
         .context("join operations listener")??;
     grpc_task.await.context("join gRPC listener")??;
     supervision.abort();
+    publisher_task
+        .await
+        .context("join media registry publisher")?;
     Ok(())
 }

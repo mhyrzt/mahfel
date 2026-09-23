@@ -5,6 +5,10 @@ pub struct ApiSettings {
     pub http_bind: String,
     pub operations_bind: String,
     pub media_grpc_url: String,
+    /// Bind address for the private media-node heartbeat gRPC service.
+    pub media_registry_bind: String,
+    /// Root secret used only by the API to verify node-bound credentials.
+    pub media_registry_secret: String,
     pub allowed_origin: String,
     /// Address of the reverse proxy whose `X-Forwarded-For` may be trusted.
     ///

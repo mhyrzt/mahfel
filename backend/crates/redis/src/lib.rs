@@ -7,6 +7,7 @@
 mod client;
 mod error;
 mod keys;
+mod media_registry;
 mod metrics;
 mod settings;
 

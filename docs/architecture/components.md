@@ -90,6 +90,30 @@ authentication seam that denies by default, heartbeats, per-connection bounded q
 timeout, and a process-local fan-out registry. It carries RTC signaling and session participation
 frames.
 
+### Media node registry (M4-08)
+
+Each media process publishes its configured node ID, private gRPC URL, room limit, observed worker,
+room and transport counts, and draining state every five seconds to the API's private gRPC registry
+listener on port 50052. The browser-facing listener has no registry route. The bearer credential is
+an HMAC-SHA256 token derived from an API-held root secret and that node ID, so a credential for one
+node cannot register another node. Each deployment must provide a unique stable node ID, its own
+derived token, and a directly reachable per-node gRPC URL. The checked-in token and root are
+local-only fixtures; non-local deployments must override them with secrets.
+
+The Redis adapter stores `media_nodes:record:<node-id>` as a hash with a 20-second TTL and
+`media_nodes:live` as an expiring sorted index under the configured key prefix. One Redis script
+updates the record, TTL, and index using Redis server time. Draining is sticky while the record
+exists; a later heartbeat cannot accidentally clear it. On process shutdown, media publishes a
+final draining heartbeat. A missing heartbeat lets both the record and index expire. Registry
+reads exclude expired entries and return `Unavailable` on Redis failure or an oversized result,
+so placement cannot treat an outage as an empty healthy registry.
+
+The initial capacity limit is concurrent rooms per node. It is a configuration limit, not a claim
+about participant or network capacity. Registry metrics report aggregate live and draining counts
+and heartbeat outcomes with only bounded outcome labels. M4-09 will consume the live-node reader
+for weighted, sticky placement; the current signaling path still uses its configured single media
+URL.
+
 ### Session participation and reconnect
 
 Participation separates durable identity from transport:

@@ -12,6 +12,11 @@ migrate_on_start = true
 
 [api]
 media_grpc_url = "http://127.0.0.1:50051"
+media_registry_bind = "127.0.0.1:50052"
+
+[media]
+grpc_advertise_url = "http://127.0.0.1:50051"
+registry_url = "http://127.0.0.1:50052"
 
 [oidc]
 issuer_url = "https://auth.mahfel.localhost/realms/rastai"

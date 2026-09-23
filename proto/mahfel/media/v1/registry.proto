@@ -1,0 +1,21 @@
+syntax = "proto3";
+
+package mahfel.media.v1;
+
+// Private media-to-API control path. The caller authenticates with a node-bound
+// bearer credential in the authorization metadata.
+service MediaRegistryService {
+  rpc Heartbeat(HeartbeatRequest) returns (HeartbeatResponse);
+}
+
+message HeartbeatRequest {
+  string node_id = 1;
+  string grpc_url = 2;
+  uint32 max_rooms = 3;
+  uint32 active_workers = 4;
+  uint64 active_rooms = 5;
+  uint64 transports = 6;
+  bool draining = 7;
+}
+
+message HeartbeatResponse {}

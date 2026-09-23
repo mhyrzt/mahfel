@@ -25,9 +25,9 @@ pub struct RedisMessage {
 #[derive(Clone)]
 pub struct RedisCoordination {
     url: String,
-    manager: ConnectionManager,
-    keys: Keys,
-    command_timeout: Duration,
+    pub(crate) manager: ConnectionManager,
+    pub(crate) keys: Keys,
+    pub(crate) command_timeout: Duration,
     metrics: RedisMetrics,
 }
 
@@ -94,7 +94,7 @@ impl RedisCoordination {
         Ok(receiver)
     }
 
-    fn finish<T>(
+    pub(crate) fn finish<T>(
         &self,
         result: Result<Result<T, redis::RedisError>, tokio::time::error::Elapsed>,
     ) -> Result<T, RedisError> {

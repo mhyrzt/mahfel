@@ -21,6 +21,11 @@ spec:
             - {name: MAHFEL_MEDIA__RTC_PORT_MIN, value: '40000'}
             - {name: MAHFEL_MEDIA__RTC_PORT_MAX, value: '40003'}
             - {name: MAHFEL_MEDIA__ANNOUNCED_ADDRESS, value: '192.0.2.1'}
+            - name: POD_IP
+              valueFrom: {fieldRef: {fieldPath: status.podIP}}
+            - {name: MAHFEL_MEDIA__GRPC_ADVERTISE_URL, value: 'http://$(POD_IP):50051'}
+            - name: MAHFEL_MEDIA__REGISTRY_TOKEN
+              valueFrom: {secretKeyRef: {name: local-credentials, key: media-registry-token}}
           ports:
             - {containerPort: 50051, name: grpc}
             - {containerPort: 9102, name: operations}

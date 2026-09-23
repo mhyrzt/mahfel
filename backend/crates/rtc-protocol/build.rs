@@ -6,6 +6,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         prost,
         &[
             "../../../proto/mahfel/media/v1/node.proto",
+            "../../../proto/mahfel/media/v1/registry.proto",
             "../../../proto/mahfel/media/v1/room.proto",
             "../../../proto/mahfel/media/v1/transport.proto",
             "../../../proto/mahfel/media/v1/track.proto",

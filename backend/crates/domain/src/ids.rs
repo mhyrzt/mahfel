@@ -67,6 +67,21 @@ impl NodeId {
     pub fn as_str(&self) -> &str {
         &self.0
     }
+
+    /// Deployment identities are safe to use as one Redis key component.
+    #[must_use]
+    pub fn from_deployment(value: impl Into<String>) -> Option<Self> {
+        let value = value.into();
+        if value.is_empty()
+            || value.len() > 64
+            || !value
+                .bytes()
+                .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_'))
+        {
+            return None;
+        }
+        Some(Self(value))
+    }
 }
 
 impl Default for NodeId {

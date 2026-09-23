@@ -2,6 +2,9 @@
 http_bind = "0.0.0.0:8080"
 operations_bind = "0.0.0.0:9101"
 media_grpc_url = "http://mahfel-media:50051"
+media_registry_bind = "0.0.0.0:50052"
+# Local development fixture only. Override from a secret in non-local deployments.
+media_registry_secret = "mahfel-local-only-media-registry-root"
 allowed_origin = "https://mahfel.localhost"
 # Unset: X-Forwarded-For is ignored and the socket peer is used.
 # Set only to the address of the reverse proxy that actually sets the header.
@@ -50,6 +53,12 @@ rtc_port_min = 40000
 rtc_port_max = 40003
 listen_ip = "0.0.0.0"
 announced_address = "127.0.0.1"
+node_id = "media-local"
+grpc_advertise_url = "http://mahfel-media:50051"
+registry_url = "http://mahfel-api:50052"
+# HMAC-SHA256(root secret, node_id), base64 encoded; local fixture only.
+registry_token = "Td0OQcFbnUqRwYXw7THJiokrZJX/vpbeez+l3f0Hvzc="
+max_rooms = 100
 
 [redis]
 url = "redis://redis:6379"

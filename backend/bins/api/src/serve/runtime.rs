@@ -1,15 +1,19 @@
 use super::{
     coordination::{self, Coordination},
     database::{self, Database},
+    media_registry::RegistryService,
     telemetry::Telemetry,
 };
 use anyhow::{Context, Result};
 use axum::Router;
 use mahfel_config::Settings;
 use mahfel_domain::NodeId;
+use mahfel_rtc_protocol::media::media_registry_service_server::MediaRegistryServiceServer;
 use mahfel_telemetry::{HealthState, serve_http, shutdown_signal};
 use std::net::SocketAddr;
 use tokio::{net::TcpListener, sync::watch, task::JoinHandle};
+use tokio_stream::wrappers::TcpListenerStream;
+use tonic::transport::Server;
 use utoipa::OpenApi;
 use utoipa_scalar::{Scalar, Servable};
 
@@ -18,11 +22,13 @@ pub(super) struct Runtime {
     node_id: NodeId,
     app_address: SocketAddr,
     operations_address: SocketAddr,
+    registry_address: SocketAddr,
     health: HealthState,
     pool: sqlx::PgPool,
     shutdown_tx: watch::Sender<bool>,
     app_task: JoinHandle<std::io::Result<()>>,
     operations_task: JoinHandle<std::io::Result<()>>,
+    registry_task: JoinHandle<Result<(), tonic::transport::Error>>,
     probe_task: JoinHandle<()>,
     redis_probe_task: JoinHandle<()>,
 }
@@ -31,15 +37,17 @@ pub(super) struct Runtime {
 pub(super) async fn start(
     settings: &Settings,
     node_id: NodeId,
-    app: Router,
+    listeners: (Router, RegistryService),
     telemetry: &Telemetry,
     database: &Database,
     coordination: &Coordination,
     shutdown: (watch::Sender<bool>, watch::Receiver<bool>),
 ) -> Result<Runtime> {
     let (shutdown_tx, shutdown_rx) = shutdown;
+    let (app, registry) = listeners;
     let app_address = settings.api.http_bind.parse::<SocketAddr>()?;
     let operations_address = settings.api.operations_bind.parse::<SocketAddr>()?;
+    let registry_address = settings.api.media_registry_bind.parse::<SocketAddr>()?;
 
     let app_task = spawn_listener(app_address, app, shutdown_rx.clone()).await?;
     // The interactive docs UI stays on the private operations listener
@@ -50,6 +58,17 @@ pub(super) async fn start(
     ));
     let operations_task =
         spawn_listener(operations_address, operations, shutdown_rx.clone()).await?;
+    let registry_listener = TcpListener::bind(registry_address).await?;
+    let registry_shutdown = shutdown_rx.clone();
+    let registry_task = tokio::spawn(async move {
+        Server::builder()
+            .add_service(MediaRegistryServiceServer::new(registry))
+            .serve_with_incoming_shutdown(
+                TcpListenerStream::new(registry_listener),
+                mahfel_telemetry::wait_for_shutdown(registry_shutdown),
+            )
+            .await
+    });
     let probe_task = database::spawn_probe(database, telemetry, shutdown_rx.clone());
     let redis_probe_task = coordination::spawn_probe(coordination, telemetry, shutdown_rx);
 
@@ -57,11 +76,13 @@ pub(super) async fn start(
         node_id,
         app_address,
         operations_address,
+        registry_address,
         health: telemetry.health.clone(),
         pool: database.pool.clone(),
         shutdown_tx,
         app_task,
         operations_task,
+        registry_task,
         probe_task,
         redis_probe_task,
     })
@@ -73,6 +94,7 @@ impl Runtime {
         tracing::info!(
             app_address = %self.app_address,
             operations_address = %self.operations_address,
+            registry_address = %self.registry_address,
             node_id = %self.node_id,
             "API service ready"
         );
@@ -88,6 +110,9 @@ impl Runtime {
         self.operations_task
             .await
             .context("join operations listener")??;
+        self.registry_task
+            .await
+            .context("join media registry listener")??;
         self.probe_task.await.context("join PostgreSQL probe")?;
         self.redis_probe_task.await.context("join Redis probe")?;
         self.pool.close().await;

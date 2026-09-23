@@ -9,4 +9,11 @@ pub struct MediaSettings {
     pub rtc_port_max: u16,
     pub listen_ip: String,
     pub announced_address: String,
+    pub node_id: String,
+    pub grpc_advertise_url: String,
+    pub registry_url: String,
+    pub registry_token: String,
+    pub max_rooms: u32,
+    #[serde(default)]
+    pub draining: bool,
 }
