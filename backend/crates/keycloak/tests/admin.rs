@@ -2,8 +2,8 @@ use mahfel_application::ports::{AttributeError, UserAttributeWriter};
 use mahfel_keycloak::{KeycloakAdmin, KeycloakAdminSettings};
 use std::{error::Error, time::Duration};
 use testcontainers::{
-    GenericImage, ImageExt,
-    core::{IntoContainerPort, WaitFor, wait::HttpWaitStrategy},
+    ContainerAsync, GenericImage, ImageExt,
+    core::{IntoContainerPort, WaitFor},
     runners::AsyncRunner,
 };
 
@@ -14,6 +14,7 @@ const SERVICE_ACCOUNT: &str = "service-account-mahfel-admin";
 
 struct Keycloak {
     base_url: String,
+    _container: ContainerAsync<GenericImage>,
 }
 
 async fn start_keycloak() -> Result<Option<Keycloak>, Box<dyn Error>> {
@@ -38,25 +39,23 @@ async fn start_keycloak() -> Result<Option<Keycloak>, Box<dyn Error>> {
     ];
 
     let container = GenericImage::new("quay.io/keycloak/keycloak", "26.7.4")
-        .with_wait_for(WaitFor::http(
-            HttpWaitStrategy::new("/realms/rastai/.well-known/openid-configuration")
-                .with_port(8080.tcp())
-                .with_expected_status_code(200u16)
-                .with_poll_interval(Duration::from_secs(2)),
-        ))
+        .with_wait_for(WaitFor::message_on_stdout("Keycloak 26.7.4 on JVM"))
         .with_exposed_port(8080.tcp())
         .with_mapped_port(port, 8080.tcp())
         .with_copy_to("/opt/keycloak/data/import/rastai-realm.json", realm)
         .with_startup_timeout(Duration::from_secs(240))
         .with_cmd(command)
+        .with_log_consumer(|frame: &testcontainers::core::logs::LogFrame| {
+            if std::env::var("MAHFEL_TESTCONTAINER_LOGS").as_deref() == Ok("1") {
+                eprint!("{}", String::from_utf8_lossy(frame.bytes()));
+            }
+        })
         .start()
         .await?;
     assert_eq!(container.get_host_port_ipv4(8080).await?, port);
-    // Keep the container alive for the test duration.
-    std::mem::forget(container);
-
     Ok(Some(Keycloak {
         base_url: format!("http://127.0.0.1:{port}"),
+        _container: container,
     }))
 }
 
@@ -145,6 +144,53 @@ async fn sets_and_replaces_a_user_attribute_idempotently() -> Result<(), Box<dyn
 }
 
 #[tokio::test]
+async fn creates_only_missing_users_and_leaves_existing_profile_untouched()
+-> Result<(), Box<dyn Error>> {
+    let Some(keycloak) = start_keycloak().await? else {
+        return Ok(());
+    };
+    let admin = KeycloakAdmin::new(settings(&keycloak, ADMIN_CLIENT_SECRET));
+
+    let (id, created) = admin
+        .create_user_if_missing(
+            "seed-idempotency",
+            "first@mahfel.local",
+            "First Profile",
+            "first-development-password",
+        )
+        .await?;
+    assert!(created, "missing users must be created");
+    admin
+        .set_user_attribute(
+            &id,
+            "mahfel_user_id",
+            "11111111-1111-4111-8111-111111111111",
+        )
+        .await?;
+    let (repeated_id, created) = admin
+        .create_user_if_missing(
+            "seed-idempotency",
+            "changed@mahfel.local",
+            "Changed Profile",
+            "replacement-password-must-not-apply",
+        )
+        .await?;
+
+    assert!(!created, "existing users must not be updated");
+    assert_eq!(id, repeated_id, "re-seeding must resolve the existing user");
+    let user = stored_user(&keycloak, &id).await?;
+    assert_eq!(user["username"], "seed-idempotency");
+    assert_eq!(user["email"], "first@mahfel.local");
+    assert_eq!(user["firstName"], "First");
+    assert_eq!(user["lastName"], "Profile");
+    assert_eq!(
+        user["attributes"]["mahfel_user_id"][0],
+        "11111111-1111-4111-8111-111111111111"
+    );
+    Ok(())
+}
+
+#[tokio::test]
 async fn a_rejected_service_account_is_classified_as_unexpected() -> Result<(), Box<dyn Error>> {
     let Some(keycloak) = start_keycloak().await? else {
         return Ok(());
@@ -204,4 +250,39 @@ async fn stored_attribute(
     Ok(user["attributes"]["mahfel_user_id"][0]
         .as_str()
         .map(str::to_owned))
+}
+
+async fn stored_user(
+    keycloak: &Keycloak,
+    user_id: &str,
+) -> Result<serde_json::Value, Box<dyn Error>> {
+    let token: serde_json::Value = reqwest::Client::new()
+        .post(format!(
+            "{}/realms/{REALM}/protocol/openid-connect/token",
+            keycloak.base_url
+        ))
+        .form(&[
+            ("grant_type", "client_credentials"),
+            ("client_id", ADMIN_CLIENT_ID),
+            ("client_secret", ADMIN_CLIENT_SECRET),
+        ])
+        .send()
+        .await?
+        .error_for_status()?
+        .json()
+        .await?;
+    let access_token = token["access_token"]
+        .as_str()
+        .ok_or("token response missing access_token")?;
+    Ok(reqwest::Client::new()
+        .get(format!(
+            "{}/admin/realms/{REALM}/users/{user_id}",
+            keycloak.base_url
+        ))
+        .bearer_auth(access_token)
+        .send()
+        .await?
+        .error_for_status()?
+        .json()
+        .await?)
 }

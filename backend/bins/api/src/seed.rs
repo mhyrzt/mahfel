@@ -1,7 +1,11 @@
 use crate::settings;
 use anyhow::{Context, Result};
+use mahfel_application::ports::IdentityProfile;
 use mahfel_config::Settings;
-use mahfel_postgres::connect;
+use mahfel_domain::{ActorId, DisplayName, EmailAddress, Issuer, Subject, Username};
+use mahfel_keycloak::KeycloakAdmin;
+use mahfel_postgres::{PostgresIdentityStore, connect};
+use serde::Deserialize;
 use std::{
     fs,
     path::{Path, PathBuf},
@@ -11,6 +15,17 @@ mod embedded {
     include!(concat!(env!("OUT_DIR"), "/seeds.rs"));
 }
 
+#[derive(Deserialize)]
+struct DevelopmentUser {
+    id: String,
+    username: String,
+    email: String,
+    display_name: String,
+    password: String,
+}
+
+const DEVELOPMENT_USERS: &str = include_str!("../../../seeds/development-users.json");
+
 /// Apply development seed fixtures explicitly, in file-name order.
 ///
 /// Without a path, every seed embedded at build time (see `build.rs`) is
@@ -19,6 +34,7 @@ mod embedded {
 /// applied by migrations or normal startup, and fixtures must be idempotent so
 /// the command can be re-run safely.
 pub(crate) async fn run(settings: Settings, path: Option<PathBuf>) -> Result<()> {
+    let seed_development_users = path.is_none();
     let seeds = match path {
         Some(path) => read_path(&path)?,
         None => embedded_seeds(),
@@ -33,6 +49,61 @@ pub(crate) async fn run(settings: Settings, path: Option<PathBuf>) -> Result<()>
             .await
             .with_context(|| format!("apply seed {name}"))?;
         tracing::info!(seed = %name, "seed applied");
+    }
+
+    if seed_development_users {
+        let admin = KeycloakAdmin::new(crate::settings::keycloak(&settings));
+        let issuer = Issuer::new(settings.oidc.issuer_url.clone())
+            .context("validate Keycloak issuer for development seed")?;
+        let identities = PostgresIdentityStore::new(pool.clone());
+        let users: Vec<DevelopmentUser> =
+            serde_json::from_str(DEVELOPMENT_USERS).context("decode embedded development users")?;
+
+        for fixture in users {
+            let (subject, created) = admin
+                .create_user_if_missing(
+                    &fixture.username,
+                    &fixture.email,
+                    &fixture.display_name,
+                    &fixture.password,
+                )
+                .await
+                .with_context(|| format!("ensure Keycloak user {}", fixture.username))?;
+            if created {
+                admin
+                    .set_user_attribute(&subject, "mahfel_user_id", &fixture.id)
+                    .await
+                    .with_context(|| format!("link new Keycloak user {}", fixture.username))?;
+            }
+            let subject = Subject::new(subject).context("validate Keycloak user subject")?;
+            let user_id = ActorId::from_uuid(
+                uuid::Uuid::parse_str(&fixture.id).context("validate fixture user id")?,
+            );
+            let display_name = DisplayName::new(fixture.display_name)
+                .context("validate development display name")?;
+            let email = EmailAddress::new(fixture.email).context("validate development email")?;
+            let fixture_username = fixture.username.clone();
+            let username =
+                Username::new(fixture_username.clone()).context("validate development username")?;
+            identities
+                .mirror_development_identity(
+                    user_id,
+                    &issuer,
+                    &subject,
+                    &display_name,
+                    &IdentityProfile {
+                        display_name: Some(display_name.clone()),
+                        email: Some(email),
+                        username,
+                        email_verified: true,
+                        avatar_url: None,
+                    },
+                    time::OffsetDateTime::now_utc(),
+                )
+                .await
+                .with_context(|| format!("mirror development user {fixture_username}"))?;
+            tracing::info!(username = %fixture.username, "development identity ensured");
+        }
     }
 
     pool.close().await;

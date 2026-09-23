@@ -158,126 +158,6 @@
   ],
   "users": [
     {
-      "id": "00000000-0000-4000-8000-000000000001",
-      "username": "shinji",
-      "enabled": true,
-      "email": "shinji.ikari@mahfel.local",
-      "emailVerified": true,
-      "firstName": "Shinji",
-      "lastName": "Ikari",
-      "requiredActions": [],
-      "credentials": [
-        {
-          "type": "password",
-          "value": "password",
-          "temporary": false
-        }
-      ],
-      "realmRoles": [
-        "member"
-      ]
-    },
-    {
-      "id": "00000000-0000-4000-8000-000000000002",
-      "username": "asuka",
-      "enabled": true,
-      "email": "asuka.langley@mahfel.local",
-      "emailVerified": true,
-      "firstName": "Asuka",
-      "lastName": "Langley",
-      "requiredActions": [],
-      "credentials": [
-        {
-          "type": "password",
-          "value": "password",
-          "temporary": false
-        }
-      ],
-      "realmRoles": [
-        "member"
-      ]
-    },
-    {
-      "id": "00000000-0000-4000-8000-000000000003",
-      "username": "rei",
-      "enabled": true,
-      "email": "rei.ayanami@mahfel.local",
-      "emailVerified": true,
-      "firstName": "Rei",
-      "lastName": "Ayanami",
-      "requiredActions": [],
-      "credentials": [
-        {
-          "type": "password",
-          "value": "password",
-          "temporary": false
-        }
-      ],
-      "realmRoles": [
-        "member"
-      ]
-    },
-    {
-      "id": "00000000-0000-4000-8000-000000000004",
-      "username": "misato",
-      "enabled": true,
-      "email": "misato.katsuragi@mahfel.local",
-      "emailVerified": true,
-      "firstName": "Misato",
-      "lastName": "Katsuragi",
-      "requiredActions": [],
-      "credentials": [
-        {
-          "type": "password",
-          "value": "password",
-          "temporary": false
-        }
-      ],
-      "realmRoles": [
-        "member"
-      ]
-    },
-    {
-      "id": "00000000-0000-4000-8000-000000000005",
-      "username": "ritsuko",
-      "enabled": true,
-      "email": "ritsuko.akagi@mahfel.local",
-      "emailVerified": true,
-      "firstName": "Ritsuko",
-      "lastName": "Akagi",
-      "requiredActions": [],
-      "credentials": [
-        {
-          "type": "password",
-          "value": "password",
-          "temporary": false
-        }
-      ],
-      "realmRoles": [
-        "moderator"
-      ]
-    },
-    {
-      "id": "00000000-0000-4000-8000-000000000006",
-      "username": "admin",
-      "enabled": true,
-      "email": "admin@mahfel.local",
-      "emailVerified": true,
-      "firstName": "Mahfel",
-      "lastName": "Admin",
-      "requiredActions": [],
-      "credentials": [
-        {
-          "type": "password",
-          "value": "password",
-          "temporary": false
-        }
-      ],
-      "realmRoles": [
-        "admin"
-      ]
-    },
-    {
       "username": "service-account-mahfel-admin",
       "enabled": true,
       "serviceAccountClientId": "mahfel-admin",
@@ -290,5 +170,19 @@
         ]
       }
     }
-  ]
+  ],
+  "components": {
+    "org.keycloak.userprofile.UserProfileProvider": [
+      {
+        "name": "declarative-user-profile",
+        "providerId": "declarative-user-profile",
+        "subComponents": {},
+        "config": {
+          "kc.user.profile.config": [
+            "{\"attributes\":[{\"name\":\"username\",\"displayName\":\"${username}\",\"validations\":{\"length\":{\"min\":3,\"max\":100},\"username-prohibited-characters\":{},\"up-username-not-idn-homograph\":{}},\"permissions\":{\"view\":[\"admin\",\"user\"],\"edit\":[\"admin\",\"user\"]},\"multivalued\":false},{\"name\":\"email\",\"displayName\":\"${email}\",\"validations\":{\"email\":{},\"length\":{\"max\":320}},\"required\":{\"roles\":[\"user\"]},\"permissions\":{\"view\":[\"admin\",\"user\"],\"edit\":[\"admin\",\"user\"]},\"multivalued\":false},{\"name\":\"firstName\",\"displayName\":\"${firstName}\",\"validations\":{\"length\":{\"max\":255},\"person-name-prohibited-characters\":{}},\"required\":{\"roles\":[\"user\"]},\"permissions\":{\"view\":[\"admin\",\"user\"],\"edit\":[\"admin\",\"user\"]},\"multivalued\":false},{\"name\":\"lastName\",\"displayName\":\"${lastName}\",\"validations\":{\"length\":{\"max\":255},\"person-name-prohibited-characters\":{}},\"required\":{\"roles\":[\"user\"]},\"permissions\":{\"view\":[\"admin\",\"user\"],\"edit\":[\"admin\",\"user\"]},\"multivalued\":false},{\"name\":\"mahfel_user_id\",\"displayName\":\"Mahfel user ID\",\"validations\":{\"length\":{\"min\":1,\"max\":36}},\"permissions\":{\"view\":[\"admin\"],\"edit\":[\"admin\"]},\"multivalued\":false}]}"
+          ]
+        }
+      }
+    ]
+  }
 }

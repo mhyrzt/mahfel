@@ -89,21 +89,20 @@ presigned browser URLs from containing an unresolvable Compose service name. The
 RustFS's default storage format must not be assumed to be compatible; migrate any valuable local
 objects through the S3 API before removing that old volume.
 
-Keycloak provides local OIDC at `https://auth.mahfel.localhost/realms/rastai`. The imported
-development accounts are `shinji`, `asuka`, `rei`, `misato`, `ritsuko`, and `admin`; all use the
-local-only password `password`. See `deploy/keycloak/README.md` for the fixture identities and the
-`mahfel-admin` service account used for Admin API access. The local realm is imported from
-`deploy/keycloak/rastai-realm.json` into an in-memory database, so the committed fixture is the
-source of truth on every start. Production points the same provider-neutral configuration at its
-Keycloak deployment.
+Keycloak provides local OIDC at `https://auth.mahfel.localhost/realms/rastai`. The `mahfel-seed`
+service waits for Keycloak and PostgreSQL, then creates missing development accounts and mirrors
+them into PostgreSQL. The accounts are `shinji`, `asuka`, `rei`, `misato`, `ritsuko`, and `admin`;
+all use the local-only password `password`. See `deploy/keycloak/README.md` for details. The realm
+import defines clients and roles; canonical development accounts live in
+`backend/seeds/development-users.json`.
 
 Browser authentication is provided by `mahfel-web` with Keycloak, and the API verifies the resulting
 access token as a resource server (ADR 0019); `GET /v1/auth/me` returns `401` without a valid token.
 Development fixtures that pre-provision local users live separately from schema migrations in
 `backend/seeds/`, applied in file-name order. The `mahfel-seed` Compose service applies them (after
 migrations) before the API starts; for host development, run `just backend seed`, or
-`just backend seed path/to/seed.sql` to apply a single file or directory. Never run seeds in
-production.
+`just backend seed path/to/seed.sql` to apply a single SQL file or directory without Keycloak
+accounts. Never run development seeds in production.
 
 Infrastructure host ports can be changed with the `*_HOST_PORT` values in `.env`. Their defaults
 match the port map. For example, use `MAHFEL_REDIS_HOST_PORT=26379` when another local project owns

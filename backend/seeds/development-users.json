@@ -1,0 +1,8 @@
+[
+  {"id":"00000000-0000-4000-8000-000000000001","username":"shinji","email":"shinji.ikari@mahfel.local","display_name":"Shinji Ikari","password":"password"},
+  {"id":"00000000-0000-4000-8000-000000000002","username":"asuka","email":"asuka.langley@mahfel.local","display_name":"Asuka Langley","password":"password"},
+  {"id":"00000000-0000-4000-8000-000000000003","username":"rei","email":"rei.ayanami@mahfel.local","display_name":"Rei Ayanami","password":"password"},
+  {"id":"00000000-0000-4000-8000-000000000004","username":"misato","email":"misato.katsuragi@mahfel.local","display_name":"Misato Katsuragi","password":"password"},
+  {"id":"00000000-0000-4000-8000-000000000005","username":"ritsuko","email":"ritsuko.akagi@mahfel.local","display_name":"Ritsuko Akagi","password":"password"},
+  {"id":"00000000-0000-4000-8000-000000000006","username":"admin","email":"admin@mahfel.local","display_name":"Mahfel Admin","password":"password"}
+]

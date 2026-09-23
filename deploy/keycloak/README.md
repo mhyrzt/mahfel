@@ -37,17 +37,22 @@ realm through `https://auth.mahfel.localhost/admin`, add `KC_BOOTSTRAP_ADMIN_USE
 
 ## Development identities
 
-All development users share the local-only password `password` and have stable subject IDs so
-`(issuer, subject)` fixtures survive provider restarts.
+The canonical development accounts live in `backend/seeds/development-users.json`. `mahfel-api seed`
+creates any missing account through the `mahfel-admin` client credentials and mirrors each
+identity into PostgreSQL. It does not update an existing Keycloak account or reset its password.
+Fixture local user IDs are stable across Keycloak restarts; newly created Keycloak accounts receive
+the local ID attribute during seeding. The realm user profile defines that attribute as admin-only,
+so users cannot edit their application identity link. The committed password `password` is for local
+development only.
 
-| Username | Email | Realm role | Intended use |
-| --- | --- | --- | --- |
-| `shinji` | `shinji.ikari@mahfel.local` | `student` | learner flows |
-| `asuka` | `asuka.langley@mahfel.local` | `student` | learner flows |
-| `rei` | `rei.ayanami@mahfel.local` | `student` | learner flows |
-| `misato` | `misato.katsuragi@mahfel.local` | `teacher` | instructor flows |
-| `ritsuko` | `ritsuko.akagi@mahfel.local` | `moderator` | moderation/administration flows |
-| `admin` | `admin@mahfel.local` | `admin` | administration flows |
+| Username | Email | Intended use |
+| --- | --- | --- |
+| `shinji` | `shinji.ikari@mahfel.local` | learner flows |
+| `asuka` | `asuka.langley@mahfel.local` | learner flows |
+| `rei` | `rei.ayanami@mahfel.local` | learner flows |
+| `misato` | `misato.katsuragi@mahfel.local` | instructor flows |
+| `ritsuko` | `ritsuko.akagi@mahfel.local` | moderation/administration flows |
+| `admin` | `admin@mahfel.local` | administration flows |
 
 These credentials are intentionally public local fixtures and must never be reused in production.
 

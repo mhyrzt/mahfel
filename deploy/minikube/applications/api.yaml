@@ -28,6 +28,9 @@ spec:
           imagePullPolicy: Never
           env:
             - {name: MAHFEL_CONFIG_PROFILE, value: docker}
+            - {name: MAHFEL_KEYCLOAK__BASE_URL, value: http://keycloak:8080}
+            - name: MAHFEL_KEYCLOAK__ADMIN_CLIENT_SECRET
+              valueFrom: {secretKeyRef: {name: local-credentials, key: keycloak-admin-client-secret}}
             - name: MAHFEL_STORAGE__SECRET_KEY
               valueFrom: {secretKeyRef: {name: local-credentials, key: rustfs-secret-key}}
             - {name: MAHFEL_DATABASE__HOST, value: postgres}

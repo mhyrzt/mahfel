@@ -11,6 +11,9 @@ spec:
         - name: wait-for-postgres
           image: docker.arvancloud.ir/postgres:16-bookworm
           command: [sh, -c, 'until pg_isready -h postgres -U mahfel -d mahfel; do sleep 2; done']
+        - name: wait-for-keycloak
+          image: curlimages/curl:8.12.1
+          command: [sh, -c, 'until curl --fail --silent http://keycloak:8080/realms/rastai/.well-known/openid-configuration >/dev/null; do sleep 2; done']
       containers:
         - name: seed
           image: mahfel-api:local
@@ -18,6 +21,9 @@ spec:
           command: [sh, -c, 'mahfel-api migrate && mahfel-api seed']
           env:
             - {name: MAHFEL_CONFIG_PROFILE, value: docker}
+            - {name: MAHFEL_KEYCLOAK__BASE_URL, value: http://keycloak:8080}
+            - name: MAHFEL_KEYCLOAK__ADMIN_CLIENT_SECRET
+              valueFrom: {secretKeyRef: {name: local-credentials, key: keycloak-admin-client-secret}}
             - {name: MAHFEL_DATABASE__HOST, value: postgres}
             - {name: MAHFEL_DATABASE__USER, value: mahfel}
             - {name: MAHFEL_DATABASE__NAME, value: mahfel}
