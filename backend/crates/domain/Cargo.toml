@@ -10,7 +10,11 @@ base64 = "0.22"
 serde.workspace = true
 thiserror.workspace = true
 time.workspace = true
+url.workspace = true
 uuid.workspace = true
+
+[dev-dependencies]
+serde_json.workspace = true
 
 [lints]
 workspace = true

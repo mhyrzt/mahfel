@@ -1,6 +1,6 @@
 use crate::actor::ActorId;
 use crate::status::status_conversion;
-use crate::validation::{AvatarUrl, DisplayName, ValidationError};
+use crate::validation::{AvatarUrl, DisplayName, EmailAddress, Username, ValidationError};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use time::OffsetDateTime;
@@ -26,6 +26,8 @@ pub enum UserError {
 pub struct User {
     pub id: ActorId,
     pub display_name: DisplayName,
+    pub email: EmailAddress,
+    pub username: Username,
     pub status: UserStatus,
     pub avatar_url: Option<AvatarUrl>,
     pub created_at: OffsetDateTime,
@@ -34,10 +36,17 @@ pub struct User {
 
 impl User {
     #[must_use]
-    pub fn create(display_name: DisplayName, now: OffsetDateTime) -> Self {
+    pub fn create(
+        display_name: DisplayName,
+        email: EmailAddress,
+        username: Username,
+        now: OffsetDateTime,
+    ) -> Self {
         Self {
             id: ActorId::new(),
             display_name,
+            email,
+            username,
             status: UserStatus::Active,
             avatar_url: None,
             created_at: now,
@@ -96,7 +105,12 @@ mod tests {
     #[test]
     fn disable_and_enable_are_state_checked() {
         let now = OffsetDateTime::now_utc();
-        let mut user = User::create(DisplayName::new("Ada".to_owned()).expect("valid"), now);
+        let mut user = User::create(
+            DisplayName::new("Ada".to_owned()).expect("valid"),
+            EmailAddress::new("ada@example.test".to_owned()).expect("email"),
+            Username::new("ada".to_owned()).expect("username"),
+            now,
+        );
         assert!(user.disable(now).is_ok());
         assert!(user.disable(now).is_err());
         assert!(user.enable(now).is_ok());

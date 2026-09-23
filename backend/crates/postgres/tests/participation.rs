@@ -123,9 +123,19 @@ async fn verify_participation(pool: &PgPool) -> Result<(), Box<dyn Error>> {
     let participants = PostgresParticipantStore::new(pool.clone());
     let participation = PostgresParticipationStore::new(pool.clone());
 
-    let owner = User::create(DisplayName::new("Ada Lovelace".to_owned())?, base);
+    let owner = User::create(
+        DisplayName::new("Ada Lovelace".to_owned())?,
+        mahfel_domain::EmailAddress::new("test@example.test".to_owned())?,
+        mahfel_domain::Username::new("test-user".to_owned())?,
+        base,
+    );
     users.insert(&owner).await?;
-    let member = User::create(DisplayName::new("Grace Hopper".to_owned())?, base);
+    let member = User::create(
+        DisplayName::new("Grace Hopper".to_owned())?,
+        mahfel_domain::EmailAddress::new("test@example.test".to_owned())?,
+        mahfel_domain::Username::new("test-user".to_owned())?,
+        base,
+    );
     users.insert(&member).await?;
 
     let room = Room::create(

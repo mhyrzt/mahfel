@@ -1,7 +1,8 @@
 use crate::error::{ApplicationError, ErrorKind};
 use crate::ports::{IdentityProfile, IdentityStore, ProvisionedIdentity, StoreError};
 use mahfel_domain::{
-    AvatarUrl, DisplayName, EmailAddress, Issuer, MAX_DISPLAY_NAME_LEN, Subject, ValidationError,
+    AvatarUrl, DisplayName, EmailAddress, Issuer, MAX_DISPLAY_NAME_LEN, Subject, Username,
+    ValidationError,
 };
 use thiserror::Error;
 use time::OffsetDateTime;
@@ -16,6 +17,7 @@ pub struct SyncIdentity {
     pub subject: String,
     pub display_name: Option<String>,
     pub email: Option<String>,
+    pub username: Option<String>,
     pub email_verified: bool,
     pub avatar_url: Option<String>,
 }
@@ -24,6 +26,8 @@ pub struct SyncIdentity {
 pub enum SyncIdentityError {
     #[error("invalid identity claim: {0}")]
     Invalid(#[from] ValidationError),
+    #[error("required identity claim is missing: {0}")]
+    Missing(&'static str),
     #[error("storage failure: {0}")]
     Store(#[from] StoreError),
 }
@@ -31,7 +35,7 @@ pub enum SyncIdentityError {
 impl ApplicationError for SyncIdentityError {
     fn kind(&self) -> ErrorKind {
         match self {
-            Self::Invalid(_) => ErrorKind::Unprocessable,
+            Self::Invalid(_) | Self::Missing(_) => ErrorKind::Unprocessable,
             Self::Store(_) => ErrorKind::Internal,
         }
     }
@@ -51,14 +55,28 @@ where
 {
     let issuer = Issuer::new(command.issuer)?;
     let subject = Subject::new(command.subject)?;
-    let email = command.email.map(EmailAddress::new).transpose()?;
-    let avatar_url = command.avatar_url.map(AvatarUrl::new).transpose()?;
+    let email = command
+        .email
+        .map(EmailAddress::new)
+        .transpose()?
+        .ok_or(SyncIdentityError::Missing("email"))?;
+    let username = command
+        .username
+        .map(Username::new)
+        .transpose()?
+        .ok_or(SyncIdentityError::Missing("username"))?;
+    // A malformed optional picture claim must not prevent an otherwise valid
+    // login. Invalid avatar URLs are discarded at the identity boundary.
+    let avatar_url = command
+        .avatar_url
+        .and_then(|value| AvatarUrl::new(value).ok());
     let display_name = command.display_name.map(DisplayName::new).transpose()?;
 
-    let resolved_name = fallback_display_name(display_name.as_ref(), email.as_ref(), &subject);
+    let resolved_name = fallback_display_name(display_name.as_ref(), Some(&email), &subject);
     let profile = IdentityProfile {
         display_name,
-        email,
+        email: Some(email),
+        username,
         email_verified: command.email_verified,
         avatar_url,
     };

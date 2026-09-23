@@ -1,6 +1,6 @@
 use crate::actor::ActorId;
 use crate::ids::entity_id;
-use crate::validation::{AvatarUrl, DisplayName, EmailAddress, Issuer, Subject};
+use crate::validation::{AvatarUrl, DisplayName, EmailAddress, Issuer, Subject, Username};
 use serde::{Deserialize, Serialize};
 use time::OffsetDateTime;
 
@@ -18,6 +18,7 @@ pub struct Identity {
     pub issuer: Issuer,
     pub subject: Subject,
     pub email: Option<EmailAddress>,
+    pub username: Username,
     pub email_verified: bool,
     pub display_name: Option<DisplayName>,
     pub avatar_url: Option<AvatarUrl>,
@@ -37,6 +38,7 @@ impl Identity {
         subject: Subject,
         display_name: Option<DisplayName>,
         email: Option<EmailAddress>,
+        username: Username,
         email_verified: bool,
         avatar_url: Option<AvatarUrl>,
         now: OffsetDateTime,
@@ -47,6 +49,7 @@ impl Identity {
             issuer,
             subject,
             email,
+            username,
             email_verified,
             display_name,
             avatar_url,
@@ -63,6 +66,7 @@ impl Identity {
         &mut self,
         display_name: Option<DisplayName>,
         email: Option<EmailAddress>,
+        username: Username,
         email_verified: bool,
         avatar_url: Option<AvatarUrl>,
         now: OffsetDateTime,
@@ -74,6 +78,7 @@ impl Identity {
             self.email = email;
             self.email_verified = email_verified;
         }
+        self.username = username;
         if avatar_url.is_some() {
             self.avatar_url = avatar_url;
         }
@@ -93,6 +98,7 @@ mod tests {
             Subject::new("subject-1".to_owned()).expect("subject"),
             Some(DisplayName::new("Ada".to_owned()).expect("name")),
             Some(EmailAddress::new("ada@example.com".to_owned()).expect("email")),
+            Username::new("ada".to_owned()).expect("username"),
             true,
             Some(AvatarUrl::new("https://example.com/a.png".to_owned()).expect("avatar")),
             now,
@@ -105,7 +111,14 @@ mod tests {
         let created = identity.created_at;
         let later = created + time::Duration::seconds(60);
 
-        identity.refresh_profile(None, None, false, None, later);
+        identity.refresh_profile(
+            None,
+            None,
+            Username::new("ada-new".to_owned()).expect("username"),
+            false,
+            None,
+            later,
+        );
 
         assert_eq!(
             identity.display_name.as_ref().map(DisplayName::as_str),

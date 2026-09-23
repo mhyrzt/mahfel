@@ -120,7 +120,12 @@ async fn verify_sessions(pool: &PgPool) -> Result<(), Box<dyn Error>> {
     let rooms = PostgresRoomStore::new(pool.clone());
     let sessions = PostgresSessionStore::new(pool.clone());
 
-    let user = User::create(DisplayName::new("Ada Lovelace".to_owned())?, now);
+    let user = User::create(
+        DisplayName::new("Ada Lovelace".to_owned())?,
+        mahfel_domain::EmailAddress::new("test@example.test".to_owned())?,
+        mahfel_domain::Username::new("test-user".to_owned())?,
+        now,
+    );
     users.insert(&user).await?;
     let room = Room::create(
         RoomTitle::new("Analytical Engines".to_owned())?,

@@ -124,8 +124,18 @@ async fn verify_blocks(pool: &PgPool) -> Result<(), Box<dyn Error>> {
     let blocks = PostgresBlockStore::new(pool.clone());
 
     let base = OffsetDateTime::now_utc();
-    let manager = User::create(DisplayName::new("Grace Hopper".to_owned())?, base);
-    let member = User::create(DisplayName::new("Ada Lovelace".to_owned())?, base);
+    let manager = User::create(
+        DisplayName::new("Grace Hopper".to_owned())?,
+        mahfel_domain::EmailAddress::new("test@example.test".to_owned())?,
+        mahfel_domain::Username::new("test-user".to_owned())?,
+        base,
+    );
+    let member = User::create(
+        DisplayName::new("Ada Lovelace".to_owned())?,
+        mahfel_domain::EmailAddress::new("test@example.test".to_owned())?,
+        mahfel_domain::Username::new("test-user".to_owned())?,
+        base,
+    );
     users.insert(&manager).await?;
     users.insert(&member).await?;
 

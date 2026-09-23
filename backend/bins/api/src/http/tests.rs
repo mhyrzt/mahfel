@@ -20,7 +20,7 @@ use mahfel_application::ports::{
     CapabilityResolver, CapabilitySet, ChatStore, CoordinationError, CoordinationStore,
     FileStorage, FileStorageError, FileStore, InviteStore, ParticipantStore, ParticipationStore,
     PresignedFileRequest, Principal, ProvisionedIdentity, RoomStore, ServicePrincipalStore,
-    SessionStore, StoreError, StoredFile, UserAttributeWriter,
+    SessionStore, StoreError, StoredFile, UserAttributeWriter, UserStore,
 };
 use mahfel_application::service_principals::{CreateServicePrincipal, create_service_principal};
 use mahfel_application::users::{IdentityProvisioner, SyncIdentity, SyncIdentityError};
@@ -29,13 +29,13 @@ use mahfel_auth::{TokenVerifier, TokenVerifierConfig};
 use mahfel_config::TurnSettings;
 use mahfel_domain::{
     ActorId, ActorKind, AdmissionOrigin, AdmissionRequest, AdmissionRequestId,
-    AdmissionRequestStatus, AdmissionTarget, ChatChannel, ChatChannelId, ChatMessage,
-    ChatMessageCursor, ChatMessageDraft, ChatMessageId, ChatMessagePage, DisplayName, FileContext,
-    FileId, FileObject, FileStatus, Identity, IntervalId, InviteCode, InviteLink, InviteLinkId,
-    InviteLinkStatus, InviteTarget, InviteTargetKind, Issuer, Participant, ParticipantId,
-    ParticipantStatus, ParticipationInterval, Room, RoomId, RoomMember, RoomRole, RoomTitle,
-    RoomVisibility, ServicePrincipal, ServicePrincipalStatus, Session, SessionId, SessionStatus,
-    Subject, User, UserStatus,
+    AdmissionRequestStatus, AdmissionTarget, AvatarUrl, ChatChannel, ChatChannelId, ChatMessage,
+    ChatMessageCursor, ChatMessageDraft, ChatMessageId, ChatMessagePage, DisplayName, EmailAddress,
+    FileContext, FileId, FileObject, FileStatus, Identity, IntervalId, InviteCode, InviteLink,
+    InviteLinkId, InviteLinkStatus, InviteTarget, InviteTargetKind, Issuer, Participant,
+    ParticipantId, ParticipantStatus, ParticipationInterval, Room, RoomId, RoomMember, RoomRole,
+    RoomTitle, RoomVisibility, ServicePrincipal, ServicePrincipalStatus, Session, SessionId,
+    SessionStatus, Subject, User, UserStatus, Username,
 };
 use mahfel_media_client::GrpcMediaGateway;
 use prometheus::Encoder;
@@ -120,6 +120,37 @@ impl FileStore for FakeFileStore {
         _actor: ActorId,
         _now: OffsetDateTime,
     ) -> BoxFuture<'_, Result<(), StoreError>> {
+        Box::pin(async { Ok(()) })
+    }
+}
+
+#[derive(Default)]
+struct FakeUserStore {
+    avatar_url: Option<AvatarUrl>,
+}
+
+impl UserStore for FakeUserStore {
+    fn get(&self, id: ActorId) -> BoxFuture<'_, Result<Option<User>, StoreError>> {
+        let avatar_url = self.avatar_url.clone();
+        Box::pin(async move {
+            Ok(avatar_url.map(|avatar_url| User {
+                id,
+                display_name: DisplayName::new("Test User".to_owned()).expect("valid name"),
+                email: EmailAddress::new("test@example.test".to_owned()).expect("valid email"),
+                username: Username::new("test-user".to_owned()).expect("valid username"),
+                status: UserStatus::Active,
+                avatar_url: Some(avatar_url),
+                created_at: OffsetDateTime::UNIX_EPOCH,
+                updated_at: OffsetDateTime::UNIX_EPOCH,
+            }))
+        })
+    }
+
+    fn insert<'a>(&'a self, _user: &'a User) -> BoxFuture<'a, Result<(), StoreError>> {
+        Box::pin(async { Ok(()) })
+    }
+
+    fn save<'a>(&'a self, _user: &'a User) -> BoxFuture<'a, Result<(), StoreError>> {
         Box::pin(async { Ok(()) })
     }
 }
@@ -809,6 +840,7 @@ impl IdentityProvisioner for StubProvisioner {
             issuer,
             subject,
             email_verified,
+            avatar_url,
             ..
         } = command;
         let user_id = Uuid::parse_str(&subject)
@@ -818,8 +850,13 @@ impl IdentityProvisioner for StubProvisioner {
         let user = User {
             id: user_id,
             display_name: DisplayName::new("Test User".to_owned()).expect("valid name"),
+            email: EmailAddress::new("test@example.test".to_owned()).expect("valid email"),
+            username: Username::new("test-user".to_owned()).expect("valid username"),
             status: UserStatus::Active,
-            avatar_url: None,
+            avatar_url: Some(
+                AvatarUrl::new("https://s3.mahfel.localhost/avatars/custom.png".to_owned())
+                    .expect("valid custom avatar"),
+            ),
             created_at: now,
             updated_at: now,
         };
@@ -829,8 +866,9 @@ impl IdentityProvisioner for StubProvisioner {
             Subject::new(subject).expect("valid subject"),
             None,
             None,
+            Username::new("test-user".to_owned()).expect("valid username"),
             email_verified,
-            None,
+            avatar_url.and_then(|value| AvatarUrl::new(value).ok()),
             now,
         );
         Box::pin(async move { Ok(ProvisionedIdentity { user, identity }) })
@@ -1626,6 +1664,7 @@ fn state_with(
         provisioner: Arc::new(StubProvisioner),
         linker: Arc::new(StubLinker),
         rooms: Arc::new(FakeRoomStore::default()),
+        users: Arc::new(FakeUserStore::default()),
         sessions: Arc::new(FakeSessionStore::default()),
         participation: Arc::new(FakeParticipationStore::default()),
         admissions: Arc::new(FakeAdmissionStore::default()),
@@ -1701,6 +1740,7 @@ fn authenticated_room_app(principal: Principal, store: FakeRoomStore) -> Router 
         provisioner: Arc::new(StubProvisioner),
         linker: Arc::new(StubLinker),
         rooms: Arc::new(store),
+        users: Arc::new(FakeUserStore::default()),
         sessions: Arc::new(FakeSessionStore::default()),
         participation: Arc::new(FakeParticipationStore::default()),
         admissions: Arc::new(FakeAdmissionStore::default()),
@@ -1955,13 +1995,26 @@ async fn identity_requires_authentication() {
 
 #[tokio::test]
 async fn identity_returns_the_authenticated_principal() {
+    let app = api_router(state(
+        Some(Principal {
+            avatar_url: Some("https://images.example.test/provider.png".to_owned()),
+            ..principal()
+        }),
+        Arc::new(AllowAll),
+    ));
     let req = Request::builder()
         .uri("/v1/auth/me")
         .body(Body::empty())
         .expect("request");
-    let resp = authenticated_app().oneshot(req).await.expect("response");
+    let resp = app.oneshot(req).await.expect("response");
 
     assert_eq!(resp.status(), StatusCode::OK);
+    assert_eq!(
+        resp.headers()
+            .get(header::CACHE_CONTROL)
+            .and_then(|value| value.to_str().ok()),
+        Some("private, no-store")
+    );
     let json = response_json(resp).await;
     assert_eq!(
         json.get("user_id").and_then(|v| v.as_str()),
@@ -1971,7 +2024,64 @@ async fn identity_returns_the_authenticated_principal() {
         json.get("email").and_then(|v| v.as_str()),
         Some("test@mahfel.local")
     );
+    assert_eq!(
+        json.get("username").and_then(|value| value.as_str()),
+        Some("test")
+    );
     assert_eq!(json.get("email_verified"), Some(&serde_json::json!(true)));
+    assert_eq!(
+        json.get("avatar_url").and_then(|value| value.as_str()),
+        Some("https://images.example.test/provider.png")
+    );
+}
+
+#[tokio::test]
+async fn identity_drops_unsafe_avatar_claims() {
+    let app = api_router(state(
+        Some(Principal {
+            avatar_url: Some("javascript:alert(1)".to_owned()),
+            ..principal()
+        }),
+        Arc::new(AllowAll),
+    ));
+    let req = Request::builder()
+        .uri("/v1/auth/me")
+        .body(Body::empty())
+        .expect("request");
+    let resp = app.oneshot(req).await.expect("response");
+
+    assert_eq!(resp.status(), StatusCode::OK);
+    let json = response_json(resp).await;
+    assert_eq!(json.get("avatar_url"), Some(&serde_json::Value::Null));
+}
+
+#[tokio::test]
+async fn identity_prefers_the_user_owned_avatar() {
+    let mut state = state(
+        Some(Principal {
+            avatar_url: Some("https://images.example.test/provider.png".to_owned()),
+            ..principal()
+        }),
+        Arc::new(AllowAll),
+    );
+    state.users = Arc::new(FakeUserStore {
+        avatar_url: Some(
+            AvatarUrl::new("https://s3.mahfel.localhost/avatars/custom.png".to_owned())
+                .expect("valid custom avatar"),
+        ),
+    });
+    let req = Request::builder()
+        .uri("/v1/auth/me")
+        .body(Body::empty())
+        .expect("request");
+    let resp = api_router(state).oneshot(req).await.expect("response");
+
+    assert_eq!(resp.status(), StatusCode::OK);
+    let json = response_json(resp).await;
+    assert_eq!(
+        json.get("avatar_url").and_then(|value| value.as_str()),
+        Some("https://s3.mahfel.localhost/avatars/custom.png")
+    );
 }
 
 #[tokio::test]
@@ -2006,7 +2116,13 @@ async fn identity_rejects_a_token_without_a_linked_user() {
 #[tokio::test]
 async fn provision_returns_the_application_profile() {
     // Provisioning must remain reachable before the user is linked.
-    let app = api_router(state_unprovisioned(Some(principal()), Arc::new(AllowAll)));
+    let app = api_router(state_unprovisioned(
+        Some(Principal {
+            avatar_url: Some("https://images.example.test/provider.png".to_owned()),
+            ..principal()
+        }),
+        Arc::new(AllowAll),
+    ));
     let req = Request::builder()
         .method(Method::POST)
         .uri("/v1/auth/provision")
@@ -2015,6 +2131,12 @@ async fn provision_returns_the_application_profile() {
     let resp = app.oneshot(req).await.expect("response");
 
     assert_eq!(resp.status(), StatusCode::OK);
+    assert_eq!(
+        resp.headers()
+            .get(header::CACHE_CONTROL)
+            .and_then(|value| value.to_str().ok()),
+        Some("private, no-store")
+    );
     let json = response_json(resp).await;
     assert_eq!(
         json.get("user_id").and_then(|v| v.as_str()),
@@ -2022,7 +2144,16 @@ async fn provision_returns_the_application_profile() {
     );
     assert_eq!(
         json.get("email").and_then(|v| v.as_str()),
-        Some("test@mahfel.local")
+        Some("test@example.test")
+    );
+    assert_eq!(
+        json.get("username").and_then(|value| value.as_str()),
+        Some("test-user")
+    );
+    assert_eq!(
+        json.get("avatar_url").and_then(|value| value.as_str()),
+        Some("https://s3.mahfel.localhost/avatars/custom.png"),
+        "the user-owned avatar takes precedence over the provider claim"
     );
 }
 
@@ -2550,6 +2681,7 @@ fn session_app(
         provisioner: Arc::new(StubProvisioner),
         linker: Arc::new(StubLinker),
         rooms: Arc::new(rooms),
+        users: Arc::new(FakeUserStore::default()),
         sessions: Arc::new(sessions),
         participation: Arc::new(FakeParticipationStore::default()),
         admissions: Arc::new(FakeAdmissionStore::default()),
@@ -2830,6 +2962,7 @@ fn policy_session_app(
         provisioner: Arc::new(StubProvisioner),
         linker: Arc::new(StubLinker),
         rooms: Arc::new(rooms),
+        users: Arc::new(FakeUserStore::default()),
         sessions: Arc::new(sessions),
         participation: Arc::new(FakeParticipationStore::default()),
         admissions: Arc::new(FakeAdmissionStore::default()),
@@ -3002,6 +3135,7 @@ async fn serve_ws_with_stores(
         provisioner: Arc::new(StubProvisioner),
         linker: Arc::new(StubLinker),
         rooms: Arc::new(seeds.rooms),
+        users: Arc::new(FakeUserStore::default()),
         sessions: Arc::new(seeds.sessions),
         participation: Arc::new(seeds.participation),
         admissions: Arc::new(seeds.admissions),
@@ -3226,6 +3360,7 @@ async fn serve_ws_with_verifier(verifier: TokenVerifier, config: WsConfig) -> Ws
         provisioner: Arc::new(StubProvisioner),
         linker: Arc::new(StubLinker),
         rooms: Arc::new(FakeRoomStore::default()),
+        users: Arc::new(FakeUserStore::default()),
         sessions: Arc::new(FakeSessionStore::default()),
         participation: Arc::new(FakeParticipationStore::default()),
         admissions: Arc::new(FakeAdmissionStore::default()),
@@ -3676,6 +3811,7 @@ fn service_app(
         provisioner: Arc::new(StubProvisioner),
         linker: Arc::new(StubLinker),
         rooms: Arc::new(rooms),
+        users: Arc::new(FakeUserStore::default()),
         sessions: Arc::new(FakeSessionStore::default()),
         participation: Arc::new(FakeParticipationStore::default()),
         admissions: Arc::new(FakeAdmissionStore::default()),
@@ -3942,6 +4078,7 @@ async fn serve_ws_with(
         provisioner: Arc::new(StubProvisioner),
         linker: Arc::new(StubLinker),
         rooms: Arc::new(FakeRoomStore::default()),
+        users: Arc::new(FakeUserStore::default()),
         sessions: Arc::new(FakeSessionStore::default()),
         participation: Arc::new(FakeParticipationStore::default()),
         admissions: Arc::new(FakeAdmissionStore::default()),
@@ -4395,6 +4532,7 @@ fn participation_app(
         provisioner: Arc::new(StubProvisioner),
         linker: Arc::new(StubLinker),
         rooms: Arc::new(rooms),
+        users: Arc::new(FakeUserStore::default()),
         sessions: Arc::new(sessions),
         participation: Arc::new(participation),
         admissions: Arc::new(FakeAdmissionStore::default()),
@@ -4656,6 +4794,7 @@ fn invite_app(
         provisioner: Arc::new(StubProvisioner),
         linker: Arc::new(StubLinker),
         rooms: Arc::new(rooms),
+        users: Arc::new(FakeUserStore::default()),
         sessions: Arc::new(sessions),
         participation: Arc::new(FakeParticipationStore::default()),
         admissions: Arc::new(FakeAdmissionStore::default()),
@@ -5051,6 +5190,7 @@ fn admission_app(
         provisioner: Arc::new(StubProvisioner),
         linker: Arc::new(StubLinker),
         rooms: Arc::new(rooms),
+        users: Arc::new(FakeUserStore::default()),
         sessions: Arc::new(sessions),
         participation: Arc::new(FakeParticipationStore::default()),
         admissions: Arc::new(admissions),
@@ -5086,6 +5226,7 @@ fn redeem_app(
         provisioner: Arc::new(StubProvisioner),
         linker: Arc::new(StubLinker),
         rooms: Arc::new(rooms),
+        users: Arc::new(FakeUserStore::default()),
         sessions: Arc::new(sessions),
         participation: Arc::new(FakeParticipationStore::default()),
         admissions: Arc::new(admissions),

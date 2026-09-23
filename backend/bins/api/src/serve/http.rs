@@ -68,6 +68,7 @@ pub(super) async fn app(
             .map_err(|e| anyhow::anyhow!("invalid media grpc url: {e}"))?,
     );
     let rooms: Arc<dyn mahfel_application::ports::RoomStore> = Arc::new(stores.rooms.clone());
+    let users: Arc<dyn mahfel_application::ports::UserStore> = Arc::new(stores.users.clone());
     let chat: Arc<dyn mahfel_application::ports::ChatStore> = Arc::new(stores.chat.clone());
     let files: Arc<dyn mahfel_application::ports::FileStore> = Arc::new(stores.files.clone());
     let storage: Arc<dyn FileStorage> =
@@ -140,6 +141,7 @@ pub(super) async fn app(
         provisioner,
         linker,
         rooms,
+        users,
         chat,
         files,
         storage,

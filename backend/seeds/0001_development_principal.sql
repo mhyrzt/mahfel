@@ -18,10 +18,12 @@ VALUES (
 )
 ON CONFLICT (id) DO NOTHING;
 
-INSERT INTO mahfel.users (id, display_name, status, created_at, updated_at)
+INSERT INTO mahfel.users (id, display_name, email, username, status, created_at, updated_at)
 VALUES (
     '00000000-0000-0000-0000-000000000001',
     'Development Principal',
+    'development-principal@mahfel.local',
+    'development-principal',
     'active',
     '2026-01-01 00:00:00+00',
     '2026-01-01 00:00:00+00'

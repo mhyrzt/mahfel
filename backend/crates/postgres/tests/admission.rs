@@ -120,9 +120,19 @@ async fn verify_admission(pool: &PgPool) -> Result<(), Box<dyn Error>> {
     let sessions = PostgresSessionStore::new(pool.clone());
     let admissions = PostgresAdmissionStore::new(pool.clone());
 
-    let manager = User::create(DisplayName::new("Ada Lovelace".to_owned())?, base);
+    let manager = User::create(
+        DisplayName::new("Ada Lovelace".to_owned())?,
+        mahfel_domain::EmailAddress::new("test@example.test".to_owned())?,
+        mahfel_domain::Username::new("test-user".to_owned())?,
+        base,
+    );
     users.insert(&manager).await?;
-    let member = User::create(DisplayName::new("Grace Hopper".to_owned())?, base);
+    let member = User::create(
+        DisplayName::new("Grace Hopper".to_owned())?,
+        mahfel_domain::EmailAddress::new("test@example.test".to_owned())?,
+        mahfel_domain::Username::new("test-user".to_owned())?,
+        base,
+    );
     users.insert(&member).await?;
 
     // The room policy and the session overrides must survive a round trip;

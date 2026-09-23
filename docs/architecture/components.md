@@ -29,6 +29,18 @@ using the client-credentials grant of a dedicated service account rather than an
 administrator account. Identity linking, role mapping, and logout remain M2 implementation concerns;
 the local realm fixture is described in `deploy/keycloak/README.md`.
 
+Avatar claims are display hints, not files hosted by Mahfel. The API accepts only absolute HTTPS
+URLs with a host and no embedded credentials, returns them directly, and never fetches or proxies
+provider images. An invalid optional `picture` claim is discarded without failing login. Profile
+responses use `Cache-Control: private, no-store`. During provisioning, a user-owned
+`users.avatar_url` overrides the provider picture; otherwise the provider picture is used, then the
+profile has no avatar. Both profile routes resolve the user-owned override before the provider
+picture. Authentication itself still builds the principal from the token; only the profile response
+reads the local user record. Custom uploaded avatar objects use the existing `avatar` file context,
+keyed by actor ID; their metadata remains in PostgreSQL and bytes remain in private object storage.
+File upload and download continue through the normal authorized file endpoints, whose signed URLs
+are short-lived and non-cacheable.
+
 The API also owns service principals: first-class machine actors that authenticate with
 Mahfel-issued opaque API keys (`mhf_` followed by hex, stored only as a SHA-256 digest) rather than
 Keycloak client credentials (ADR 0022). Users and service principals share one PostgreSQL id space

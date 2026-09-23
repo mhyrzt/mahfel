@@ -7,7 +7,7 @@ use crate::http::{
 use mahfel_application::{
     ports::{
         AdmissionStore, ChatStore, CoordinationStore, FileStorage, FileStore, InviteStore,
-        ParticipationStore, RoomStore, SessionStore, UserAttributeWriter,
+        ParticipationStore, RoomStore, SessionStore, UserAttributeWriter, UserStore,
     },
     users::IdentityProvisioner,
 };
@@ -32,6 +32,7 @@ pub struct AppState {
     pub provisioner: Arc<dyn IdentityProvisioner>,
     pub linker: Arc<dyn UserAttributeWriter>,
     pub rooms: Arc<dyn RoomStore>,
+    pub users: Arc<dyn UserStore>,
     pub chat: Arc<dyn ChatStore>,
     pub files: Arc<dyn FileStore>,
     pub storage: Arc<dyn FileStorage>,

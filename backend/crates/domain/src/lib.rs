@@ -44,7 +44,7 @@ pub use invite::{
     DEFAULT_EXPIRY_DAYS, InviteCode, InviteLink, InviteLinkError, InviteLinkId, InviteLinkStatus,
     InviteTarget, InviteTargetKind, MAX_EXPIRY_DAYS,
 };
-pub use media::ProducerSource;
+pub use media::{MediaKind, ProducerSource};
 pub use participant::{MuteKind, Participant, ParticipantError, ParticipantId, ParticipantStatus};
 pub use participation::{
     CorrectionReason, IntervalError, IntervalId, ParticipationInterval, intervals_overlap,
@@ -60,5 +60,6 @@ pub use user::{User, UserError, UserStatus};
 pub use validation::{
     AvatarUrl, DisplayName, EmailAddress, Issuer, MAX_AVATAR_URL_LEN, MAX_DISPLAY_NAME_LEN,
     MAX_EMAIL_LEN, MAX_ISSUER_LEN, MAX_ROOM_TITLE_LEN, MAX_SESSION_DURATION_MINUTES,
-    MAX_SUBJECT_LEN, RoomTitle, SessionDurationMinutes, SessionTitle, Subject, ValidationError,
+    MAX_SUBJECT_LEN, MAX_USERNAME_LEN, RoomTitle, SessionDurationMinutes, SessionTitle, Subject,
+    Username, ValidationError,
 };

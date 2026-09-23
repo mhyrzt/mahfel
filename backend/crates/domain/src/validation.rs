@@ -10,6 +10,7 @@ pub const MAX_SESSION_DURATION_MINUTES: u32 = 7 * 24 * 60;
 pub const MAX_ISSUER_LEN: usize = 500;
 pub const MAX_SUBJECT_LEN: usize = 500;
 pub const MAX_EMAIL_LEN: usize = 320;
+pub const MAX_USERNAME_LEN: usize = 100;
 pub const MAX_AVATAR_URL_LEN: usize = 2048;
 
 #[derive(Clone, Debug, Error, Eq, PartialEq)]
@@ -159,16 +160,15 @@ impl EmailAddress {
     }
 }
 
-/// Avatar location. Only HTTP(S) links are accepted, so unsafe schemes cannot
-/// reach an image element.
+/// A non-empty provider or application username, independent of email.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(transparent)]
-pub struct AvatarUrl(String);
+pub struct Username(String);
 
-impl AvatarUrl {
+impl Username {
     pub fn new(value: String) -> Result<Self, ValidationError> {
-        let trimmed = validate_text(value, MAX_AVATAR_URL_LEN)?;
-        if !(trimmed.starts_with("https://") || trimmed.starts_with("http://")) {
+        let trimmed = validate_text(value, MAX_USERNAME_LEN)?;
+        if trimmed.chars().any(char::is_whitespace) {
             return Err(ValidationError::InvalidFormat);
         }
         Ok(Self(trimmed))
@@ -177,6 +177,43 @@ impl AvatarUrl {
     #[must_use]
     pub fn as_str(&self) -> &str {
         &self.0
+    }
+}
+
+/// Avatar location. Only absolute HTTPS URLs without embedded credentials are
+/// accepted, so unsafe schemes and credential-bearing URLs cannot reach an
+/// image element.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+#[serde(transparent)]
+pub struct AvatarUrl(String);
+
+impl AvatarUrl {
+    pub fn new(value: String) -> Result<Self, ValidationError> {
+        let trimmed = validate_text(value, MAX_AVATAR_URL_LEN)?;
+        let parsed = url::Url::parse(&trimmed).map_err(|_| ValidationError::InvalidFormat)?;
+        if parsed.scheme() != "https"
+            || parsed.host_str().is_none()
+            || !parsed.username().is_empty()
+            || parsed.password().is_some()
+        {
+            return Err(ValidationError::InvalidFormat);
+        }
+        Ok(Self(parsed.to_string()))
+    }
+
+    #[must_use]
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+impl<'de> Deserialize<'de> for AvatarUrl {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let value = String::deserialize(deserializer)?;
+        Self::new(value).map_err(serde::de::Error::custom)
     }
 }
 
@@ -249,11 +286,29 @@ mod tests {
     }
 
     #[test]
+    fn username_is_required_bounded_and_has_no_whitespace() {
+        assert!(Username::new(String::new()).is_err());
+        assert!(Username::new("  ".to_owned()).is_err());
+        assert!(Username::new("two words".to_owned()).is_err());
+        assert!(Username::new("a".repeat(MAX_USERNAME_LEN + 1)).is_err());
+        assert_eq!(
+            Username::new("  ada  ".to_owned())
+                .expect("valid username")
+                .as_str(),
+            "ada"
+        );
+    }
+
+    #[test]
     fn avatar_url_rejects_unsafe_schemes() {
         assert!(AvatarUrl::new("https://s3.mahfel.localhost/avatars/a.png".to_owned()).is_ok());
-        assert!(AvatarUrl::new("http://example.com/a.png".to_owned()).is_ok());
+        assert!(AvatarUrl::new("https://example.com/a.png".to_owned()).is_ok());
+        assert!(AvatarUrl::new("http://example.com/a.png".to_owned()).is_err());
         assert!(AvatarUrl::new("javascript:alert(1)".to_owned()).is_err());
         assert!(AvatarUrl::new("data:image/png;base64,AAAA".to_owned()).is_err());
         assert!(AvatarUrl::new("/relative/avatar.png".to_owned()).is_err());
+        assert!(AvatarUrl::new("https://user:secret@example.com/a.png".to_owned()).is_err());
+        assert!(AvatarUrl::new("https://".to_owned()).is_err());
+        assert!(serde_json::from_str::<AvatarUrl>("\"javascript:alert(1)\"").is_err());
     }
 }

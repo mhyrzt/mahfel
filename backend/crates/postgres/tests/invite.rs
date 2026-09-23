@@ -118,7 +118,12 @@ async fn verify_invites(pool: &PgPool) -> Result<(), Box<dyn Error>> {
     let sessions = PostgresSessionStore::new(pool.clone());
     let invites = PostgresInviteStore::new(pool.clone());
 
-    let owner = User::create(DisplayName::new("Ada Lovelace".to_owned())?, now);
+    let owner = User::create(
+        DisplayName::new("Ada Lovelace".to_owned())?,
+        mahfel_domain::EmailAddress::new("test@example.test".to_owned())?,
+        mahfel_domain::Username::new("test-user".to_owned())?,
+        now,
+    );
     users.insert(&owner).await?;
 
     let room = Room::create(

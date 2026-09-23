@@ -1,15 +1,18 @@
 use super::{BoxFuture, StoreError};
-use mahfel_domain::{AvatarUrl, DisplayName, EmailAddress, Identity, Issuer, Subject, User};
+use mahfel_domain::{
+    AvatarUrl, DisplayName, EmailAddress, Identity, Issuer, Subject, User, Username,
+};
 use time::OffsetDateTime;
 
 /// Provider-asserted profile fields carried alongside an identity.
 ///
 /// Absent fields are not authoritative: a provider that omits a claim must not
 /// erase a value already stored.
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug)]
 pub struct IdentityProfile {
     pub display_name: Option<DisplayName>,
     pub email: Option<EmailAddress>,
+    pub username: Username,
     pub email_verified: bool,
     pub avatar_url: Option<AvatarUrl>,
 }

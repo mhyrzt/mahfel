@@ -5,7 +5,7 @@ use mahfel_application::ports::{
 use mahfel_domain::{
     ActorId, AvatarUrl, ChatChannel, ChatChannelId, ChatMessageDraft, ChatMessageId, DisplayName,
     EmailAddress, FileContext, FileObject, FileStatus, Issuer, Room, RoomMember, RoomRole,
-    RoomTitle, RoomVisibility, Session, SessionId, Subject, User,
+    RoomTitle, RoomVisibility, Session, SessionId, Subject, User, Username,
 };
 use mahfel_postgres::{
     ConnectionSettings, PoolSettings, PostgresChatStore, PostgresFileStore, PostgresIdentityStore,
@@ -118,6 +118,8 @@ async fn verify_migrations_and_stores(
     connection: &ConnectionSettings,
 ) -> Result<(), Box<dyn Error>> {
     migrate(pool).await?;
+
+    verify_required_user_profile_constraints(pool).await?;
 
     let lifecycle = PostgresSessionLifecycle::new(pool.clone());
     let session = SessionId::new();
@@ -254,7 +256,12 @@ async fn verify_migrations_and_stores(
     let chat = PostgresChatStore::new(pool.clone());
     let files = PostgresFileStore::new(pool.clone());
 
-    let user = User::create(DisplayName::new("Ada Lovelace".to_owned())?, now);
+    let user = User::create(
+        DisplayName::new("Ada Lovelace".to_owned())?,
+        mahfel_domain::EmailAddress::new("test@example.test".to_owned())?,
+        mahfel_domain::Username::new("test-user".to_owned())?,
+        now,
+    );
     users.insert(&user).await?;
 
     verify_identity_lifecycle(&identities, users.clone(), now).await?;
@@ -418,7 +425,12 @@ async fn verify_migrations_and_stores(
         "a newer insert must not shift an existing keyset boundary"
     );
 
-    let outsider = User::create(DisplayName::new("Katherine Johnson".to_owned())?, now);
+    let outsider = User::create(
+        DisplayName::new("Katherine Johnson".to_owned())?,
+        mahfel_domain::EmailAddress::new("test@example.test".to_owned())?,
+        mahfel_domain::Username::new("test-user".to_owned())?,
+        now,
+    );
     users.insert(&outsider).await?;
     assert!(
         matches!(
@@ -468,7 +480,12 @@ async fn verify_migrations_and_stores(
         Err(StoreError::Conflict(_))
     ));
 
-    let chat_member = User::create(DisplayName::new("Katherine Member".to_owned())?, now);
+    let chat_member = User::create(
+        DisplayName::new("Katherine Member".to_owned())?,
+        mahfel_domain::EmailAddress::new("test@example.test".to_owned())?,
+        mahfel_domain::Username::new("test-user".to_owned())?,
+        now,
+    );
     users.insert(&chat_member).await?;
     rooms
         .add_member(&RoomMember::new(
@@ -750,7 +767,12 @@ async fn verify_migrations_and_stores(
     );
 
     // The last manager cannot be removed; a co-manager can.
-    let co_manager = User::create(DisplayName::new("Grace Hopper".to_owned())?, now);
+    let co_manager = User::create(
+        DisplayName::new("Grace Hopper".to_owned())?,
+        mahfel_domain::EmailAddress::new("test@example.test".to_owned())?,
+        mahfel_domain::Username::new("test-user".to_owned())?,
+        now,
+    );
     users.insert(&co_manager).await?;
     rooms
         .add_member(&RoomMember::new(
@@ -827,6 +849,36 @@ async fn verify_migrations_and_stores(
     Ok(())
 }
 
+async fn verify_required_user_profile_constraints(pool: &PgPool) -> Result<(), Box<dyn Error>> {
+    for (email, username) in [("", "valid-user"), ("valid@example.test", "two words")] {
+        let user_id = Uuid::new_v4();
+        let now = OffsetDateTime::now_utc();
+        sqlx::query(
+            "INSERT INTO mahfel.actors (id, kind, created_at, updated_at) \
+             VALUES ($1, 'user', $2, $2)",
+        )
+        .bind(user_id)
+        .bind(now)
+        .execute(pool)
+        .await?;
+        let result = sqlx::query(
+            "INSERT INTO mahfel.users (id, display_name, email, username, status, created_at, updated_at) \
+             VALUES ($1, 'Test User', $2, $3, 'active', $4, $4)",
+        )
+        .bind(user_id)
+        .bind(email)
+        .bind(username)
+        .bind(now)
+        .execute(pool)
+        .await;
+        assert!(
+            result.is_err(),
+            "database must reject invalid required profile values"
+        );
+    }
+    Ok(())
+}
+
 /// Prove the identity rules that guard against account takeover and races.
 async fn verify_identity_lifecycle(
     identities: &PostgresIdentityStore,
@@ -837,6 +889,7 @@ async fn verify_identity_lifecycle(
     let profile = IdentityProfile {
         display_name: Some(DisplayName::new("Shinji Ikari".to_owned())?),
         email: Some(EmailAddress::new("shinji.ikari@mahfel.local".to_owned())?),
+        username: Username::new("shinji".to_owned())?,
         email_verified: true,
         avatar_url: Some(AvatarUrl::new(
             "https://s3.mahfel.localhost/avatars/shinji.png".to_owned(),
@@ -922,6 +975,56 @@ async fn verify_identity_lifecycle(
         stored.is_some(),
         "the provisioned user must be readable through the user store"
     );
+
+    // The development mirror uses a fixture-owned local ID, so recreating an
+    // in-memory Keycloak can attach a new subject to the same user row.
+    let stable_user_id =
+        ActorId::from_uuid(Uuid::parse_str("00000000-0000-4000-8000-000000000001")?);
+    let stable_profile = IdentityProfile {
+        display_name: Some(DisplayName::new("Shinji Ikari".to_owned())?),
+        email: Some(EmailAddress::new("shinji.ikari@mahfel.local".to_owned())?),
+        username: Username::new("shinji".to_owned())?,
+        email_verified: true,
+        avatar_url: None,
+    };
+    let first_seed_subject = Subject::new("keycloak-instance-one".to_owned())?;
+    identities
+        .mirror_development_identity(
+            stable_user_id,
+            &issuer,
+            &first_seed_subject,
+            stable_profile.display_name.as_ref().expect("display name"),
+            &stable_profile,
+            now,
+        )
+        .await?;
+    identities
+        .mirror_development_identity(
+            stable_user_id,
+            &issuer,
+            &first_seed_subject,
+            stable_profile.display_name.as_ref().expect("display name"),
+            &stable_profile,
+            now,
+        )
+        .await?;
+    let restarted_keycloak_subject = Subject::new("keycloak-instance-two".to_owned())?;
+    identities
+        .mirror_development_identity(
+            stable_user_id,
+            &issuer,
+            &restarted_keycloak_subject,
+            stable_profile.display_name.as_ref().expect("display name"),
+            &stable_profile,
+            now,
+        )
+        .await?;
+    let stable_user = users
+        .get(stable_user_id)
+        .await?
+        .expect("stable fixture user must be present");
+    assert_eq!(stable_user.email.as_str(), "shinji.ikari@mahfel.local");
+    assert_eq!(stable_user.username.as_str(), "shinji");
 
     Ok(())
 }

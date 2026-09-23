@@ -1,7 +1,7 @@
 use crate::DatabaseError;
 use crate::stores::store_error;
 use mahfel_application::ports::{BoxFuture, StoreError, UserStore};
-use mahfel_domain::{ActorId, AvatarUrl, DisplayName, User};
+use mahfel_domain::{ActorId, AvatarUrl, DisplayName, EmailAddress, User, Username};
 use sqlx::{FromRow, PgPool};
 use time::OffsetDateTime;
 use uuid::Uuid;
@@ -22,6 +22,8 @@ impl PostgresUserStore {
 pub(crate) struct UserRow {
     id: Uuid,
     display_name: String,
+    email: String,
+    username: String,
     status: String,
     created_at: OffsetDateTime,
     updated_at: OffsetDateTime,
@@ -32,7 +34,7 @@ impl UserStore for PostgresUserStore {
     fn get(&self, id: ActorId) -> BoxFuture<'_, Result<Option<User>, StoreError>> {
         Box::pin(async move {
             let row = sqlx::query_as::<_, UserRow>(
-                "SELECT id, display_name, status, created_at, updated_at, avatar_url \
+                "SELECT id, display_name, email, username, status, created_at, updated_at, avatar_url \
                  FROM mahfel.users WHERE id = $1",
             )
             .bind(id.as_uuid())
@@ -60,11 +62,13 @@ impl UserStore for PostgresUserStore {
             .await
             .map_err(store_error)?;
             sqlx::query(
-                "INSERT INTO mahfel.users (id, display_name, status, created_at, updated_at, avatar_url) \
-                 VALUES ($1, $2, $3, $4, $4, $5)",
+                "INSERT INTO mahfel.users (id, display_name, email, username, status, created_at, updated_at, avatar_url) \
+                 VALUES ($1, $2, $3, $4, $5, $6, $6, $7)",
             )
             .bind(user.id.as_uuid())
             .bind(user.display_name.as_str())
+            .bind(user.email.as_str())
+            .bind(user.username.as_str())
             .bind(user.status.as_str())
             .bind(user.created_at)
             .bind(user.avatar_url.as_ref().map(AvatarUrl::as_str))
@@ -80,11 +84,13 @@ impl UserStore for PostgresUserStore {
         Box::pin(async move {
             let result = sqlx::query(
                 "UPDATE mahfel.users \
-                 SET display_name = $2, status = $3, updated_at = $4, avatar_url = $5 \
+                 SET display_name = $2, email = $3, username = $4, status = $5, updated_at = $6, avatar_url = $7 \
                  WHERE id = $1",
             )
             .bind(user.id.as_uuid())
             .bind(user.display_name.as_str())
+            .bind(user.email.as_str())
+            .bind(user.username.as_str())
             .bind(user.status.as_str())
             .bind(user.updated_at)
             .bind(user.avatar_url.as_ref().map(AvatarUrl::as_str))
@@ -115,6 +121,10 @@ impl TryFrom<UserRow> for User {
             id: ActorId::from_uuid(row.id),
             display_name: DisplayName::new(row.display_name.clone())
                 .map_err(|_| DatabaseError::InvalidStoredValue("invalid display name"))?,
+            email: EmailAddress::new(row.email)
+                .map_err(|_| DatabaseError::InvalidStoredValue("invalid user email"))?,
+            username: Username::new(row.username)
+                .map_err(|_| DatabaseError::InvalidStoredValue("invalid user username"))?,
             status: row.status.as_str().try_into()?,
             avatar_url,
             created_at: row.created_at,

@@ -6,12 +6,14 @@ use crate::http::{
 use axum::{
     Json, Router,
     extract::State,
+    http::header,
+    response::IntoResponse,
     routing::{get, post},
 };
 use mahfel_application::{
     ApplicationError,
     ports::{Capability, Principal, ProvisionedIdentity},
-    users::SyncIdentity,
+    users::{SyncIdentity, SyncIdentityError},
 };
 use mahfel_auth::AuthenticatedIdentity;
 use serde::Serialize;
@@ -41,7 +43,7 @@ impl ProfileResponse {
             email: principal.email.clone(),
             email_verified: principal.email_verified,
             username: principal.username.clone(),
-            avatar_url: principal.avatar_url.clone(),
+            avatar_url: safe_avatar_url(principal.avatar_url.as_deref()),
             roles: principal.roles.clone(),
         }
     }
@@ -53,18 +55,23 @@ impl ProfileResponse {
             .avatar_url
             .as_ref()
             .or(provisioned.identity.avatar_url.as_ref())
-            .map(mahfel_domain::AvatarUrl::as_str)
-            .map(str::to_owned);
+            .map(|url| url.as_str().to_owned());
         Self {
             user_id: provisioned.user.id.to_string(),
             display_name: Some(provisioned.user.display_name.as_str().to_owned()),
-            email: claims.email.clone(),
-            email_verified: claims.email_verified,
-            username: claims.username.clone(),
+            email: Some(provisioned.user.email.as_str().to_owned()),
+            email_verified: provisioned.identity.email_verified,
+            username: Some(provisioned.user.username.as_str().to_owned()),
             avatar_url,
             roles: claims.roles.clone(),
         }
     }
+}
+
+fn safe_avatar_url(value: Option<&str>) -> Option<String> {
+    value
+        .and_then(|value| mahfel_domain::AvatarUrl::new(value.to_owned()).ok())
+        .map(|url| url.as_str().to_owned())
 }
 
 /// Provision (or resolve) the local user and link it in Keycloak.
@@ -86,12 +93,13 @@ impl ProfileResponse {
 pub(crate) async fn provision(
     State(state): State<AppState>,
     VerifiedToken(claims): VerifiedToken,
-) -> Result<Json<ProfileResponse>, ApiError> {
+) -> Result<impl IntoResponse, ApiError> {
     let command = SyncIdentity {
         issuer: claims.issuer.clone(),
         subject: claims.subject.clone(),
         display_name: claims.display_name.clone(),
         email: claims.email.clone(),
+        username: claims.username.clone(),
         email_verified: claims.email_verified,
         avatar_url: claims.avatar_url.clone(),
     };
@@ -99,7 +107,12 @@ pub(crate) async fn provision(
         .provisioner
         .provision(command)
         .await
-        .map_err(|_| ApiError::internal("identity synchronization failed"))?;
+        .map_err(|error| match error {
+            SyncIdentityError::Invalid(_) | SyncIdentityError::Missing(_) => {
+                ApiError::unprocessable("email and username claims are required and must be valid")
+            }
+            SyncIdentityError::Store(_) => ApiError::internal("identity synchronization failed"),
+        })?;
 
     let local_user_id = provisioned.user.id.to_string();
     if claims.app_user_id.as_deref() != Some(local_user_id.as_str()) {
@@ -115,13 +128,13 @@ pub(crate) async fn provision(
             })?;
     }
 
-    Ok(Json(ProfileResponse::from_provisioned(
-        &provisioned,
-        &claims,
-    )))
+    Ok((
+        [(header::CACHE_CONTROL, "private, no-store")],
+        Json(ProfileResponse::from_provisioned(&provisioned, &claims)),
+    ))
 }
 
-/// Current application profile, resolved from the token without a database read.
+/// Current application profile, with the local avatar overriding the token picture claim.
 #[utoipa::path(
     get,
     path = "/v1/auth/me",
@@ -135,9 +148,23 @@ pub(crate) async fn provision(
 pub(crate) async fn me(
     State(state): State<AppState>,
     Authenticated(principal): Authenticated,
-) -> Result<Json<ProfileResponse>, ApiError> {
+) -> Result<impl IntoResponse, ApiError> {
     auth::authorize_global(&state, &principal, Capability::ViewOwnIdentity)?;
-    Ok(Json(ProfileResponse::from_principal(&principal)))
+    let user_avatar_url = match state.users.get(principal.actor_id).await {
+        Ok(user) => user
+            .and_then(|user| user.avatar_url)
+            .map(|url| url.as_str().to_owned()),
+        Err(error) => {
+            tracing::warn!(%error, "profile avatar lookup failed");
+            None
+        }
+    };
+    let mut profile = ProfileResponse::from_principal(&principal);
+    profile.avatar_url = user_avatar_url.or(profile.avatar_url);
+    Ok((
+        [(header::CACHE_CONTROL, "private, no-store")],
+        Json(profile),
+    ))
 }
 
 pub(crate) fn route() -> Router<AppState> {
