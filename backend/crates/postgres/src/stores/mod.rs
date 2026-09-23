@@ -1,6 +1,7 @@
 mod admission;
 mod block;
 mod chat;
+mod file;
 mod identity;
 mod invite;
 mod media_placement;
@@ -14,6 +15,7 @@ mod user;
 pub use admission::PostgresAdmissionStore;
 pub use block::PostgresBlockStore;
 pub use chat::PostgresChatStore;
+pub use file::PostgresFileStore;
 pub use identity::PostgresIdentityStore;
 pub use invite::PostgresInviteStore;
 pub use media_placement::PostgresMediaPlacementStore;
@@ -46,6 +48,7 @@ pub struct PostgresStores {
     pub service_principals: PostgresServicePrincipalStore,
     pub blocks: PostgresBlockStore,
     pub chat: PostgresChatStore,
+    pub files: PostgresFileStore,
     pub media_placements: PostgresMediaPlacementStore,
 }
 
@@ -64,6 +67,7 @@ impl PostgresStores {
             service_principals: PostgresServicePrincipalStore::new(pool.clone()),
             blocks: PostgresBlockStore::new(pool.clone()),
             media_placements: PostgresMediaPlacementStore::new(pool.clone()),
+            files: PostgresFileStore::new(pool.clone()),
             chat: PostgresChatStore::new(pool),
         }
     }

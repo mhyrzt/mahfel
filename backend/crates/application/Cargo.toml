@@ -6,17 +6,16 @@ rust-version.workspace = true
 license.workspace = true
 
 [dependencies]
+base64 = "0.22"
 mahfel-domain = { path = "../domain" }
 serde.workspace = true
 serde_json.workspace = true
 sha2 = "0.10"
 thiserror.workspace = true
 time.workspace = true
+tokio.workspace = true
 tracing.workspace = true
 uuid.workspace = true
-
-[dev-dependencies]
-tokio.workspace = true
 
 [lints]
 workspace = true

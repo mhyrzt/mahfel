@@ -1,14 +1,15 @@
 use mahfel_application::ports::{
-    ChatStore, IdentityProfile, IdentityStore, RoomStore, SessionStore, StoreError, UserStore,
+    ChatStore, FileStore, IdentityProfile, IdentityStore, RoomStore, SessionStore, StoreError,
+    UserStore,
 };
 use mahfel_domain::{
     ActorId, AvatarUrl, ChatChannel, ChatChannelId, ChatMessageDraft, ChatMessageId, DisplayName,
-    EmailAddress, Issuer, Room, RoomMember, RoomRole, RoomTitle, RoomVisibility, Session, Subject,
-    User,
+    EmailAddress, FileContext, FileObject, FileStatus, Issuer, Room, RoomMember, RoomRole,
+    RoomTitle, RoomVisibility, Session, Subject, User,
 };
 use mahfel_postgres::{
-    ConnectionSettings, PoolSettings, PostgresChatStore, PostgresIdentityStore, PostgresRoomStore,
-    PostgresSessionStore, PostgresUserStore, connect, migrate,
+    ConnectionSettings, PoolSettings, PostgresChatStore, PostgresFileStore, PostgresIdentityStore,
+    PostgresRoomStore, PostgresSessionStore, PostgresUserStore, connect, migrate,
 };
 use sqlx::PgPool;
 use std::{error::Error, time::Duration};
@@ -127,8 +128,8 @@ async fn verify_migrations_and_stores(
         .fetch_one(pool)
         .await?;
     assert!(
-        migration_count >= 13,
-        "all chat migrations must be recorded"
+        migration_count >= 16,
+        "all file migrations must be recorded"
     );
     let max_migration_version =
         sqlx::query_scalar::<_, i64>("SELECT MAX(version) FROM _sqlx_migrations")
@@ -237,6 +238,7 @@ async fn verify_migrations_and_stores(
     let sessions = PostgresSessionStore::new(pool.clone());
     let identities = PostgresIdentityStore::new(pool.clone());
     let chat = PostgresChatStore::new(pool.clone());
+    let files = PostgresFileStore::new(pool.clone());
 
     let user = User::create(DisplayName::new("Ada Lovelace".to_owned())?, now);
     users.insert(&user).await?;
@@ -278,6 +280,96 @@ async fn verify_migrations_and_stores(
     )?;
     let first_message = chat.create_message(&first_channel, &first_draft).await?;
     assert_eq!(first_message.channel_id, first_channel.id);
+
+    let file = FileObject::pending(
+        user.id,
+        FileContext::Room(room.id),
+        "deck.pdf".into(),
+        "application/pdf".into(),
+        1024,
+        "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=".into(),
+        now,
+    )?;
+    files.insert(&file).await?;
+    assert_eq!(
+        files.get(file.id).await?.expect("inserted file").object_key,
+        file.object_key
+    );
+    assert!(
+        files
+            .list(FileContext::Room(room.id), 100, 0)
+            .await?
+            .is_empty()
+    );
+    assert_eq!(
+        files.context_room(FileContext::Session(session.id)).await?,
+        Some(room.id)
+    );
+    assert_eq!(
+        files
+            .context_room(FileContext::ChatMessage(first_message.id))
+            .await?,
+        Some(room.id)
+    );
+    assert!(
+        sqlx::query("UPDATE mahfel.files SET size_bytes = 0 WHERE id = $1")
+            .bind(file.id.as_uuid())
+            .execute(pool)
+            .await
+            .is_err()
+    );
+    assert!(
+        sqlx::query("UPDATE mahfel.files SET session_id = $2 WHERE id = $1")
+            .bind(file.id.as_uuid())
+            .bind(session.id.as_uuid())
+            .execute(pool)
+            .await
+            .is_err()
+    );
+    assert!(
+        files
+            .transition(
+                file.id,
+                FileStatus::Pending,
+                FileStatus::Ready,
+                Some("application/pdf"),
+                now
+            )
+            .await?
+    );
+    assert_eq!(
+        files.list(FileContext::Room(room.id), 100, 0).await?.len(),
+        1
+    );
+    let session_file = FileObject::pending(
+        user.id,
+        FileContext::Session(session.id),
+        "notes.pdf".into(),
+        "application/pdf".into(),
+        1024,
+        "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=".into(),
+        now,
+    )?;
+    files.insert(&session_file).await?;
+    assert!(
+        files
+            .transition(
+                session_file.id,
+                FileStatus::Pending,
+                FileStatus::Ready,
+                Some("application/pdf"),
+                now,
+            )
+            .await?
+    );
+    assert_eq!(
+        files.list(FileContext::Room(room.id), 100, 0).await?[0].id,
+        file.id
+    );
+    assert_eq!(
+        files.list(FileContext::Session(session.id), 100, 0).await?[0].id,
+        session_file.id
+    );
 
     let later_channel = ChatChannel::for_room(ChatChannelId::new(), room.id, now);
     let later_draft = ChatMessageDraft::new(

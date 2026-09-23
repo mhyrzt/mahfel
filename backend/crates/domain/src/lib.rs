@@ -9,6 +9,7 @@ mod actor;
 mod admission;
 mod block;
 mod chat;
+mod file;
 mod identity;
 mod ids;
 mod invite;
@@ -32,6 +33,9 @@ pub use block::{Block, BlockError, BlockId, BlockScope};
 pub use chat::{
     CHAT_AUTHOR_MUTATION_WINDOW, ChatChannel, ChatChannelId, ChatMessage, ChatMessageCursor,
     ChatMessageDraft, ChatMessageError, ChatMessageId, ChatMessagePage,
+};
+pub use file::{
+    FileContext, FileError, FileId, FileObject, FileStatus, MAX_FILE_BYTES, MAX_OWNER_FILE_BYTES,
 };
 pub use identity::{Identity, IdentityId};
 pub use ids::NodeId;

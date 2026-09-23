@@ -6,6 +6,7 @@ rust-version.workspace = true
 license.workspace = true
 
 [dependencies]
+base64 = "0.22"
 serde.workspace = true
 thiserror.workspace = true
 time.workspace = true

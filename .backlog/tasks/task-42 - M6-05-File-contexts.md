@@ -1,10 +1,11 @@
 ---
 id: TASK-42
 title: M6-05 File contexts
-status: To Do
-assignee: []
+status: Done
+assignee:
+  - '@codex'
 created_date: '2026-09-08 00:31'
-updated_date: '2026-09-23 01:13'
+updated_date: '2026-09-23 12:34'
 labels: []
 milestone: m-6
 dependencies: []
@@ -26,11 +27,25 @@ Dependencies: M6-03, M6-04
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Each context lists only its files; deleting a link cannot orphan bytes indefinitely.
+- [x] #1 Each context lists only its files; deleting a link cannot orphan bytes indefinitely.
 <!-- AC:END -->
+
+## Implementation Plan
+
+<!-- SECTION:PLAN:BEGIN -->
+Use constrained foreign-key context columns for room, session, chat message, avatar actor, and recording session; expose ready-only listing and deletion cleanup.
+<!-- SECTION:PLAN:END -->
 
 ## Implementation Notes
 
 <!-- SECTION:NOTES:BEGIN -->
 Design note: Link presentation files to a session or presentation context with stable ordered slide metadata. Recording references must keep the correct artifact resolvable under authorization, retention, and deletion rules.
+
+Disposable PostgreSQL migration test passed context-isolated ready-only listing and constraints; application ACL tests passed.
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Added room, session, chat, avatar, and recording associations, ready-only context listing, deletion, and abandoned-object cleanup.
+<!-- SECTION:FINAL_SUMMARY:END -->
