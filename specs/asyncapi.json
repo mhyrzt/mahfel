@@ -19,6 +19,18 @@
         "Bye": {
           "$ref": "#/components/messages/Bye"
         },
+        "ChatActivity": {
+          "$ref": "#/components/messages/ChatActivity"
+        },
+        "ChatEvent": {
+          "$ref": "#/components/messages/ChatEvent"
+        },
+        "ChatSubscribed": {
+          "$ref": "#/components/messages/ChatSubscribed"
+        },
+        "ChatTyping": {
+          "$ref": "#/components/messages/ChatTyping"
+        },
         "ClientBroadcast": {
           "$ref": "#/components/messages/ClientBroadcast"
         },
@@ -106,6 +118,12 @@
         "ResumeConsumer": {
           "$ref": "#/components/messages/ResumeConsumer"
         },
+        "SessionRoster": {
+          "$ref": "#/components/messages/SessionRoster"
+        },
+        "SubscribeChat": {
+          "$ref": "#/components/messages/SubscribeChat"
+        },
         "TransportConnected": {
           "$ref": "#/components/messages/TransportConnected"
         },
@@ -117,6 +135,9 @@
         },
         "UnmuteParticipant": {
           "$ref": "#/components/messages/UnmuteParticipant"
+        },
+        "UnsubscribeChat": {
+          "$ref": "#/components/messages/UnsubscribeChat"
         },
         "Welcome": {
           "$ref": "#/components/messages/Welcome"
@@ -316,6 +337,147 @@
           "type": "object"
         },
         "title": "Bye"
+      },
+      "ChatActivity": {
+        "contentType": "application/json",
+        "name": "ChatActivity",
+        "payload": {
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "online_count": {
+              "format": "uint64",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "room_id": {
+              "type": "string"
+            },
+            "type": {
+              "const": "chat_activity",
+              "type": "string"
+            },
+            "typing_count": {
+              "format": "uint64",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "v": {
+              "const": 1,
+              "default": 1,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "type",
+            "room_id",
+            "online_count",
+            "typing_count",
+            "v"
+          ],
+          "type": "object"
+        },
+        "title": "ChatActivity"
+      },
+      "ChatEvent": {
+        "contentType": "application/json",
+        "name": "ChatEvent",
+        "payload": {
+          "properties": {
+            "event": {
+              "$ref": "#/components/schemas/ChatEventPayload"
+            },
+            "id": {
+              "type": "string"
+            },
+            "type": {
+              "const": "chat_event",
+              "type": "string"
+            },
+            "v": {
+              "const": 1,
+              "default": 1,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "type",
+            "event",
+            "v"
+          ],
+          "type": "object"
+        },
+        "title": "ChatEvent"
+      },
+      "ChatSubscribed": {
+        "contentType": "application/json",
+        "name": "ChatSubscribed",
+        "payload": {
+          "properties": {
+            "head_sequence": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "id": {
+              "type": "string"
+            },
+            "room_id": {
+              "type": "string"
+            },
+            "type": {
+              "const": "chat_subscribed",
+              "type": "string"
+            },
+            "v": {
+              "const": 1,
+              "default": 1,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "type",
+            "room_id",
+            "head_sequence",
+            "v"
+          ],
+          "type": "object"
+        },
+        "title": "ChatSubscribed"
+      },
+      "ChatTyping": {
+        "contentType": "application/json",
+        "name": "ChatTyping",
+        "payload": {
+          "description": "Short-lived indication; stops automatically without refresh.",
+          "properties": {
+            "active": {
+              "type": "boolean"
+            },
+            "id": {
+              "type": "string"
+            },
+            "room_id": {
+              "type": "string"
+            },
+            "type": {
+              "const": "chat_typing",
+              "type": "string"
+            },
+            "v": {
+              "const": 1,
+              "default": 1,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "type",
+            "room_id",
+            "active"
+          ],
+          "type": "object"
+        },
+        "title": "ChatTyping"
       },
       "ClientBroadcast": {
         "contentType": "application/json",
@@ -1364,6 +1526,85 @@
         },
         "title": "ResumeConsumer"
       },
+      "SessionRoster": {
+        "contentType": "application/json",
+        "name": "SessionRoster",
+        "payload": {
+          "description": "Complete live roster. The version lets clients discard an older frame\nafter reconnect or a delayed cross-replica wakeup.",
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "participant_ids": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "session_id": {
+              "type": "string"
+            },
+            "type": {
+              "const": "session_roster",
+              "type": "string"
+            },
+            "v": {
+              "const": 1,
+              "default": 1,
+              "type": "integer"
+            },
+            "version": {
+              "format": "uint64",
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "type",
+            "session_id",
+            "version",
+            "participant_ids",
+            "v"
+          ],
+          "type": "object"
+        },
+        "title": "SessionRoster"
+      },
+      "SubscribeChat": {
+        "contentType": "application/json",
+        "name": "SubscribeChat",
+        "payload": {
+          "description": "Subscribe to a persistent room channel after the last applied event.",
+          "properties": {
+            "after_sequence": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "id": {
+              "type": "string"
+            },
+            "room_id": {
+              "type": "string"
+            },
+            "type": {
+              "const": "subscribe_chat",
+              "type": "string"
+            },
+            "v": {
+              "const": 1,
+              "default": 1,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "type",
+            "room_id",
+            "after_sequence"
+          ],
+          "type": "object"
+        },
+        "title": "SubscribeChat"
+      },
       "TransportConnected": {
         "contentType": "application/json",
         "name": "TransportConnected",
@@ -1525,6 +1766,35 @@
         },
         "title": "UnmuteParticipant"
       },
+      "UnsubscribeChat": {
+        "contentType": "application/json",
+        "name": "UnsubscribeChat",
+        "payload": {
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "room_id": {
+              "type": "string"
+            },
+            "type": {
+              "const": "unsubscribe_chat",
+              "type": "string"
+            },
+            "v": {
+              "const": 1,
+              "default": 1,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "type",
+            "room_id"
+          ],
+          "type": "object"
+        },
+        "title": "UnsubscribeChat"
+      },
       "Welcome": {
         "contentType": "application/json",
         "name": "Welcome",
@@ -1555,6 +1825,80 @@
         },
         "title": "Welcome"
       }
+    },
+    "schemas": {
+      "ChatEventPayload": {
+        "properties": {
+          "author_id": {
+            "type": "string"
+          },
+          "content": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "created_at": {
+            "type": "string"
+          },
+          "deleted_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "edited_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "event_id": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "message_id": {
+            "type": "string"
+          },
+          "parent_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "reaction_actor_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "reaction_emoji": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "room_id": {
+            "type": "string"
+          },
+          "sequence": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "room_id",
+          "sequence",
+          "event_id",
+          "kind",
+          "message_id",
+          "author_id",
+          "created_at"
+        ],
+        "type": "object"
+      }
     }
   },
   "info": {
@@ -1577,6 +1921,15 @@
         },
         {
           "$ref": "#/components/messages/ClientBroadcast"
+        },
+        {
+          "$ref": "#/components/messages/SubscribeChat"
+        },
+        {
+          "$ref": "#/components/messages/UnsubscribeChat"
+        },
+        {
+          "$ref": "#/components/messages/ChatTyping"
         },
         {
           "$ref": "#/components/messages/Join"
@@ -1635,6 +1988,15 @@
           "$ref": "#/components/messages/Broadcast"
         },
         {
+          "$ref": "#/components/messages/ChatSubscribed"
+        },
+        {
+          "$ref": "#/components/messages/ChatActivity"
+        },
+        {
+          "$ref": "#/components/messages/ChatEvent"
+        },
+        {
           "$ref": "#/components/messages/Error"
         },
         {
@@ -1654,6 +2016,9 @@
         },
         {
           "$ref": "#/components/messages/ParticipantLeft"
+        },
+        {
+          "$ref": "#/components/messages/SessionRoster"
         },
         {
           "$ref": "#/components/messages/ActiveSpeakers"

@@ -39,6 +39,52 @@ export interface Bye {
   v: 1;
 }
 
+export interface ChatActivity {
+  id?: string;
+  online_count: number;
+  room_id: string;
+  type: "chat_activity";
+  typing_count: number;
+  v: 1;
+}
+
+export interface ChatEvent {
+  event: {
+    author_id: string;
+    content?: string | null;
+    created_at: string;
+    deleted_at?: string | null;
+    edited_at?: string | null;
+    event_id: string;
+    kind: string;
+    message_id: string;
+    parent_id?: string | null;
+    reaction_actor_id?: string | null;
+    reaction_emoji?: string | null;
+    room_id: string;
+    sequence: number;
+  };
+  id?: string;
+  type: "chat_event";
+  v: 1;
+}
+
+export interface ChatSubscribed {
+  head_sequence: number;
+  id?: string;
+  room_id: string;
+  type: "chat_subscribed";
+  v: 1;
+}
+
+export interface ChatTyping {
+  active: boolean;
+  id?: string;
+  room_id: string;
+  type: "chat_typing";
+  v?: 1;
+}
+
 export interface ClientBroadcast {
   id?: string;
   text: string;
@@ -283,6 +329,23 @@ export interface ResumeConsumer {
   v?: 1;
 }
 
+export interface SessionRoster {
+  id?: string;
+  participant_ids: string[];
+  session_id: string;
+  type: "session_roster";
+  v: 1;
+  version: number;
+}
+
+export interface SubscribeChat {
+  after_sequence: number;
+  id?: string;
+  room_id: string;
+  type: "subscribe_chat";
+  v?: 1;
+}
+
 export interface TransportConnected {
   id?: string;
   room_id: string;
@@ -320,6 +383,13 @@ export interface UnmuteParticipant {
   v?: 1;
 }
 
+export interface UnsubscribeChat {
+  id?: string;
+  room_id: string;
+  type: "unsubscribe_chat";
+  v?: 1;
+}
+
 export interface Welcome {
   connection_id: string;
   id?: string;
@@ -331,6 +401,9 @@ export type ClientMessage =
   | Auth
   | ClientEcho
   | ClientBroadcast
+  | SubscribeChat
+  | UnsubscribeChat
+  | ChatTyping
   | Join
   | Leave
   | MuteParticipant
@@ -348,6 +421,9 @@ export type ServerMessage =
   | Welcome
   | Echo
   | Broadcast
+  | ChatSubscribed
+  | ChatActivity
+  | ChatEvent
   | Error
   | Bye
   | Joined
@@ -355,6 +431,7 @@ export type ServerMessage =
   | JoinWaiting
   | ParticipantJoined
   | ParticipantLeft
+  | SessionRoster
   | ActiveSpeakers
   | JoinRejected
   | ParticipantMuted
