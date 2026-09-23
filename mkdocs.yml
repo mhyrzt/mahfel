@@ -37,6 +37,7 @@ nav:
       - Components: architecture/components.md
       - Networking: architecture/networking.md
       - Data flow: architecture/data-flow.md
+      - Files: architecture/files.md
       - Observability: architecture/observability.md
       - Scaling: architecture/scaling.md
   - Decisions:
