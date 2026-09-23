@@ -1,9 +1,8 @@
 use super::gateway::GrpcMediaGateway;
-use mahfel_domain::{ActorId, ProducerSource, RoomId};
+use mahfel_domain::{ActorId, MediaKind, ProducerSource, RoomId};
 use mahfel_rtc_protocol::media::{
     CloseParticipantRequest, PauseProducerRequest, ProduceRequest, ResumeProducerRequest,
 };
-use mediasoup::prelude::MediaKind;
 
 impl GrpcMediaGateway {
     pub async fn produce(
@@ -15,11 +14,7 @@ impl GrpcMediaGateway {
         source: ProducerSource,
         rtp_parameters: String,
     ) -> Result<String, tonic::Status> {
-        let kind_str = match kind {
-            MediaKind::Audio => "audio",
-            MediaKind::Video => "video",
-        }
-        .to_owned();
+        let kind_str = kind.as_str().to_owned();
 
         let res = self
             .with_retry(|mut client| {

@@ -2,9 +2,8 @@ use super::super::writer::Connection;
 use super::helpers::{parse_room_or_send_error, send_err, send_ok};
 use crate::http::ws::{envelope::ServerMessage, metrics::DisconnectReason, state::WsState};
 use mahfel_application::ports::{Capability, Principal};
-use mahfel_domain::{ProducerSource, RoomId, SessionId};
+use mahfel_domain::{MediaKind, ProducerSource, RoomId, SessionId};
 use mahfel_media_client::GrpcMediaGateway;
-use mediasoup::prelude::MediaKind;
 
 #[allow(clippy::too_many_arguments)]
 pub(super) async fn handle_create_transport(
@@ -113,10 +112,9 @@ pub(super) async fn handle_produce(
     let Some(room) = parse_room_or_send_error(c, rid.clone(), &room_id).await else {
         return Ok(());
     };
-    let kind = match produce_kind.as_str() {
-        "audio" => MediaKind::Audio,
-        "video" => MediaKind::Video,
-        _ => {
+    let kind = match MediaKind::try_from(produce_kind.as_str()) {
+        Ok(kind) => kind,
+        Err(_) => {
             let _ = c
                 .send_with_id(
                     rid.clone(),
