@@ -1,5 +1,6 @@
 pub(crate) mod asyncapi;
 mod chat_fanout;
+mod collaboration;
 mod config;
 mod connection;
 mod envelope;
@@ -36,6 +37,7 @@ pub(super) fn route() -> Router<AppState> {
     Router::new()
         .route("/ws", get(upgrade))
         .route("/ws/tickets", post(tickets::create_ticket))
+        .merge(collaboration::route())
 }
 
 async fn upgrade(

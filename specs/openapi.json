@@ -3457,6 +3457,344 @@
         }
       }
     },
+    "/v1/sessions/{session_id}/collaboration": {
+      "get": {
+        "tags": [
+          "collaboration"
+        ],
+        "operationId": "documents",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CollaborationDocumentsResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/sessions/{session_id}/collaboration/events": {
+      "get": {
+        "tags": [
+          "collaboration"
+        ],
+        "operationId": "events",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "after_sequence",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "minimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CollaborationEventsResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/sessions/{session_id}/collaboration/grants": {
+      "get": {
+        "tags": [
+          "collaboration"
+        ],
+        "operationId": "grants",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ParticipantGrantsResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/sessions/{session_id}/collaboration/grants/{actor_id}": {
+      "put": {
+        "tags": [
+          "collaboration"
+        ],
+        "operationId": "set_grant",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "actor_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EditGrantRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/sessions/{session_id}/collaboration/presentation": {
+      "get": {
+        "tags": [
+          "collaboration"
+        ],
+        "operationId": "get_presentation",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "type": "null"
+                    },
+                    {
+                      "$ref": "#/components/schemas/PresentationStateResponse"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "collaboration"
+        ],
+        "operationId": "update_presentation",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PresentationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EventResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/sessions/{session_id}/collaboration/viewport": {
+      "post": {
+        "tags": [
+          "collaboration"
+        ],
+        "operationId": "update_viewport",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ViewportRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/sessions/{session_id}/end": {
       "post": {
         "tags": [
@@ -4388,6 +4726,50 @@
           }
         }
       },
+      "CollaborationDocumentsResponse": {
+        "type": "object",
+        "required": [
+          "room_id",
+          "documents",
+          "can_edit",
+          "can_manage",
+          "live"
+        ],
+        "properties": {
+          "can_edit": {
+            "type": "boolean"
+          },
+          "can_manage": {
+            "type": "boolean"
+          },
+          "documents": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DocumentResponse"
+            }
+          },
+          "live": {
+            "type": "boolean"
+          },
+          "room_id": {
+            "type": "string"
+          }
+        }
+      },
+      "CollaborationEventsResponse": {
+        "type": "object",
+        "required": [
+          "events"
+        ],
+        "properties": {
+          "events": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EventResponse"
+            }
+          }
+        }
+      },
       "CorrectIntervalRequest": {
         "type": "object",
         "required": [
@@ -4584,6 +4966,26 @@
           }
         }
       },
+      "DocumentResponse": {
+        "type": "object",
+        "required": [
+          "id",
+          "kind",
+          "schema_version"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "schema_version": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
       "EchoPayload": {
         "type": "object",
         "description": "Placeholder payload used by contract tests until real resource routes land.",
@@ -4614,6 +5016,17 @@
           }
         }
       },
+      "EditGrantRequest": {
+        "type": "object",
+        "required": [
+          "can_edit"
+        ],
+        "properties": {
+          "can_edit": {
+            "type": "boolean"
+          }
+        }
+      },
       "ErrorBody": {
         "type": "object",
         "required": [
@@ -4638,6 +5051,48 @@
           "details": {},
           "message": {
             "type": "string"
+          }
+        }
+      },
+      "EventResponse": {
+        "type": "object",
+        "required": [
+          "sequence",
+          "id",
+          "actor_id",
+          "kind",
+          "data",
+          "created_at"
+        ],
+        "properties": {
+          "actor_id": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string"
+          },
+          "data": {},
+          "document_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "sequence": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "update_base64": {
+            "type": [
+              "string",
+              "null"
+            ]
           }
         }
       },
@@ -5122,6 +5577,39 @@
           }
         }
       },
+      "ParticipantGrantResponse": {
+        "type": "object",
+        "required": [
+          "actor_id",
+          "display_name",
+          "can_edit"
+        ],
+        "properties": {
+          "actor_id": {
+            "type": "string"
+          },
+          "can_edit": {
+            "type": "boolean"
+          },
+          "display_name": {
+            "type": "string"
+          }
+        }
+      },
+      "ParticipantGrantsResponse": {
+        "type": "object",
+        "required": [
+          "participants"
+        ],
+        "properties": {
+          "participants": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ParticipantGrantResponse"
+            }
+          }
+        }
+      },
       "ParticipantParticipationResponse": {
         "type": "object",
         "required": [
@@ -5175,6 +5663,93 @@
           },
           "participant_id": {
             "type": "string"
+          }
+        }
+      },
+      "PresentationRequest": {
+        "oneOf": [
+          {
+            "type": "object",
+            "required": [
+              "file_ids",
+              "action"
+            ],
+            "properties": {
+              "action": {
+                "type": "string",
+                "enum": [
+                  "select"
+                ]
+              },
+              "file_ids": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "page",
+              "action"
+            ],
+            "properties": {
+              "action": {
+                "type": "string",
+                "enum": [
+                  "page"
+                ]
+              },
+              "page": {
+                "type": "integer",
+                "format": "int32",
+                "minimum": 0
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "action"
+            ],
+            "properties": {
+              "action": {
+                "type": "string",
+                "enum": [
+                  "stop"
+                ]
+              }
+            }
+          }
+        ]
+      },
+      "PresentationStateResponse": {
+        "type": "object",
+        "required": [
+          "file_ids",
+          "current_page",
+          "total_pages"
+        ],
+        "properties": {
+          "current_page": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "file_ids": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "total_pages": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
           }
         }
       },
@@ -5771,6 +6346,34 @@
             "description": "Omit to keep, null to clear, or provide a custom title.",
             "maxLength": 300,
             "minLength": 1
+          }
+        }
+      },
+      "ViewportRequest": {
+        "type": "object",
+        "required": [
+          "surface",
+          "x",
+          "y"
+        ],
+        "properties": {
+          "surface": {
+            "type": "string"
+          },
+          "x": {
+            "type": "number",
+            "format": "double"
+          },
+          "y": {
+            "type": "number",
+            "format": "double"
+          },
+          "zoom": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
           }
         }
       }

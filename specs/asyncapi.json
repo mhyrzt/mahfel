@@ -1,6 +1,29 @@
 {
   "asyncapi": "3.0.0",
   "channels": {
+    "collaboration": {
+      "address": "/v1/ws/collaboration/{session_id}/{kind}",
+      "description": "Session notes or whiteboard Yjs protocol v1. The first frame is JSON auth with a single-use ticket; subsequent sync and awareness frames are binary.",
+      "messages": {
+        "collaborationAuth": {
+          "$ref": "#/components/messages/collaborationAuth"
+        },
+        "collaborationBinary": {
+          "$ref": "#/components/messages/collaborationBinary"
+        },
+        "collaborationEvent": {
+          "$ref": "#/components/messages/collaborationEvent"
+        }
+      },
+      "parameters": {
+        "kind": {
+          "description": "notes or whiteboard"
+        },
+        "session_id": {
+          "description": "Session UUID"
+        }
+      }
+    },
     "signaling": {
       "address": "/v1/ws",
       "messages": {
@@ -1830,6 +1853,64 @@
           "type": "object"
         },
         "title": "Welcome"
+      },
+      "collaborationAuth": {
+        "contentType": "application/json",
+        "name": "collaborationAuth",
+        "payload": {
+          "properties": {
+            "ticket": {
+              "type": "string"
+            },
+            "type": {
+              "const": "auth",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "ticket"
+          ],
+          "type": "object"
+        }
+      },
+      "collaborationBinary": {
+        "contentType": "application/octet-stream",
+        "name": "collaborationBinary",
+        "payload": {
+          "description": "Yjs sync or awareness message encoded with protocol v1",
+          "format": "binary",
+          "type": "string"
+        }
+      },
+      "collaborationEvent": {
+        "contentType": "application/json",
+        "name": "collaborationEvent",
+        "payload": {
+          "properties": {
+            "data": {
+              "type": "object"
+            },
+            "kind": {
+              "type": "string"
+            },
+            "sequence": {
+              "type": "integer"
+            },
+            "type": {
+              "enum": [
+                "collaboration_ready",
+                "collaboration_event",
+                "permission_changed"
+              ],
+              "type": "string"
+            }
+          },
+          "required": [
+            "type"
+          ],
+          "type": "object"
+        }
       }
     },
     "schemas": {
@@ -1975,6 +2056,34 @@
         },
         {
           "$ref": "#/components/messages/ResumeConsumer"
+        }
+      ]
+    },
+    "receiveCollaboration": {
+      "action": "receive",
+      "channel": {
+        "$ref": "#/channels/collaboration"
+      },
+      "messages": [
+        {
+          "$ref": "#/components/messages/collaborationAuth"
+        },
+        {
+          "$ref": "#/components/messages/collaborationBinary"
+        }
+      ]
+    },
+    "sendCollaboration": {
+      "action": "send",
+      "channel": {
+        "$ref": "#/channels/collaboration"
+      },
+      "messages": [
+        {
+          "$ref": "#/components/messages/collaborationBinary"
+        },
+        {
+          "$ref": "#/components/messages/collaborationEvent"
         }
       ]
     },

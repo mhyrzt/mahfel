@@ -37,6 +37,7 @@ tracing.workspace = true
 utoipa.workspace = true
 utoipa-scalar = { version = "0.3", features = ["axum"] }
 uuid.workspace = true
+yrs.workspace = true
 hmac = "0.12"
 sha2 = "0.10"
 url.workspace = true

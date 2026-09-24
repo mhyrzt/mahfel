@@ -70,6 +70,8 @@ pub(super) async fn app(
     let rooms: Arc<dyn mahfel_application::ports::RoomStore> = Arc::new(stores.rooms.clone());
     let users: Arc<dyn mahfel_application::ports::UserStore> = Arc::new(stores.users.clone());
     let chat: Arc<dyn mahfel_application::ports::ChatStore> = Arc::new(stores.chat.clone());
+    let collaboration: Arc<dyn mahfel_application::ports::CollaborationStore> =
+        Arc::new(stores.collaboration.clone());
     let files: Arc<dyn mahfel_application::ports::FileStore> = Arc::new(stores.files.clone());
     let storage: Arc<dyn FileStorage> =
         Arc::new(S3FileStorage::new(S3Settings::from(&settings.storage)));
@@ -118,6 +120,7 @@ pub(super) async fn app(
     )
     .with_placement(Arc::clone(&placement))
     .with_chat(Arc::clone(&chat), coordination.store.clone())
+    .with_collaboration(Arc::clone(&collaboration), coordination.store.clone())
     .with_session_presence(
         coordination.store.clone(),
         PostgresSessionLifecycle::new(lifecycle_pool),
@@ -144,6 +147,7 @@ pub(super) async fn app(
         rooms,
         users,
         chat,
+        collaboration: Some(collaboration),
         files,
         storage,
         sessions,

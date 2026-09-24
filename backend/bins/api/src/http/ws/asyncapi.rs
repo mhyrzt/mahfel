@@ -62,6 +62,65 @@ pub(crate) fn document() -> Result<Value> {
         );
     }
 
+    document["channels"]["collaboration"] = json!({
+        "address": "/v1/ws/collaboration/{session_id}/{kind}",
+        "description": "Session notes or whiteboard Yjs protocol v1. The first frame is JSON auth with a single-use ticket; subsequent sync and awareness frames are binary.",
+        "parameters": {
+            "session_id": {"description": "Session UUID"},
+            "kind": {"description": "notes or whiteboard"}
+        },
+        "messages": {
+            "collaborationAuth": {"$ref": "#/components/messages/collaborationAuth"},
+            "collaborationBinary": {"$ref": "#/components/messages/collaborationBinary"},
+            "collaborationEvent": {"$ref": "#/components/messages/collaborationEvent"}
+        }
+    });
+    document["components"]["messages"]["collaborationAuth"] = json!({
+        "name": "collaborationAuth",
+        "contentType": "application/json",
+        "payload": {
+            "type": "object",
+            "required": ["type", "ticket"],
+            "properties": {
+                "type": {"type": "string", "const": "auth"},
+                "ticket": {"type": "string"}
+            }
+        }
+    });
+    document["components"]["messages"]["collaborationBinary"] = json!({
+        "name": "collaborationBinary",
+        "contentType": "application/octet-stream",
+        "payload": {"type": "string", "format": "binary", "description": "Yjs sync or awareness message encoded with protocol v1"}
+    });
+    document["components"]["messages"]["collaborationEvent"] = json!({
+        "name": "collaborationEvent",
+        "contentType": "application/json",
+        "payload": {
+            "type": "object",
+            "required": ["type"],
+            "properties": {
+                "type": {"type": "string", "enum": ["collaboration_ready", "collaboration_event", "permission_changed"]},
+                "sequence": {"type": "integer"},
+                "kind": {"type": "string"},
+                "data": {"type": "object"}
+            }
+        }
+    });
+    document["operations"]["receiveCollaboration"] = json!({
+        "action": "receive", "channel": {"$ref": "#/channels/collaboration"},
+        "messages": [
+            {"$ref": "#/components/messages/collaborationAuth"},
+            {"$ref": "#/components/messages/collaborationBinary"}
+        ]
+    });
+    document["operations"]["sendCollaboration"] = json!({
+        "action": "send", "channel": {"$ref": "#/channels/collaboration"},
+        "messages": [
+            {"$ref": "#/components/messages/collaborationBinary"},
+            {"$ref": "#/components/messages/collaborationEvent"}
+        ]
+    });
+
     Ok(document)
 }
 

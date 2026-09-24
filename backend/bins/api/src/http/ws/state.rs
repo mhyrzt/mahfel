@@ -3,8 +3,8 @@ use super::speaker::SpeakerProjection;
 use super::{config::WsConfig, metrics::WsMetrics, registry::ConnectionRegistry};
 use crate::http::auth::RequestAuthenticator;
 use mahfel_application::ports::{
-    AdmissionStore, BlockStore, ChatActivityStore, ChatStore, ParticipantStore, ParticipationStore,
-    RoomStore, SessionStore,
+    AdmissionStore, BlockStore, ChatActivityStore, ChatStore, CollaborationStore, ParticipantStore,
+    ParticipationStore, RoomStore, SessionStore,
 };
 use mahfel_media_client::GrpcMediaGateway;
 use mahfel_postgres::{PostgresSessionLifecycle, SessionLifecycleGuard};
@@ -39,6 +39,8 @@ pub struct WsState {
     pub stores: ParticipationStores,
     pub shutdown: watch::Receiver<bool>,
     pub chat: Option<Arc<dyn ChatStore>>,
+    pub collaboration: Option<Arc<dyn CollaborationStore>>,
+    pub collaboration_fanout: Option<Arc<super::collaboration::Fanout>>,
     pub chat_activity: Option<Arc<dyn ChatActivityStore>>,
     chat_redis: Option<RedisCoordination>,
     chat_wake: Arc<Notify>,
@@ -70,6 +72,8 @@ impl WsState {
             stores,
             shutdown,
             chat: None,
+            collaboration: None,
+            collaboration_fanout: None,
             chat_activity: None,
             chat_redis: None,
             chat_wake: Arc::new(Notify::new()),
@@ -93,6 +97,19 @@ impl WsState {
             Arc::clone(&self.chat_wake),
             self.shutdown.clone(),
         );
+        self
+    }
+
+    pub fn with_collaboration(
+        mut self,
+        collaboration: Arc<dyn CollaborationStore>,
+        redis: RedisCoordination,
+    ) -> Self {
+        self.collaboration = Some(collaboration);
+        self.collaboration_fanout = Some(super::collaboration::Fanout::spawn(
+            redis,
+            self.shutdown.clone(),
+        ));
         self
     }
 

@@ -1650,6 +1650,7 @@ fn state_with(
         files: Arc::new(FakeFileStore),
         storage: Arc::new(FakeFileStorage),
         chat: Arc::new(FakeChatStore),
+        collaboration: None,
         service: "mahfel-api-test",
         version: "0.1.0",
         node_id: "node-test".to_owned(),
@@ -1730,6 +1731,7 @@ fn authenticated_room_app(principal: Principal, store: FakeRoomStore) -> Router 
         files: Arc::new(FakeFileStore),
         storage: Arc::new(FakeFileStorage),
         chat: Arc::new(FakeChatStore),
+        collaboration: None,
         service: "mahfel-api-test",
         version: "0.1.0",
         node_id: "node-test".to_owned(),
@@ -2671,6 +2673,7 @@ fn session_app(
         files: Arc::new(FakeFileStore),
         storage: Arc::new(FakeFileStorage),
         chat: Arc::new(FakeChatStore),
+        collaboration: None,
         service: "mahfel-api-test",
         version: "0.1.0",
         node_id: "node-test".to_owned(),
@@ -2952,6 +2955,7 @@ fn policy_session_app(
         files: Arc::new(FakeFileStore),
         storage: Arc::new(FakeFileStorage),
         chat: Arc::new(FakeChatStore),
+        collaboration: None,
         service: "mahfel-api-test",
         version: "0.1.0",
         node_id: "node-test".to_owned(),
@@ -3125,6 +3129,7 @@ async fn serve_ws_with_stores(
         files: Arc::new(FakeFileStore),
         storage: Arc::new(FakeFileStorage),
         chat: Arc::new(FakeChatStore),
+        collaboration: None,
         service: "mahfel-api-test",
         version: "0.1.0",
         node_id: "node-test".to_owned(),
@@ -3203,7 +3208,7 @@ async fn next_raw(socket: &mut ClientSocket) -> ClientWsMessage {
 }
 
 async fn authenticate(socket: &mut ClientSocket) {
-    send(socket, r#"{"v":1,"type":"auth"}"#).await;
+    send(socket, r#"{"v":1,"type":"auth","token":"test-token"}"#).await;
     assert!(
         next(socket)
             .await
@@ -3350,6 +3355,7 @@ async fn serve_ws_with_verifier(verifier: TokenVerifier, config: WsConfig) -> Ws
         files: Arc::new(FakeFileStore),
         storage: Arc::new(FakeFileStorage),
         chat: Arc::new(FakeChatStore),
+        collaboration: None,
         service: "mahfel-api-test",
         version: "0.1.0",
         node_id: "node-test".to_owned(),
@@ -3801,6 +3807,7 @@ fn service_app(
         files: Arc::new(FakeFileStore),
         storage: Arc::new(FakeFileStorage),
         chat: Arc::new(FakeChatStore),
+        collaboration: None,
         service: "mahfel-api-test",
         version: "0.1.0",
         node_id: "node-test".to_owned(),
@@ -4068,6 +4075,7 @@ async fn serve_ws_with(
         files: Arc::new(FakeFileStore),
         storage: Arc::new(FakeFileStorage),
         chat: Arc::new(FakeChatStore),
+        collaboration: None,
         service: "mahfel-api-test",
         version: "0.1.0",
         node_id: "node-test".to_owned(),
@@ -4522,6 +4530,7 @@ fn participation_app(
         files: Arc::new(FakeFileStore),
         storage: Arc::new(FakeFileStorage),
         chat: Arc::new(FakeChatStore),
+        collaboration: None,
         service: "mahfel-api-test",
         version: "0.1.0",
         node_id: "node-test".to_owned(),
@@ -4784,6 +4793,7 @@ fn invite_app(
         files: Arc::new(FakeFileStore),
         storage: Arc::new(FakeFileStorage),
         chat: Arc::new(FakeChatStore),
+        collaboration: None,
         service: "mahfel-api-test",
         version: "0.1.0",
         node_id: "node-test".to_owned(),
@@ -5180,6 +5190,7 @@ fn admission_app(
         files: Arc::new(FakeFileStore),
         storage: Arc::new(FakeFileStorage),
         chat: Arc::new(FakeChatStore),
+        collaboration: None,
         service: "mahfel-api-test",
         version: "0.1.0",
         node_id: "node-test".to_owned(),
@@ -5216,6 +5227,7 @@ fn redeem_app(
         files: Arc::new(FakeFileStore),
         storage: Arc::new(FakeFileStorage),
         chat: Arc::new(FakeChatStore),
+        collaboration: None,
         service: "mahfel-api-test",
         version: "0.1.0",
         node_id: "node-test".to_owned(),

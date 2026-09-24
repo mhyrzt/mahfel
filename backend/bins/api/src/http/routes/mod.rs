@@ -1,4 +1,5 @@
 pub(crate) mod admin;
+pub(crate) mod collaboration;
 pub(crate) mod echo;
 pub(crate) mod files;
 pub(crate) mod health;
@@ -33,6 +34,7 @@ pub(crate) fn router(state: AppState) -> Router {
         .merge(health::route())
         .merge(echo::route())
         .merge(files::route())
+        .merge(collaboration::route())
         .merge(identity::route())
         .merge(admin::route())
         .merge(rooms::route())
