@@ -15,10 +15,11 @@ flowchart LR
   API --> Postgres[(PostgreSQL)]
   API --> Redis[(Redis)]
   API -->|internal gRPC| Media
-  API -->|jobs| Rabbit[(RabbitMQ)]
+  Postgres -->|due outbox rows| Worker[mahfel-worker]
+  Worker -->|confirmed jobs| Rabbit[(RabbitMQ)]
   API -->|presign| S3[(S3)]
   Browser -->|presigned transfer| S3
-  Rabbit --> Worker[mahfel-worker]
+  Rabbit -->|job deliveries| Worker
   Worker --> Postgres
   Worker --> S3
   Ops[Prometheus] --> API

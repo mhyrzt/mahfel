@@ -32,6 +32,7 @@ nav:
       - Local: deployment/local.md
       - Minikube: deployment/minikube.md
       - Darkube: deployment/darkube.md
+      - Background jobs: deployment/background-jobs.md
   - Architecture:
       - Overview: architecture/overview.md
       - Components: architecture/components.md

@@ -254,16 +254,20 @@ sequenceDiagram
   participant Q as RabbitMQ
   participant W as mahfel-worker
   participant S as S3
-  A->>P: Commit domain change and outbox row
-  A->>Q: Publish with confirmation
+  A->>P: Commit domain change, job, and outbox row
+  W->>P: Lease due outbox row
+  W->>Q: Publish with confirmation
+  W->>P: Mark outbox row published
   Q->>W: Deliver versioned job
-  W->>W: Check idempotency key
+  W->>P: Claim job by ID and lease
   W->>S: Process/read/write artifact
-  W->>P: Persist result
+  W->>P: Persist result and completion or next retry
   W->>Q: Manual acknowledgement
 ```
 
-Transient failures are retried; poison jobs are routed to a dead-letter queue (DLQ).
+Retryable failures create a due outbox row in PostgreSQL before the current delivery is
+acknowledged. A permanent failure or the tenth failed attempt is recorded as dead and routed to
+the dead-letter queue (DLQ). The worker reconnects after RabbitMQ or PostgreSQL outages.
 
 ## File transfer
 

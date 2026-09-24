@@ -1,9 +1,10 @@
 ---
 id: TASK-55
 title: M8-06 Transactional outbox
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-09-08 00:31'
+updated_date: '2026-09-24 00:26'
 labels: []
 milestone: m-8
 dependencies: []
@@ -25,5 +26,23 @@ Dependencies: M8-02, M8-05
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 DB change creates durable job atomically; broker outage later drains without loss/duplication effect.
+- [x] #1 DB change creates durable job atomically; broker outage later drains without loss/duplication effect.
 <!-- AC:END -->
+
+## Implementation Plan
+
+<!-- SECTION:PLAN:BEGIN -->
+Write job and outbox inside the chat deletion transaction; lease and confirm relay publication, recover broker outages, prune confirmed rows, and expose lag metrics.
+<!-- SECTION:PLAN:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Worker end-to-end test committed chat deletion before RabbitMQ startup, drained the outbox, cleaned object and metadata, and recorded success.
+<!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Added transactional chat cleanup outbox, confirmed relay, publish recovery, pruning, and lag metrics.
+<!-- SECTION:FINAL_SUMMARY:END -->

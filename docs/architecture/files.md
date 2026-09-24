@@ -21,8 +21,10 @@ signs browser URLs against a public endpoint. In local Minikube these are `http:
    disposition and private, no-store caching. Each authorization is recorded in
    `mahfel.file_download_audit` without the signed URL.
 5. `DELETE /v1/files/{file_id}` marks the row as deleting, deletes both final and staging
-   objects, then removes metadata. The worker retries expired pending, quarantined, rejected,
-   and deleting rows in batches of 100 every five minutes. The expiry threshold is 30 minutes.
+   objects, then removes metadata. Deleting a chat message queues one durable cleanup job per
+   attachment in the same database transaction; the worker removes those objects and metadata.
+   The existing worker sweep also retries expired pending, quarantined, rejected, and deleting
+   rows in batches of 100 every five minutes. The expiry threshold is 30 minutes.
 
 The frontend file client performs the signed PUT directly from the browser. Its BFF only forwards
 the small metadata requests. Returned signed URLs are capabilities; callers must avoid logging,
