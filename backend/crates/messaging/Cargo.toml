@@ -6,10 +6,17 @@ rust-version.workspace = true
 license.workspace = true
 
 [dependencies]
+futures-util.workspace = true
 lapin.workspace = true
 mahfel-application = { path = "../application" }
 serde_json.workspace = true
 thiserror.workspace = true
+tokio.workspace = true
+
+[dev-dependencies]
+testcontainers = "0.28.0"
+time.workspace = true
+uuid.workspace = true
 
 [lints]
 workspace = true

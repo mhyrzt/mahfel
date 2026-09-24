@@ -10,6 +10,7 @@ pub mod chat;
 pub mod error;
 pub mod files;
 pub mod invite;
+pub mod jobs;
 pub mod moderation;
 pub mod participation;
 pub mod placement;

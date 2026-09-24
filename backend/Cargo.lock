@@ -3418,10 +3418,15 @@ dependencies = [
 name = "mahfel-messaging"
 version = "0.1.0"
 dependencies = [
+ "futures-util",
  "lapin",
  "mahfel-application",
  "serde_json",
+ "testcontainers",
  "thiserror 2.0.20",
+ "time",
+ "tokio",
+ "uuid",
 ]
 
 [[package]]
@@ -3516,14 +3521,22 @@ name = "mahfel-worker"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "aws-sdk-s3",
  "mahfel-application",
  "mahfel-config",
+ "mahfel-domain",
  "mahfel-messaging",
  "mahfel-postgres",
  "mahfel-storage",
  "mahfel-telemetry",
+ "prometheus",
+ "serde_json",
+ "sqlx",
+ "testcontainers",
+ "time",
  "tokio",
  "tracing",
+ "uuid",
 ]
 
 [[package]]

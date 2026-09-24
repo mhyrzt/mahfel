@@ -1,12 +1,17 @@
-use mahfel_application::ports::{ChatStore, StoreError};
+use mahfel_application::{
+    jobs::JobEnvelope,
+    ports::{ChatStore, StoreError},
+};
 use mahfel_domain::{
     ActorId, CHAT_AUTHOR_MUTATION_WINDOW, ChatChannel, ChatChannelId, ChatEvent, ChatEventKind,
     ChatMessage, ChatMessageCursor, ChatMessageDraft, ChatMessageId, ChatMessagePage, RoomId,
 };
 use sqlx::PgPool;
 use time::OffsetDateTime;
+use uuid::Uuid;
 
 use super::sqlx_store_error;
+use crate::jobs::insert_job_in_tx;
 
 #[derive(Clone)]
 pub struct PostgresChatStore {
@@ -490,15 +495,21 @@ impl ChatStore for PostgresChatStore {
             .fetch_one(&mut *tx)
             .await
             .map_err(sqlx_store_error)?;
-            sqlx::query(
+            let cleanup_ids = sqlx::query_scalar::<_, Uuid>(
                 "UPDATE mahfel.files SET status = 'deleting', updated_at = $2 \
-                 WHERE chat_message_id = $1 AND status IN ('pending','quarantined','ready')",
+                 WHERE chat_message_id = $1 AND status IN ('pending','quarantined','ready') \
+                 RETURNING id",
             )
             .bind(message_id.as_uuid())
             .bind(now)
-            .execute(&mut *tx)
+            .fetch_all(&mut *tx)
             .await
             .map_err(sqlx_store_error)?;
+            for file_id in cleanup_ids {
+                insert_job_in_tx(&mut tx, &JobEnvelope::file_cleanup(file_id, now))
+                    .await
+                    .map_err(sqlx_store_error)?;
+            }
             tx.commit().await.map_err(sqlx_store_error)?;
             Ok(chat_message_from_row(updated))
         })

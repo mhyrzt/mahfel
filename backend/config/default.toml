@@ -78,6 +78,9 @@ command_timeout_seconds = 3
 [worker]
 operations_bind = "0.0.0.0:9103"
 amqp_url = "amqp://mahfel:mahfel-local-only@rabbitmq:5672/%2f"
+concurrency = 4
+prefetch = 4
+drain_timeout_seconds = 30
 
 [telemetry]
 log_filter = "info,tower_http=info"

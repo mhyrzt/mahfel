@@ -1,3 +1,4 @@
+use mahfel_application::jobs::JobEnvelope;
 use mahfel_application::ports::{
     ChatStore, FileStore, IdentityProfile, IdentityStore, RoomStore, SessionStore, StoreError,
     UserStore,
@@ -8,9 +9,9 @@ use mahfel_domain::{
     RoomTitle, RoomVisibility, Session, SessionId, Subject, User, Username,
 };
 use mahfel_postgres::{
-    ConnectionSettings, PoolSettings, PostgresChatStore, PostgresFileStore, PostgresIdentityStore,
-    PostgresRoomStore, PostgresSessionLifecycle, PostgresSessionStore, PostgresUserStore, connect,
-    migrate,
+    ConnectionSettings, JobClaim, JobStore, PoolSettings, PostgresChatStore, PostgresFileStore,
+    PostgresIdentityStore, PostgresRoomStore, PostgresSessionLifecycle, PostgresSessionStore,
+    PostgresUserStore, connect, insert_job_in_tx, migrate,
 };
 use sqlx::PgPool;
 use std::{error::Error, time::Duration};
@@ -118,6 +119,8 @@ async fn verify_migrations_and_stores(
     connection: &ConnectionSettings,
 ) -> Result<(), Box<dyn Error>> {
     migrate(pool).await?;
+
+    verify_job_foundation(pool).await?;
 
     verify_required_user_profile_constraints(pool).await?;
 
@@ -740,6 +743,38 @@ async fn verify_migrations_and_stores(
     ));
     chat.delete_message(room.id, user.id, reply.id, now + TimeDuration::minutes(20))
         .await?;
+    let queued_cleanup: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM mahfel.background_jobs \
+         WHERE job_type = 'files.cleanup_deleted_attachment' \
+           AND payload ->> 'file_id' = ANY($1)",
+    )
+    .bind(
+        attachments
+            .iter()
+            .map(|file| file.id.to_string())
+            .collect::<Vec<_>>(),
+    )
+    .fetch_one(pool)
+    .await?;
+    assert_eq!(
+        queued_cleanup, 4,
+        "chat deletion must enqueue every attachment atomically"
+    );
+    let outbox_count: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM mahfel.job_outbox outbox \
+         JOIN mahfel.background_jobs job ON job.id = outbox.job_id \
+         WHERE job.job_type = 'files.cleanup_deleted_attachment' \
+           AND job.payload ->> 'file_id' = ANY($1)",
+    )
+    .bind(
+        attachments
+            .iter()
+            .map(|file| file.id.to_string())
+            .collect::<Vec<_>>(),
+    )
+    .fetch_one(pool)
+    .await?;
+    assert_eq!(outbox_count, 4);
     assert!(
         files
             .list(FileContext::ChatMessage(reply.id), 100, 0)
@@ -846,6 +881,136 @@ async fn verify_migrations_and_stores(
         vec![room]
     );
     restarted_pool.close().await;
+    Ok(())
+}
+
+async fn verify_job_foundation(pool: &PgPool) -> Result<(), Box<dyn Error>> {
+    let jobs = JobStore::new(pool.clone());
+    let job = JobEnvelope::file_cleanup(Uuid::new_v4(), OffsetDateTime::now_utc());
+    let mut rolled_back = pool.begin().await?;
+    insert_job_in_tx(&mut rolled_back, &job).await?;
+    rolled_back.rollback().await?;
+    assert!(
+        jobs.inspect(job.job_id).await?.is_none(),
+        "rolled-back mutation cannot leave a job"
+    );
+
+    let mut committed = pool.begin().await?;
+    insert_job_in_tx(&mut committed, &job).await?;
+    committed.commit().await?;
+    let mut duplicate = pool.begin().await?;
+    insert_job_in_tx(
+        &mut duplicate,
+        &JobEnvelope::file_cleanup(
+            serde_json::from_value(job.payload.get("file_id").expect("file ID").clone())?,
+            OffsetDateTime::now_utc(),
+        ),
+    )
+    .await?;
+    duplicate.commit().await?;
+    let due = jobs.lease_due(10).await?;
+    assert_eq!(due.len(), 1, "idempotency key must prevent a second job");
+    assert!(jobs.mark_published(due[0].id, due[0].token).await?);
+    let token = match jobs.claim(&due[0].envelope).await? {
+        JobClaim::Claimed(token) => token,
+        _ => panic!("first delivery must be claimable"),
+    };
+    assert!(
+        jobs.fail(&due[0].envelope, token, "temporary", false)
+            .await?
+    );
+    let status = jobs.inspect(job.job_id).await?.expect("job exists");
+    assert_eq!(status.envelope.attempt, 2);
+    assert_eq!(jobs.history(job.job_id).await?.len(), 1);
+    sqlx::query("UPDATE mahfel.job_outbox SET available_at = clock_timestamp() - INTERVAL '1 second' WHERE job_id = $1 AND attempt = 2")
+        .bind(job.job_id).execute(pool).await?;
+    let retry = jobs.lease_due(10).await?.pop().expect("retry due");
+    assert_eq!(retry.envelope.attempt, 2);
+    assert!(jobs.mark_published(retry.id, retry.token).await?);
+    let _token = match jobs.claim(&retry.envelope).await? {
+        JobClaim::Claimed(token) => token,
+        _ => panic!("retry must be claimable"),
+    };
+    sqlx::query("UPDATE mahfel.background_jobs SET lease_until = clock_timestamp() - INTERVAL '1 second' WHERE id = $1")
+        .bind(job.job_id).execute(pool).await?;
+    assert_eq!(jobs.recover_expired().await?, 1);
+    let recovered = jobs
+        .lease_due(10)
+        .await?
+        .pop()
+        .expect("stale claim republished");
+    assert_eq!(recovered.envelope.attempt, 2);
+    let token = match jobs.claim(&recovered.envelope).await? {
+        JobClaim::Claimed(token) => token,
+        _ => panic!("recovered claim must be claimable"),
+    };
+    assert!(jobs.succeed(&recovered.envelope, token).await?);
+    assert!(matches!(
+        jobs.claim(&recovered.envelope).await?,
+        JobClaim::Terminal
+    ));
+
+    let exhausted = JobEnvelope::file_cleanup(Uuid::new_v4(), OffsetDateTime::now_utc());
+    let mut tx = pool.begin().await?;
+    insert_job_in_tx(&mut tx, &exhausted).await?;
+    tx.commit().await?;
+    for expected_attempt in 1..=10 {
+        sqlx::query(
+            "UPDATE mahfel.job_outbox SET available_at = clock_timestamp() - INTERVAL '1 second' \
+             WHERE job_id = $1 AND attempt = $2",
+        )
+        .bind(exhausted.job_id)
+        .bind(expected_attempt)
+        .execute(pool)
+        .await?;
+        let row = jobs
+            .lease_due(10)
+            .await?
+            .into_iter()
+            .find(|row| row.envelope.job_id == exhausted.job_id)
+            .expect("retry attempt due");
+        assert_eq!(row.envelope.attempt, expected_attempt as u16);
+        assert!(jobs.mark_published(row.id, row.token).await?);
+        let token = match jobs.claim(&row.envelope).await? {
+            JobClaim::Claimed(token) => token,
+            _ => panic!("retry attempt must be claimable"),
+        };
+        assert!(jobs.fail(&row.envelope, token, "temporary", false).await?);
+    }
+    assert!(matches!(jobs.claim(&exhausted).await?, JobClaim::Dead));
+    assert_eq!(jobs.history(exhausted.job_id).await?.len(), 10);
+
+    let dead = JobEnvelope::file_cleanup(Uuid::new_v4(), OffsetDateTime::now_utc());
+    let mut tx = pool.begin().await?;
+    insert_job_in_tx(&mut tx, &dead).await?;
+    tx.commit().await?;
+    let dead_delivery = jobs
+        .lease_due(10)
+        .await?
+        .into_iter()
+        .find(|row| row.envelope.job_id == dead.job_id)
+        .expect("dead test job due");
+    let token = match jobs.claim(&dead_delivery.envelope).await? {
+        JobClaim::Claimed(token) => token,
+        _ => panic!("dead test job must be claimable"),
+    };
+    assert!(
+        jobs.fail(&dead_delivery.envelope, token, "invalid", true)
+            .await?
+    );
+    assert!(matches!(
+        jobs.claim(&dead_delivery.envelope).await?,
+        JobClaim::Dead
+    ));
+    assert!(jobs.replay_dead(dead.job_id).await?);
+    assert_eq!(jobs.replays(dead.job_id).await?.len(), 1);
+    assert_eq!(
+        jobs.inspect(dead.job_id)
+            .await?
+            .expect("replayed job")
+            .generation,
+        2
+    );
     Ok(())
 }
 
