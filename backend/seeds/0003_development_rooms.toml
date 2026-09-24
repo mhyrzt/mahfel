@@ -1,0 +1,18 @@
+# Stable classroom fixture for manual and E2E testing.
+# Sessions start as scheduled; tests should use the API to start or end them.
+kind = "rooms"
+
+[[rooms]]
+id = "00000000-0000-4000-8000-000000000101"
+title = "Tokyo-3 Classroom"
+manager_id = "00000000-0000-4000-8000-000000000004" # misato
+visibility = "invite_only"
+members = [
+  "00000000-0000-4000-8000-000000000001", # shinji
+  "00000000-0000-4000-8000-000000000002", # asuka
+  "00000000-0000-4000-8000-000000000003", # rei
+]
+
+[[rooms.sessions]]
+id = "00000000-0000-4000-8000-000000000201"
+title = "Practice Session"

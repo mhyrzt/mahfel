@@ -19,6 +19,36 @@ impl PostgresSessionStore {
     pub fn new(pool: PgPool) -> Self {
         Self { pool }
     }
+
+    /// Ensure a scheduled development session exists without resetting its
+    /// lifecycle state on subsequent seed runs.
+    pub async fn seed_development_session(&self, session: &Session) -> Result<(), StoreError> {
+        sqlx::query(
+            "INSERT INTO mahfel.sessions \
+             (id, room_id, status, title, created_at, updated_at) \
+             VALUES ($1, $2, $3, $4, $5, $5) ON CONFLICT (id) DO NOTHING",
+        )
+        .bind(session.id.as_uuid())
+        .bind(session.room_id.as_uuid())
+        .bind(session.status.as_str())
+        .bind(session.title.as_ref().map(SessionTitle::as_str))
+        .bind(session.created_at)
+        .execute(&self.pool)
+        .await
+        .map_err(sqlx_store_error)?;
+        let room_id: Uuid = sqlx::query_scalar("SELECT room_id FROM mahfel.sessions WHERE id = $1")
+            .bind(session.id.as_uuid())
+            .fetch_one(&self.pool)
+            .await
+            .map_err(sqlx_store_error)?;
+        if room_id != session.room_id.as_uuid() {
+            return Err(StoreError::Conflict(format!(
+                "seed session {} belongs to another room",
+                session.id
+            )));
+        }
+        Ok(())
+    }
 }
 
 #[derive(FromRow)]

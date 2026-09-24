@@ -1,0 +1,7 @@
+# Local-only user used by MAHFEL_API__DEVELOPMENT_PRINCIPAL_USER_ID.
+# Applied explicitly by `mahfel-api seed`, never during migrations or startup.
+kind = "development_principal"
+id = "00000000-0000-0000-0000-000000000001"
+username = "development-principal"
+email = "development-principal@mahfel.local"
+display_name = "Development Principal"

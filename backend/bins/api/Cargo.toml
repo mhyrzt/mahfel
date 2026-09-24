@@ -44,6 +44,7 @@ url.workspace = true
 sha1 = "0.10"
 base64 = "0.22"
 time.workspace = true
+toml = "1.1.5"
 
 [dev-dependencies]
 base64 = "0.22"

@@ -1,7 +1,7 @@
 use crate::DatabaseError;
 use crate::stores::{sqlx_store_error, store_error};
 use mahfel_application::ports::{BoxFuture, RoomStore, StoreError};
-use mahfel_domain::{ActorId, Room, RoomId, RoomMember, RoomRole, RoomTitle};
+use mahfel_domain::{ActorId, Room, RoomId, RoomMember, RoomRole, RoomTitle, Session};
 use sqlx::{FromRow, PgPool};
 use time::OffsetDateTime;
 use uuid::Uuid;
@@ -15,6 +15,86 @@ impl PostgresRoomStore {
     #[must_use]
     pub fn new(pool: PgPool) -> Self {
         Self { pool }
+    }
+
+    /// Insert a development room, its memberships, and scheduled sessions
+    /// atomically. Existing rows are left intact on repeated seed runs.
+    pub async fn seed_development_room(
+        &self,
+        room: &Room,
+        members: &[RoomMember],
+        sessions: &[Session],
+    ) -> Result<(), StoreError> {
+        let mut tx = self.pool.begin().await.map_err(sqlx_store_error)?;
+        sqlx::query(
+            "INSERT INTO mahfel.rooms \
+             (id, title, created_by, visibility, admission, status, created_at, updated_at) \
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $7) ON CONFLICT (id) DO NOTHING",
+        )
+        .bind(room.id.as_uuid())
+        .bind(room.title.as_str())
+        .bind(room.created_by.as_uuid())
+        .bind(room.visibility.as_str())
+        .bind(room.admission.as_str())
+        .bind(room.status.as_str())
+        .bind(room.created_at)
+        .execute(&mut *tx)
+        .await
+        .map_err(sqlx_store_error)?;
+        let stored_owner: Uuid =
+            sqlx::query_scalar("SELECT created_by FROM mahfel.rooms WHERE id = $1")
+                .bind(room.id.as_uuid())
+                .fetch_one(&mut *tx)
+                .await
+                .map_err(sqlx_store_error)?;
+        if stored_owner != room.created_by.as_uuid() {
+            return Err(StoreError::Conflict(format!(
+                "seed room {} belongs to another actor",
+                room.id
+            )));
+        }
+        for member in members {
+            sqlx::query(
+                "INSERT INTO mahfel.room_memberships \
+                 (room_id, actor_id, member_role, created_at, updated_at) \
+                 VALUES ($1, $2, $3, $4, $4) ON CONFLICT (room_id, actor_id) DO NOTHING",
+            )
+            .bind(member.room_id.as_uuid())
+            .bind(member.actor_id.as_uuid())
+            .bind(member.role.as_str())
+            .bind(member.created_at)
+            .execute(&mut *tx)
+            .await
+            .map_err(sqlx_store_error)?;
+        }
+        for session in sessions {
+            sqlx::query(
+                "INSERT INTO mahfel.sessions \
+                 (id, room_id, status, title, created_at, updated_at) \
+                 VALUES ($1, $2, $3, $4, $5, $5) ON CONFLICT (id) DO NOTHING",
+            )
+            .bind(session.id.as_uuid())
+            .bind(session.room_id.as_uuid())
+            .bind(session.status.as_str())
+            .bind(session.title.as_ref().map(|title| title.as_str()))
+            .bind(session.created_at)
+            .execute(&mut *tx)
+            .await
+            .map_err(sqlx_store_error)?;
+            let stored_room: Uuid =
+                sqlx::query_scalar("SELECT room_id FROM mahfel.sessions WHERE id = $1")
+                    .bind(session.id.as_uuid())
+                    .fetch_one(&mut *tx)
+                    .await
+                    .map_err(sqlx_store_error)?;
+            if stored_room != room.id.as_uuid() {
+                return Err(StoreError::Conflict(format!(
+                    "seed session {} belongs to another room",
+                    session.id
+                )));
+            }
+        }
+        tx.commit().await.map_err(sqlx_store_error)
     }
 }
 

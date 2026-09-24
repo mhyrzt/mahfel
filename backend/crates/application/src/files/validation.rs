@@ -2,7 +2,7 @@ use crate::ports::StoredFile;
 use mahfel_domain::FileObject;
 use sha2::{Digest, Sha256};
 
-pub(crate) fn verify(file: &FileObject, stored: &StoredFile) -> Option<&'static str> {
+pub fn verify(file: &FileObject, stored: &StoredFile) -> Option<&'static str> {
     if stored.bytes.len() as u64 != file.size_bytes {
         return None;
     }

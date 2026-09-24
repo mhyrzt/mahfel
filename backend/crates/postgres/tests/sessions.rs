@@ -127,6 +127,47 @@ async fn verify_sessions(pool: &PgPool) -> Result<(), Box<dyn Error>> {
         now,
     );
     users.insert(&user).await?;
+    let seed_room = Room::create(
+        RoomTitle::new("Seeded classroom".to_owned())?,
+        user.id,
+        RoomVisibility::InviteOnly,
+        now,
+    );
+    let seed_manager = RoomMember::new(seed_room.id, user.id, RoomRole::Manager, now);
+    let mut seed_session = Session::schedule(seed_room.id, None, now);
+    seed_session.set_details(
+        Some(SessionTitle::new("Seeded lesson".to_owned())?),
+        None,
+        None,
+        now,
+    );
+    for _ in 0..2 {
+        rooms
+            .seed_development_room(
+                &seed_room,
+                std::slice::from_ref(&seed_manager),
+                std::slice::from_ref(&seed_session),
+            )
+            .await?;
+    }
+    assert_eq!(rooms.get(seed_room.id).await?, Some(seed_room.clone()));
+    assert_eq!(rooms.list_members(seed_room.id).await?, vec![seed_manager]);
+    assert_eq!(
+        sessions.list_for_room(seed_room.id).await?,
+        vec![seed_session.clone()]
+    );
+    let standalone_session = Session::schedule(seed_room.id, None, now + Duration::from_secs(1));
+    sessions
+        .seed_development_session(&standalone_session)
+        .await?;
+    sessions
+        .seed_development_session(&standalone_session)
+        .await?;
+    assert_eq!(
+        sessions.list_for_room(seed_room.id).await?,
+        vec![standalone_session, seed_session.clone()]
+    );
+
     let room = Room::create(
         RoomTitle::new("Analytical Engines".to_owned())?,
         user.id,

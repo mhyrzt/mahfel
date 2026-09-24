@@ -1,6 +1,6 @@
 use std::{env, error::Error, fs, path::PathBuf};
 
-/// Embed every `backend/seeds/*.sql` file at build time, sorted by file name.
+/// Embed every `backend/seeds/*.toml` file at build time, sorted by file name.
 ///
 /// Build-time embedding keeps the runtime image free of seed files while still
 /// discovering seeds by directory, so adding a new fixture needs no code change.
@@ -10,10 +10,17 @@ fn main() -> Result<(), Box<dyn Error>> {
     println!("cargo:rerun-if-changed={}", seeds_dir.display());
 
     let mut seeds: Vec<PathBuf> = fs::read_dir(&seeds_dir)?
-        .filter_map(Result::ok)
-        .map(|entry| entry.path())
-        .filter(|path| path.extension().is_some_and(|extension| extension == "sql"))
-        .collect();
+        .map(|entry| entry.map(|entry| entry.path()))
+        .collect::<std::io::Result<Vec<_>>>()?;
+    seeds.retain(|path| {
+        path.is_file()
+            && path
+                .extension()
+                .is_some_and(|extension| extension == "toml")
+    });
+    if seeds.is_empty() {
+        return Err("no TOML seed files found".into());
+    }
     seeds.sort();
 
     let mut generated = String::from("pub(crate) const SEEDS: &[(&str, &str)] = &[\n");

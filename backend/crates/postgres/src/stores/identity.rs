@@ -22,6 +22,40 @@ impl PostgresIdentityStore {
         Self { pool }
     }
 
+    /// Ensure the local-only principal exists without changing an existing user.
+    pub async fn seed_development_principal(
+        &self,
+        id: ActorId,
+        username: &Username,
+        email: &EmailAddress,
+        display_name: &DisplayName,
+        now: OffsetDateTime,
+    ) -> Result<(), StoreError> {
+        let mut transaction = self.pool.begin().await.map_err(store_error)?;
+        sqlx::query(
+            "INSERT INTO mahfel.actors (id, kind, created_at, updated_at) \
+             VALUES ($1, 'user', $2, $2) ON CONFLICT (id) DO NOTHING",
+        )
+        .bind(id.as_uuid())
+        .bind(now)
+        .execute(&mut *transaction)
+        .await
+        .map_err(store_error)?;
+        sqlx::query(
+            "INSERT INTO mahfel.users (id, display_name, email, username, status, created_at, updated_at) \
+             VALUES ($1, $2, $3, $4, 'active', $5, $5) ON CONFLICT (id) DO NOTHING",
+        )
+        .bind(id.as_uuid())
+        .bind(display_name.as_str())
+        .bind(email.as_str())
+        .bind(username.as_str())
+        .bind(now)
+        .execute(&mut *transaction)
+        .await
+        .map_err(store_error)?;
+        transaction.commit().await.map_err(store_error)
+    }
+
     /// Mirror a development fixture to its stable local user ID. This keeps
     /// local identity records attached to the same user if an in-memory
     /// development Keycloak is recreated and issues a new subject.

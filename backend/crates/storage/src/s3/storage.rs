@@ -1,4 +1,5 @@
-use aws_sdk_s3::Client;
+use aws_sdk_s3::{Client, primitives::ByteStream};
+use mahfel_application::ports::FileStorageError;
 use std::sync::Arc;
 use tokio::sync::Semaphore;
 
@@ -24,5 +25,27 @@ impl S3FileStorage {
             bucket: settings.bucket,
             reads: Arc::new(Semaphore::new(4)),
         }
+    }
+
+    /// Upload a local development fixture through the internal S3 endpoint.
+    /// The normal browser upload contract remains presigned and direct.
+    pub async fn put_seed_object(
+        &self,
+        key: &str,
+        content_type: &str,
+        checksum_sha256: &str,
+        bytes: Vec<u8>,
+    ) -> Result<(), FileStorageError> {
+        self.internal
+            .put_object()
+            .bucket(&self.bucket)
+            .key(key)
+            .content_type(content_type)
+            .checksum_sha256(checksum_sha256)
+            .body(ByteStream::from(bytes))
+            .send()
+            .await
+            .map_err(|_| FileStorageError::Unavailable)?;
+        Ok(())
     }
 }

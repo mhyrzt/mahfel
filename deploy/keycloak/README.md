@@ -37,7 +37,7 @@ realm through `https://auth.mahfel.localhost/admin`, add `KC_BOOTSTRAP_ADMIN_USE
 
 ## Development identities
 
-The canonical development accounts live in `backend/seeds/development-users.json`. `mahfel-api seed`
+The canonical development accounts live in `backend/seeds/0002_development_users.toml`. `mahfel-api seed`
 creates any missing account through the `mahfel-admin` client credentials and mirrors each
 identity into PostgreSQL. It does not update an existing Keycloak account or reset its password.
 Fixture local user IDs are stable across Keycloak restarts; newly created Keycloak accounts receive
