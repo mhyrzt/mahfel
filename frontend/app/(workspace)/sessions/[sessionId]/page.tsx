@@ -5,6 +5,7 @@ import { getLocale } from "@/lib/i18n/server";
 import { createServerApiClient } from "@/lib/api/server";
 import { messagesFor } from "@/lib/i18n/messages";
 import { getServerSessionUser } from "@/lib/auth/server";
+import { CollaborationWorkspace } from "@/features/sessions/components/collaboration-workspace";
 
 interface SessionPageProps {
   params: Promise<{ sessionId: string }>;
@@ -21,8 +22,15 @@ export default async function SessionPage({ params }: Readonly<SessionPageProps>
     getServerSessionUser(),
   ]);
   let capabilities: SessionCapabilities | null = null;
+  let archived = false;
   try {
     const api = await createServerApiClient();
+    try {
+      const collaboration = await api.get<{ live: boolean }>(
+        `/v1/sessions/${encodeURIComponent(sessionId)}/collaboration`,
+      );
+      archived = !collaboration.data.live;
+    } catch {}
     const { data } = await api.get<SessionCapabilitiesResponse>(
       `/v1/sessions/${encodeURIComponent(sessionId)}/capabilities`,
     );
@@ -37,6 +45,10 @@ export default async function SessionPage({ params }: Readonly<SessionPageProps>
     };
   } catch {
     capabilities = null;
+  }
+
+  if (archived) {
+    return <CollaborationWorkspace sessionId={sessionId} locale={locale} />;
   }
 
   if (!capabilities) {

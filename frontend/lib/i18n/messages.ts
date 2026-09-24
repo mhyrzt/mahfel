@@ -110,6 +110,35 @@ export interface Messages {
     connectionUnavailableMessage: string;
     accessBlockedMessage: string;
   };
+  collaboration: {
+    title: string;
+    notes: string;
+    whiteboard: string;
+    presentation: string;
+    permissions: string;
+    loading: string;
+    unavailable: string;
+    viewOnly: string;
+    canEdit: string;
+    allowEdit: string;
+    revokeEdit: string;
+    selectFiles: string;
+    present: string;
+    stop: string;
+    previous: string;
+    next: string;
+    noPresentation: string;
+    connected: string;
+    notesEditor: string;
+    notesPlaceholder: string;
+    noteFormatting: string;
+    heading: string;
+    bold: string;
+    italic: string;
+    bullets: string;
+    numbers: string;
+    pdfUnavailable: string;
+  };
 }
 
 const messages: Record<Locale, Messages> = {
@@ -220,6 +249,35 @@ const messages: Record<Locale, Messages> = {
       connectionUnavailableMessage: "The session connection is unavailable. Please retry.",
       accessBlockedMessage: "Access to this session was blocked.",
     },
+    collaboration: {
+      title: "Shared workspace",
+      notes: "Notes",
+      whiteboard: "Whiteboard",
+      presentation: "Presentation",
+      permissions: "Editing access",
+      loading: "Loading shared workspace…",
+      unavailable: "Shared workspace is unavailable.",
+      viewOnly: "View only",
+      canEdit: "Can edit",
+      allowEdit: "Allow editing",
+      revokeEdit: "Revoke editing",
+      selectFiles: "Select a PDF or images in order",
+      present: "Present",
+      stop: "Stop presenting",
+      previous: "Previous",
+      next: "Next",
+      noPresentation: "Nothing is being presented.",
+      connected: "Connected",
+      notesEditor: "Collaborative notes",
+      notesPlaceholder: "Write notes together",
+      noteFormatting: "Note formatting",
+      heading: "Heading",
+      bold: "Bold",
+      italic: "Italic",
+      bullets: "Bullets",
+      numbers: "Numbers",
+      pdfUnavailable: "PDF preview unavailable.",
+    },
   },
   fa: {
     language: { en: "English", fa: "پارسی" },
@@ -327,6 +385,35 @@ const messages: Record<Locale, Messages> = {
       reconnectingMessage: "در حال اتصال دوباره به جلسه…",
       connectionUnavailableMessage: "اتصال جلسه در دسترس نیست. دوباره تلاش کنید.",
       accessBlockedMessage: "دسترسی به این جلسه مسدود شده است.",
+    },
+    collaboration: {
+      title: "فضای کار مشترک",
+      notes: "یادداشت‌ها",
+      whiteboard: "تخته سفید",
+      presentation: "ارائه",
+      permissions: "دسترسی ویرایش",
+      loading: "فضای کار مشترک در حال بارگذاری است…",
+      unavailable: "فضای کار مشترک در دسترس نیست.",
+      viewOnly: "فقط نمایش",
+      canEdit: "مجاز به ویرایش",
+      allowEdit: "اجازه ویرایش",
+      revokeEdit: "لغو اجازه ویرایش",
+      selectFiles: "یک PDF یا تصاویر را به ترتیب انتخاب کنید",
+      present: "ارائه",
+      stop: "توقف ارائه",
+      previous: "قبلی",
+      next: "بعدی",
+      noPresentation: "در حال حاضر ارائه‌ای وجود ندارد.",
+      connected: "متصل",
+      notesEditor: "یادداشت‌های مشترک",
+      notesPlaceholder: "با هم یادداشت بنویسید",
+      noteFormatting: "قالب‌بندی یادداشت",
+      heading: "عنوان",
+      bold: "پررنگ",
+      italic: "کج",
+      bullets: "فهرست نشانه‌دار",
+      numbers: "فهرست شماره‌دار",
+      pdfUnavailable: "پیش‌نمایش PDF در دسترس نیست.",
     },
   },
 };

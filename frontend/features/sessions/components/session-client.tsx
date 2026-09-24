@@ -10,6 +10,7 @@ import { SignalingClient, type SignalingStatus } from "@/lib/websocket/client";
 import { initialSessionState, sessionReducer, type SessionCapabilities } from "../session-state";
 import type { Participant } from "./session-types";
 import { SessionScreen } from "./session-screen";
+import { CollaborationWorkspace } from "./collaboration-workspace";
 
 interface SessionClientProps {
   actorId?: string;
@@ -129,12 +130,17 @@ export function SessionClient({
   }, [actorId, capabilities, locale, sessionId, title]);
 
   return (
-    <SessionScreen
-      title={title}
-      state={state}
-      locale={locale}
-      onRetryJoin={() => clientRef.current?.send({ type: "join", session_id: sessionId })}
-    />
+    <div className="space-y-8">
+      <SessionScreen
+        title={title}
+        state={state}
+        locale={locale}
+        onRetryJoin={() => clientRef.current?.send({ type: "join", session_id: sessionId })}
+      />
+      {state.phase === "live" || state.phase === "ended" ? (
+        <CollaborationWorkspace sessionId={sessionId} locale={locale} />
+      ) : null}
+    </div>
   );
 }
 

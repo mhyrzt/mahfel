@@ -398,6 +398,20 @@ export interface Welcome {
   v: 1;
 }
 
+export interface CollaborationAuth {
+  ticket: string;
+  type: "auth";
+}
+
+export type CollaborationBinary = string;
+
+export interface CollaborationEvent {
+  data?: {};
+  kind?: string;
+  sequence?: number;
+  type: "collaboration_ready" | "collaboration_event" | "permission_changed";
+}
+
 export type ClientMessage =
   | Auth
   | ClientEcho

@@ -1,6 +1,6 @@
 import { CalendarDays } from "lucide-react";
 
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 
 import { MonthCalendar } from "./month-calendar";

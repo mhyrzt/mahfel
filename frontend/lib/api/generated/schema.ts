@@ -717,6 +717,102 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/sessions/{session_id}/collaboration": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get: operations["documents"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/sessions/{session_id}/collaboration/events": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get: operations["events"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/sessions/{session_id}/collaboration/grants": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get: operations["grants"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/sessions/{session_id}/collaboration/grants/{actor_id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put: operations["set_grant"];
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/sessions/{session_id}/collaboration/presentation": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get: operations["get_presentation"];
+    put?: never;
+    post: operations["update_presentation"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/sessions/{session_id}/collaboration/viewport": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post: operations["update_viewport"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/v1/sessions/{session_id}/end": {
     parameters: {
       query?: never;
@@ -972,6 +1068,16 @@ export interface components {
       id: string;
       parent_id?: string | null;
     };
+    CollaborationDocumentsResponse: {
+      can_edit: boolean;
+      can_manage: boolean;
+      documents: components["schemas"]["DocumentResponse"][];
+      live: boolean;
+      room_id: string;
+    };
+    CollaborationEventsResponse: {
+      events: components["schemas"]["EventResponse"][];
+    };
     CorrectIntervalRequest: {
       /**
        * Format: date-time
@@ -1045,6 +1151,12 @@ export interface components {
       name: string;
       status: string;
     };
+    DocumentResponse: {
+      id: string;
+      kind: string;
+      /** Format: int32 */
+      schema_version: number;
+    };
     /** @description Placeholder payload used by contract tests until real resource routes land. */
     EchoPayload: {
       message: string;
@@ -1053,6 +1165,9 @@ export interface components {
       content: string;
       mentions?: string[];
     };
+    EditGrantRequest: {
+      can_edit: boolean;
+    };
     ErrorBody: {
       error: components["schemas"]["ErrorDetail"];
     };
@@ -1060,6 +1175,17 @@ export interface components {
       code: string;
       details?: unknown;
       message: string;
+    };
+    EventResponse: {
+      actor_id: string;
+      created_at: string;
+      data: unknown;
+      document_id?: string | null;
+      id: string;
+      kind: string;
+      /** Format: int64 */
+      sequence: number;
+      update_base64?: string | null;
     };
     /** @description Selects a file context and page for listing ready files. */
     FileContextInput: {
@@ -1225,6 +1351,14 @@ export interface components {
       /** Format: int64 */
       total?: number | null;
     };
+    ParticipantGrantResponse: {
+      actor_id: string;
+      can_edit: boolean;
+      display_name: string;
+    };
+    ParticipantGrantsResponse: {
+      participants: components["schemas"]["ParticipantGrantResponse"][];
+    };
     ParticipantParticipationResponse: {
       /**
        * Format: int64
@@ -1246,6 +1380,29 @@ export interface components {
        */
       corrected_intervals: number;
       participant_id: string;
+    };
+    PresentationRequest:
+      | {
+          /** @enum {string} */
+          action: "select";
+          file_ids: string[];
+        }
+      | {
+          /** @enum {string} */
+          action: "page";
+          /** Format: int32 */
+          page: number;
+        }
+      | {
+          /** @enum {string} */
+          action: "stop";
+        };
+    PresentationStateResponse: {
+      /** Format: int32 */
+      current_page: number;
+      file_ids: string[];
+      /** Format: int32 */
+      total_pages: number;
     };
     /** @description Application profile for the authenticated user. */
     ProfileResponse: {
@@ -1425,6 +1582,15 @@ export interface components {
       scheduled_start_at?: string | null;
       /** @description Omit to keep, null to clear, or provide a custom title. */
       title?: string | null;
+    };
+    ViewportRequest: {
+      surface: string;
+      /** Format: double */
+      x: number;
+      /** Format: double */
+      y: number;
+      /** Format: double */
+      zoom?: number | null;
     };
   };
   responses: never;
@@ -4029,6 +4195,229 @@ export interface operations {
         };
       };
       /** @description Session does not exist or the caller cannot see its room */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
+      };
+    };
+  };
+  documents: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        session_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["CollaborationDocumentsResponse"];
+        };
+      };
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
+      };
+    };
+  };
+  events: {
+    parameters: {
+      query?: {
+        after_sequence?: number;
+        limit?: number;
+      };
+      header?: never;
+      path: {
+        session_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["CollaborationEventsResponse"];
+        };
+      };
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
+      };
+    };
+  };
+  grants: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        session_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ParticipantGrantsResponse"];
+        };
+      };
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
+      };
+    };
+  };
+  set_grant: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        session_id: string;
+        actor_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["EditGrantRequest"];
+      };
+    };
+    responses: {
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
+      };
+    };
+  };
+  get_presentation: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        session_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": null | components["schemas"]["PresentationStateResponse"];
+        };
+      };
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
+      };
+    };
+  };
+  update_presentation: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        session_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["PresentationRequest"];
+      };
+    };
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["EventResponse"];
+        };
+      };
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
+      };
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
+      };
+    };
+  };
+  update_viewport: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        session_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["ViewportRequest"];
+      };
+    };
+    responses: {
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
       404: {
         headers: {
           [name: string]: unknown;
