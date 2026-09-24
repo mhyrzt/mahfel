@@ -8,6 +8,7 @@ export interface ActiveSpeakers {
 
 export interface Auth {
   id?: string;
+  ticket?: string | null;
   token?: string | null;
   type: "auth";
   v?: 1;

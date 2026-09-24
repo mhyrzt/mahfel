@@ -17,6 +17,7 @@ interface SessionScreenProps {
   state: SessionState;
   admissionRequests?: AdmissionRequest[];
   locale?: Locale;
+  onRetryJoin?: () => void;
 }
 
 export function SessionScreen({
@@ -24,6 +25,7 @@ export function SessionScreen({
   state,
   admissionRequests = [],
   locale = defaultLocale,
+  onRetryJoin,
 }: Readonly<SessionScreenProps>) {
   const text = messagesFor(locale).sessions;
   if (state.phase === "loading") {
@@ -33,7 +35,9 @@ export function SessionScreen({
   }
 
   if (state.phase === "waiting") {
-    return <WaitingRoomPanel roomName={state.roomName ?? title} locale={locale} />;
+    return (
+      <WaitingRoomPanel roomName={state.roomName ?? title} locale={locale} onRetry={onRetryJoin} />
+    );
   }
 
   if (state.phase === "rejected" || state.phase === "unavailable") {

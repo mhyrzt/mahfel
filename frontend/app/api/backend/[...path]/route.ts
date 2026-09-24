@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerAccessToken } from "@/lib/auth/server";
 import { serverApiBaseUrl } from "@/lib/api/config";
 
-const ALLOWLIST = /^v1\/(auth|rooms|files|echo|status|health)(\/.*)?$/;
+const ALLOWLIST = /^(v1\/(auth|rooms|files|echo|status|health)(\/.*)?|v1\/ws\/tickets)$/;
 
 const REQUEST_HEADERS_TO_DROP = new Set([
   "accept-encoding",
@@ -74,6 +74,9 @@ async function handleBackendRequest(request: Request, context: Context): Promise
   const joinedPath = path.join("/");
   if (!ALLOWLIST.test(joinedPath)) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
+  if (joinedPath === "v1/ws/tickets" && request.method !== "POST") {
+    return NextResponse.json({ error: "Method not allowed" }, { status: 405 });
   }
   const contentLength = request.headers.get("content-length");
   if (contentLength && Number(contentLength) > MAX_BODY_BYTES) {

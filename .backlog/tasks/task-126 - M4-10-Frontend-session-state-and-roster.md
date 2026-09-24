@@ -1,11 +1,11 @@
 ---
 id: TASK-126
 title: M4-10 Frontend session state and roster
-status: In Progress
+status: Done
 assignee:
   - '@mahyar'
 created_date: '2026-09-20 18:58'
-updated_date: '2026-09-22 22:59'
+updated_date: '2026-09-24 03:11'
 labels:
   - frontend
 milestone: m-4
@@ -22,27 +22,22 @@ ordinal: 134000
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
-Client-side generic session state for the browser app: connect the WebSocket with a verified token, join and leave a session, render a roster from stable participant identities, and reconcile state across reconnects. Waiting or lobby state from admission policy is represented and hides media controls until admitted. Capability payload gates controls the caller cannot use. Education-facing copy is theming, not core.
+Client-side session signaling through a short-lived single-use WebSocket ticket, join and leave flow, and a roster reconciled from stable participant identities. Waiting or lobby state is represented with media controls hidden until admission. Caller capabilities gate controls; authorization remains in mahfel-api.
 <!-- SECTION:DESCRIPTION:END -->
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 The roster reflects join, leave, remove, and block events and survives reconnect without duplicate participants.
-- [ ] #2 Reconnect re-establishes signaling and reconciles the stable participant identity.
-- [ ] #3 Lobby policy shows a waiting state and no media controls before admission.
-- [ ] #4 Controls the caller cannot use are hidden or disabled from the capability payload.
-- [ ] #5 Expired or unauthorized tokens produce actionable UX instead of silent failure.
+- [x] #1 The roster reflects join, leave, remove, and block events and survives reconnect without duplicate participants.
+- [x] #2 Reconnect re-establishes signaling and reconciles the stable participant identity.
+- [x] #3 Lobby policy shows a waiting state and no media controls before admission.
+- [x] #4 Controls the caller cannot use are hidden or disabled from the capability payload.
+- [x] #5 Expired or unauthorized tokens produce actionable UX instead of silent failure.
 <!-- AC:END -->
 
 ## Implementation Plan
 
 <!-- SECTION:PLAN:BEGIN -->
-1. Export the code-first mahfel-api OpenAPI 3.1 document to openapi/mahfel-api.json, then generate frontend/lib/api/generated/schema.ts with openapi-typescript.
-2. Add a small Axios client constrained to the same-origin authenticated BFF and a typed error boundary; do not expose Keycloak tokens to browser code.
-3. Add feature-scoped session API adapters and a controlled session state model with loading, waiting, live, ended, rejected, and unavailable states.
-4. Compose the route-level session screen from the existing roster, waiting-room, stage, toolbar, and moderation components; use fixtures until the incomplete M4 REST and WebSocket contracts are ready.
-5. Add focused reducer/component tests and stories; validate formatting, lint, typecheck, and relevant frontend tests.
-6. Integrate only after explicit BFF allowlist and browser-safe WebSocket credential/roster-snapshot contracts are available.
+1. Add ADR 0025 for short-lived, single-use tickets replacing browser-visible bearer auth. 2. Add Redis-backed ephemeral ticket storage, authenticated POST /v1/ws/tickets issuance, and ticket consumption as the first WebSocket auth frame while preserving native bearer auth. 3. Export OpenAPI and AsyncAPI contracts and regenerate frontend types. 4. Add the exact /v1/ws/tickets BFF allowlist entry and implement direct-to-API typed signaling with auth, welcome, bounded backoff reconnect, cleanup, and actionable auth states. 5. Mount /sessions/[sessionId], load the caller-scoped capability payload server-side, join/leave through the socket, reconcile snapshots and participant events, represent waiting/rejected/disconnected states, and allow a deliberate retry after admission review. The manager-only session details route is unavailable to ordinary participants, so use a generic localized session title; current WebSocket roster contract provides stable participant IDs only. 6. Run scoped API/Redis, frontend, formatting, diff, and docs checks; refresh specs and update documentation.
 <!-- SECTION:PLAN:END -->
 
 ## Implementation Notes
@@ -71,4 +66,16 @@ Client-side generic session state for the browser app: connect the WebSocket wit
 2026-09-23: Visually inspected Larger Group in Storybook at 1440x960. Capped desktop avatar circles and lifted them slightly so participant names no longer collide; moved speaking emphasis from the whole transparent tile to the avatar ring; fixed action-menu contrast for avatar-only tiles while retaining white controls over screen-share previews. Confirmed the updated render in Storybook; focused ESLint, typecheck, and git diff --check pass.
 
 2026-09-23: Refined participant tile composition to keep the avatar, name, and state together as one centered group. Moved the muted mic into a circular badge centered on the avatar bottom edge; moved participant actions from the name row to a round settings button centered on the top edge, revealed on hover/focus for hover-capable devices and available by default on touch devices. Verified Larger Group at mobile Storybook viewport; focused ESLint, typecheck, diff check, and Storybook build pass.
+
+Approved by user: implement a single-use ticket flow across backend and frontend. Access tokens stay server-side; browser receives only a short-lived single-use ticket. Code graph MCP was unavailable, so source tracing fell back to direct inspection. Existing frontend worktree clean after prior scoped commits; leave unrelated worktree changes untouched.
+
+2026-09-24: Implemented the API-issued ten-second single-use ticket flow. Redis stores only SHA-256 keyed minimal verified principal data and consumes it atomically; native upgrade/header and auth-frame bearer support remains. Added the exact browser BFF POST route, regenerated OpenAPI/AsyncAPI and frontend types, and mounted the authenticated session signaling route with server-loaded capabilities, join/leave, stable-ID roster reconciliation, reconnect, waiting/retry, and auth failure states. Session detail lookup is manager-only and the roster contract supplies IDs only, so the page uses a generic localized session label and stable ID-derived participant labels. Validation: API/Redis cargo check, frontend typecheck and changed-file ESLint, backend fmt, git diff --check, API spec export, strict docs build passed. Full workspace lint still reports only the existing unused CardHeader import in features/workspace/components/schedule-panel.tsx; the workspace build stalled in mediasoup-sys with no running process, so package-scoped cargo check was used.
+
+2026-09-24 follow-up: added frontend unit tests under lib/websocket/tests and features/sessions/tests covering ticket-only browser auth, reconnect ticket renewal/rejoin, unauthorized UX, stable roster snapshot/event reconciliation, waiting without media controls, and block/auth states. Full frontend Vitest: 8 files, 17 tests passed; focused ESLint for both new test files passed.
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Added single-use Redis-backed WebSocket tickets across the API and frontend, regenerated REST/AsyncAPI contracts, and wired the session route to direct API signaling with reconnect, roster reconciliation, capabilities, and waiting/auth states. Verified with API/Redis cargo check, frontend typecheck and focused ESLint, backend fmt, API contract export, docs build, and diff check.
+<!-- SECTION:FINAL_SUMMARY:END -->

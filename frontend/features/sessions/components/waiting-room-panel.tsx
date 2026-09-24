@@ -1,5 +1,6 @@
 import { Clock3 } from "lucide-react";
 
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { defaultLocale, type Locale } from "@/lib/i18n/config";
 import { formatMessage, messagesFor } from "@/lib/i18n/messages";
@@ -7,7 +8,8 @@ import { formatMessage, messagesFor } from "@/lib/i18n/messages";
 export function WaitingRoomPanel({
   roomName,
   locale = defaultLocale,
-}: Readonly<{ roomName: string; locale?: Locale }>) {
+  onRetry,
+}: Readonly<{ roomName: string; locale?: Locale; onRetry?: () => void }>) {
   const text = messagesFor(locale).sessions;
 
   return (
@@ -23,6 +25,11 @@ export function WaitingRoomPanel({
         <p className="rounded-lg bg-muted px-3 py-2 text-center text-sm text-muted-foreground">
           {text.waitingHint}
         </p>
+        {onRetry ? (
+          <Button className="mt-4 w-full" variant="outline" onClick={onRetry}>
+            {text.checkAdmission}
+          </Button>
+        ) : null}
       </CardContent>
     </Card>
   );

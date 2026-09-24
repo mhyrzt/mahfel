@@ -60,6 +60,7 @@ export interface Messages {
     footer: string;
   };
   sessions: {
+    sessionTitle: string;
     participants: string;
     roles: Record<"manager" | "moderator" | "member", string>;
     participantActionsLabel: string;
@@ -72,6 +73,7 @@ export interface Messages {
     waitingTitle: string;
     waitingDescription: string;
     waitingHint: string;
+    checkAdmission: string;
     admissionQueue: string;
     noAdmissionRequests: string;
     requested: string;
@@ -103,6 +105,10 @@ export interface Messages {
     rejectedTitle: string;
     unavailableTitle: string;
     retryMessage: string;
+    signInAgainMessage: string;
+    reconnectingMessage: string;
+    connectionUnavailableMessage: string;
+    accessBlockedMessage: string;
   };
 }
 
@@ -163,6 +169,7 @@ const messages: Record<Locale, Messages> = {
       footer: "Thoughtfully made for people, in every language.",
     },
     sessions: {
+      sessionTitle: "Session",
       participants: "Participants",
       roles: { manager: "Manager", moderator: "Moderator", member: "Member" },
       participantActionsLabel: "Actions for {name}",
@@ -176,6 +183,7 @@ const messages: Record<Locale, Messages> = {
       waitingDescription:
         "Your request to join {roomName} is pending. Media controls will be available after approval.",
       waitingHint: "Keep this page open while a manager reviews your request.",
+      checkAdmission: "Check admission",
       admissionQueue: "Admission queue",
       noAdmissionRequests: "No one is waiting for admission.",
       requested: "Requested {requestedAt}",
@@ -207,6 +215,10 @@ const messages: Record<Locale, Messages> = {
       rejectedTitle: "Admission was not approved",
       unavailableTitle: "Session unavailable",
       retryMessage: "Please try again.",
+      signInAgainMessage: "Your sign-in expired. Sign in again to continue.",
+      reconnectingMessage: "Reconnecting to the session…",
+      connectionUnavailableMessage: "The session connection is unavailable. Please retry.",
+      accessBlockedMessage: "Access to this session was blocked.",
     },
   },
   fa: {
@@ -265,6 +277,7 @@ const messages: Record<Locale, Messages> = {
       footer: "با دقت برای آدم‌ها و به هر زبان ساخته شده است.",
     },
     sessions: {
+      sessionTitle: "جلسه",
       participants: "شرکت‌کنندگان",
       roles: { manager: "مدیر", moderator: "ناظر", member: "عضو" },
       participantActionsLabel: "عملیات برای {name}",
@@ -278,6 +291,7 @@ const messages: Record<Locale, Messages> = {
       waitingDescription:
         "درخواست شما برای پیوستن به {roomName} در انتظار بررسی است. پس از تأیید، کنترل‌های رسانه در دسترس خواهند بود.",
       waitingHint: "تا زمان بررسی درخواست توسط مدیر، این صفحه را باز نگه دارید.",
+      checkAdmission: "بررسی پذیرش",
       admissionQueue: "صف پذیرش",
       noAdmissionRequests: "درخواستی برای پذیرش وجود ندارد.",
       requested: "زمان درخواست: {requestedAt}",
@@ -309,6 +323,10 @@ const messages: Record<Locale, Messages> = {
       rejectedTitle: "درخواست پذیرش تأیید نشد",
       unavailableTitle: "جلسه در دسترس نیست",
       retryMessage: "لطفاً دوباره تلاش کنید.",
+      signInAgainMessage: "مهلت ورود شما پایان یافته است. برای ادامه دوباره وارد شوید.",
+      reconnectingMessage: "در حال اتصال دوباره به جلسه…",
+      connectionUnavailableMessage: "اتصال جلسه در دسترس نیست. دوباره تلاش کنید.",
+      accessBlockedMessage: "دسترسی به این جلسه مسدود شده است.",
     },
   },
 };
