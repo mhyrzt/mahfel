@@ -61,11 +61,17 @@ concurrent S3 reads and blocking verification jobs to four each per API process.
 remain rejected until worker cleanup.
 
 Marker checks are a type gate, not a malware scanner or full PDF/image parser. Files are served as
-attachments, not rendered inline by Mahfel. No image normalization is performed; uploaded EXIF
+attachments by default. The collaboration presentation view fetches authorized signed URLs and
+renders PDF pages and images in the browser. No image normalization is performed; uploaded EXIF
 and PDF contents therefore remain in the private artifact. A malware scanner or image
 normalization stage can be added before the ready transition when inline viewing is introduced.
-Presentation page and image-sequence limits belong to the presentation feature; this file API
-does not parse PDF page trees or create slide sequences.
+Presentation selection parses the PDF page tree separately and limits decks to 1000 pages or 50
+ordered images. The file API itself does not create slide sequences.
+
+Files selected for a collaboration presentation are referenced by the durable event journal.
+The delete transition returns a conflict while any presentation event references the file, so
+archived sessions retain the bytes needed for later playback. A retention policy for those
+assets must account for the presentation history before purging them.
 
 Object storage must keep the bucket private and expire residual `uploads/` objects after one day.
 The worker removes known abandoned objects; the storage lifecycle rule also catches a PUT that
