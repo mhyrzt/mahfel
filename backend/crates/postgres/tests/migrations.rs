@@ -1,18 +1,21 @@
 use mahfel_application::jobs::JobEnvelope;
 use mahfel_application::ports::{
-    ChatStore, FileStore, IdentityProfile, IdentityStore, RoomStore, SessionStore, StoreError,
-    UserStore,
+    ChatStore, CollaborationStore, FileStore, IdentityProfile, IdentityStore,
+    NewCollaborationEvent, ParticipantStore, RoomStore, SessionStore, StoreError, UserStore,
 };
 use mahfel_domain::{
-    ActorId, AvatarUrl, ChatChannel, ChatChannelId, ChatMessageDraft, ChatMessageId, DisplayName,
-    EmailAddress, FileContext, FileObject, FileStatus, Issuer, Room, RoomMember, RoomRole,
-    RoomTitle, RoomVisibility, Session, SessionId, Subject, User, Username,
+    ActorId, AvatarUrl, ChatChannel, ChatChannelId, ChatMessageDraft, ChatMessageId,
+    CollaborationEventKind, CollaborationKind, DisplayName, EmailAddress, FileContext, FileObject,
+    FileStatus, Issuer, Participant, Room, RoomId, RoomMember, RoomRole, RoomTitle, RoomVisibility,
+    Session, SessionId, Subject, User, Username,
 };
 use mahfel_postgres::{
-    ConnectionSettings, JobClaim, JobStore, PoolSettings, PostgresChatStore, PostgresFileStore,
-    PostgresIdentityStore, PostgresRoomStore, PostgresSessionLifecycle, PostgresSessionStore,
-    PostgresUserStore, connect, insert_job_in_tx, migrate,
+    ConnectionSettings, JobClaim, JobStore, PoolSettings, PostgresChatStore,
+    PostgresCollaborationStore, PostgresFileStore, PostgresIdentityStore, PostgresParticipantStore,
+    PostgresRoomStore, PostgresSessionLifecycle, PostgresSessionStore, PostgresUserStore, connect,
+    insert_job_in_tx, migrate,
 };
+use serde_json::json;
 use sqlx::PgPool;
 use std::{error::Error, time::Duration};
 use testcontainers::{
@@ -871,16 +874,234 @@ async fn verify_migrations_and_stores(
 
     assert_eq!(restarted_users.get(user.id).await?, Some(user.clone()));
     assert_eq!(restarted_rooms.get(room.id).await?, Some(room.clone()));
-    assert_eq!(restarted_sessions.get(session.id).await?, Some(session));
+    assert_eq!(
+        restarted_sessions.get(session.id).await?,
+        Some(session.clone())
+    );
     assert_eq!(
         restarted_rooms.get_member(room.id, user.id).await?,
         Some(manager.clone())
     );
     assert_eq!(
         restarted_rooms.list_for_member(user.id, 10, 0).await?,
-        vec![room]
+        vec![room.clone()]
     );
+    verify_collaboration(&restarted_pool, user.id, session.id, room.id, file.id, now).await?;
     restarted_pool.close().await;
+    Ok(())
+}
+
+async fn verify_collaboration(
+    pool: &PgPool,
+    manager: ActorId,
+    session_id: SessionId,
+    room_id: RoomId,
+    file_id: mahfel_domain::FileId,
+    now: OffsetDateTime,
+) -> Result<(), Box<dyn Error>> {
+    let users = PostgresUserStore::new(pool.clone());
+    let rooms = PostgresRoomStore::new(pool.clone());
+    let sessions = PostgresSessionStore::new(pool.clone());
+    let participants = PostgresParticipantStore::new(pool.clone());
+    let files = PostgresFileStore::new(pool.clone());
+    let collaboration = PostgresCollaborationStore::new(pool.clone());
+    let member = User::create(
+        DisplayName::new("Collaboration member".into())?,
+        EmailAddress::new("collaboration@example.test".into())?,
+        Username::new("collaboration-member".into())?,
+        now,
+    );
+    users.insert(&member).await?;
+    rooms
+        .add_member(&RoomMember::new(room_id, member.id, RoomRole::Member, now))
+        .await?;
+    let outsider = User::create(
+        DisplayName::new("Collaboration outsider".into())?,
+        EmailAddress::new("outsider@example.test".into())?,
+        Username::new("collaboration-outsider".into())?,
+        now,
+    );
+    users.insert(&outsider).await?;
+    let mut session = sessions.get(session_id).await?.expect("session exists");
+    session.start(now + TimeDuration::seconds(1))?;
+    sessions.save(&session).await?;
+    participants
+        .insert(&Participant::join(session_id, member.id, now))
+        .await?;
+    assert!(collaboration.access(session_id, manager).await?.can_manage);
+
+    let notes = collaboration
+        .document(session_id, CollaborationKind::Notes)
+        .await?
+        .expect("notes document");
+    assert_eq!(
+        collaboration
+            .document(session_id, CollaborationKind::Notes)
+            .await?
+            .expect("same notes document")
+            .id,
+        notes.id
+    );
+    let board = collaboration
+        .document(session_id, CollaborationKind::Whiteboard)
+        .await?
+        .expect("whiteboard document");
+    assert_ne!(notes.id, board.id);
+    assert!(
+        !collaboration
+            .access(session_id, outsider.id)
+            .await?
+            .can_read
+    );
+    assert!(!collaboration.access(session_id, member.id).await?.can_edit);
+
+    let member_update = NewCollaborationEvent {
+        session_id,
+        id: Uuid::new_v4(),
+        actor_id: member.id,
+        document_id: Some(notes.id),
+        kind: CollaborationEventKind::DocumentUpdate,
+        update: Some(vec![1, 2, 3]),
+        data: json!({}),
+    };
+    assert!(matches!(
+        collaboration.append(&member_update).await,
+        Err(StoreError::NotFound(_))
+    ));
+    collaboration
+        .set_edit_grant(session_id, manager, member.id, true, Uuid::new_v4())
+        .await?;
+    assert!(collaboration.access(session_id, member.id).await?.can_edit);
+    let manager_update = NewCollaborationEvent {
+        session_id,
+        id: Uuid::new_v4(),
+        actor_id: manager,
+        document_id: Some(board.id),
+        kind: CollaborationEventKind::DocumentUpdate,
+        update: Some(vec![4, 5, 6]),
+        data: json!({}),
+    };
+    let (left, right) = tokio::join!(
+        collaboration.append(&member_update),
+        collaboration.append(&manager_update)
+    );
+    assert_ne!(left?.sequence, right?.sequence);
+    let events = collaboration.events(session_id, member.id, 0, 100).await?;
+    assert_eq!(
+        events
+            .iter()
+            .map(|event| event.sequence)
+            .collect::<Vec<_>>(),
+        vec![1, 2, 3]
+    );
+    for (surface, x) in [("notes", 10), ("whiteboard", 20), ("notes", 30)] {
+        collaboration
+            .append(&NewCollaborationEvent {
+                session_id,
+                id: Uuid::new_v4(),
+                actor_id: member.id,
+                document_id: None,
+                kind: CollaborationEventKind::Viewport,
+                update: None,
+                data: json!({"surface":surface,"x":x,"y":0,"zoom":1}),
+            })
+            .await?;
+    }
+    let viewports = collaboration
+        .latest_viewports(session_id, member.id)
+        .await?;
+    assert_eq!(viewports.len(), 2);
+    assert_eq!(
+        viewports
+            .iter()
+            .find(|event| event.data["surface"] == "notes")
+            .expect("notes viewport")
+            .data["x"],
+        30
+    );
+    collaboration
+        .save_checkpoint(notes.id, 2, &[7, 8], &[9], &[0; 32])
+        .await?;
+    assert_eq!(
+        collaboration
+            .checkpoint(notes.id)
+            .await?
+            .expect("checkpoint")
+            .through_sequence,
+        2
+    );
+
+    collaboration
+        .append(&NewCollaborationEvent {
+            session_id,
+            id: Uuid::new_v4(),
+            actor_id: member.id,
+            document_id: None,
+            kind: CollaborationEventKind::Presentation,
+            update: None,
+            data: json!({"action":"select","file_ids":[file_id],"total_pages":2,"page":1}),
+        })
+        .await?;
+    assert_eq!(
+        collaboration
+            .presentation(session_id, member.id)
+            .await?
+            .expect("selected presentation")
+            .total_pages,
+        2
+    );
+    collaboration
+        .append(&NewCollaborationEvent {
+            session_id,
+            id: Uuid::new_v4(),
+            actor_id: member.id,
+            document_id: None,
+            kind: CollaborationEventKind::Presentation,
+            update: None,
+            data: json!({"action":"page","page":2}),
+        })
+        .await?;
+    assert_eq!(
+        collaboration
+            .presentation(session_id, member.id)
+            .await?
+            .expect("page change")
+            .current_page,
+        2
+    );
+    assert!(matches!(
+        files
+            .transition(file_id, FileStatus::Ready, FileStatus::Deleting, None, now)
+            .await,
+        Err(StoreError::Conflict(_))
+    ));
+    collaboration
+        .append(&NewCollaborationEvent {
+            session_id,
+            id: Uuid::new_v4(),
+            actor_id: member.id,
+            document_id: None,
+            kind: CollaborationEventKind::Presentation,
+            update: None,
+            data: json!({"action":"stop"}),
+        })
+        .await?;
+    assert!(
+        collaboration
+            .presentation(session_id, member.id)
+            .await?
+            .is_none()
+    );
+
+    session.end(now + TimeDuration::seconds(2))?;
+    sessions.save(&session).await?;
+    let archive = collaboration.access(session_id, member.id).await?;
+    assert!(archive.can_read);
+    assert!(!archive.can_edit);
+    assert!(matches!(
+        collaboration.append(&member_update).await,
+        Err(StoreError::NotFound(_))
+    ));
     Ok(())
 }
 

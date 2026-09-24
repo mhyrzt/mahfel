@@ -9,6 +9,7 @@ mod actor;
 mod admission;
 mod block;
 mod chat;
+mod collaboration;
 mod file;
 mod identity;
 mod ids;
@@ -34,6 +35,10 @@ pub use chat::{
     CHAT_AUTHOR_MUTATION_WINDOW, CHAT_REACTION_EMOJIS, ChatChannel, ChatChannelId, ChatEvent,
     ChatEventKind, ChatMessage, ChatMessageCursor, ChatMessageDraft, ChatMessageError,
     ChatMessageId, ChatMessagePage,
+};
+pub use collaboration::{
+    CollaborationDocument, CollaborationDocumentId, CollaborationEvent, CollaborationEventKind,
+    CollaborationKind,
 };
 pub use file::{
     FileContext, FileError, FileId, FileObject, FileStatus, MAX_FILE_BYTES, MAX_OWNER_FILE_BYTES,

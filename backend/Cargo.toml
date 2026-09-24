@@ -57,6 +57,7 @@ tracing-subscriber = { version = "0.3.23", features = ["env-filter", "json"] }
 utoipa = { version = "5.5.0", features = ["macros", "uuid", "time"] }
 url = { version = "2.5.8", features = ["serde"] }
 uuid = { version = "1.26.0", features = ["serde", "v4"] }
+yrs = { version = "0.27.3", features = ["sync"] }
 
 [workspace.lints.rust]
 unsafe_code = "forbid"

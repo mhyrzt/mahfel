@@ -8,6 +8,7 @@ license.workspace = true
 [dependencies]
 base64 = "0.22"
 mahfel-domain = { path = "../domain" }
+lopdf = { version = "0.38", default-features = false }
 serde.workspace = true
 serde_json.workspace = true
 sha2 = "0.10"

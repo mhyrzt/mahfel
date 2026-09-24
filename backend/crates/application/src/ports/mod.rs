@@ -3,6 +3,7 @@ pub mod authorization;
 pub mod block_store;
 pub mod chat_activity;
 pub mod chat_store;
+pub mod collaboration_store;
 pub mod coordination;
 pub mod file_storage;
 pub mod file_store;
@@ -30,6 +31,10 @@ pub use authorization::{
 pub use block_store::BlockStore;
 pub use chat_activity::{ChatActivitySnapshot, ChatActivityStore};
 pub use chat_store::{ChatReactionSnapshot, ChatStore};
+pub use collaboration_store::{
+    CollaborationAccess, CollaborationCheckpoint, CollaborationParticipant, CollaborationStore,
+    NewCollaborationEvent, PresentationState,
+};
 pub use coordination::{CoordinationError, CoordinationStore};
 pub use file_storage::{FileStorage, FileStorageError, PresignedFileRequest, StoredFile};
 pub use file_store::FileStore;

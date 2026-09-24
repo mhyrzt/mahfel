@@ -7,6 +7,7 @@
 
 pub mod admission;
 pub mod chat;
+pub mod collaboration;
 pub mod error;
 pub mod files;
 pub mod invite;

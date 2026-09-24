@@ -4,6 +4,7 @@
 //! migration running, and pool metrics. Concrete `sqlx` and `prometheus`
 //! errors are converted into [`DatabaseError`] at this boundary.
 
+mod collaboration;
 mod error;
 mod jobs;
 mod metrics;
@@ -13,6 +14,7 @@ mod session_lifecycle;
 mod settings;
 mod stores;
 
+pub use collaboration::PostgresCollaborationStore;
 pub use error::DatabaseError;
 pub use jobs::{JobAttempt, JobClaim, JobRecord, JobStore, LeasedOutbox, insert_job_in_tx};
 pub use metrics::PoolMetrics;
