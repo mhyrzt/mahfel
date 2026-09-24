@@ -2,6 +2,7 @@
 
 import { useEffect, useReducer, useRef } from "react";
 
+import { browserApiClient } from "@/lib/api/browser";
 import type { Locale } from "@/lib/i18n/config";
 import { messagesFor } from "@/lib/i18n/messages";
 import type { ServerMessage } from "@/lib/websocket/generated/messages";
@@ -18,6 +19,13 @@ interface SessionClientProps {
   locale: Locale;
   sessionId: string;
   title: string;
+}
+
+interface RosterParticipant {
+  id: string;
+  name: string;
+  role: "manager" | "member";
+  avatar_url: string | null;
 }
 
 export function SessionClient({
@@ -39,15 +47,55 @@ export function SessionClient({
 
   useEffect(() => {
     const text = messagesFor(locale).sessions;
+    let active = true;
+    let rosterRequest = 0;
     const client = new SignalingClient(sessionId, handleMessage, handleStatus);
     clientRef.current = client;
     client.connect();
 
     return () => {
+      active = false;
       client.leave();
       client.close();
       clientRef.current = null;
     };
+
+    async function refreshRoster(ids: string[]) {
+      const request = ++rosterRequest;
+      try {
+        const { data } = await browserApiClient.get<RosterParticipant[]>(
+          `/v1/sessions/${sessionId}/roster`,
+        );
+        if (!active || request !== rosterRequest) {
+          return;
+        }
+        const byId = new Map(data.map((item) => [item.id, item]));
+        const participants = ids.map((id) => {
+          const item = byId.get(id);
+          if (!item) {
+            return participantFor(id);
+          }
+          const initials = item.name
+            .split(/\s+/)
+            .filter(Boolean)
+            .slice(0, 2)
+            .map((part) => part[0]?.toUpperCase())
+            .join("");
+          return {
+            id,
+            name: item.name,
+            initials: initials || "P",
+            role: item.role,
+            avatarUrl: item.avatar_url ?? undefined,
+          } satisfies Participant;
+        });
+        dispatch({ type: "roster-synchronized", participants });
+      } catch {
+        if (active && request === rosterRequest) {
+          dispatch({ type: "roster-synchronized", participants: participantList(ids) });
+        }
+      }
+    }
 
     function handleStatus(status: SignalingStatus) {
       if (status === "unauthorized") {
@@ -83,6 +131,7 @@ export function SessionClient({
             capabilities,
           });
           pendingRosterRef.current = null;
+          void refreshRoster(ids);
           return;
         }
         case "join_waiting":
@@ -101,15 +150,20 @@ export function SessionClient({
             type: "roster-synchronized",
             participants: participantList(message.participant_ids),
           });
+          void refreshRoster(message.participant_ids);
           return;
         case "participant_joined":
           dispatch({
             type: "participant-upserted",
             participant: participantFor(message.participant_id),
           });
+          void refreshRoster([
+            ...new Set([...participantsRef.current.map(({ id }) => id), message.participant_id]),
+          ]);
           return;
         case "participant_left":
         case "participant_removed":
+          rosterRequest += 1;
           dispatch({ type: "participant-removed", participantId: message.participant_id });
           return;
         case "principal_blocked":

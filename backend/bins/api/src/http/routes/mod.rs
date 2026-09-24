@@ -1,4 +1,5 @@
 pub(crate) mod admin;
+mod avatar;
 pub(crate) mod collaboration;
 pub(crate) mod echo;
 pub(crate) mod files;

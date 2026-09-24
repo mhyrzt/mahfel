@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, expect, test, vi } from "vitest";
 
 const { clients } = vi.hoisted(() => ({
@@ -10,6 +10,12 @@ const { clients } = vi.hoisted(() => ({
     leave: ReturnType<typeof vi.fn>;
     close: ReturnType<typeof vi.fn>;
   }>,
+}));
+
+const { getRoster } = vi.hoisted(() => ({ getRoster: vi.fn() }));
+
+vi.mock("@/lib/api/browser", () => ({
+  browserApiClient: { get: getRoster },
 }));
 
 vi.mock("@/lib/websocket/client", () => ({
@@ -68,6 +74,31 @@ function deliver(message: object) {
 
 afterEach(() => {
   clients.length = 0;
+  getRoster.mockReset();
+});
+
+test("shows the resolved display name in the live roster", async () => {
+  getRoster.mockResolvedValue({
+    data: [
+      {
+        id: "part-a111",
+        name: "Ada Lovelace",
+        role: "member",
+        avatar_url: "https://storage.example/avatar.png",
+      },
+    ],
+  });
+  mountSession();
+  deliver({ v: 1, type: "joined", session_id: "session-1", participant_id: "part-a111" });
+  deliver({
+    v: 1,
+    type: "session_roster",
+    session_id: "session-1",
+    version: 1,
+    participant_ids: ["part-a111"],
+  });
+
+  await waitFor(() => expect(screen.getAllByText("Ada Lovelace").length).toBeGreaterThan(0));
 });
 
 test("reconciles snapshots and participant events using stable IDs", () => {

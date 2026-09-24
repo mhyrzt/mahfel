@@ -120,6 +120,14 @@ async fn exercise(settings: S3Settings) -> Result<(), Box<dyn Error>> {
 
     let bytes = b"%PDF-1.7\n%%EOF".to_vec();
     let checksum = base64::engine::general_purpose::STANDARD.encode(Sha256::digest(&bytes));
+    let seed_key = format!("uploads/{}", Uuid::new_v4());
+    storage
+        .put_seed_object(&seed_key, "application/pdf", &checksum, bytes.clone())
+        .await?;
+    let seeded = storage.read(&seed_key, 50 * 1024 * 1024).await?;
+    assert_eq!(seeded.bytes, bytes);
+    assert_eq!(seeded.content_type.as_deref(), Some("application/pdf"));
+    storage.delete(&seed_key).await?;
     let key = format!("uploads/{}", Uuid::new_v4());
     let signed = storage
         .presign_upload(

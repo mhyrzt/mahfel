@@ -94,15 +94,56 @@ service waits for Keycloak and PostgreSQL, then creates missing development acco
 them into PostgreSQL. The accounts are `shinji`, `asuka`, `rei`, `misato`, `ritsuko`, and `admin`;
 all use the local-only password `password`. See `deploy/keycloak/README.md` for details. The realm
 import defines clients and roles; canonical development accounts live in
-`backend/seeds/development-users.json`.
+`backend/seeds/0002_development_users.toml`.
 
 Browser authentication is provided by `mahfel-web` with Keycloak, and the API verifies the resulting
 access token as a resource server (ADR 0019); `GET /v1/auth/me` returns `401` without a valid token.
-Development fixtures that pre-provision local users live separately from schema migrations in
-`backend/seeds/`, applied in file-name order. The `mahfel-seed` Compose service applies them (after
-migrations) before the API starts; for host development, run `just backend seed`, or
-`just backend seed path/to/seed.sql` to apply a single SQL file or directory without Keycloak
-accounts. Never run development seeds in production.
+Development fixtures live separately from schema migrations in `backend/seeds/`. The seed command
+parses and validates every selected TOML file before applying it in file-name order. The bundled
+fixtures include the local development principal, Keycloak-backed users, and a classroom with a
+scheduled session. For host development,
+run `just backend seed`, or `just backend seed path/to/seed.toml` to apply one file or a directory.
+The `mahfel-seed` job applies the bundled fixtures after migrations. A user fixture requires
+Keycloak; principal and room fixtures only require PostgreSQL. Re-running fixtures preserves
+existing users, passwords, rooms, memberships, and session state. The classroom fixture has stable
+IDs in `backend/seeds/0003_development_rooms.toml`; its manager and members refer to the bundled
+users. For manual or E2E scenarios, add a TOML file with `kind = "rooms"`, `[[rooms]]` entries
+(`id`, `title`, `manager_id`, `visibility`, optional `members`), and optional `[[rooms.sessions]]`
+entries (`id`, `title`). Rooms need their referenced actors in PostgreSQL first. Seeded sessions
+are scheduled; use the API to exercise lifecycle operations. To add sessions to an existing room,
+use `kind = "sessions"` and `[[sessions]]` entries with `id`, `room_id`, and `title`. Never run
+development seeds in production.
+
+To seed profile pictures or room/session assets, add a later TOML file with `kind = "files"` and
+`[[files]]` entries. Each entry needs a stable `id`, `owner_id`, `context_kind` (`avatar`, `room`, or
+`session`), `context_id`, and `path`. An avatar's context ID must equal its owner ID; room and
+session owners must be members of the room. Paths may be absolute or relative to the TOML file.
+PNG and JPEG are accepted for avatars; room and session assets also accept PDF. Files are checked
+before database writes, uploaded to S3-compatible storage, and verified through the normal file
+completion flow. Re-running a fixture with the same ID and content keeps the ready file. The seed
+process needs the configured storage bucket and write access. For example:
+
+```toml
+kind = "files"
+
+[[files]]
+id = "00000000-0000-4000-8000-000000000301"
+owner_id = "00000000-0000-4000-8000-000000000004"
+context_kind = "avatar"
+context_id = "00000000-0000-4000-8000-000000000004"
+path = "assets/teacher.png"
+
+[[files]]
+id = "00000000-0000-4000-8000-000000000302"
+owner_id = "00000000-0000-4000-8000-000000000004"
+context_kind = "session"
+context_id = "00000000-0000-4000-8000-000000000201"
+path = "/absolute/path/to/slides.pdf"
+```
+
+Ready avatars appear in `GET /v1/auth/me` and the active session roster, and the web profile and
+session tiles use those signed URLs. Room and session assets are available through the existing
+file list and download API for their contexts.
 
 Infrastructure host ports can be changed with the `*_HOST_PORT` values in `.env`. Their defaults
 match the port map. For example, use `MAHFEL_REDIS_HOST_PORT=26379` when another local project owns

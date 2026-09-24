@@ -7,6 +7,7 @@ pub(crate) mod end;
 pub(crate) mod error;
 pub(crate) mod get;
 pub(crate) mod list;
+pub(crate) mod roster;
 pub(crate) mod schedule;
 pub(crate) mod start;
 
@@ -30,6 +31,7 @@ pub(crate) fn route() -> Router<AppState> {
             "/sessions/{session_id}/capabilities",
             get(capabilities::get_capabilities),
         )
+        .route("/sessions/{session_id}/roster", get(roster::roster))
         .route("/sessions/{session_id}/start", post(start::start))
         .route("/sessions/{session_id}/end", post(end::end))
         .route("/sessions/{session_id}/cancel", post(cancel::cancel))

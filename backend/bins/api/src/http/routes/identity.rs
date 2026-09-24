@@ -160,7 +160,10 @@ pub(crate) async fn me(
         }
     };
     let mut profile = ProfileResponse::from_principal(&principal);
-    profile.avatar_url = user_avatar_url.or(profile.avatar_url);
+    profile.avatar_url = super::avatar::ready_avatar_url(&state, principal.actor_id)
+        .await
+        .or(user_avatar_url)
+        .or(profile.avatar_url);
     Ok((
         [(header::CACHE_CONTROL, "private, no-store")],
         Json(profile),
