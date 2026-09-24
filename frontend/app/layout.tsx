@@ -14,6 +14,9 @@ export const metadata: Metadata = {
     template: "%s · Mahfel",
   },
   description: "Realtime communication and collaboration.",
+  icons: {
+    icon: "/mahfel-mark.svg",
+  },
 };
 
 export default async function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {

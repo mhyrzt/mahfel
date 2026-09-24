@@ -5,6 +5,7 @@ const config: StorybookConfig = {
     "../components/**/*.stories.@(js|jsx|mjs|ts|tsx)",
     "../features/**/*.stories.@(js|jsx|mjs|ts|tsx)",
   ],
+  staticDirs: ["../public"],
   addons: ["@storybook/addon-a11y"],
   framework: {
     name: "@storybook/nextjs",

@@ -2,6 +2,13 @@
 
 import { useRouter } from "next/navigation";
 
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import type { Locale } from "@/lib/i18n/config";
 import { messagesFor } from "@/lib/i18n/messages";
 
@@ -23,25 +30,24 @@ export function ThemeSwitcher({ locale, theme }: Readonly<ThemeSwitcherProps>) {
   }
 
   return (
-    <label className="flex items-center gap-2">
-      <span className="sr-only">{messages.label}</span>
-      <select
-        aria-label={messages.label}
-        className="h-10 rounded-md border border-input bg-background px-3 text-sm text-foreground shadow-none outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-        onChange={(event) => {
-          const value = event.currentTarget.value;
-          if (isTheme(value)) {
-            changeTheme(value);
-          }
-        }}
-        value={theme}
-      >
+    <Select
+      onValueChange={(value) => {
+        if (isTheme(value)) {
+          changeTheme(value);
+        }
+      }}
+      value={theme}
+    >
+      <SelectTrigger aria-label={messages.label}>
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent dir={locale === "fa" ? "rtl" : "ltr"}>
         {themes.map((availableTheme) => (
-          <option key={availableTheme} value={availableTheme}>
+          <SelectItem key={availableTheme} value={availableTheme}>
             {messages[availableTheme]}
-          </option>
+          </SelectItem>
         ))}
-      </select>
-    </label>
+      </SelectContent>
+    </Select>
   );
 }

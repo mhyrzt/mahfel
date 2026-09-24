@@ -9,6 +9,9 @@ export interface ServerSessionUser {
   id?: string;
   userId?: string;
   roles?: string[];
+  name?: string | null;
+  email?: string | null;
+  image?: string | null;
 }
 
 export async function getServerSessionUser(): Promise<ServerSessionUser | null> {

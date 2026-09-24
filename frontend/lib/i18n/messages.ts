@@ -8,6 +8,34 @@ export interface Messages {
     dark: string;
     system: string;
   };
+  account: {
+    title: string;
+    description: string;
+    openSettings: string;
+    profile: string;
+    picture: string;
+    name: string;
+    email: string;
+    notSet: string;
+    calendarType: string;
+    gregorian: string;
+    persian: string;
+    language: string;
+    inputs: string;
+    microphone: string;
+    camera: string;
+    enablePreview: string;
+    disablePreview: string;
+    previewOn: string;
+    previewOff: string;
+    previewDescription: string;
+    previewDenied: string;
+    noMicrophones: string;
+    noCameras: string;
+    chooseMicrophone: string;
+    chooseCamera: string;
+    microphoneLevel: string;
+  };
   shell: {
     workspaceNavigation: string;
     mobileNavigation: string;
@@ -82,6 +110,34 @@ const messages: Record<Locale, Messages> = {
   en: {
     language: { en: "English", fa: "Persian" },
     appearance: { label: "Appearance", light: "Light", dark: "Dark", system: "System" },
+    account: {
+      title: "Account",
+      description: "Manage your profile and Mahfel preferences.",
+      openSettings: "Open account settings",
+      profile: "Profile details",
+      picture: "Profile picture",
+      name: "Name",
+      email: "Email",
+      notSet: "Not provided",
+      calendarType: "Calendar type",
+      gregorian: "Gregorian",
+      persian: "Persian",
+      language: "App language",
+      inputs: "Input sources",
+      microphone: "Microphone",
+      camera: "Camera",
+      enablePreview: "Enable device preview",
+      disablePreview: "Stop device preview",
+      previewOn: "Preview on",
+      previewOff: "Preview off",
+      previewDescription: "Allow camera and microphone access to preview your selected devices.",
+      previewDenied: "Device access is unavailable. Check browser permissions and try again.",
+      noMicrophones: "No microphones found",
+      noCameras: "No cameras found",
+      chooseMicrophone: "Choose a microphone",
+      chooseCamera: "Choose a camera",
+      microphoneLevel: "Microphone input level",
+    },
     shell: {
       workspaceNavigation: "Workspace navigation",
       mobileNavigation: "Mobile workspace navigation",
@@ -154,8 +210,36 @@ const messages: Record<Locale, Messages> = {
     },
   },
   fa: {
-    language: { en: "English", fa: "فارسی" },
+    language: { en: "English", fa: "پارسی" },
     appearance: { label: "پوسته", light: "روشن", dark: "تیره", system: "سیستم" },
+    account: {
+      title: "حساب کاربری",
+      description: "نمایه و تنظیمات محفل را مدیریت کنید.",
+      openSettings: "باز کردن تنظیمات حساب کاربری",
+      profile: "جزئیات نمایه",
+      picture: "تصویر نمایه",
+      name: "نام",
+      email: "رایانامه",
+      notSet: "ثبت نشده",
+      calendarType: "نوع تقویم",
+      gregorian: "میلادی",
+      persian: "خورشیدی",
+      language: "زبان برنامه",
+      inputs: "ورودی‌های رسانه",
+      microphone: "میکروفون",
+      camera: "دوربین",
+      enablePreview: "فعال‌سازی پیش‌نمایش دستگاه‌ها",
+      disablePreview: "توقف پیش‌نمایش دستگاه‌ها",
+      previewOn: "پیش‌نمایش روشن",
+      previewOff: "پیش‌نمایش خاموش",
+      previewDescription: "برای پیش‌نمایش دستگاه‌ها، دسترسی دوربین و میکروفون را بدهید.",
+      previewDenied: "دسترسی به دستگاه ممکن نیست. مجوز مرورگر را بررسی و دوباره تلاش کنید.",
+      noMicrophones: "میکروفونی پیدا نشد",
+      noCameras: "دوربینی پیدا نشد",
+      chooseMicrophone: "انتخاب میکروفون",
+      chooseCamera: "انتخاب دوربین",
+      microphoneLevel: "سطح ورودی میکروفون",
+    },
     shell: {
       workspaceNavigation: "ناوبری فضای کاری",
       mobileNavigation: "ناوبری فضای کاری در موبایل",

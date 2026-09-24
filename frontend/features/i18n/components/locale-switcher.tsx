@@ -24,13 +24,13 @@ export function LocaleSwitcher({ locale }: Readonly<LocaleSwitcherProps>) {
   }
 
   return (
-    <div className="flex items-center gap-1" aria-label="Language">
+    <div className="grid w-full grid-cols-2 gap-1" aria-label="Language">
       {locales.map((availableLocale) => (
         <Button
           aria-pressed={availableLocale === locale}
           key={availableLocale}
           onClick={() => changeLocale(availableLocale)}
-          size="sm"
+          className="h-10"
           variant={availableLocale === locale ? "secondary" : "ghost"}
         >
           {messages.language[availableLocale]}
