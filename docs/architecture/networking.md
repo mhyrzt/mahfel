@@ -38,8 +38,9 @@ Compose-only Keycloak service. Keycloak is also the production provider; only th
 client secret differ between the two through configuration.
 
 Browser REST traffic is authenticated in `mahfel-web` and forwarded to `mahfel-api` by its narrow
-BFF (ADR 0019); WebSocket traffic connects to the API directly. The BFF is not a general proxy, so
-media, WebSocket, and presigned S3 traffic never pass through Next.js.
+BFF (ADR 0019); WebSocket traffic connects to the API directly after a single-use ticket is
+obtained through the BFF (ADR 0025). The BFF is not a general proxy, so media, WebSocket, and
+presigned S3 traffic never pass through Next.js.
 
 Caddy routes `s3.mahfel.localhost` to the RustFS S3 API, `storage.mahfel.localhost` to its console,
 and `rabbitmq.mahfel.localhost` to the local RabbitMQ management UI. The latter is an operator

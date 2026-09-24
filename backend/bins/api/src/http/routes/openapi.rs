@@ -75,6 +75,7 @@ Protected routes require an Authorization: Bearer token. User requests use Keycl
         super::health::health,
         super::echo::list,
         super::echo::create,
+        crate::http::ws::tickets::create_ticket,
         // Files
         super::files::upload::initiate,
         super::files::upload::complete,

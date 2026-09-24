@@ -11,6 +11,7 @@ mod keys;
 mod media_placement;
 mod media_registry;
 mod metrics;
+mod one_time;
 mod session_presence;
 mod settings;
 

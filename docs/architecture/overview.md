@@ -30,7 +30,8 @@ flowchart LR
 
 Authenticated REST calls go from the browser to `mahfel-web`, whose narrow BFF forwards allowlisted
 `/v1` paths to `mahfel-api` with the Keycloak access token (ADR 0019). WebSocket signaling connects
-to the API directly. Next.js is not a general proxy: WebSocket, media, and presigned S3 traffic
+to the API directly after the browser obtains a short-lived single-use ticket through the narrow BFF
+(ADR 0025). Next.js is not a general proxy: WebSocket, media, and presigned S3 traffic
 never pass through it. Signaling passes through the API, but negotiated media never does: direct
 WebRTC flows between browser and media node, falling back through coturn only when network traversal
 requires it.

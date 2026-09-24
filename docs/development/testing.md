@@ -58,8 +58,11 @@ the client and server message enums with `asyncapi-rust` (ADR 0024). The export 
 `specs/openapi.json` and `specs/asyncapi.json`. Its WebSocket operations use the API's perspective:
 `receiveClientMessage` accepts client frames and `sendServerMessage` emits server frames. Each
 payload includes the protocol version `v` and optional correlation `id`; clients should send
-`v: 1`. Authenticate with a bearer token on the upgrade request or send an `auth` frame before
-other client frames. The generated frontend types do not validate incoming frames at runtime.
+`v: 1`. Native clients can authenticate with a bearer token on the upgrade request or in an
+`auth` frame. Browser clients must request a ten-second single-use ticket from
+`POST /v1/ws/tickets` and send it in the first `auth` frame; the frontend obtains it through its
+exact BFF allowlist entry and then connects directly to the API (ADR 0025). The generated frontend
+types do not validate incoming frames at runtime.
 
 An interactive Bruno collection for manual and end-to-end requests is planned under `bruno/`
 (ADR 0016) and is not yet present; the directory holds a placeholder.

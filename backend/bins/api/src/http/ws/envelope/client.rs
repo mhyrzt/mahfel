@@ -13,11 +13,13 @@ use serde::{Deserialize, Serialize};
 )]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum ClientMessage {
-    /// Authenticate the connection. `token` is validated by the authenticator;
-    /// the interim development authenticator ignores it.
+    /// Authenticate the connection with either a bearer token (native clients)
+    /// or a short-lived single-use ticket (browser clients).
     Auth {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         token: Option<String>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        ticket: Option<String>,
     },
     /// Reply to the sender only.
     #[asyncapi(message_name = "ClientEcho")]

@@ -68,4 +68,5 @@ nav:
       - 0022 Service principals: adr/0022-service-principals.md
       - 0023 Dyn-compatible store ports: adr/0023-dyn-compatible-store-ports.md
       - 0024 WebSocket AsyncAPI generation: adr/0024-generate-websocket-asyncapi.md
+      - 0025 Single-use WebSocket tickets: adr/0025-single-use-websocket-auth-tickets.md
   - Backlog: backlog/roadmap.md

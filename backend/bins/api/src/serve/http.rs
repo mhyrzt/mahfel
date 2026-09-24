@@ -121,7 +121,8 @@ pub(super) async fn app(
     .with_session_presence(
         coordination.store.clone(),
         PostgresSessionLifecycle::new(lifecycle_pool),
-    );
+    )
+    .with_auth_tickets(coordination.store.clone());
     realtime.speakers.spawn_placed(
         placement,
         realtime.registry.clone(),

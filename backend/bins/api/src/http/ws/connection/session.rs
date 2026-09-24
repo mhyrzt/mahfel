@@ -39,7 +39,14 @@ pub(super) async fn run(
         Some(principal) => principal,
         None => {
             let auth_timeout = connection.config().auth_timeout;
-            match authenticate_first(&mut stream, authenticator, auth_timeout).await {
+            match authenticate_first(
+                &mut stream,
+                authenticator,
+                state.auth_tickets.as_ref(),
+                auth_timeout,
+            )
+            .await
+            {
                 Ok(principal) => principal,
                 Err(reason) => {
                     connection.close(CLOSE_UNAUTHORIZED, "unauthorized").await;
@@ -234,16 +241,25 @@ async fn receive_loop(
 async fn authenticate_first(
     stream: &mut SocketStream,
     authenticator: &dyn RequestAuthenticator,
+    ticket_store: Option<&mahfel_redis::RedisCoordination>,
     within: Duration,
 ) -> Result<Principal, DisconnectReason> {
     let attempt = async {
         loop {
             match stream.next().await {
                 Some(Ok(Message::Text(text))) => match envelope::parse(text.as_str()) {
-                    Ok(ClientMessage::Auth { token }) => {
-                        let claims = authenticator.verify(token.as_deref()).await?;
-                        return principal_from_claims(&claims);
-                    }
+                    Ok(ClientMessage::Auth { token, ticket }) => match (token, ticket) {
+                        (Some(token), None) => {
+                            let claims = authenticator.verify(Some(&token)).await?;
+                            return principal_from_claims(&claims);
+                        }
+                        (None, Some(ticket)) => {
+                            return super::super::tickets::consume(ticket_store, &ticket)
+                                .await
+                                .ok_or(AuthenticationError::MissingToken);
+                        }
+                        _ => return Err(AuthenticationError::MissingToken),
+                    },
                     Ok(_) | Err(_) => return Err(AuthenticationError::MissingToken),
                 },
                 Some(Ok(Message::Ping(_))) | Some(Ok(Message::Pong(_))) => {}

@@ -296,7 +296,7 @@
         "tags": [
           "identity"
         ],
-        "summary": "Current application profile, resolved from the token without a database read.",
+        "summary": "Current application profile, with the local avatar overriding the token picture claim.",
         "operationId": "me",
         "responses": {
           "200": {
@@ -4166,6 +4166,51 @@
           }
         ]
       }
+    },
+    "/v1/ws/tickets": {
+      "post": {
+        "tags": [
+          "realtime"
+        ],
+        "operationId": "create_ticket",
+        "responses": {
+          "201": {
+            "description": "Short-lived, single-use WebSocket credential",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreateTicketResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Ticket service unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
     }
   },
   "components": {
@@ -4489,6 +4534,23 @@
             "description": "Optional custom title. Otherwise the room's current title is displayed.",
             "maxLength": 300,
             "minLength": 1
+          }
+        }
+      },
+      "CreateTicketResponse": {
+        "type": "object",
+        "required": [
+          "ticket",
+          "expires_in"
+        ],
+        "properties": {
+          "expires_in": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "ticket": {
+            "type": "string"
           }
         }
       },

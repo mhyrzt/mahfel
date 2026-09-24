@@ -9,6 +9,7 @@ mod registry;
 mod session_fanout;
 mod speaker;
 mod state;
+pub(crate) mod tickets;
 
 pub use config::WsConfig;
 pub use metrics::WsMetrics;
@@ -24,7 +25,7 @@ use axum::{
     extract::{State, WebSocketUpgrade},
     http::{HeaderMap, header},
     response::Response,
-    routing::get,
+    routing::{get, post},
 };
 
 const AT_CAPACITY: &str = "realtime capacity reached";
@@ -32,7 +33,9 @@ const AT_CAPACITY: &str = "realtime capacity reached";
 /// Versioned WebSocket route. The protocol version lives in the envelope, not
 /// the URL.
 pub(super) fn route() -> Router<AppState> {
-    Router::new().route("/ws", get(upgrade))
+    Router::new()
+        .route("/ws", get(upgrade))
+        .route("/ws/tickets", post(tickets::create_ticket))
 }
 
 async fn upgrade(

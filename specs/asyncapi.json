@@ -189,10 +189,16 @@
         "contentType": "application/json",
         "name": "Auth",
         "payload": {
-          "description": "Authenticate the connection. `token` is validated by the authenticator;\nthe interim development authenticator ignores it.",
+          "description": "Authenticate the connection with either a bearer token (native clients)\nor a short-lived single-use ticket (browser clients).",
           "properties": {
             "id": {
               "type": "string"
+            },
+            "ticket": {
+              "type": [
+                "string",
+                "null"
+              ]
             },
             "token": {
               "type": [

@@ -43,6 +43,7 @@ pub struct WsState {
     chat_redis: Option<RedisCoordination>,
     chat_wake: Arc<Notify>,
     pub session_presence: Option<RedisCoordination>,
+    pub auth_tickets: Option<RedisCoordination>,
     session_lifecycle: Option<PostgresSessionLifecycle>,
     session_wake: Arc<Notify>,
 }
@@ -73,6 +74,7 @@ impl WsState {
             chat_redis: None,
             chat_wake: Arc::new(Notify::new()),
             session_presence: None,
+            auth_tickets: None,
             session_lifecycle: None,
             session_wake: Arc::new(Notify::new()),
         }
@@ -111,6 +113,11 @@ impl WsState {
             Arc::clone(&self.session_wake),
             self.shutdown.clone(),
         );
+        self
+    }
+
+    pub fn with_auth_tickets(mut self, redis: RedisCoordination) -> Self {
+        self.auth_tickets = Some(redis);
         self
     }
 
