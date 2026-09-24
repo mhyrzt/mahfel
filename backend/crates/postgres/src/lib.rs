@@ -5,6 +5,7 @@
 //! errors are converted into [`DatabaseError`] at this boundary.
 
 mod error;
+mod jobs;
 mod metrics;
 mod migrations;
 mod pool;
@@ -13,6 +14,7 @@ mod settings;
 mod stores;
 
 pub use error::DatabaseError;
+pub use jobs::{JobAttempt, JobClaim, JobRecord, JobStore, LeasedOutbox, insert_job_in_tx};
 pub use metrics::PoolMetrics;
 pub use migrations::migrate;
 pub use pool::{connect, ping};
