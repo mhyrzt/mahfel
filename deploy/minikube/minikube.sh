@@ -85,14 +85,21 @@ wait_for_job() {
 build() {
   require_minikube
   cd "${repo_dir}"
+  local -a proxy_build_args=(
+    --build-arg HTTP_PROXY
+    --build-arg HTTPS_PROXY
+    --build-arg ALL_PROXY
+    --build-arg NO_PROXY
+  )
   for target in api media worker; do
     step "Building and loading mahfel-${target}"
-    docker build -f backend/Dockerfile --target "${target}" -t "mahfel-${target}:local" .
+    docker build --network=host "${proxy_build_args[@]}" \
+      -f backend/Dockerfile --target "${target}" -t "mahfel-${target}:local" .
     minikube image load "mahfel-${target}:local"
     success "mahfel-${target} loaded"
   done
   step 'Building and loading mahfel-web'
-  docker build -f frontend/Dockerfile \
+  docker build --network=host "${proxy_build_args[@]}" -f frontend/Dockerfile \
     --build-arg NEXT_PUBLIC_MAHFEL_API_URL=https://api.mahfel.localhost \
     -t mahfel-web:local .
   minikube image load mahfel-web:local

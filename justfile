@@ -80,7 +80,9 @@ compose-up *profiles:
     if [[ -z "${selected[*]}" ]]; then selected=(mahfel infrastructure observability); fi
     flags=()
     for profile in "${selected[@]}"; do flags+=(--profile "$profile"); done
-    docker compose "${flags[@]}" up --build -d
+    build_args=(--build-arg HTTP_PROXY --build-arg HTTPS_PROXY --build-arg ALL_PROXY --build-arg NO_PROXY)
+    docker compose "${flags[@]}" build "${build_args[@]}"
+    docker compose "${flags[@]}" up -d
     if printf '%s\n' "${selected[@]}" | grep -qx mahfel; then just trust-local-ca; fi
 
 # Stop the local Compose stack. Named volumes are retained.

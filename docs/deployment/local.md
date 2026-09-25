@@ -46,6 +46,10 @@ HTTPS certificate work or when proxying to host-run services.
 The first media build is slow because `mediasoup-sys` builds the native worker. It also downloads
 Python build tooling and Meson wrap dependencies; CI/build networks must permit those downloads or
 provide a prewarmed cache/mirror.
+The backend image builder also needs access to `static.rust-lang.org` to install the components
+listed in `backend/rust-toolchain.toml`. `just compose-up` uses the host network for image builds
+and forwards configured `HTTP_PROXY`, `HTTPS_PROXY`, `ALL_PROXY`, and `NO_PROXY` variables to
+BuildKit when they are set.
 
 Verify endpoints:
 

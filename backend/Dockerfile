@@ -7,7 +7,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     rm -rf /var/lib/apt/lists/*
 RUN apt-get update && apt-get install -y --no-install-recommends python3-pip && \
     rm -rf /var/lib/apt/lists/*
-RUN rustup component add rustfmt --toolchain 1.95.0 && rustfmt --version
+RUN rustup component add clippy rustfmt --toolchain 1.95.0 && \
+    clippy-driver --version && rustfmt --version
 RUN cargo install cargo-chef --version 0.1.78 --locked
 WORKDIR /source
 
