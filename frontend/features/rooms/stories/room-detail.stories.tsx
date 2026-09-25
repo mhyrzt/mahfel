@@ -1,13 +1,12 @@
 import type { Meta, StoryObj } from "@storybook/nextjs";
 
-import { ChatMessageList } from "@/features/chat/components/chat-message-list";
 import { FileList } from "@/features/files/components/file-list";
 import { InviteLinkList } from "@/features/invites/components/invite-link-list";
 import { AdmissionQueue } from "@/features/sessions/components/admission-queue";
-import { roomCopy } from "@/features/rooms/room-copy";
 
 import { RoomAdmissionSettings } from "../room-admission-settings";
 import { RoomDetailView, RoomHeader, RoomSessions } from "../room-detail";
+import { RoomSettingsDialog } from "../room-settings-dialog";
 
 const room = {
   id: "research-methods",
@@ -69,47 +68,12 @@ const files = [
   },
 ];
 
-function ChatFixture({ locale = "en" }: Readonly<{ locale?: "en" | "fa" }>) {
-  const text = roomCopy(locale);
-  return (
-    <section aria-label={text.chat} className="space-y-4" data-testid="room-chat">
-      <h2 className="text-lg font-semibold">{text.chat}</h2>
-      <ChatMessageList
-        roomId={room.id}
-        locale={locale}
-        actorId="manager-1"
-        messages={[
-          {
-            id: "message-1",
-            author_id: "participant-8f3d",
-            channel_id: room.id,
-            content: "See the reading list before Friday.",
-            created_at: "2026-09-24T09:00:00Z",
-          },
-          {
-            id: "message-2",
-            author_id: "manager-1",
-            channel_id: room.id,
-            content: "Thanks, I’ll add notes here.",
-            created_at: "2026-09-24T09:01:00Z",
-          },
-        ]}
-      />
-    </section>
-  );
-}
-
-const meta = {
-  title: "Rooms/Detail Page",
-  component: RoomDetailView,
-  args: {
-    room,
-    sessions,
-    locale: "en",
-    canManageSession: true,
-    chat: <ChatFixture />,
-    files: <FileList files={files} locale="en" canDelete actorId="manager-1" />,
-    invites: (
+const managerSettings = (
+  <RoomSettingsDialog
+    locale="en"
+    lobby={<AdmissionQueue requests={[]} />}
+    admissionSettings={<RoomAdmissionSettings roomId={room.id} initialPolicy="lobby" locale="en" />}
+    invites={
       <InviteLinkList
         links={[
           {
@@ -121,9 +85,20 @@ const meta = {
           },
         ]}
       />
-    ),
-    lobby: <AdmissionQueue requests={[]} />,
-    admissionSettings: <RoomAdmissionSettings roomId={room.id} initialPolicy="lobby" locale="en" />,
+    }
+  />
+);
+
+const meta = {
+  title: "Rooms/Detail Page",
+  component: RoomDetailView,
+  args: {
+    room,
+    sessions,
+    locale: "en",
+    canManageSession: true,
+    settings: managerSettings,
+    files: <FileList files={files} locale="en" canDelete actorId="manager-1" />,
   },
 } satisfies Meta<typeof RoomDetailView>;
 
@@ -134,24 +109,22 @@ export const Manager: Story = {};
 export const Member: Story = {
   args: {
     canManageSession: false,
-    invites: null,
-    lobby: null,
-    admissionSettings: null,
+    settings: null,
     files: <FileList files={files} locale="en" canDelete={false} actorId="member-1" />,
   },
 };
 export const EmptyRoom: Story = {
   args: {
     sessions: [],
-    chat: <ChatMessageList roomId={room.id} locale="en" messages={[]} />,
     files: <FileList files={[]} locale="en" canDelete={false} />,
-    invites: null,
-    lobby: null,
-    admissionSettings: null,
+    settings: null,
   },
 };
 export const Header: Story = {
   render: () => <RoomHeader room={room} locale="en" canManageSession />,
+};
+export const SettingsDialog: Story = {
+  render: () => managerSettings,
 };
 export const SessionList: Story = {
   render: () => <RoomSessions sessions={sessions} locale="en" />,
@@ -159,11 +132,17 @@ export const SessionList: Story = {
 export const Persian: Story = {
   args: {
     locale: "fa",
-    chat: <ChatFixture locale="fa" />,
     files: <FileList files={files} locale="fa" canDelete={false} />,
-    invites: null,
-    lobby: null,
-    admissionSettings: null,
+    settings: (
+      <RoomSettingsDialog
+        locale="fa"
+        lobby={<AdmissionQueue requests={[]} locale="fa" />}
+        admissionSettings={
+          <RoomAdmissionSettings roomId={room.id} initialPolicy="lobby" locale="fa" />
+        }
+        invites={<InviteLinkList links={[]} locale="fa" />}
+      />
+    ),
   },
   decorators: [
     (Story) => (

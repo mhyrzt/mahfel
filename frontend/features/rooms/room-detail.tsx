@@ -1,6 +1,5 @@
 import type { ReactNode } from "react";
 
-import { RoomChat } from "@/features/chat/components/room-chat";
 import { ContextFileLibrary } from "@/features/files/components/context-file-library";
 import { InviteManager } from "@/features/invites/components/invite-manager";
 import { CreateSessionButton } from "@/features/sessions/components/create-session-button";
@@ -11,6 +10,7 @@ import { roomCopy } from "./room-copy";
 import { RoomLobby } from "./room-lobby";
 import { RoomAdmissionSettings } from "./room-admission-settings";
 import { RoomSessions } from "./room-sessions";
+import { RoomSettingsDialog } from "./room-settings-dialog";
 
 export { RoomSessions } from "./room-sessions";
 
@@ -38,14 +38,6 @@ export function RoomDetail({
       sessions={sessions}
       locale={locale}
       canManageSession={canManageSession}
-      chat={
-        <RoomChat
-          roomId={room.id}
-          locale={locale}
-          actorId={actorId}
-          canModerate={role === "manager"}
-        />
-      }
       files={
         <ContextFileLibrary
           context={{ kind: "room", id: room.id }}
@@ -54,15 +46,20 @@ export function RoomDetail({
           actorId={actorId}
         />
       }
-      invites={
+      settings={
         role === "manager" ? (
-          <InviteManager target="room" targetId={room.id} locale={locale} />
-        ) : null
-      }
-      lobby={role === "manager" ? <RoomLobby roomId={room.id} locale={locale} /> : null}
-      admissionSettings={
-        role === "manager" ? (
-          <RoomAdmissionSettings roomId={room.id} initialPolicy={room.admission} locale={locale} />
+          <RoomSettingsDialog
+            locale={locale}
+            invites={<InviteManager target="room" targetId={room.id} locale={locale} />}
+            lobby={<RoomLobby roomId={room.id} locale={locale} />}
+            admissionSettings={
+              <RoomAdmissionSettings
+                roomId={room.id}
+                initialPolicy={room.admission}
+                locale={locale}
+              />
+            }
+          />
         ) : null
       }
     />
@@ -74,38 +71,33 @@ export function RoomDetailView({
   sessions,
   locale,
   canManageSession,
-  chat,
   files,
-  invites,
-  lobby,
-  admissionSettings,
+  settings,
 }: Readonly<{
   room: Room;
   sessions: Session[];
   locale: Locale;
   canManageSession: boolean;
-  chat?: ReactNode;
   files?: ReactNode;
-  invites?: ReactNode;
-  lobby?: ReactNode;
-  admissionSettings?: ReactNode;
+  settings?: ReactNode;
 }>) {
   return (
     <div className="mx-auto max-w-7xl space-y-8 pb-16" data-testid="room-detail">
-      <RoomHeader room={room} locale={locale} canManageSession={canManageSession} />
+      <RoomHeader
+        room={room}
+        locale={locale}
+        canManageSession={canManageSession}
+        settings={settings}
+      />
       <div className="grid items-start gap-10 xl:grid-cols-[minmax(0,1fr)_19rem]">
         <div className="min-w-0 space-y-12">
           <RoomSessions sessions={sessions} locale={locale} />
-          {chat}
         </div>
         <aside
           className="min-w-0 space-y-8 xl:border-s xl:ps-8"
           aria-label={roomCopy(locale).roomTools}
         >
           {files}
-          {invites}
-          {lobby}
-          {admissionSettings}
         </aside>
       </div>
     </div>
@@ -116,7 +108,8 @@ export function RoomHeader({
   room,
   locale,
   canManageSession,
-}: Readonly<{ room: Room; locale: Locale; canManageSession: boolean }>) {
+  settings,
+}: Readonly<{ room: Room; locale: Locale; canManageSession: boolean; settings?: ReactNode }>) {
   const text = roomCopy(locale);
   return (
     <header className="border-b pb-7 pt-2">
@@ -132,7 +125,10 @@ export function RoomHeader({
             <span>{room.admission === "lobby" ? text.lobby : text.openAdmission}</span>
           </p>
         </div>
-        {canManageSession ? <CreateSessionButton room={room} locale={locale} /> : null}
+        <div className="flex flex-wrap items-center gap-2">
+          {settings}
+          {canManageSession ? <CreateSessionButton room={room} locale={locale} /> : null}
+        </div>
       </div>
     </header>
   );

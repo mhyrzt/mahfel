@@ -1,9 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { CalendarDays, Clock3, Play, Radio } from "lucide-react";
+import { CalendarDays, Clock3, LogIn, Play, Radio } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import type { components } from "@/lib/api/generated/schema";
 import type { Locale } from "@/lib/i18n/config";
 import { cn } from "@/lib/utils";
@@ -122,23 +123,35 @@ export function RoomSessions({
                       {session.scheduled_start_at ? text.scheduledFor : text.createdOn}
                     </p>
                   </div>
-                  <div className="flex shrink-0 items-center gap-2 sm:ms-auto">
-                    <Button
-                      aria-label={text.playbackUnavailable}
-                      disabled
-                      size="sm"
-                      title={text.playbackUnavailable}
-                      variant="outline"
-                    >
-                      <Play aria-hidden="true" className="size-4" />
-                      {text.playback}
-                    </Button>
-                    <Button asChild size="sm" variant={live ? "default" : "outline"}>
-                      <Link href={`/session/${session.id}`}>
-                        {live ? text.joinSession : text.viewSession}
-                      </Link>
-                    </Button>
-                  </div>
+                  <TooltipProvider>
+                    <div className="flex shrink-0 items-center gap-2 sm:ms-auto">
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <span tabIndex={0}>
+                            <Button
+                              aria-label={text.playbackUnavailable}
+                              disabled
+                              size="icon"
+                              variant="outline"
+                            >
+                              <Play aria-hidden="true" className="size-4" />
+                            </Button>
+                          </span>
+                        </TooltipTrigger>
+                        <TooltipContent>{text.playbackUnavailable}</TooltipContent>
+                      </Tooltip>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button asChild size="icon" variant={live ? "default" : "outline"}>
+                            <Link aria-label={text.joinSession} href={`/session/${session.id}`}>
+                              <LogIn aria-hidden="true" className="size-4" />
+                            </Link>
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>{text.joinSession}</TooltipContent>
+                      </Tooltip>
+                    </div>
+                  </TooltipProvider>
                 </div>
                 <SessionFiles locale={locale} roomId={session.room_id} sessionId={session.id} />
               </li>
