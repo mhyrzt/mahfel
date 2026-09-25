@@ -1,12 +1,14 @@
 import type { Meta, StoryObj } from "@storybook/nextjs";
+import type { components } from "@/lib/api/generated/schema";
 
-import { FileList } from "@/features/files/components/file-list";
 import { InviteLinkList } from "@/features/invites/components/invite-link-list";
 import { AdmissionQueue } from "@/features/sessions/components/admission-queue";
 
 import { RoomAdmissionSettings } from "../room-admission-settings";
 import { RoomDetailView, RoomHeader, RoomSessions } from "../room-detail";
+import { RoomMembers } from "../room-members";
 import { RoomSettingsDialog } from "../room-settings-dialog";
+import { SessionSettingsDialog } from "../session-settings-dialog";
 
 const room = {
   id: "research-methods",
@@ -52,7 +54,8 @@ const sessions = [
     updated_at: "2026-09-19T10:15:00Z",
   },
 ];
-const files = [
+type FileRecord = components["schemas"]["FileResponse"];
+const roomFiles: FileRecord[] = [
   {
     id: "reading-list",
     file_name: "Reading list.pdf",
@@ -67,12 +70,79 @@ const files = [
     status: "ready",
   },
 ];
+const sessionFile: FileRecord = {
+  ...roomFiles[0],
+  id: "workshop-handout",
+  file_name: "Workshop handout.pdf",
+  context_id: "live-workshop",
+  context_kind: "session" as const,
+};
+const fileData = Object.fromEntries(
+  sessions.map((session) => [
+    session.id,
+    {
+      files: session.id === "live-workshop" ? [sessionFile] : [],
+      usedIds: [],
+      roomFiles,
+      attachRoomFile: async (file: FileRecord) => file,
+      uploadSessionFile: async (file: File) => ({
+        ...sessionFile,
+        id: `demo-${file.name}`,
+        file_name: file.name,
+        mime: file.type || "application/octet-stream",
+        size_bytes: file.size,
+      }),
+    },
+  ]),
+);
+const populatedSessions = [
+  ...sessions,
+  ...Array.from({ length: 10 }, (_, index) => ({
+    ...sessions[1],
+    id: `weekly-discussion-${index + 2}`,
+    title: `Weekly research discussion ${index + 2}`,
+    scheduled_start_at: new Date(Date.UTC(2026, 8, 28 + index * 7, 9)).toISOString(),
+  })),
+];
+const populatedFileData = Object.fromEntries(
+  populatedSessions.map((session) => [
+    session.id,
+    fileData[session.id] ?? {
+      files: [],
+      usedIds: [],
+      roomFiles,
+      attachRoomFile: async (file: FileRecord) => file,
+      uploadSessionFile: async (file: File) => ({
+        ...sessionFile,
+        id: `demo-${file.name}`,
+        file_name: file.name,
+        mime: file.type || "application/octet-stream",
+        size_bytes: file.size,
+      }),
+    },
+  ]),
+);
 
 const managerSettings = (
   <RoomSettingsDialog
     locale="en"
-    lobby={<AdmissionQueue requests={[]} />}
-    admissionSettings={<RoomAdmissionSettings roomId={room.id} initialPolicy="lobby" locale="en" />}
+    requests={
+      <div className="space-y-5">
+        <RoomAdmissionSettings roomId={room.id} initialPolicy="lobby" locale="en" />
+        <AdmissionQueue requests={[]} />
+      </div>
+    }
+    members={
+      <RoomMembers
+        roomId={room.id}
+        locale="en"
+        actorId="manager-1"
+        initialMembers={[
+          { user_id: "manager-1", role: "manager" },
+          { user_id: "member-2", role: "member" },
+        ]}
+      />
+    }
     invites={
       <InviteLinkList
         links={[
@@ -98,7 +168,7 @@ const meta = {
     locale: "en",
     canManageSession: true,
     settings: managerSettings,
-    files: <FileList files={files} locale="en" canDelete actorId="manager-1" />,
+    fileData,
   },
 } satisfies Meta<typeof RoomDetailView>;
 
@@ -110,13 +180,11 @@ export const Member: Story = {
   args: {
     canManageSession: false,
     settings: null,
-    files: <FileList files={files} locale="en" canDelete={false} actorId="member-1" />,
   },
 };
 export const EmptyRoom: Story = {
   args: {
     sessions: [],
-    files: <FileList files={[]} locale="en" canDelete={false} />,
     settings: null,
   },
 };
@@ -127,18 +195,45 @@ export const SettingsDialog: Story = {
   render: () => managerSettings,
 };
 export const SessionList: Story = {
-  render: () => <RoomSessions sessions={sessions} locale="en" />,
+  render: () => (
+    <RoomSessions sessions={sessions} locale="en" fileData={fileData} canManageSession />
+  ),
+};
+export const SessionSettings: Story = {
+  render: () => <SessionSettingsDialog session={sessions[1]} locale="en" />,
+};
+export const PopulatedRoom: Story = {
+  args: { sessions: populatedSessions, fileData: populatedFileData },
+};
+export const MobileRoom: Story = {
+  args: { sessions: populatedSessions, fileData: populatedFileData },
+  parameters: { viewport: { defaultViewport: "mobile1" } },
+  decorators: [
+    (Story) => (
+      <div className="mx-auto max-w-[390px] px-3">
+        <Story />
+      </div>
+    ),
+  ],
 };
 export const Persian: Story = {
   args: {
     locale: "fa",
-    files: <FileList files={files} locale="fa" canDelete={false} />,
     settings: (
       <RoomSettingsDialog
         locale="fa"
-        lobby={<AdmissionQueue requests={[]} locale="fa" />}
-        admissionSettings={
-          <RoomAdmissionSettings roomId={room.id} initialPolicy="lobby" locale="fa" />
+        requests={
+          <div className="space-y-5">
+            <RoomAdmissionSettings roomId={room.id} initialPolicy="lobby" locale="fa" />
+            <AdmissionQueue requests={[]} locale="fa" />
+          </div>
+        }
+        members={
+          <RoomMembers
+            roomId={room.id}
+            locale="fa"
+            initialMembers={[{ user_id: "manager-1", role: "manager" }]}
+          />
         }
         invites={<InviteLinkList links={[]} locale="fa" />}
       />

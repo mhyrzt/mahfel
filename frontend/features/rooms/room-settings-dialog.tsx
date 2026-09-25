@@ -13,6 +13,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import type { Locale } from "@/lib/i18n/config";
 
 import { roomCopy } from "./room-copy";
@@ -20,24 +21,36 @@ import { roomCopy } from "./room-copy";
 export function RoomSettingsDialog({
   locale,
   invites,
-  lobby,
-  admissionSettings,
+  requests,
+  members,
 }: Readonly<{
   locale: Locale;
   invites: ReactNode;
-  lobby: ReactNode;
-  admissionSettings: ReactNode;
+  requests: ReactNode;
+  members: ReactNode;
 }>) {
   const text = roomCopy(locale);
 
   return (
     <Dialog>
-      <DialogTrigger asChild>
-        <Button data-testid="room-settings-trigger" type="button" variant="outline">
-          <Settings2 aria-hidden="true" className="size-4" />
-          {text.settings}
-        </Button>
-      </DialogTrigger>
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <DialogTrigger asChild>
+              <Button
+                aria-label={text.settings}
+                data-testid="room-settings-trigger"
+                size="icon"
+                type="button"
+                variant="outline"
+              >
+                <Settings2 aria-hidden="true" className="size-4" />
+              </Button>
+            </DialogTrigger>
+          </TooltipTrigger>
+          <TooltipContent>{text.settings}</TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
       <DialogContent
         className="max-h-[min(85vh,48rem)] max-w-2xl overflow-y-auto"
         data-testid="room-settings-dialog"
@@ -49,14 +62,14 @@ export function RoomSettingsDialog({
         <Tabs defaultValue="requests">
           <TabsList className="h-auto w-full flex-wrap justify-start gap-1">
             <TabsTrigger value="requests">{text.roomRequests}</TabsTrigger>
-            <TabsTrigger value="admission">{text.admissionSettings}</TabsTrigger>
+            <TabsTrigger value="members">{text.members}</TabsTrigger>
             <TabsTrigger value="invites">{text.invites}</TabsTrigger>
           </TabsList>
           <TabsContent className="pt-4" value="requests">
-            {lobby}
+            {requests}
           </TabsContent>
-          <TabsContent className="pt-4" value="admission">
-            {admissionSettings}
+          <TabsContent className="pt-4" value="members">
+            {members}
           </TabsContent>
           <TabsContent className="pt-4" value="invites">
             {invites}

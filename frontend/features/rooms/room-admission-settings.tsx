@@ -3,7 +3,6 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
-import { Button } from "@/components/ui/button";
 import { browserApiClient } from "@/lib/api/browser";
 import type { Locale } from "@/lib/i18n/config";
 
@@ -17,19 +16,18 @@ export function RoomAdmissionSettings({
   const text = roomCopy(locale);
   const router = useRouter();
   const [policy, setPolicy] = useState(initialPolicy);
-  const [saved, setSaved] = useState(initialPolicy);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState(false);
 
-  async function save() {
+  async function toggle() {
+    const next = policy === "lobby" ? "open" : "lobby";
     setPending(true);
     try {
       const { data } = await browserApiClient.put<{ policy: "open" | "lobby" }>(
         `/v1/rooms/${encodeURIComponent(roomId)}/admission`,
-        { policy },
+        { policy: next },
       );
       setPolicy(data.policy);
-      setSaved(data.policy);
       setError(false);
       router.refresh();
     } catch {
@@ -40,26 +38,31 @@ export function RoomAdmissionSettings({
   }
 
   return (
-    <section className="space-y-3" data-testid="room-admission-settings">
-      <h2 className="text-lg font-semibold">{text.admissionSettings}</h2>
-      <div className="flex flex-wrap items-end gap-3">
-        <div className="space-y-1">
-          <label className="block text-sm font-medium" htmlFor={`admission-${roomId}`}>
-            {text.admissionPolicy}
-          </label>
-          <select
-            className="h-10 rounded-md border border-input bg-background px-3 text-sm focus-visible:ring-2 focus-visible:ring-ring"
-            id={`admission-${roomId}`}
-            onChange={(event) => setPolicy(event.target.value as "open" | "lobby")}
-            value={policy}
-          >
-            <option value="open">{text.openAdmission}</option>
-            <option value="lobby">{text.lobby}</option>
-          </select>
+    <section className="space-y-3 border-b pb-5" data-testid="room-admission-settings">
+      <div className="flex items-center justify-between gap-4">
+        <div>
+          <h2 className="text-sm font-semibold">{text.admissionPolicy}</h2>
+          <p className="text-xs text-muted-foreground">
+            {policy === "lobby" ? text.lobby : text.openAdmission}
+          </p>
         </div>
-        <Button disabled={pending || policy === saved} onClick={() => void save()}>
-          {text.save}
-        </Button>
+        <button
+          aria-checked={policy === "lobby"}
+          aria-label={text.lobby}
+          className="relative h-6 w-11 shrink-0 rounded-full bg-muted-foreground/40 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring data-[checked=true]:bg-primary disabled:opacity-50"
+          data-checked={policy === "lobby"}
+          data-testid="room-admission-toggle"
+          disabled={pending}
+          onClick={() => void toggle()}
+          role="switch"
+          type="button"
+        >
+          <span
+            aria-hidden="true"
+            className="absolute start-0.5 top-0.5 size-5 rounded-full bg-background shadow-sm transition-transform data-[checked=true]:translate-x-5 rtl:data-[checked=true]:-translate-x-5"
+            data-checked={policy === "lobby"}
+          />
+        </button>
       </div>
       {error ? (
         <p role="alert" className="text-sm text-destructive">

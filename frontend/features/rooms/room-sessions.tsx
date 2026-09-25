@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { CalendarDays, Clock3, LogIn, Play, Radio } from "lucide-react";
+import { CalendarDays, Clock3, Film, Radio } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -11,8 +11,18 @@ import { cn } from "@/lib/utils";
 
 import { roomCopy } from "./room-copy";
 import { SessionFiles } from "./session-files";
+import { SessionSettingsDialog } from "./session-settings-dialog";
 
 type Session = components["schemas"]["SessionResponse"];
+type FileRecord = components["schemas"]["FileResponse"];
+
+export interface SessionFileFixture {
+  files: FileRecord[];
+  usedIds?: string[];
+  roomFiles?: FileRecord[];
+  attachRoomFile?: (file: FileRecord) => Promise<FileRecord>;
+  uploadSessionFile?: (file: File) => Promise<FileRecord>;
+}
 
 function SessionTime({ value, locale }: Readonly<{ value: string; locale: Locale }>) {
   const date = new Date(value);
@@ -37,32 +47,22 @@ function SessionTime({ value, locale }: Readonly<{ value: string; locale: Locale
 export function RoomSessions({
   sessions,
   locale,
-}: Readonly<{ sessions: Session[]; locale: Locale }>) {
+  fileData,
+  canManageSession = false,
+}: Readonly<{
+  sessions: Session[];
+  locale: Locale;
+  fileData?: Record<string, SessionFileFixture>;
+  canManageSession?: boolean;
+}>) {
   const text = roomCopy(locale);
-  const sorted = [...sessions].sort((left, right) => {
-    if (left.status === "live" && right.status !== "live") {
-      return -1;
-    }
-    if (right.status === "live" && left.status !== "live") {
-      return 1;
-    }
-    return (right.scheduled_start_at ?? right.created_at).localeCompare(
-      left.scheduled_start_at ?? left.created_at,
-    );
-  });
+  const sorted = [...sessions].sort((left, right) =>
+    (left.scheduled_start_at ?? left.created_at).localeCompare(
+      right.scheduled_start_at ?? right.created_at,
+    ),
+  );
   return (
-    <section aria-labelledby="room-sessions" className="space-y-5" data-testid="room-sessions">
-      <div className="flex items-end justify-between gap-4">
-        <div>
-          <p className="mb-1 text-xs font-semibold tracking-wide text-muted-foreground">
-            {text.roomActivity}
-          </p>
-          <h2 className="text-2xl font-semibold tracking-tight" id="room-sessions">
-            {text.sessions}
-          </h2>
-        </div>
-        <span className="text-sm tabular-nums text-muted-foreground">{sessions.length}</span>
-      </div>
+    <section aria-label={text.sessions} className="space-y-5" data-testid="room-sessions">
       {sessions.length === 0 ? (
         <div className="rounded-xl border border-dashed bg-card px-6 py-12">
           <CalendarDays aria-hidden="true" className="mb-4 size-6 text-muted-foreground" />
@@ -84,9 +84,9 @@ export function RoomSessions({
                 data-testid={`room-session-${session.id}`}
                 key={session.id}
               >
-                <div className="flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:gap-6 sm:p-6">
+                <div className="grid grid-cols-[5rem_minmax(0,1fr)] items-center gap-x-4 gap-y-3 p-4 sm:grid-cols-[6rem_minmax(0,1fr)_auto] sm:gap-x-6 sm:p-6">
                   <div
-                    className="flex w-24 shrink-0 flex-col gap-0.5 border-s-2 border-primary/50 ps-3 text-sm font-medium tabular-nums text-foreground [&_time]:flex [&_time]:flex-col"
+                    className="flex min-w-0 flex-col gap-0.5 border-s-2 border-primary/50 ps-3 text-sm font-medium tabular-nums text-foreground [&_time]:flex [&_time]:flex-col"
                     data-testid="session-schedule"
                   >
                     <SessionTime locale={locale} value={date} />
@@ -124,7 +124,7 @@ export function RoomSessions({
                     </p>
                   </div>
                   <TooltipProvider>
-                    <div className="flex shrink-0 items-center gap-2 sm:ms-auto">
+                    <div className="col-span-2 flex shrink-0 items-center justify-end gap-2 sm:col-span-1 sm:ms-auto">
                       <Tooltip>
                         <TooltipTrigger asChild>
                           <span tabIndex={0}>
@@ -134,26 +134,28 @@ export function RoomSessions({
                               size="icon"
                               variant="outline"
                             >
-                              <Play aria-hidden="true" className="size-4" />
+                              <Film aria-hidden="true" className="size-4" />
                             </Button>
                           </span>
                         </TooltipTrigger>
                         <TooltipContent>{text.playbackUnavailable}</TooltipContent>
                       </Tooltip>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Button asChild size="icon" variant={live ? "default" : "outline"}>
-                            <Link aria-label={text.joinSession} href={`/session/${session.id}`}>
-                              <LogIn aria-hidden="true" className="size-4" />
-                            </Link>
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent>{text.joinSession}</TooltipContent>
-                      </Tooltip>
+                      {canManageSession ? (
+                        <SessionSettingsDialog session={session} locale={locale} />
+                      ) : null}
                     </div>
                   </TooltipProvider>
                 </div>
-                <SessionFiles locale={locale} roomId={session.room_id} sessionId={session.id} />
+                <SessionFiles
+                  locale={locale}
+                  roomId={session.room_id}
+                  sessionId={session.id}
+                  initialFiles={fileData?.[session.id]?.files}
+                  initialUsedIds={fileData?.[session.id]?.usedIds}
+                  initialRoomFiles={fileData?.[session.id]?.roomFiles}
+                  attachRoomFile={fileData?.[session.id]?.attachRoomFile}
+                  uploadSessionFile={fileData?.[session.id]?.uploadSessionFile}
+                />
               </li>
             );
           })}

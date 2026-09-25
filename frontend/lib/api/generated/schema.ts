@@ -151,6 +151,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/files/session-links": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Attach a room file to a session */
+    post: operations["link_to_session"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/v1/files/uploads": {
     parameters: {
       query?: never;
@@ -524,7 +541,8 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
-    get?: never;
+    /** List room members */
+    get: operations["list"];
     put?: never;
     /** Add a room member */
     post: operations["add"];
@@ -1424,6 +1442,12 @@ export interface components {
      * @enum {string}
      */
     InviteTargetKindDto: "room" | "session";
+    LinkRoomFileRequest: {
+      /** Format: uuid */
+      file_id: string;
+      /** Format: uuid */
+      session_id: string;
+    };
     LobbyEntryResponse: {
       actor_id: string;
       origin: string;
@@ -1434,6 +1458,9 @@ export interface components {
     LobbyResponse: {
       entries: components["schemas"]["LobbyEntryResponse"][];
       session_id: string;
+    };
+    MemberListResponse: {
+      members: components["schemas"]["MemberResponse"][];
     };
     MemberResponse: {
       role: components["schemas"]["RoomRoleDto"];
@@ -2158,6 +2185,57 @@ export interface operations {
         };
       };
       /** @description Context not found or inaccessible */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
+      };
+    };
+  };
+  link_to_session: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["LinkRoomFileRequest"];
+      };
+    };
+    responses: {
+      /** @description Existing room file attached to session */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["FileResponse"];
+        };
+      };
+      /** @description Authentication required */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
+      };
+      /** @description Caller cannot attach files to this session */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
+      };
+      /** @description File or session not found in the same room */
       404: {
         headers: {
           [name: string]: unknown;
@@ -3322,6 +3400,56 @@ export interface operations {
         };
       };
       409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
+      };
+    };
+  };
+  list: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Room identifier (UUID) */
+        room_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Room members */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["MemberListResponse"];
+        };
+      };
+      /** @description Authentication required */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
+      };
+      /** @description Caller is not a manager */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
+      };
+      /** @description Room or caller membership not found */
+      404: {
         headers: {
           [name: string]: unknown;
         };

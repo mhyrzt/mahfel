@@ -1,15 +1,14 @@
 import type { ReactNode } from "react";
 
-import { ContextFileLibrary } from "@/features/files/components/context-file-library";
 import { InviteManager } from "@/features/invites/components/invite-manager";
 import { CreateSessionButton } from "@/features/sessions/components/create-session-button";
 import type { components } from "@/lib/api/generated/schema";
 import type { Locale } from "@/lib/i18n/config";
 
-import { roomCopy } from "./room-copy";
 import { RoomLobby } from "./room-lobby";
 import { RoomAdmissionSettings } from "./room-admission-settings";
-import { RoomSessions } from "./room-sessions";
+import { RoomMembers } from "./room-members";
+import { RoomSessions, type SessionFileFixture } from "./room-sessions";
 import { RoomSettingsDialog } from "./room-settings-dialog";
 
 export { RoomSessions } from "./room-sessions";
@@ -38,27 +37,22 @@ export function RoomDetail({
       sessions={sessions}
       locale={locale}
       canManageSession={canManageSession}
-      files={
-        <ContextFileLibrary
-          context={{ kind: "room", id: room.id }}
-          locale={locale}
-          canDelete={role === "manager"}
-          actorId={actorId}
-        />
-      }
       settings={
         role === "manager" ? (
           <RoomSettingsDialog
             locale={locale}
             invites={<InviteManager target="room" targetId={room.id} locale={locale} />}
-            lobby={<RoomLobby roomId={room.id} locale={locale} />}
-            admissionSettings={
-              <RoomAdmissionSettings
-                roomId={room.id}
-                initialPolicy={room.admission}
-                locale={locale}
-              />
+            requests={
+              <>
+                <RoomAdmissionSettings
+                  roomId={room.id}
+                  initialPolicy={room.admission}
+                  locale={locale}
+                />
+                <RoomLobby roomId={room.id} locale={locale} />
+              </>
             }
+            members={<RoomMembers roomId={room.id} actorId={actorId} locale={locale} />}
           />
         ) : null
       }
@@ -71,35 +65,30 @@ export function RoomDetailView({
   sessions,
   locale,
   canManageSession,
-  files,
   settings,
+  fileData,
 }: Readonly<{
   room: Room;
   sessions: Session[];
   locale: Locale;
   canManageSession: boolean;
-  files?: ReactNode;
   settings?: ReactNode;
+  fileData?: Record<string, SessionFileFixture>;
 }>) {
   return (
-    <div className="mx-auto max-w-7xl space-y-8 pb-16" data-testid="room-detail">
+    <div className="mx-auto max-w-5xl space-y-8 pb-16" data-testid="room-detail">
       <RoomHeader
         room={room}
         locale={locale}
         canManageSession={canManageSession}
         settings={settings}
       />
-      <div className="grid items-start gap-10 xl:grid-cols-[minmax(0,1fr)_19rem]">
-        <div className="min-w-0 space-y-12">
-          <RoomSessions sessions={sessions} locale={locale} />
-        </div>
-        <aside
-          className="min-w-0 space-y-8 xl:border-s xl:ps-8"
-          aria-label={roomCopy(locale).roomTools}
-        >
-          {files}
-        </aside>
-      </div>
+      <RoomSessions
+        sessions={sessions}
+        locale={locale}
+        fileData={fileData}
+        canManageSession={canManageSession}
+      />
     </div>
   );
 }
@@ -110,25 +99,14 @@ export function RoomHeader({
   canManageSession,
   settings,
 }: Readonly<{ room: Room; locale: Locale; canManageSession: boolean; settings?: ReactNode }>) {
-  const text = roomCopy(locale);
   return (
-    <header className="border-b pb-7 pt-2">
-      <div className="flex flex-wrap items-end justify-between gap-6">
-        <div className="min-w-0 space-y-3">
-          <p className="text-xs font-semibold tracking-wide text-muted-foreground">{text.room}</p>
-          <h1 className="max-w-3xl text-balance text-3xl font-semibold leading-tight tracking-tight sm:text-4xl">
-            {room.title}
-          </h1>
-          <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
-            <span>{room.visibility === "invite_only" ? text.inviteOnly : text.public}</span>
-            <span aria-hidden="true">·</span>
-            <span>{room.admission === "lobby" ? text.lobby : text.openAdmission}</span>
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          {settings}
-          {canManageSession ? <CreateSessionButton room={room} locale={locale} /> : null}
-        </div>
+    <header className="flex flex-wrap items-end justify-between gap-4 border-b pb-5 pt-2">
+      <h1 className="min-w-0 break-words text-2xl font-semibold tracking-tight sm:text-3xl">
+        {room.title}
+      </h1>
+      <div className="flex shrink-0 flex-wrap items-center gap-2">
+        {settings}
+        {canManageSession ? <CreateSessionButton room={room} locale={locale} /> : null}
       </div>
     </header>
   );
