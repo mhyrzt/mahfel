@@ -12,16 +12,17 @@ Keycloak, and the application (at least 4 CPUs and 8 GiB of memory is a useful s
 From the repository root:
 
 ```bash
-just minikube init
 just minikube bootstrap
 ```
 
-Initialize the cluster once. `just minikube bootstrap` builds and deploys the apps and keeps HTTPS
-forwarding open until interrupted. Host ports 80 and 443 must be free. Run `just minikube status`
-in another terminal to inspect the stack.
+`just minikube bootstrap` initializes the Docker-driver cluster and kubectl context when needed,
+builds and deploys the apps, and keeps HTTPS forwarding open until interrupted. Host ports 80 and 443
+must be free. Run `just minikube status` in another terminal to inspect the stack.
 
-The first media image build is slow because mediasoup builds native components. `build` builds
-the API, media, worker, and web Docker targets and loads the resulting `:local` images into
+The first media image build is slow because mediasoup builds native components. Container builds
+need access to `static.rust-lang.org` to install the pinned Rust components. `build` builds
+the API, media, worker, and web Docker targets using the host network and configured proxy
+environment, then loads the resulting `:local` images into
 Minikube. Re-run `build` after source changes and `up` to apply configuration. To restart an
 unchanged-tag image after rebuilding, use `kubectl -n mahfel rollout restart deployment/mahfel-api`
 (or the corresponding deployment). The API image includes `backend/seeds/`, including assets kept

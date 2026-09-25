@@ -21,7 +21,7 @@ init:
     kubectl config use-context minikube
 
 # Build and deploy Minikube, then keep local HTTPS forwarded.
-bootstrap: build up forward
+bootstrap: init build up forward
 
 # Build the four application images and load them into Minikube.
 build:
