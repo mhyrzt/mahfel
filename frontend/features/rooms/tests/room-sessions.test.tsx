@@ -42,6 +42,8 @@ beforeEach(() => {
   listFiles.mockReset();
   get.mockReset();
   getFileDownloadUrl.mockReset();
+  listFiles.mockResolvedValue([]);
+  get.mockResolvedValue({ data: null });
 });
 
 test("shows scheduling, live state, and unavailable playback", () => {
@@ -50,26 +52,25 @@ test("shows scheduling, live state, and unavailable playback", () => {
   expect(within(row).getByText("Ongoing")).toBeInTheDocument();
   expect(within(row).getByText("Weekly review")).toHaveAttribute("href", "/session/session-1");
   expect(within(row).getByText("60 min")).toBeInTheDocument();
-  expect(
-    within(row).getByRole("button", { name: "Playback is not available yet." }),
-  ).toBeDisabled();
-  expect(within(row).getByRole("link", { name: "Join session" })).toHaveAttribute(
-    "href",
-    "/session/session-1",
-  );
+  const playback = within(row).getByRole("button", {
+    name: "Playback is not available yet.",
+  });
+  expect(playback).toBeDisabled();
+  expect(playback.querySelector(".lucide-film")).toBeInTheDocument();
+  expect(within(row).queryByRole("link", { name: "Join session" })).not.toBeInTheDocument();
   expect(within(row).getByTestId("session-schedule").querySelector("time")).toHaveAttribute(
     "datetime",
     session.scheduled_start_at,
   );
 });
 
-test("scheduled sessions keep the join label on the icon action", () => {
+test("scheduled sessions link from their title without a separate join action", () => {
   render(<RoomSessions locale="en" sessions={[{ ...session, status: "scheduled" }]} />);
-  expect(screen.getByRole("link", { name: "Join session" })).toHaveAttribute(
+  expect(screen.getByRole("link", { name: "Weekly review" })).toHaveAttribute(
     "href",
     "/session/session-1",
   );
-  expect(screen.queryByRole("link", { name: "View session" })).not.toBeInTheDocument();
+  expect(screen.queryByRole("link", { name: "Join session" })).not.toBeInTheDocument();
 });
 
 test("uses Persian status and playback copy", () => {
@@ -83,7 +84,10 @@ test("expands session files and separates presented files from other attachments
   get.mockResolvedValue({ data: { file_ids: ["presented"] } });
   render(<RoomSessions locale="en" sessions={[session]} />);
 
-  fireEvent.click(screen.getByRole("button", { name: "Session files" }));
+  expect(screen.getByRole("button", { name: "Session files" })).toHaveAttribute(
+    "aria-expanded",
+    "true",
+  );
   await waitFor(() =>
     expect(listFiles).toHaveBeenCalledWith({ kind: "session", id: "session-1" }, 100),
   );
@@ -104,7 +108,20 @@ test("includes a room file when the session presentation uses it", async () => {
   get.mockResolvedValue({ data: { file_ids: ["room-slide"] } });
   render(<RoomSessions locale="en" sessions={[session]} />);
 
-  fireEvent.click(screen.getByRole("button", { name: "Session files" }));
   expect(await screen.findByTestId("attachment-room-slide")).toBeInTheDocument();
   expect(listFiles).toHaveBeenCalledWith({ kind: "room", id: "room-1" }, 100);
+});
+
+test("sorts sessions oldest first and allows the file grid to collapse", () => {
+  const older = { ...session, id: "older", scheduled_start_at: "2026-09-01T09:30:00Z" };
+  const newer = { ...session, id: "newer", scheduled_start_at: "2026-10-01T09:30:00Z" };
+  render(<RoomSessions locale="en" sessions={[newer, older]} />);
+  const rows = screen.getAllByTestId(/^room-session-/);
+  expect(screen.queryByText("2")).not.toBeInTheDocument();
+  expect(rows[0]).toHaveAttribute("data-testid", "room-session-older");
+  expect(rows[1]).toHaveAttribute("data-testid", "room-session-newer");
+  const grid = screen.getByTestId("session-attachments-older");
+  expect(grid).toHaveClass("max-h-72", "overflow-y-auto");
+  fireEvent.click(screen.getAllByRole("button", { name: "Session files" })[0]);
+  expect(screen.queryByTestId("session-attachments-older")).not.toBeInTheDocument();
 });

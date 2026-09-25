@@ -20,12 +20,16 @@ test("keeps manager controls in a tabbed dialog and omits conversation", () => {
       sessions={[]}
       locale="en"
       canManageSession={false}
-      files={<p>Shared files</p>}
       settings={
         <RoomSettingsDialog
           locale="en"
-          lobby={<p>Pending request</p>}
-          admissionSettings={<p>Joining policy control</p>}
+          requests={
+            <>
+              <p>Pending request</p>
+              <p>Joining policy control</p>
+            </>
+          }
+          members={<p>Member control</p>}
           invites={<p>Invite code control</p>}
         />
       }
@@ -34,15 +38,20 @@ test("keeps manager controls in a tabbed dialog and omits conversation", () => {
 
   const page = screen.getByTestId("room-detail");
   expect(within(page).getByTestId("room-sessions")).toBeInTheDocument();
-  expect(within(page).getByText("Shared files")).toBeInTheDocument();
+  expect(within(page).getByRole("heading", { name: "Research methods" })).toBeInTheDocument();
+  expect(within(page).queryByRole("heading", { name: "Sessions" })).not.toBeInTheDocument();
+  expect(within(page).queryByText("Invite only")).not.toBeInTheDocument();
+  expect(within(page).queryByText("Lobby admission")).not.toBeInTheDocument();
+  expect(within(page).queryByText("Files")).not.toBeInTheDocument();
   expect(within(page).queryByText("Conversation")).not.toBeInTheDocument();
   expect(screen.queryByText("Pending request")).not.toBeInTheDocument();
 
   fireEvent.click(screen.getByRole("button", { name: "Room settings" }));
   const dialog = screen.getByRole("dialog", { name: "Room settings" });
   expect(within(dialog).getByText("Pending request")).toBeInTheDocument();
-  fireEvent.mouseDown(within(dialog).getByRole("tab", { name: "Admission" }), { button: 0 });
   expect(within(dialog).getByText("Joining policy control")).toBeInTheDocument();
+  fireEvent.mouseDown(within(dialog).getByRole("tab", { name: "Members" }), { button: 0 });
+  expect(within(dialog).getByText("Member control")).toBeInTheDocument();
   fireEvent.mouseDown(within(dialog).getByRole("tab", { name: "Invite links" }), { button: 0 });
   expect(within(dialog).getByText("Invite code control")).toBeInTheDocument();
   expect(within(page).queryByText("Invite code control")).not.toBeInTheDocument();
