@@ -4,7 +4,7 @@ title: M9-05 Finalization worker
 status: To Do
 assignee: []
 created_date: '2026-09-08 00:32'
-updated_date: '2026-09-23 01:21'
+updated_date: '2026-09-24 02:16'
 labels: []
 milestone: m-9
 dependencies: []
@@ -35,4 +35,6 @@ Dependencies: M9-04, M8
 Design note: Finalization must retain the event timeline, snapshots, and presentation references with synchronized A/V timestamps. Interactive replay reconstructs the shared document, canvas, viewport, and slide state; optional video export is a separate rendering step.
 
 Design clarification: Any downloadable video uses a recording-specific composition, independent of the live frontend layout. Finalization maps canonical audio/video and collaboration state into that composition; it does not need to reproduce live UI components.
+
+Replay synchronization clarification: Finalized recordings remain independently playable media segments plus the ordered collaboration timeline on one recording clock. Seeking moves audio/video playback to the target time and restores the shared workspace from a snapshot plus later events; finalization does not need to flatten the workspace into a movie.
 <!-- SECTION:NOTES:END -->
