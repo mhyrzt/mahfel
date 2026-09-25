@@ -3,6 +3,19 @@ use crate::ports::{MediaGateway, RoomStore, StoreError};
 use mahfel_domain::{ActorId, RoomId, RoomMember, RoomRole, ensure_member_removable};
 use time::OffsetDateTime;
 
+/// Managers may inspect the room roster before changing memberships.
+pub async fn list_members<R>(
+    rooms: &R,
+    room_id: RoomId,
+    actor: ActorId,
+) -> Result<Vec<RoomMember>, RoomOperationError>
+where
+    R: RoomStore + ?Sized,
+{
+    super::require_manager(rooms, room_id, actor).await?;
+    Ok(rooms.list_members(room_id).await?)
+}
+
 /// Manager-only: add a member, granting access immediately (auto join).
 pub async fn add_member<R>(
     rooms: &R,

@@ -69,7 +69,10 @@ pub(crate) fn route() -> Router<AppState> {
             get(admission::get_admission).put(admission::set_admission),
         )
         .route("/rooms/{room_id}/archive", post(archive::archive))
-        .route("/rooms/{room_id}/members", post(members::add))
+        .route(
+            "/rooms/{room_id}/members",
+            get(members::list).post(members::add),
+        )
         .route(
             "/rooms/{room_id}/members/{user_id}",
             delete(members::remove).patch(members::change_role),

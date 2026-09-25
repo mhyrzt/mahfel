@@ -397,6 +397,12 @@ async fn verify_migrations_and_stores(
         files.list(FileContext::Session(session.id), 100, 0).await?[0].id,
         session_file.id
     );
+    assert!(files.link_room_file_to_session(file.id, session.id).await?);
+    assert!(files.link_room_file_to_session(file.id, session.id).await?);
+    assert!(!files.link_room_file_to_session(session_file.id, session.id).await?);
+    let attached = files.list(FileContext::Session(session.id), 100, 0).await?;
+    assert_eq!(attached.len(), 2);
+    assert!(attached.iter().any(|item| item.id == file.id));
 
     let later_channel = ChatChannel::for_room(ChatChannelId::new(), room.id, now);
     let later_draft = ChatMessageDraft::new(

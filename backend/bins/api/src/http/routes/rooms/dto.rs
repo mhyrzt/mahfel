@@ -124,6 +124,11 @@ pub(crate) struct MemberResponse {
 }
 
 #[derive(Debug, Serialize, ToSchema)]
+pub(crate) struct MemberListResponse {
+    pub(crate) members: Vec<MemberResponse>,
+}
+
+#[derive(Debug, Serialize, ToSchema)]
 pub(crate) struct OwnMembershipResponse {
     pub(crate) role: RoomRoleDto,
     pub(crate) can_manage_session: bool,

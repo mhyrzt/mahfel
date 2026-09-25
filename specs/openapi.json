@@ -549,6 +549,67 @@
         }
       }
     },
+    "/v1/files/session-links": {
+      "post": {
+        "tags": [
+          "files"
+        ],
+        "summary": "Attach a room file to a session",
+        "operationId": "link_to_session",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LinkRoomFileRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Existing room file attached to session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FileResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Caller cannot attach files to this session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "File or session not found in the same room",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/files/uploads": {
       "post": {
         "tags": [
@@ -2043,6 +2104,66 @@
       }
     },
     "/v1/rooms/{room_id}/members": {
+      "get": {
+        "tags": [
+          "rooms"
+        ],
+        "summary": "List room members",
+        "operationId": "list",
+        "parameters": [
+          {
+            "name": "room_id",
+            "in": "path",
+            "description": "Room identifier (UUID)",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Room members",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MemberListResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Caller is not a manager",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Room or caller membership not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
       "post": {
         "tags": [
           "rooms"
@@ -5820,6 +5941,23 @@
           "session"
         ]
       },
+      "LinkRoomFileRequest": {
+        "type": "object",
+        "required": [
+          "file_id",
+          "session_id"
+        ],
+        "properties": {
+          "file_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "session_id": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
       "LobbyEntryResponse": {
         "type": "object",
         "required": [
@@ -5859,6 +5997,20 @@
           },
           "session_id": {
             "type": "string"
+          }
+        }
+      },
+      "MemberListResponse": {
+        "type": "object",
+        "required": [
+          "members"
+        ],
+        "properties": {
+          "members": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MemberResponse"
+            }
           }
         }
       },

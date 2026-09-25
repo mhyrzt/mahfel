@@ -1,4 +1,4 @@
-use super::dto::{AddMemberRequest, MemberResponse, RoomRoleDto};
+use super::dto::{AddMemberRequest, MemberListResponse, MemberResponse, RoomRoleDto};
 use crate::http::{
     auth::Authenticated,
     error::ApiError,
@@ -6,9 +6,38 @@ use crate::http::{
     state::AppState,
 };
 use axum::{Json, extract::State, http::StatusCode};
-use mahfel_application::rooms::{add_member, change_member_role, remove_member};
+use mahfel_application::rooms::{add_member, change_member_role, list_members, remove_member};
 use mahfel_domain::{ActorId, RoomId};
 use uuid::Uuid;
+
+#[utoipa::path(
+    get,
+    path = "/v1/rooms/{room_id}/members",
+    summary = "List room members",
+    tag = "rooms",
+    params(("room_id" = String, Path, description = "Room identifier (UUID)")),
+    responses(
+        (status = 200, description = "Room members", body = MemberListResponse),
+        (status = 401, description = "Authentication required"),
+        (status = 403, description = "Caller is not a manager"),
+        (status = 404, description = "Room or caller membership not found"),
+    ),
+)]
+pub(crate) async fn list(
+    State(state): State<AppState>,
+    Authenticated(principal): Authenticated,
+    ValidatedPath(room_id): ValidatedPath<Uuid>,
+) -> Result<Json<MemberListResponse>, ApiError> {
+    let members = list_members(
+        state.rooms.as_ref(),
+        RoomId::from_uuid(room_id),
+        principal.actor_id,
+    )
+    .await?;
+    Ok(Json(MemberListResponse {
+        members: members.into_iter().map(MemberResponse::from).collect(),
+    }))
+}
 
 #[utoipa::path(
     post,

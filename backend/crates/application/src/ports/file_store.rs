@@ -1,5 +1,5 @@
 use crate::ports::{BoxFuture, StoreError};
-use mahfel_domain::{ActorId, FileContext, FileId, FileObject, FileStatus, RoomId};
+use mahfel_domain::{ActorId, FileContext, FileId, FileObject, FileStatus, RoomId, SessionId};
 use time::OffsetDateTime;
 
 pub trait FileStore: Send + Sync {
@@ -15,6 +15,11 @@ pub trait FileStore: Send + Sync {
         limit: u32,
         offset: u64,
     ) -> BoxFuture<'_, Result<Vec<FileObject>, StoreError>>;
+    fn link_room_file_to_session(
+        &self,
+        file_id: FileId,
+        session_id: SessionId,
+    ) -> BoxFuture<'_, Result<bool, StoreError>>;
     fn transition<'a>(
         &'a self,
         id: FileId,

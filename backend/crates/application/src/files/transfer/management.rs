@@ -1,7 +1,7 @@
 use crate::files::FileOperationError;
 use crate::files::access::{FileAccess, require_access};
 use crate::ports::{FileStorage, FileStore, PresignedFileRequest, RoomStore};
-use mahfel_domain::{ActorId, FileContext, FileId, FileObject, FileStatus};
+use mahfel_domain::{ActorId, FileContext, FileId, FileObject, FileStatus, SessionId};
 use std::time::Duration;
 use time::OffsetDateTime;
 
@@ -22,6 +22,46 @@ pub struct ListFiles {
     pub context: FileContext,
     pub limit: u32,
     pub offset: u64,
+}
+
+pub struct LinkRoomFile {
+    pub actor: ActorId,
+    pub file_id: FileId,
+    pub session_id: SessionId,
+}
+
+pub async fn link_room_file<F: FileStore + ?Sized, R: RoomStore + ?Sized>(
+    files: &F,
+    rooms: &R,
+    input: LinkRoomFile,
+) -> Result<FileObject, FileOperationError> {
+    let file = files
+        .get(input.file_id)
+        .await?
+        .ok_or(FileOperationError::NotFound)?;
+    let FileContext::Room(source_room) = file.context else {
+        return Err(FileOperationError::NotFound);
+    };
+    if file.status != FileStatus::Ready {
+        return Err(FileOperationError::NotReady);
+    }
+    let target = FileContext::Session(input.session_id);
+    let target_room = files
+        .context_room(target)
+        .await?
+        .ok_or(FileOperationError::NotFound)?;
+    if source_room != target_room {
+        return Err(FileOperationError::NotFound);
+    }
+    require_access(files, rooms, file.context, input.actor, FileAccess::Read).await?;
+    require_access(files, rooms, target, input.actor, FileAccess::Upload).await?;
+    if !files
+        .link_room_file_to_session(file.id, input.session_id)
+        .await?
+    {
+        return Err(FileOperationError::NotFound);
+    }
+    Ok(file)
 }
 
 pub async fn download_file<

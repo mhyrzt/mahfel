@@ -144,11 +144,34 @@ impl FileStore for PostgresFileStore {
         Box::pin(async move {
             let (room_id, session_id, chat_message_id, avatar_actor_id, recording_session_id) =
                 context_columns(context);
-            let rows = sqlx::query_as::<_, FileRow>("SELECT id, object_key, owner_actor_id, room_id, session_id, chat_message_id, avatar_actor_id, recording_session_id, status, file_name, declared_mime, verified_mime, size_bytes, checksum_sha_256, created_at, updated_at FROM mahfel.files WHERE status = 'ready' AND (room_id = $1 OR session_id = $2 OR chat_message_id = $3 OR avatar_actor_id = $4 OR recording_session_id = $5) AND NOT EXISTS (SELECT 1 FROM mahfel.collaboration_document_assets asset WHERE asset.file_id = mahfel.files.id) ORDER BY created_at DESC, id DESC LIMIT $6 OFFSET $7")
+            let rows = sqlx::query_as::<_, FileRow>("SELECT id, object_key, owner_actor_id, room_id, session_id, chat_message_id, avatar_actor_id, recording_session_id, status, file_name, declared_mime, verified_mime, size_bytes, checksum_sha_256, created_at, updated_at FROM mahfel.files WHERE status = 'ready' AND (room_id = $1 OR session_id = $2 OR chat_message_id = $3 OR avatar_actor_id = $4 OR recording_session_id = $5 OR EXISTS (SELECT 1 FROM mahfel.session_file_links link WHERE link.file_id = mahfel.files.id AND link.session_id = $2)) AND NOT EXISTS (SELECT 1 FROM mahfel.collaboration_document_assets asset WHERE asset.file_id = mahfel.files.id) ORDER BY created_at DESC, id DESC LIMIT $6 OFFSET $7")
                 .bind(room_id).bind(session_id).bind(chat_message_id).bind(avatar_actor_id).bind(recording_session_id)
                 .bind(i64::from(limit)).bind(i64::try_from(offset).unwrap_or(i64::MAX))
                 .fetch_all(&self.pool).await.map_err(sqlx_store_error)?;
             rows.into_iter().map(TryInto::try_into).collect()
+        })
+    }
+
+    fn link_room_file_to_session(
+        &self,
+        file_id: FileId,
+        session_id: SessionId,
+    ) -> BoxFuture<'_, Result<bool, StoreError>> {
+        Box::pin(async move {
+            let linked: Option<Uuid> = sqlx::query_scalar(
+                "INSERT INTO mahfel.session_file_links (session_id, file_id) \
+                 SELECT session.id, file.id FROM mahfel.sessions session \
+                 JOIN mahfel.files file ON file.room_id = session.room_id \
+                 WHERE session.id = $1 AND file.id = $2 AND file.status = 'ready' \
+                 ON CONFLICT (session_id, file_id) DO UPDATE SET file_id = EXCLUDED.file_id \
+                 RETURNING file_id",
+            )
+            .bind(session_id.as_uuid())
+            .bind(file_id.as_uuid())
+            .fetch_optional(&self.pool)
+            .await
+            .map_err(sqlx_store_error)?;
+            Ok(linked.is_some())
         })
     }
 

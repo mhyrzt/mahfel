@@ -1,4 +1,4 @@
-use super::dto::{FileContextInput, FileContextKind, FileListResponse, context};
+use super::dto::{FileContextInput, FileContextKind, FileListResponse, FileResponse, context};
 use crate::http::{
     auth::Authenticated, error::ApiError, extractor::ValidatedPath, state::AppState,
 };
@@ -6,15 +6,58 @@ use axum::{
     Json, Router,
     extract::{Query, State},
     http::StatusCode,
-    routing::{delete, get},
+    routing::{delete, get, post},
 };
-use mahfel_application::files::{DeleteFile, ListFiles, delete_file, list_files};
+use mahfel_application::files::{
+    DeleteFile, LinkRoomFile, ListFiles, delete_file, link_room_file, list_files,
+};
+use mahfel_domain::{FileId, SessionId};
+use serde::Deserialize;
+use utoipa::ToSchema;
 use uuid::Uuid;
+
+#[derive(Debug, Deserialize, ToSchema)]
+pub(crate) struct LinkRoomFileRequest {
+    pub(crate) file_id: Uuid,
+    pub(crate) session_id: Uuid,
+}
 
 pub(crate) fn route() -> Router<AppState> {
     Router::new()
         .route("/files", get(list))
+        .route("/files/session-links", post(link_to_session))
         .route("/files/{file_id}", delete(remove))
+}
+
+#[utoipa::path(
+    post,
+    path = "/v1/files/session-links",
+    tag = "files",
+    summary = "Attach a room file to a session",
+    request_body = LinkRoomFileRequest,
+    responses(
+        (status = 200, description = "Existing room file attached to session", body = FileResponse),
+        (status = 401, description = "Authentication required"),
+        (status = 403, description = "Caller cannot attach files to this session"),
+        (status = 404, description = "File or session not found in the same room"),
+    )
+)]
+pub(crate) async fn link_to_session(
+    State(state): State<AppState>,
+    Authenticated(principal): Authenticated,
+    Json(body): Json<LinkRoomFileRequest>,
+) -> Result<Json<FileResponse>, ApiError> {
+    let file = link_room_file(
+        state.files.as_ref(),
+        state.rooms.as_ref(),
+        LinkRoomFile {
+            actor: principal.actor_id,
+            file_id: FileId::from_uuid(body.file_id),
+            session_id: SessionId::from_uuid(body.session_id),
+        },
+    )
+    .await?;
+    Ok(Json(file.into()))
 }
 
 #[utoipa::path(

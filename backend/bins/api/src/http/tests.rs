@@ -85,6 +85,13 @@ impl FileStore for FakeFileStore {
     ) -> BoxFuture<'_, Result<Vec<FileObject>, StoreError>> {
         Box::pin(async { Ok(Vec::new()) })
     }
+    fn link_room_file_to_session(
+        &self,
+        _file_id: FileId,
+        _session_id: SessionId,
+    ) -> BoxFuture<'_, Result<bool, StoreError>> {
+        Box::pin(async { Ok(false) })
+    }
     fn transition<'a>(
         &'a self,
         _id: FileId,
@@ -2485,6 +2492,64 @@ async fn manager_can_add_and_remove_a_member() {
             .expect("store")
             .is_none()
     );
+}
+
+#[tokio::test]
+async fn manager_can_list_room_members() {
+    let store = FakeRoomStore::default();
+    let room = store.seed_room("Algebra", principal().actor_id, RoomVisibility::InviteOnly);
+    let target = other_principal().actor_id;
+    store.add_raw_member(room.id, target, RoomRole::Member);
+    let app = authenticated_room_app(principal(), store);
+
+    let req = Request::builder()
+        .uri(format!("/v1/rooms/{}/members", room.id))
+        .body(Body::empty())
+        .expect("request");
+    let resp = app.oneshot(req).await.expect("response");
+    assert_eq!(resp.status(), StatusCode::OK);
+    let json = response_json(resp).await;
+    let members = json["members"].as_array().expect("members array");
+    assert_eq!(members.len(), 2);
+    assert!(
+        members
+            .iter()
+            .any(|member| member["user_id"] == target.to_string())
+    );
+}
+
+#[tokio::test]
+async fn member_cannot_list_room_members() {
+    let store = FakeRoomStore::default();
+    let room = store.seed_room("Algebra", principal().actor_id, RoomVisibility::InviteOnly);
+    store.add_raw_member(room.id, other_principal().actor_id, RoomRole::Member);
+    let app = authenticated_room_app(other_principal(), store);
+
+    let req = Request::builder()
+        .uri(format!("/v1/rooms/{}/members", room.id))
+        .body(Body::empty())
+        .expect("request");
+    let resp = app.oneshot(req).await.expect("response");
+    assert_eq!(resp.status(), StatusCode::FORBIDDEN);
+}
+
+#[tokio::test]
+async fn session_file_link_rejects_an_unknown_room_file() {
+    let store = FakeRoomStore::default();
+    let room = store.seed_room("Algebra", principal().actor_id, RoomVisibility::InviteOnly);
+    let app = authenticated_room_app(principal(), store);
+    let response = send_json(
+        &app,
+        Method::POST,
+        "/v1/files/session-links",
+        &format!(
+            r#"{{"file_id":"{}","session_id":"{}"}}"#,
+            Uuid::new_v4(),
+            room.id
+        ),
+    )
+    .await;
+    assert_eq!(response.status(), StatusCode::NOT_FOUND);
 }
 
 #[tokio::test]
