@@ -5,7 +5,7 @@ status: Done
 assignee:
   - '@codex'
 created_date: '2026-09-25 17:03'
-updated_date: '2026-09-25 17:19'
+updated_date: '2026-09-25 17:31'
 labels:
   - frontend
 dependencies: []
@@ -39,10 +39,12 @@ Make room sessions the primary content with schedule, live state, expandable att
 
 <!-- SECTION:NOTES:BEGIN -->
 Session disclosures fetch ready session files and current presentation file IDs; selected room files appear under Used in presentation. Chat attachments are uploaded to the existing chat_message file context after the message exists. Frontend fmt, lint, typecheck, 72 unit tests, Storybook build, and docs build pass. Next production build is blocked by sandbox port binding (Turbopack); webpack fallback cannot parse TypeScript --showConfig output here.
+
+Added a regression test for uploading a file to an existing chat message; full frontend suite now passes 73 tests.
 <!-- SECTION:NOTES:END -->
 
 ## Final Summary
 
 <!-- SECTION:FINAL_SUMMARY:BEGIN -->
-Redesigned the room page around scheduled/live session rows and expandable file groups; adopted Attachment and Message compositions for room files and chat while retaining actions. Verified with frontend gates, 72 tests, Storybook, and docs build.
+Redesigned the room page around scheduled/live session rows and expandable file groups; adopted Attachment and Message compositions for room files and chat while retaining actions. Verified with frontend gates, 73 tests, Storybook, and docs build.
 <!-- SECTION:FINAL_SUMMARY:END -->
