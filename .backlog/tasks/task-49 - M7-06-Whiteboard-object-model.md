@@ -5,7 +5,7 @@ status: In Progress
 assignee:
   - '@codex'
 created_date: '2026-09-08 00:31'
-updated_date: '2026-09-24 06:20'
+updated_date: '2026-09-25 02:29'
 labels: []
 milestone: m-7
 dependencies: []
@@ -42,4 +42,6 @@ Store Excalidraw elements in a Yjs map with deterministic ordering, sync changes
 Design note: Whiteboard pan and zoom are shared room state: a participant changing the viewport moves it for everyone, with competing actions resolved by latest accepted event. Keep viewport events distinct from semantic drawing edits. A presenter-controlled slideshow can reference stored PDFs or ordered images and record slide changes.
 
 Implementation present. Validation: backend Clippy and formatting, PostgreSQL migration integration, API unit suite, frontend typecheck, lint, formatting and 19 tests, production webpack build. Acceptance needs live multi-client/restart verification before marking done.
+
+Embedded PNG/JPEG images now use verified session-file uploads, document-scoped registration, PostgreSQL delete protection, and stable Yjs file references. Lexical notes and Excalidraw whiteboard load bytes through authorized presigned downloads. Backend unit/integration and frontend unit checks pass; live two-browser convergence/restart acceptance remains open.
 <!-- SECTION:NOTES:END -->

@@ -136,6 +136,8 @@ export interface Messages {
     bold: string;
     italic: string;
     bullets: string;
+    insertImage: string;
+    imageFailed: string;
     numbers: string;
     pdfUnavailable: string;
   };
@@ -275,6 +277,8 @@ const messages: Record<Locale, Messages> = {
       bold: "Bold",
       italic: "Italic",
       bullets: "Bullets",
+      insertImage: "Insert image",
+      imageFailed: "Image could not be added.",
       numbers: "Numbers",
       pdfUnavailable: "PDF preview unavailable.",
     },
@@ -412,6 +416,8 @@ const messages: Record<Locale, Messages> = {
       bold: "پررنگ",
       italic: "کج",
       bullets: "فهرست نشانه‌دار",
+      insertImage: "افزودن تصویر",
+      imageFailed: "افزودن تصویر ممکن نشد.",
       numbers: "فهرست شماره‌دار",
       pdfUnavailable: "پیش‌نمایش PDF در دسترس نیست.",
     },

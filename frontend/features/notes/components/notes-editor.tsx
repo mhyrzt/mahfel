@@ -23,6 +23,7 @@ import {
 } from "@/lib/collaboration/provider";
 
 import { NotesToolbar } from "./notes-toolbar";
+import { NoteImageNode, NotesImageLocaleContext } from "./note-image-node";
 
 interface NotesEditorProps {
   sessionId: string;
@@ -128,45 +129,47 @@ export function NotesEditor({
       <p className="border-b px-3 py-2 text-xs text-muted-foreground" role="status">
         {status === "connected" ? text.connected : text.loading}
       </p>
-      <LexicalCollaboration>
-        <LexicalComposer
-          initialConfig={{
-            namespace: `mahfel-notes-${sessionId}`,
-            editable: canEdit,
-            editorState: null,
-            nodes: [HeadingNode, ListNode, ListItemNode, LinkNode],
-            onError: (error) => {
-              throw error;
-            },
-            theme: { paragraph: "mb-2", heading: { h2: "text-xl font-semibold" } },
-          }}
-        >
-          <EditableState canEdit={canEdit} />
-          <NotesToolbar disabled={!canEdit} locale={locale} />
-          <div ref={scrollRef} onScroll={onScroll} className="h-[28rem] overflow-y-auto p-4">
-            <RichTextPlugin
-              contentEditable={
-                <ContentEditable
-                  aria-label={text.notesEditor}
-                  className="min-h-full outline-none"
-                />
-              }
-              placeholder={
-                <span className="pointer-events-none text-muted-foreground">
-                  {text.notesPlaceholder}
-                </span>
-              }
-              ErrorBoundary={LexicalErrorBoundary}
-            />
-            <ListPlugin />
-            <CollaborationPlugin
-              id={`notes-${sessionId}`}
-              providerFactory={providerFactory}
-              shouldBootstrap={canManage}
-            />
-          </div>
-        </LexicalComposer>
-      </LexicalCollaboration>
+      <NotesImageLocaleContext.Provider value={locale}>
+        <LexicalCollaboration>
+          <LexicalComposer
+            initialConfig={{
+              namespace: `mahfel-notes-${sessionId}`,
+              editable: canEdit,
+              editorState: null,
+              nodes: [HeadingNode, ListNode, ListItemNode, LinkNode, NoteImageNode],
+              onError: (error) => {
+                throw error;
+              },
+              theme: { paragraph: "mb-2", heading: { h2: "text-xl font-semibold" } },
+            }}
+          >
+            <EditableState canEdit={canEdit} />
+            <NotesToolbar disabled={!canEdit} locale={locale} sessionId={sessionId} />
+            <div ref={scrollRef} onScroll={onScroll} className="h-[28rem] overflow-y-auto p-4">
+              <RichTextPlugin
+                contentEditable={
+                  <ContentEditable
+                    aria-label={text.notesEditor}
+                    className="min-h-full outline-none"
+                  />
+                }
+                placeholder={
+                  <span className="pointer-events-none text-muted-foreground">
+                    {text.notesPlaceholder}
+                  </span>
+                }
+                ErrorBoundary={LexicalErrorBoundary}
+              />
+              <ListPlugin />
+              <CollaborationPlugin
+                id={`notes-${sessionId}`}
+                providerFactory={providerFactory}
+                shouldBootstrap={canManage}
+              />
+            </div>
+          </LexicalComposer>
+        </LexicalCollaboration>
+      </NotesImageLocaleContext.Provider>
     </div>
   );
 }

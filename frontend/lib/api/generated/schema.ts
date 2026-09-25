@@ -813,6 +813,22 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/sessions/{session_id}/collaboration/{kind}/images": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post: operations["register_image"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/v1/sessions/{session_id}/end": {
     parameters: {
       query?: never;
@@ -1438,6 +1454,10 @@ export interface components {
       request_id?: string | null;
       target_id: string;
       target_kind: string;
+    };
+    RegisterImageRequest: {
+      /** Format: uuid */
+      file_id: string;
     };
     RoomResponse: {
       admission: components["schemas"]["AdmissionPolicyDto"];
@@ -4419,6 +4439,46 @@ export interface operations {
         content?: never;
       };
       404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
+      };
+    };
+  };
+  register_image: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        session_id: string;
+        kind: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["RegisterImageRequest"];
+      };
+    };
+    responses: {
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
+      };
+      422: {
         headers: {
           [name: string]: unknown;
         };

@@ -3,7 +3,7 @@ import { getServerAccessToken } from "@/lib/auth/server";
 import { serverApiBaseUrl } from "@/lib/api/config";
 
 const ALLOWLIST =
-  /^(v1\/(auth|rooms|files|echo|status|health)(\/.*)?|v1\/sessions\/[0-9a-fA-F-]{36}\/roster|v1\/ws\/tickets)$/;
+  /^(v1\/(auth|rooms|files|echo|status|health)(\/.*)?|v1\/sessions\/[0-9a-fA-F-]{36}\/(roster|collaboration\/(notes|whiteboard)\/images)|v1\/ws\/tickets)$/;
 
 const REQUEST_HEADERS_TO_DROP = new Set([
   "accept-encoding",

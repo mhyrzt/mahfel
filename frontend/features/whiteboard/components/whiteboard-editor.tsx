@@ -3,13 +3,21 @@
 import "@excalidraw/excalidraw/index.css";
 
 import { restoreElements, CaptureUpdateAction } from "@excalidraw/excalidraw";
-import type { ExcalidrawImperativeAPI, NormalizedZoomValue } from "@excalidraw/excalidraw/types";
-import type { ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
+import type {
+  BinaryFiles,
+  ExcalidrawImperativeAPI,
+  NormalizedZoomValue,
+} from "@excalidraw/excalidraw/types";
 import dynamic from "next/dynamic";
 import { useEffect, useMemo, useRef, useState } from "react";
 import * as Y from "yjs";
 
 import { browserApiClient } from "@/lib/api/browser";
+import {
+  excalidrawImageData,
+  isSupportedCollaborationImage,
+  registerCollaborationImage,
+} from "@/lib/collaboration/images";
 import type { Locale } from "@/lib/i18n/config";
 import { messagesFor } from "@/lib/i18n/messages";
 import {
@@ -17,22 +25,14 @@ import {
   type CollaborationEventFrame,
 } from "@/lib/collaboration/provider";
 
+import { readElements, supportedElementTypes } from "../board-elements";
+
 const Excalidraw = dynamic(
   () => import("@excalidraw/excalidraw").then((module) => module.Excalidraw),
   {
     ssr: false,
   },
 );
-const supportedElementTypes = new Set([
-  "rectangle",
-  "ellipse",
-  "diamond",
-  "arrow",
-  "line",
-  "freedraw",
-  "text",
-  "frame",
-]);
 
 interface WhiteboardEditorProps {
   sessionId: string;
@@ -93,8 +93,11 @@ export function WhiteboardEditor({
   const applyingRemote = useRef(false);
   const latestViewport = useRef<{ x: number; y: number; zoom: number } | null>(null);
   const lastViewport = useRef(0);
+  const uploading = useRef(new Set<string>());
+  const loadingImages = useRef(new Set<string>());
   const doc = useMemo(() => new Y.Doc({ guid: sessionId }), [sessionId]);
   const elements = useMemo(() => doc.getMap<string>("elements"), [doc]);
+  const assets = useMemo(() => doc.getMap<string>("image-assets"), [doc]);
   const provider = useMemo(
     () =>
       new MahfelCollaborationProvider(
@@ -115,27 +118,63 @@ export function WhiteboardEditor({
         return;
       }
       applyingRemote.current = true;
-      const scene = readElements(elements);
+      const scene = readElements(elements, assets);
+      const pending = api.current
+        .getSceneElementsIncludingDeleted()
+        .filter(
+          (element) =>
+            element.type === "image" &&
+            element.fileId !== null &&
+            uploading.current.has(element.fileId) &&
+            !scene.some((saved) => saved.id === element.id),
+        );
       api.current.updateScene({
-        elements: restoreElements(scene, null, { repairBindings: true }),
+        elements: restoreElements([...scene, ...pending], null, { repairBindings: true }),
         captureUpdate: CaptureUpdateAction.NEVER,
       });
+      for (const element of scene) {
+        if (
+          element.type !== "image" ||
+          !element.fileId ||
+          api.current.getFiles()[element.fileId] ||
+          loadingImages.current.has(element.fileId)
+        ) {
+          continue;
+        }
+        const fileId = assets.get(element.fileId);
+        if (!fileId) {
+          continue;
+        }
+        loadingImages.current.add(element.fileId);
+        void excalidrawImageData(fileId, element.fileId)
+          .then((file) => {
+            api.current?.addFiles([file]);
+          })
+          .catch(() => setStatus("image-error"))
+          .finally(() => loadingImages.current.delete(element.fileId ?? ""));
+      }
       window.setTimeout(() => {
         applyingRemote.current = false;
       }, 0);
     };
     provider.on("status", onStatus);
     elements.observe(render);
+    assets.observe(render);
     provider.connect();
     return () => {
       provider.off("status", onStatus);
       elements.unobserve(render);
+      assets.unobserve(render);
       provider.destroy();
       doc.destroy();
     };
-  }, [doc, elements, provider]);
+  }, [assets, doc, elements, provider]);
 
-  const onChange: NonNullable<React.ComponentProps<typeof Excalidraw>["onChange"]> = () => {
+  const onChange: NonNullable<React.ComponentProps<typeof Excalidraw>["onChange"]> = (
+    _scene,
+    _state,
+    files: BinaryFiles,
+  ) => {
     if (!canEdit || applyingRemote.current || !api.current) {
       return;
     }
@@ -143,6 +182,45 @@ export function WhiteboardEditor({
     doc.transact(() => {
       for (const element of current) {
         if (!supportedElementTypes.has(element.type)) {
+          continue;
+        }
+        if (element.type === "image" && element.fileId && !assets.has(element.fileId)) {
+          const binary = files[element.fileId];
+          if (binary && !uploading.current.has(element.fileId)) {
+            const imageId = element.fileId;
+            if (!isSupportedCollaborationImage(binary.mimeType)) {
+              setStatus("image-error");
+              continue;
+            }
+            uploading.current.add(imageId);
+            void fetch(binary.dataURL)
+              .then((response) => response.blob())
+              .then((blob) =>
+                registerCollaborationImage(
+                  new File(
+                    [blob],
+                    `whiteboard-${imageId}.${binary.mimeType === "image/png" ? "png" : "jpg"}`,
+                    { type: binary.mimeType },
+                  ),
+                  sessionId,
+                  "whiteboard",
+                ),
+              )
+              .then((fileId) => {
+                const latest = api.current
+                  ?.getSceneElementsIncludingDeleted()
+                  .find((candidate) => candidate.id === element.id);
+                if (!latest || latest.isDeleted) {
+                  return;
+                }
+                doc.transact(() => {
+                  assets.set(imageId, fileId);
+                  elements.set(latest.id, JSON.stringify(latest));
+                });
+              })
+              .catch(() => setStatus("image-error"))
+              .finally(() => uploading.current.delete(imageId));
+          }
           continue;
         }
         const serialized = JSON.stringify(element);
@@ -155,7 +233,7 @@ export function WhiteboardEditor({
 
   const onApi = (value: ExcalidrawImperativeAPI) => {
     api.current = value;
-    const scene = readElements(elements);
+    const scene = readElements(elements, assets);
     if (scene.length) {
       value.updateScene({
         elements: restoreElements(scene, null, { repairBindings: true }),
@@ -164,6 +242,17 @@ export function WhiteboardEditor({
     }
     if (latestViewport.current) {
       applyViewport(value, applyingRemote, latestViewport.current);
+    }
+    for (const element of scene) {
+      if (element.type !== "image" || !element.fileId) {
+        continue;
+      }
+      const fileId = assets.get(element.fileId);
+      if (fileId && !value.getFiles()[element.fileId]) {
+        void excalidrawImageData(fileId, element.fileId)
+          .then((file) => value.addFiles([file]))
+          .catch(() => setStatus("image-error"));
+      }
     }
   };
 
@@ -187,10 +276,17 @@ export function WhiteboardEditor({
     );
   };
 
+  let statusText = text.loading;
+  if (status === "connected") {
+    statusText = text.connected;
+  } else if (status === "image-error") {
+    statusText = text.unavailable;
+  }
+
   return (
     <div className="overflow-hidden rounded-lg border bg-background">
       <p className="border-b px-3 py-2 text-xs text-muted-foreground" role="status">
-        {status === "connected" ? text.connected : text.loading}
+        {statusText}
       </p>
       <div className="h-[36rem]">
         <Excalidraw
@@ -205,35 +301,4 @@ export function WhiteboardEditor({
       </div>
     </div>
   );
-}
-
-function readElements(elements: Y.Map<string>): ExcalidrawElement[] {
-  return Array.from(elements.values())
-    .flatMap((serialized) => {
-      try {
-        const value: unknown = JSON.parse(serialized);
-        if (
-          typeof value === "object" &&
-          value !== null &&
-          "id" in value &&
-          typeof value.id === "string" &&
-          "type" in value &&
-          typeof value.type === "string" &&
-          supportedElementTypes.has(value.type) &&
-          "x" in value &&
-          typeof value.x === "number" &&
-          Number.isFinite(value.x) &&
-          "y" in value &&
-          typeof value.y === "number" &&
-          Number.isFinite(value.y)
-        ) {
-          return [value as ExcalidrawElement];
-        }
-      } catch {}
-      return [];
-    })
-    .sort((left, right) => {
-      const order = (left.index ?? "").localeCompare(right.index ?? "");
-      return order || left.id.localeCompare(right.id);
-    });
 }
