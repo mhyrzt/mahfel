@@ -3795,6 +3795,67 @@
         }
       }
     },
+    "/v1/sessions/{session_id}/collaboration/{kind}/images": {
+      "post": {
+        "tags": [
+          "collaboration"
+        ],
+        "operationId": "register_image",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "kind",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegisterImageRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/sessions/{session_id}/end": {
       "post": {
         "tags": [
@@ -5884,6 +5945,18 @@
           },
           "target_kind": {
             "type": "string"
+          }
+        }
+      },
+      "RegisterImageRequest": {
+        "type": "object",
+        "required": [
+          "file_id"
+        ],
+        "properties": {
+          "file_id": {
+            "type": "string",
+            "format": "uuid"
           }
         }
       },

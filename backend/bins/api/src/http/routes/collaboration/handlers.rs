@@ -1,6 +1,6 @@
 use super::dto::{
     CollaborationDocumentsResponse, CollaborationEventsResponse, EditGrantRequest, EventsQuery,
-    ParticipantGrantResponse, ParticipantGrantsResponse, ViewportRequest,
+    ParticipantGrantResponse, ParticipantGrantsResponse, RegisterImageRequest, ViewportRequest,
 };
 use crate::http::{auth::Authenticated, error::ApiError, state::AppState};
 use axum::{
@@ -68,6 +68,33 @@ pub(crate) async fn documents(
         can_manage: access.can_manage,
         live: access.live,
     }))
+}
+
+#[utoipa::path(post, path = "/v1/sessions/{session_id}/collaboration/{kind}/images", tag = "collaboration",
+    params(("session_id" = String, Path), ("kind" = String, Path)),
+    request_body = RegisterImageRequest,
+    responses((status = 204), (status = 404), (status = 422)))]
+pub(crate) async fn register_image(
+    State(state): State<AppState>,
+    Authenticated(principal): Authenticated,
+    Path((session_id, kind)): Path<(Uuid, String)>,
+    Json(request): Json<RegisterImageRequest>,
+) -> Result<axum::http::StatusCode, ApiError> {
+    let kind = match kind.as_str() {
+        "notes" => CollaborationKind::Notes,
+        "whiteboard" => CollaborationKind::Whiteboard,
+        _ => return Err(ApiError::not_found("collaboration document unavailable")),
+    };
+    store(&state)?
+        .register_image(
+            SessionId::from_uuid(session_id),
+            kind,
+            principal.actor_id,
+            mahfel_domain::FileId::from_uuid(request.file_id),
+        )
+        .await
+        .map_err(map_store)?;
+    Ok(axum::http::StatusCode::NO_CONTENT)
 }
 
 #[utoipa::path(get, path = "/v1/sessions/{session_id}/collaboration/events", tag = "collaboration",

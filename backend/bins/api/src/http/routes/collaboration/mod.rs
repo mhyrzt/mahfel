@@ -4,9 +4,9 @@ pub(crate) mod presentation;
 
 pub(crate) use dto::{
     CollaborationDocumentsResponse, CollaborationEventsResponse, EditGrantRequest, EventResponse,
-    ParticipantGrantsResponse, PresentationRequest, ViewportRequest,
+    ParticipantGrantsResponse, PresentationRequest, RegisterImageRequest, ViewportRequest,
 };
-pub(crate) use handlers::{documents, events, grants, set_grant, update_viewport};
+pub(crate) use handlers::{documents, events, grants, register_image, set_grant, update_viewport};
 pub(crate) use presentation::{PresentationStateResponse, get_presentation, update_presentation};
 
 use crate::http::state::AppState;
@@ -19,6 +19,10 @@ pub(crate) fn route() -> Router<AppState> {
     Router::new()
         .route("/sessions/{session_id}/collaboration", get(documents))
         .route("/sessions/{session_id}/collaboration/events", get(events))
+        .route(
+            "/sessions/{session_id}/collaboration/{kind}/images",
+            axum::routing::post(register_image),
+        )
         .route("/sessions/{session_id}/collaboration/grants", get(grants))
         .route(
             "/sessions/{session_id}/collaboration/viewport",

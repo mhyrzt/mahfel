@@ -144,7 +144,7 @@ impl FileStore for PostgresFileStore {
         Box::pin(async move {
             let (room_id, session_id, chat_message_id, avatar_actor_id, recording_session_id) =
                 context_columns(context);
-            let rows = sqlx::query_as::<_, FileRow>("SELECT id, object_key, owner_actor_id, room_id, session_id, chat_message_id, avatar_actor_id, recording_session_id, status, file_name, declared_mime, verified_mime, size_bytes, checksum_sha_256, created_at, updated_at FROM mahfel.files WHERE status = 'ready' AND (room_id = $1 OR session_id = $2 OR chat_message_id = $3 OR avatar_actor_id = $4 OR recording_session_id = $5) ORDER BY created_at DESC, id DESC LIMIT $6 OFFSET $7")
+            let rows = sqlx::query_as::<_, FileRow>("SELECT id, object_key, owner_actor_id, room_id, session_id, chat_message_id, avatar_actor_id, recording_session_id, status, file_name, declared_mime, verified_mime, size_bytes, checksum_sha_256, created_at, updated_at FROM mahfel.files WHERE status = 'ready' AND (room_id = $1 OR session_id = $2 OR chat_message_id = $3 OR avatar_actor_id = $4 OR recording_session_id = $5) AND NOT EXISTS (SELECT 1 FROM mahfel.collaboration_document_assets asset WHERE asset.file_id = mahfel.files.id) ORDER BY created_at DESC, id DESC LIMIT $6 OFFSET $7")
                 .bind(room_id).bind(session_id).bind(chat_message_id).bind(avatar_actor_id).bind(recording_session_id)
                 .bind(i64::from(limit)).bind(i64::try_from(offset).unwrap_or(i64::MAX))
                 .fetch_all(&self.pool).await.map_err(sqlx_store_error)?;

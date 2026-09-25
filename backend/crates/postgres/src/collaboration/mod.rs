@@ -1,4 +1,5 @@
 mod access;
+mod assets;
 mod checkpoints;
 mod events;
 mod presentation;
@@ -10,7 +11,7 @@ use mahfel_application::ports::{
 };
 use mahfel_domain::{
     ActorId, CollaborationDocument, CollaborationDocumentId, CollaborationEvent, CollaborationKind,
-    SessionId,
+    FileId, SessionId,
 };
 use sqlx::PgPool;
 use uuid::Uuid;
@@ -59,6 +60,18 @@ impl CollaborationStore for PostgresCollaborationStore {
         actor_id: ActorId,
     ) -> BoxFuture<'_, Result<CollaborationAccess, StoreError>> {
         Box::pin(access::access(&self.pool, session_id, actor_id))
+    }
+
+    fn register_image(
+        &self,
+        session_id: SessionId,
+        kind: CollaborationKind,
+        actor_id: ActorId,
+        file_id: FileId,
+    ) -> BoxFuture<'_, Result<(), StoreError>> {
+        Box::pin(assets::register_image(
+            &self.pool, session_id, kind, actor_id, file_id,
+        ))
     }
 
     fn set_edit_grant(

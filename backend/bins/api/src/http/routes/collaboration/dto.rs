@@ -47,6 +47,11 @@ pub(crate) struct EditGrantRequest {
 }
 
 #[derive(Deserialize, ToSchema)]
+pub(crate) struct RegisterImageRequest {
+    pub file_id: uuid::Uuid,
+}
+
+#[derive(Deserialize, ToSchema)]
 pub(crate) struct ViewportRequest {
     pub surface: String,
     pub x: f64,

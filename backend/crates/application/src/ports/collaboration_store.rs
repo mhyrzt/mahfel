@@ -57,6 +57,14 @@ pub trait CollaborationStore: Send + Sync {
         actor_id: ActorId,
     ) -> BoxFuture<'_, Result<CollaborationAccess, StoreError>>;
 
+    fn register_image(
+        &self,
+        session_id: SessionId,
+        kind: CollaborationKind,
+        actor_id: ActorId,
+        file_id: FileId,
+    ) -> BoxFuture<'_, Result<(), StoreError>>;
+
     fn set_edit_grant(
         &self,
         session_id: SessionId,

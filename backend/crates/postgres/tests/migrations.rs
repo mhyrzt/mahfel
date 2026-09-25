@@ -955,6 +955,67 @@ async fn verify_collaboration(
     );
     assert!(!collaboration.access(session_id, member.id).await?.can_edit);
 
+    let image = FileObject::pending(
+        manager,
+        FileContext::Session(session_id),
+        "board.png".into(),
+        "image/png".into(),
+        1024,
+        "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=".into(),
+        now,
+    )?;
+    files.insert(&image).await?;
+    assert!(
+        files
+            .transition(
+                image.id,
+                FileStatus::Pending,
+                FileStatus::Ready,
+                Some("image/png"),
+                now
+            )
+            .await?
+    );
+    assert!(matches!(
+        collaboration
+            .register_image(
+                session_id,
+                CollaborationKind::Whiteboard,
+                member.id,
+                image.id
+            )
+            .await,
+        Err(StoreError::NotFound(_))
+    ));
+    assert!(matches!(
+        collaboration
+            .register_image(session_id, CollaborationKind::Whiteboard, manager, file_id)
+            .await,
+        Err(StoreError::NotFound(_))
+    ));
+    collaboration
+        .register_image(session_id, CollaborationKind::Whiteboard, manager, image.id)
+        .await?;
+    collaboration
+        .register_image(session_id, CollaborationKind::Whiteboard, manager, image.id)
+        .await?;
+    collaboration
+        .register_image(session_id, CollaborationKind::Notes, manager, image.id)
+        .await?;
+    assert!(
+        files
+            .list(FileContext::Session(session_id), 100, 0)
+            .await?
+            .iter()
+            .all(|file| file.id != image.id)
+    );
+    assert!(matches!(
+        files
+            .transition(image.id, FileStatus::Ready, FileStatus::Deleting, None, now)
+            .await,
+        Err(StoreError::Conflict(_))
+    ));
+
     let member_update = NewCollaborationEvent {
         session_id,
         id: Uuid::new_v4(),
