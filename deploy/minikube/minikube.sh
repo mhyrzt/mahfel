@@ -215,12 +215,13 @@ up() {
   trap - EXIT
   success 'Caddy local CA is available to application pods'
 
-  step 'Running database seed and storage initialization'
-  kubectl -n "${namespace}" apply -f "${apps_dir}/seed.yaml" >/dev/null
+  step 'Initializing storage before applying development seeds'
   kubectl -n "${namespace}" delete job rustfs-init --ignore-not-found >/dev/null
   kubectl -n "${namespace}" apply -f "${infra_dir}/rustfs-init.yaml" >/dev/null
-  wait_for_job mahfel-seed 5m
   wait_for_job rustfs-init 15m
+  kubectl -n "${namespace}" delete job mahfel-seed --ignore-not-found >/dev/null
+  kubectl -n "${namespace}" apply -f "${apps_dir}/seed.yaml" >/dev/null
+  wait_for_job mahfel-seed 5m
   step 'Applying application deployments'
   for manifest in api web media; do
     sed "s/192\.0\.2\.1/${node_ip}/g" "${apps_dir}/${manifest}.yaml" |

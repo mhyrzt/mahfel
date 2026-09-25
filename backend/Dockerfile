@@ -61,6 +61,7 @@ WORKDIR /app
 COPY --from=api-builder /tmp/mahfel-api /usr/local/bin/mahfel-api
 COPY --chown=mahfel:mahfel backend/config/default.toml /app/config/default.toml
 COPY --chown=mahfel:mahfel backend/config/docker.toml /app/config/docker.toml
+COPY --chown=mahfel:mahfel backend/seeds/ /app/seeds/
 ENV MAHFEL_CONFIG_DIR=/app/config
 USER mahfel
 EXPOSE 8080 9101
