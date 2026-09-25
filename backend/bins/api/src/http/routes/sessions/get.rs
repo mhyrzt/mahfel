@@ -3,11 +3,11 @@ use crate::http::{
     auth::Authenticated, error::ApiError, extractor::ValidatedPath, state::AppState,
 };
 use axum::{Json, extract::State};
-use mahfel_application::sessions::{GetSession, get_session as load_session};
+use mahfel_application::sessions::{GetSessionForCaller, get_session_for_caller};
 use mahfel_domain::SessionId;
 use uuid::Uuid;
 
-/// Get a session visible to a room manager.
+/// Get a session visible to a room member.
 #[utoipa::path(
     get,
     path = "/v1/sessions/{session_id}",
@@ -16,7 +16,6 @@ use uuid::Uuid;
     responses(
         (status = 200, description = "Session", body = SessionResponse),
         (status = 401, description = "Authentication required"),
-        (status = 403, description = "Caller is not a manager"),
         (status = 404, description = "Session does not exist or the caller cannot see its room"),
     ),
 )]
@@ -25,10 +24,10 @@ pub(crate) async fn get_session(
     Authenticated(principal): Authenticated,
     ValidatedPath(session_id): ValidatedPath<Uuid>,
 ) -> Result<Json<SessionResponse>, ApiError> {
-    let session = load_session(
+    let session = get_session_for_caller(
         state.sessions.as_ref(),
         state.rooms.as_ref(),
-        GetSession {
+        GetSessionForCaller {
             actor: principal.actor_id,
             session_id: SessionId::from_uuid(session_id),
         },

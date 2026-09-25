@@ -1,6 +1,5 @@
 use super::error::SessionOperationError;
 use crate::ports::{RoomStore, SessionStore};
-use crate::rooms::require_manager;
 use mahfel_domain::{ActorId, RoomId, Session};
 
 #[derive(Debug, Clone)]
@@ -9,7 +8,7 @@ pub struct ListSessions {
     pub room_id: RoomId,
 }
 
-/// List a room's sessions, newest first. Only room managers may read the list.
+/// List a room's sessions, newest first, for a room member.
 pub async fn list_sessions<R, S>(
     sessions: &R,
     rooms: &S,
@@ -19,6 +18,12 @@ where
     R: SessionStore + ?Sized,
     S: RoomStore + ?Sized,
 {
-    require_manager(rooms, command.room_id, command.actor).await?;
+    if rooms
+        .get_member(command.room_id, command.actor)
+        .await?
+        .is_none()
+    {
+        return Err(SessionOperationError::NotFound);
+    }
     Ok(sessions.list_for_room(command.room_id).await?)
 }

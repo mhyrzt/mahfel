@@ -7,7 +7,7 @@ use mahfel_application::sessions::{ListSessions, list_sessions as run_list_sessi
 use mahfel_domain::RoomId;
 use uuid::Uuid;
 
-/// List a room's sessions for a manager, newest first.
+/// List a room's sessions for a member, newest first.
 #[utoipa::path(
     get,
     path = "/v1/rooms/{room_id}/sessions",
@@ -16,7 +16,6 @@ use uuid::Uuid;
     responses(
         (status = 200, description = "Room sessions, newest first", body = [SessionResponse]),
         (status = 401, description = "Authentication required"),
-        (status = 403, description = "Caller is not a manager"),
         (status = 404, description = "Room does not exist or the caller is not a member"),
     ),
 )]

@@ -1445,6 +1445,44 @@ async fn manager_can_get_and_list_room_sessions() {
 }
 
 #[tokio::test]
+async fn a_member_can_list_room_sessions_but_an_outsider_cannot() {
+    let rooms = FakeRoomStore::default();
+    let sessions = FakeSessionStore::default();
+    let owner = actor();
+    let room = rooms.seed_room(owner);
+    let member = actor();
+    rooms.add_member(room.id, member, RoomRole::Member);
+    let session = scheduled(room.id);
+    sessions.seed(session.clone());
+
+    let listed = list_sessions(
+        &sessions,
+        &rooms,
+        ListSessions {
+            actor: member,
+            room_id: room.id,
+        },
+    )
+    .await
+    .expect("member can see the room's sessions");
+    assert_eq!(listed, vec![session]);
+
+    let hidden = list_sessions(
+        &sessions,
+        &rooms,
+        ListSessions {
+            actor: actor(),
+            room_id: room.id,
+        },
+    )
+    .await;
+    assert!(matches!(
+        hidden,
+        Err(super::SessionOperationError::NotFound)
+    ));
+}
+
+#[tokio::test]
 async fn a_member_may_load_a_session_it_may_join() {
     let rooms = FakeRoomStore::default();
     let sessions = FakeSessionStore::default();

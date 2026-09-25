@@ -123,6 +123,12 @@ pub(crate) struct MemberResponse {
     pub(crate) role: RoomRoleDto,
 }
 
+#[derive(Debug, Serialize, ToSchema)]
+pub(crate) struct OwnMembershipResponse {
+    pub(crate) role: RoomRoleDto,
+    pub(crate) can_manage_session: bool,
+}
+
 impl From<Room> for RoomResponse {
     fn from(room: Room) -> Self {
         Self {

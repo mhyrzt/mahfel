@@ -892,6 +892,57 @@
         }
       }
     },
+    "/v1/invite-links/requests/{request_id}": {
+      "get": {
+        "tags": [
+          "invite"
+        ],
+        "operationId": "request_status",
+        "parameters": [
+          {
+            "name": "request_id",
+            "in": "path",
+            "description": "Admission request identifier (UUID)",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Caller's invite request status",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InviteRequestStatusResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Request does not exist or belongs to another principal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/invite-links/{link_id}/revoke": {
       "post": {
         "tags": [
@@ -1789,6 +1840,208 @@
         }
       }
     },
+    "/v1/rooms/{room_id}/lobby": {
+      "get": {
+        "tags": [
+          "admission"
+        ],
+        "operationId": "getRoomLobby",
+        "parameters": [
+          {
+            "name": "room_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoomLobbyResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/rooms/{room_id}/lobby/{actor_id}/admit": {
+      "post": {
+        "tags": [
+          "admission"
+        ],
+        "operationId": "admitRoomPrincipal",
+        "parameters": [
+          {
+            "name": "room_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "actor_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/rooms/{room_id}/lobby/{actor_id}/reject": {
+      "post": {
+        "tags": [
+          "admission"
+        ],
+        "operationId": "rejectRoomPrincipal",
+        "parameters": [
+          {
+            "name": "room_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "actor_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/rooms/{room_id}/members": {
       "post": {
         "tags": [
@@ -2024,6 +2277,58 @@
           },
           "409": {
             "description": "The last manager cannot be demoted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/rooms/{room_id}/membership": {
+      "get": {
+        "tags": [
+          "rooms"
+        ],
+        "summary": "Get the caller's role in a room",
+        "operationId": "own_membership",
+        "parameters": [
+          {
+            "name": "room_id",
+            "in": "path",
+            "description": "Room identifier (UUID)",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Caller's membership",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OwnMembershipResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Room does not exist or the caller is not a member",
             "content": {
               "application/json": {
                 "schema": {
@@ -2844,7 +3149,7 @@
         "tags": [
           "sessions"
         ],
-        "summary": "List a room's sessions for a manager, newest first.",
+        "summary": "List a room's sessions for a member, newest first.",
         "operationId": "list_sessions",
         "parameters": [
           {
@@ -2873,16 +3178,6 @@
           },
           "401": {
             "description": "Authentication required",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorBody"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Caller is not a manager",
             "content": {
               "application/json": {
                 "schema": {
@@ -2999,7 +3294,7 @@
         "tags": [
           "sessions"
         ],
-        "summary": "Get a session visible to a room manager.",
+        "summary": "Get a session visible to a room member.",
         "operationId": "get_session",
         "parameters": [
           {
@@ -3025,16 +3320,6 @@
           },
           "401": {
             "description": "Authentication required",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorBody"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Caller is not a manager",
             "content": {
               "application/json": {
                 "schema": {
@@ -4433,6 +4718,60 @@
         }
       }
     },
+    "/v1/sessions/{session_id}/roster": {
+      "get": {
+        "tags": [
+          "sessions"
+        ],
+        "operationId": "roster",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "description": "Session identifier (UUID)",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Active session participants",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/RosterParticipantResponse"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Session does not exist or the caller cannot see it",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/sessions/{session_id}/start": {
       "post": {
         "tags": [
@@ -5458,6 +5797,21 @@
           }
         }
       },
+      "InviteRequestStatusResponse": {
+        "type": "object",
+        "required": [
+          "request_id",
+          "status"
+        ],
+        "properties": {
+          "request_id": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          }
+        }
+      },
       "InviteTargetKindDto": {
         "type": "string",
         "description": "`utoipa` never reaches `mahfel-domain` (ADR 0015), so the domain's tagged\ntarget enum becomes an explicit kind plus id here.",
@@ -5535,6 +5889,21 @@
           },
           "status": {
             "type": "string"
+          }
+        }
+      },
+      "OwnMembershipResponse": {
+        "type": "object",
+        "required": [
+          "role",
+          "can_manage_session"
+        ],
+        "properties": {
+          "can_manage_session": {
+            "type": "boolean"
+          },
+          "role": {
+            "$ref": "#/components/schemas/RoomRoleDto"
           }
         }
       },
@@ -5960,6 +6329,48 @@
           }
         }
       },
+      "RoomLobbyEntryResponse": {
+        "type": "object",
+        "required": [
+          "request_id",
+          "actor_id",
+          "origin",
+          "requested_at"
+        ],
+        "properties": {
+          "actor_id": {
+            "type": "string"
+          },
+          "origin": {
+            "type": "string"
+          },
+          "request_id": {
+            "type": "string"
+          },
+          "requested_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "RoomLobbyResponse": {
+        "type": "object",
+        "required": [
+          "room_id",
+          "entries"
+        ],
+        "properties": {
+          "entries": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RoomLobbyEntryResponse"
+            }
+          },
+          "room_id": {
+            "type": "string"
+          }
+        }
+      },
       "RoomResponse": {
         "type": "object",
         "required": [
@@ -6006,6 +6417,35 @@
           "public",
           "invite_only"
         ]
+      },
+      "RosterParticipantResponse": {
+        "type": "object",
+        "required": [
+          "id",
+          "actor_id",
+          "name",
+          "role"
+        ],
+        "properties": {
+          "actor_id": {
+            "type": "string"
+          },
+          "avatar_url": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string"
+          }
+        }
       },
       "RotateInviteLinkRequest": {
         "type": "object",

@@ -11,6 +11,7 @@ use uuid::Uuid;
 #[derive(Serialize, ToSchema)]
 pub(crate) struct RosterParticipantResponse {
     id: String,
+    actor_id: String,
     name: String,
     role: &'static str,
     avatar_url: Option<String>,
@@ -87,6 +88,7 @@ pub(crate) async fn roster(
             .or_else(|| user.and_then(|user| user.avatar_url.map(|url| url.as_str().to_owned())));
         roster.push(RosterParticipantResponse {
             id: participant.id.to_string(),
+            actor_id: participant.actor_id.to_string(),
             name,
             role,
             avatar_url,

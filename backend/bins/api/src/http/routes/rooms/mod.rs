@@ -9,7 +9,9 @@ pub(crate) mod error;
 pub(crate) mod get;
 pub(crate) mod join;
 pub(crate) mod list;
+pub(crate) mod lobby;
 pub(crate) mod members;
+pub(crate) mod membership;
 pub(crate) mod update;
 
 use crate::http::state::AppState;
@@ -22,7 +24,20 @@ pub(crate) fn route() -> Router<AppState> {
     Router::new()
         .route("/rooms", get(list::list_rooms).post(create::create))
         .route("/rooms/{room_id}", get(get::get_room).patch(update::update))
+        .route(
+            "/rooms/{room_id}/membership",
+            get(membership::own_membership),
+        )
         .route("/rooms/{room_id}/join", post(join::join))
+        .route("/rooms/{room_id}/lobby", get(lobby::get_lobby))
+        .route(
+            "/rooms/{room_id}/lobby/{actor_id}/admit",
+            post(lobby::admit_principal),
+        )
+        .route(
+            "/rooms/{room_id}/lobby/{actor_id}/reject",
+            post(lobby::reject_principal),
+        )
         .route(
             "/rooms/{room_id}/messages",
             get(chat::list_messages).post(chat::create_message),
