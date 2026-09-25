@@ -53,10 +53,23 @@ test("shows scheduling, live state, and unavailable playback", () => {
   expect(
     within(row).getByRole("button", { name: "Playback is not available yet." }),
   ).toBeDisabled();
+  expect(within(row).getByRole("link", { name: "Join session" })).toHaveAttribute(
+    "href",
+    "/session/session-1",
+  );
   expect(within(row).getByTestId("session-schedule").querySelector("time")).toHaveAttribute(
     "datetime",
     session.scheduled_start_at,
   );
+});
+
+test("scheduled sessions keep the join label on the icon action", () => {
+  render(<RoomSessions locale="en" sessions={[{ ...session, status: "scheduled" }]} />);
+  expect(screen.getByRole("link", { name: "Join session" })).toHaveAttribute(
+    "href",
+    "/session/session-1",
+  );
+  expect(screen.queryByRole("link", { name: "View session" })).not.toBeInTheDocument();
 });
 
 test("uses Persian status and playback copy", () => {
