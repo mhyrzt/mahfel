@@ -90,7 +90,7 @@ RustFS's default storage format must not be assumed to be compatible; migrate an
 objects through the S3 API before removing that old volume.
 
 Keycloak provides local OIDC at `https://auth.mahfel.localhost/realms/rastai`. The `mahfel-seed`
-service waits for Keycloak and PostgreSQL, then creates missing development accounts and mirrors
+service waits for Keycloak, PostgreSQL, and the initialized RustFS bucket, then creates missing development accounts and mirrors
 them into PostgreSQL. The accounts are `shinji`, `asuka`, `rei`, `misato`, `ritsuko`, and `admin`;
 all use the local-only password `password`. See `deploy/keycloak/README.md` for details. The realm
 import defines clients and roles; canonical development accounts live in
@@ -103,7 +103,16 @@ parses and validates every selected TOML file before applying it in file-name or
 fixtures include the local development principal, Keycloak-backed users, and a classroom with a
 scheduled session. For host development,
 run `just backend seed`, or `just backend seed path/to/seed.toml` to apply one file or a directory.
-The `mahfel-seed` job applies the bundled fixtures after migrations. A user fixture requires
+Compose mounts `backend/seeds/` read-only into `mahfel-seed` and runs
+`mahfel-api seed /app/seeds` after migrations. After editing a seed, rerun it against the running
+stack without rebuilding an image:
+
+```bash
+docker compose --profile infrastructure --profile mahfel run --rm --no-deps mahfel-seed
+```
+
+The Minikube seed Job reads the same directory packaged in the API image; rebuild that image and
+run `just minikube up` after changing a fixture. A user fixture requires
 Keycloak; principal and room fixtures only require PostgreSQL. Re-running fixtures preserves
 existing users, passwords, rooms, memberships, and session state. The classroom fixture has stable
 IDs in `backend/seeds/0003_development_rooms.toml`; its manager and members refer to the bundled
@@ -118,6 +127,9 @@ To seed profile pictures or room/session assets, add a later TOML file with `kin
 `[[files]]` entries. Each entry needs a stable `id`, `owner_id`, `context_kind` (`avatar`, `room`, or
 `session`), `context_id`, and `path`. An avatar's context ID must equal its owner ID; room and
 session owners must be members of the room. Paths may be absolute or relative to the TOML file.
+For container deployments, keep relative assets inside `backend/seeds/`; an absolute path must
+exist inside the seed container. Compose mounts the checkout directory at `/app/seeds`, while the
+Minikube API image copies it to the same path.
 PNG and JPEG are accepted for avatars; room and session assets also accept PDF. Files are checked
 before database writes, uploaded to S3-compatible storage, and verified through the normal file
 completion flow. Re-running a fixture with the same ID and content keeps the ready file. The seed

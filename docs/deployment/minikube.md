@@ -24,8 +24,11 @@ The first media image build is slow because mediasoup builds native components. 
 the API, media, worker, and web Docker targets and loads the resulting `:local` images into
 Minikube. Re-run `build` after source changes and `up` to apply configuration. To restart an
 unchanged-tag image after rebuilding, use `kubectl -n mahfel rollout restart deployment/mahfel-api`
-(or the corresponding deployment). The seed Job runs once per namespace and applies the local
-development data after migrations; delete that Job before `up` if seed files change.
+(or the corresponding deployment). The API image includes `backend/seeds/`, including assets kept
+inside that directory. The seed Job runs after migrations and RustFS bucket initialization; every
+`up` recreates it so the image's current TOML fixtures are applied. Rebuild the API image with
+`just minikube build` before `up` when seed files change. File paths in a fixture are relative to
+that TOML file, or absolute within the seed container.
 
 Run `just minikube fmt` to format Minikube YAML manifests, `just minikube fmt-check` to check
 formatting, and `just minikube lint` to render and validate the complete Kubernetes resource set.
