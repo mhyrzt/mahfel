@@ -184,8 +184,17 @@ export function RoomChat({
   }
 
   return (
-    <section aria-label={text.chat} className="space-y-4" data-testid="room-chat">
-      <h2 className="text-lg font-semibold">{text.chat}</h2>
+    <section
+      aria-label={text.chat}
+      className="space-y-5 rounded-xl border bg-card p-4 sm:p-6"
+      data-testid="room-chat"
+    >
+      <div className="border-b pb-4">
+        <p className="mb-1 text-xs font-semibold tracking-wide text-muted-foreground">
+          {text.roomActivity}
+        </p>
+        <h2 className="text-xl font-semibold tracking-tight">{text.chat}</h2>
+      </div>
       {error ? (
         <p role="alert" className="text-sm text-destructive">
           {error}

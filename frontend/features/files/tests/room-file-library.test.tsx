@@ -75,6 +75,7 @@ test("uploads an asset in a session context", async () => {
 });
 
 test("file actions follow the owner and manager roles", () => {
+  const onRemove = vi.fn();
   const files = [
     {
       id: "file-1",
@@ -91,10 +92,12 @@ test("file actions follow the owner and manager roles", () => {
     },
   ];
   const { rerender } = render(
-    <FileList files={files} locale="en" canDelete={false} actorId="actor-2" />,
+    <FileList files={files} locale="en" canDelete={false} actorId="actor-2" onRemove={onRemove} />,
   );
   expect(screen.queryByRole("button", { name: "Delete file: notes.pdf" })).not.toBeInTheDocument();
-  rerender(<FileList files={files} locale="en" canDelete={true} actorId="actor-2" />);
+  rerender(
+    <FileList files={files} locale="en" canDelete={true} actorId="actor-2" onRemove={onRemove} />,
+  );
   expect(screen.getByRole("button", { name: "Delete file: notes.pdf" })).toBeInTheDocument();
 });
 
