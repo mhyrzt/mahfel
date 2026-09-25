@@ -29,7 +29,13 @@ const links = [
 const meta = {
   title: "Invites/Invite Link List",
   component: InviteLinkList,
-  args: { links },
+  args: {
+    links,
+    onCreate: () => undefined,
+    onCopy: () => undefined,
+    onRotate: () => undefined,
+    onRevoke: () => undefined,
+  },
 } satisfies Meta<typeof InviteLinkList>;
 
 export default meta;
@@ -41,3 +47,14 @@ export const Manageable: Story = {};
 export const CapabilityRestricted: Story = { args: { canManage: false } };
 
 export const Empty: Story = { args: { links: [] } };
+
+export const Persian: Story = {
+  args: { locale: "fa" },
+  decorators: [
+    (Story) => (
+      <div dir="rtl">
+        <Story />
+      </div>
+    ),
+  ],
+};

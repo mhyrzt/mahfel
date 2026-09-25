@@ -147,7 +147,7 @@ export function DevicePreferences({ locale }: Readonly<DevicePreferencesProps>) 
   }
 
   return (
-    <section className="space-y-4 rounded-xl border p-4">
+    <section className="space-y-4 rounded-xl bg-card p-4">
       <div className="flex items-start justify-between gap-4">
         <div>
           <h3 className="font-medium">{messages.inputs}</h3>

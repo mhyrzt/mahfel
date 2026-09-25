@@ -39,16 +39,16 @@ export interface Messages {
   shell: {
     workspaceNavigation: string;
     mobileNavigation: string;
+    account: string;
     rooms: string;
-    allRooms: string;
     sessions: string;
-    upcomingSessions: string;
-    todaysSchedule: string;
     create: string;
     createRoom: string;
     scheduleSession: string;
     createMenuTitle: string;
     createMenuDescription: string;
+    logout: string;
+    logoutFailed: string;
   };
   home: {
     eyebrow: string;
@@ -62,6 +62,7 @@ export interface Messages {
   sessions: {
     sessionTitle: string;
     participants: string;
+    admissionTab: string;
     roles: Record<"manager" | "moderator" | "member", string>;
     participantActionsLabel: string;
     emptyRoster: string;
@@ -76,7 +77,6 @@ export interface Messages {
     checkAdmission: string;
     admissionQueue: string;
     noAdmissionRequests: string;
-    requested: string;
     admit: string;
     reject: string;
     scheduled: string;
@@ -100,6 +100,8 @@ export interface Messages {
     participationSummary: string;
     started: string;
     duration: string;
+    sessionTimingUnavailable: string;
+    underMinute: string;
     loadingTitle: string;
     loadingMessage: string;
     rejectedTitle: string;
@@ -178,16 +180,16 @@ const messages: Record<Locale, Messages> = {
     shell: {
       workspaceNavigation: "Workspace navigation",
       mobileNavigation: "Mobile workspace navigation",
+      account: "Account",
       rooms: "Rooms",
-      allRooms: "All rooms",
       sessions: "Sessions",
-      upcomingSessions: "Upcoming sessions",
-      todaysSchedule: "Today’s schedule",
       create: "Create",
       createRoom: "Create room",
       scheduleSession: "Schedule session",
       createMenuTitle: "Create something new",
       createMenuDescription: "Choose what you would like to add to your workspace.",
+      logout: "Log out",
+      logoutFailed: "Could not log out. Please try again.",
     },
     home: {
       eyebrow: "A place to meet",
@@ -202,6 +204,7 @@ const messages: Record<Locale, Messages> = {
     sessions: {
       sessionTitle: "Session",
       participants: "Participants",
+      admissionTab: "Admission",
       roles: { manager: "Manager", moderator: "Moderator", member: "Member" },
       participantActionsLabel: "Actions for {name}",
       emptyRoster: "No one has joined this session yet.",
@@ -217,7 +220,6 @@ const messages: Record<Locale, Messages> = {
       checkAdmission: "Check admission",
       admissionQueue: "Admission queue",
       noAdmissionRequests: "No one is waiting for admission.",
-      requested: "Requested {requestedAt}",
       admit: "Admit {name}",
       reject: "Reject {name}",
       scheduled: "Scheduled",
@@ -241,6 +243,8 @@ const messages: Record<Locale, Messages> = {
       participationSummary: "Participation summary",
       started: "Started",
       duration: "Duration",
+      sessionTimingUnavailable: "Session timing is unavailable.",
+      underMinute: "Less than a minute",
       loadingTitle: "Connecting to session",
       loadingMessage: "Loading session details.",
       rejectedTitle: "Admission was not approved",
@@ -317,16 +321,16 @@ const messages: Record<Locale, Messages> = {
     shell: {
       workspaceNavigation: "ناوبری فضای کاری",
       mobileNavigation: "ناوبری فضای کاری در موبایل",
+      account: "حساب",
       rooms: "اتاق‌ها",
-      allRooms: "همه اتاق‌ها",
       sessions: "جلسه‌ها",
-      upcomingSessions: "جلسه‌های آینده",
-      todaysSchedule: "برنامه امروز",
       create: "ایجاد",
       createRoom: "ایجاد اتاق",
       scheduleSession: "برنامه‌ریزی جلسه",
       createMenuTitle: "ایجاد مورد جدید",
       createMenuDescription: "انتخاب کنید چه چیزی به فضای کاری اضافه شود.",
+      logout: "خروج",
+      logoutFailed: "خروج انجام نشد. دوباره تلاش کنید.",
     },
     home: {
       eyebrow: "جایی برای دیدار",
@@ -341,6 +345,7 @@ const messages: Record<Locale, Messages> = {
     sessions: {
       sessionTitle: "جلسه",
       participants: "شرکت‌کنندگان",
+      admissionTab: "پذیرش",
       roles: { manager: "مدیر", moderator: "ناظر", member: "عضو" },
       participantActionsLabel: "عملیات برای {name}",
       emptyRoster: "هنوز کسی به این جلسه نپیوسته است.",
@@ -356,7 +361,6 @@ const messages: Record<Locale, Messages> = {
       checkAdmission: "بررسی پذیرش",
       admissionQueue: "صف پذیرش",
       noAdmissionRequests: "درخواستی برای پذیرش وجود ندارد.",
-      requested: "زمان درخواست: {requestedAt}",
       admit: "پذیرش {name}",
       reject: "رد {name}",
       scheduled: "برنامه‌ریزی‌شده",
@@ -380,6 +384,8 @@ const messages: Record<Locale, Messages> = {
       participationSummary: "خلاصه مشارکت",
       started: "شروع",
       duration: "مدت",
+      sessionTimingUnavailable: "زمان جلسه در دسترس نیست.",
+      underMinute: "کمتر از یک دقیقه",
       loadingTitle: "در حال اتصال به جلسه",
       loadingMessage: "جزئیات جلسه در حال بارگذاری است.",
       rejectedTitle: "درخواست پذیرش تأیید نشد",

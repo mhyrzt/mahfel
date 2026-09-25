@@ -1,10 +1,10 @@
 ---
 id: TASK-131
 title: M4-15 Frontend invite links UI
-status: To Do
+status: In Progress
 assignee: []
 created_date: '2026-09-20 19:32'
-updated_date: '2026-09-20 19:32'
+updated_date: '2026-09-25 00:44'
 labels:
   - frontend
 milestone: m-4
@@ -33,3 +33,9 @@ Browser surfaces for invite links: create, list, copy, revoke, and regenerate a 
 - [ ] #4 Expired, revoked, and rejected links show explicit states instead of silent failure.
 - [ ] #5 The join-by-code flow works for an authenticated principal and never assumes approval before the server confirms.
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+2026-09-25: Added room/session invite management, authenticated code redemption, self-scoped status polling, and manager room-request approval endpoints/UI. Unusable codes remain intentionally non-enumerating, so expired versus revoked cannot be distinguished from the redemption response.
+<!-- SECTION:NOTES:END -->

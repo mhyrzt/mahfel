@@ -4,10 +4,11 @@ import { signIn } from "next-auth/react";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { PageSkeleton } from "@/features/shell/components/page-skeleton";
 
 function LoginContent() {
   const searchParams = useSearchParams();
-  const callbackUrl = searchParams.get("callbackUrl") ?? "/";
+  const callbackUrl = searchParams.get("callbackUrl") ?? "/workspace";
   const error = searchParams.get("error");
   const [pending, setPending] = useState(false);
 
@@ -37,7 +38,13 @@ function LoginContent() {
 
 export default function LoginPage() {
   return (
-    <Suspense fallback={null}>
+    <Suspense
+      fallback={
+        <main className="mx-auto flex min-h-dvh max-w-md flex-col justify-center px-6 py-16">
+          <PageSkeleton shape="form" />
+        </main>
+      }
+    >
       <LoginContent />
     </Suspense>
   );

@@ -272,6 +272,22 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/invite-links/requests/{request_id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get: operations["request_status"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/v1/invite-links/{link_id}/revoke": {
     parameters: {
       query?: never;
@@ -453,6 +469,54 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/rooms/{room_id}/lobby": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get: operations["getRoomLobby"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/rooms/{room_id}/lobby/{actor_id}/admit": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post: operations["admitRoomPrincipal"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/rooms/{room_id}/lobby/{actor_id}/reject": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post: operations["rejectRoomPrincipal"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/v1/rooms/{room_id}/members": {
     parameters: {
       query?: never;
@@ -490,6 +554,23 @@ export interface paths {
      *     can manage it.
      */
     patch: operations["change_role"];
+    trace?: never;
+  };
+  "/v1/rooms/{room_id}/membership": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Get the caller's role in a room */
+    get: operations["own_membership"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
     trace?: never;
   };
   "/v1/rooms/{room_id}/messages": {
@@ -607,7 +688,7 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
-    /** List a room's sessions for a manager, newest first. */
+    /** List a room's sessions for a member, newest first. */
     get: operations["list_sessions"];
     put?: never;
     /** Schedule a session */
@@ -625,7 +706,7 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
-    /** Get a session visible to a room manager. */
+    /** Get a session visible to a room member. */
     get: operations["get_session"];
     put?: never;
     post?: never;
@@ -949,6 +1030,22 @@ export interface paths {
      *     roster-level information. A session the caller cannot see is a `404`.
      */
     get: operations["session_summary"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/sessions/{session_id}/roster": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get: operations["roster"];
     put?: never;
     post?: never;
     delete?: never;
@@ -1317,6 +1414,10 @@ export interface components {
       target_id: string;
       target_kind: components["schemas"]["InviteTargetKindDto"];
     };
+    InviteRequestStatusResponse: {
+      request_id: string;
+      status: string;
+    };
     /**
      * @description `utoipa` never reaches `mahfel-domain` (ADR 0015), so the domain's tagged
      *     target enum becomes an explicit kind plus id here.
@@ -1341,6 +1442,10 @@ export interface components {
     OwnAdmissionResponse: {
       request_id: string;
       status: string;
+    };
+    OwnMembershipResponse: {
+      can_manage_session: boolean;
+      role: components["schemas"]["RoomRoleDto"];
     };
     Paginated_EchoPayload: {
       data: {
@@ -1459,6 +1564,17 @@ export interface components {
       /** Format: uuid */
       file_id: string;
     };
+    RoomLobbyEntryResponse: {
+      actor_id: string;
+      origin: string;
+      request_id: string;
+      /** Format: date-time */
+      requested_at: string;
+    };
+    RoomLobbyResponse: {
+      entries: components["schemas"]["RoomLobbyEntryResponse"][];
+      room_id: string;
+    };
     RoomResponse: {
       admission: components["schemas"]["AdmissionPolicyDto"];
       created_by: string;
@@ -1479,6 +1595,13 @@ export interface components {
      * @enum {string}
      */
     RoomVisibilityDto: "public" | "invite_only";
+    RosterParticipantResponse: {
+      actor_id: string;
+      avatar_url?: string | null;
+      id: string;
+      name: string;
+      role: string;
+    };
     RotateInviteLinkRequest: {
       /**
        * Format: int64
@@ -2324,6 +2447,47 @@ export interface operations {
       };
     };
   };
+  request_status: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Admission request identifier (UUID) */
+        request_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Caller's invite request status */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["InviteRequestStatusResponse"];
+        };
+      };
+      /** @description Authentication required */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
+      };
+      /** @description Request does not exist or belongs to another principal */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
+      };
+    };
+  };
   revokeInviteLink: {
     parameters: {
       query?: never;
@@ -3018,6 +3182,155 @@ export interface operations {
       };
     };
   };
+  getRoomLobby: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        room_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["RoomLobbyResponse"];
+        };
+      };
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
+      };
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
+      };
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
+      };
+    };
+  };
+  admitRoomPrincipal: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        room_id: string;
+        actor_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
+      };
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
+      };
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
+      };
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
+      };
+    };
+  };
+  rejectRoomPrincipal: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        room_id: string;
+        actor_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
+      };
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
+      };
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
+      };
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
+      };
+    };
+  };
   add: {
     parameters: {
       query?: never;
@@ -3196,6 +3509,47 @@ export interface operations {
       };
       /** @description The last manager cannot be demoted */
       409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
+      };
+    };
+  };
+  own_membership: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Room identifier (UUID) */
+        room_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Caller's membership */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["OwnMembershipResponse"];
+        };
+      };
+      /** @description Authentication required */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
+      };
+      /** @description Room does not exist or the caller is not a member */
+      404: {
         headers: {
           [name: string]: unknown;
         };
@@ -3766,15 +4120,6 @@ export interface operations {
           "application/json": components["schemas"]["ErrorBody"];
         };
       };
-      /** @description Caller is not a manager */
-      403: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["ErrorBody"];
-        };
-      };
       /** @description Room does not exist or the caller is not a member */
       404: {
         headers: {
@@ -3881,15 +4226,6 @@ export interface operations {
       };
       /** @description Authentication required */
       401: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["ErrorBody"];
-        };
-      };
-      /** @description Caller is not a manager */
-      403: {
         headers: {
           [name: string]: unknown;
         };
@@ -4925,6 +5261,47 @@ export interface operations {
         };
       };
       /** @description Session does not exist or the caller cannot see its room */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
+      };
+    };
+  };
+  roster: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Session identifier (UUID) */
+        session_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Active session participants */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["RosterParticipantResponse"][];
+        };
+      };
+      /** @description Authentication required */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
+      };
+      /** @description Session does not exist or the caller cannot see it */
       404: {
         headers: {
           [name: string]: unknown;

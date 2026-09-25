@@ -12,7 +12,8 @@ import {
 import type { Locale } from "@/lib/i18n/config";
 import { messagesFor } from "@/lib/i18n/messages";
 
-import { isTheme, themeCookieName, themes, type Theme } from "../theme";
+import { isTheme, themes, type Theme } from "../theme";
+import { persistThemePreference } from "../theme-preference";
 
 interface ThemeSwitcherProps {
   locale: Locale;
@@ -24,8 +25,7 @@ export function ThemeSwitcher({ locale, theme }: Readonly<ThemeSwitcherProps>) {
   const messages = messagesFor(locale).appearance;
 
   function changeTheme(nextTheme: Theme) {
-    document.cookie = `${themeCookieName}=${nextTheme}; Path=/; Max-Age=31536000; SameSite=Lax`;
-    document.documentElement.dataset.theme = nextTheme;
+    persistThemePreference(nextTheme);
     router.refresh();
   }
 

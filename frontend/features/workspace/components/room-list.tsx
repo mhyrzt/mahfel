@@ -42,7 +42,7 @@ function RoomCard({ room }: Readonly<{ room: Room }>) {
   return (
     <Link
       className="group block rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-      href={`/rooms/${room.id}`}
+      href={`/room/${room.id}`}
     >
       <Card className="shadow-none transition-all duration-200 group-hover:-translate-y-0.5 group-hover:border-primary/30 group-hover:shadow-md">
         <CardContent className="flex min-h-36 flex-col p-4">

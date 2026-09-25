@@ -1,9 +1,7 @@
 import { NextResponse } from "next/server";
 import { getServerAccessToken } from "@/lib/auth/server";
 import { serverApiBaseUrl } from "@/lib/api/config";
-
-const ALLOWLIST =
-  /^(v1\/(auth|rooms|files|echo|status|health)(\/.*)?|v1\/sessions\/[0-9a-fA-F-]{36}\/(roster|collaboration\/(notes|whiteboard)\/images)|v1\/ws\/tickets)$/;
+import { isAllowedBackendPath } from "@/lib/api/allowlist";
 
 const REQUEST_HEADERS_TO_DROP = new Set([
   "accept-encoding",
@@ -73,7 +71,7 @@ async function handleBackendRequest(request: Request, context: Context): Promise
   }
   const { path } = await context.params;
   const joinedPath = path.join("/");
-  if (!ALLOWLIST.test(joinedPath)) {
+  if (!isAllowedBackendPath(joinedPath)) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
   if (joinedPath === "v1/ws/tickets" && request.method !== "POST") {

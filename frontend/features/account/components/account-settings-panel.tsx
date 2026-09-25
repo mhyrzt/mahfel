@@ -1,22 +1,11 @@
 "use client";
 
-import { useState } from "react";
 import { CalendarDays, Languages, SunMoon } from "lucide-react";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { DevicePreferences } from "@/features/account/components/device-preferences";
-import {
-  calendarPreferences,
-  calendarPreferenceCookie,
-  type CalendarPreference,
-} from "@/features/account/calendar-preference";
+import { CalendarSwitcher } from "@/features/account/components/calendar-switcher";
+import type { CalendarPreference } from "@/features/account/calendar-preference";
 import { ThemeSwitcher } from "@/features/appearance/components/theme-switcher";
 import type { Theme } from "@/features/appearance/theme";
 import { LocaleSwitcher } from "@/features/i18n/components/locale-switcher";
@@ -40,7 +29,6 @@ export function AccountSettingsPanel({
   name,
   theme,
 }: Readonly<AccountSettingsPanelProps>) {
-  const [selectedCalendar, setSelectedCalendar] = useState(calendar);
   const messages = messagesFor(locale).account;
   const initials = name
     .split(/\s+/)
@@ -49,22 +37,13 @@ export function AccountSettingsPanel({
     .map((part) => part[0]?.toLocaleUpperCase(locale))
     .join("");
 
-  function changeCalendar(value: string) {
-    const nextCalendar = calendarPreferences.find((item) => item === value);
-    if (!nextCalendar) {
-      return;
-    }
-    setSelectedCalendar(nextCalendar);
-    document.cookie = `${calendarPreferenceCookie}=${nextCalendar}; Path=/; Max-Age=31536000; SameSite=Lax`;
-  }
-
   return (
     <div className="space-y-6">
       <header>
         <h1 className="text-xl font-semibold">{messages.title}</h1>
         <p className="mt-1 text-sm text-muted-foreground">{messages.description}</p>
       </header>
-      <section className="grid gap-6 rounded-xl border p-5 sm:grid-cols-[minmax(9rem,0.7fr)_minmax(0,1.3fr)]">
+      <section className="grid gap-6 rounded-xl bg-card p-5 sm:grid-cols-[minmax(9rem,0.7fr)_minmax(0,1.3fr)]">
         <div className="flex flex-col items-center gap-3 sm:items-start">
           <h2 className="text-sm font-medium">{messages.picture}</h2>
           <Avatar className="size-28 text-3xl">
@@ -80,23 +59,12 @@ export function AccountSettingsPanel({
           <ProfileField label={messages.email} value={email || messages.notSet} />
         </div>
       </section>
-      <section className="grid gap-4 rounded-xl border p-5 sm:grid-cols-3">
+      <section className="grid gap-4 rounded-xl bg-card p-5 sm:grid-cols-3">
         <SettingField icon={SunMoon} label={messagesFor(locale).appearance.label}>
           <ThemeSwitcher locale={locale} theme={theme} />
         </SettingField>
         <SettingField icon={CalendarDays} label={messages.calendarType}>
-          <Select onValueChange={changeCalendar} value={selectedCalendar}>
-            <SelectTrigger aria-label={messages.calendarType}>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent dir={locale === "fa" ? "rtl" : "ltr"}>
-              {calendarPreferences.map((availableCalendar) => (
-                <SelectItem key={availableCalendar} value={availableCalendar}>
-                  {messages[availableCalendar]}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <CalendarSwitcher calendar={calendar} locale={locale} />
         </SettingField>
         <SettingField icon={Languages} label={messages.language}>
           <LocaleSwitcher locale={locale} />

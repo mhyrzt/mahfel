@@ -4,6 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import type { Locale } from "@/lib/i18n/config";
 
 export interface InviteLink {
   id: string;
@@ -16,21 +17,58 @@ export interface InviteLink {
 export function InviteLinkList({
   links,
   canManage = true,
-}: Readonly<{ links: InviteLink[]; canManage?: boolean }>) {
+  locale = "en",
+  onCreate,
+  onCopy,
+  onRotate,
+  onRevoke,
+}: Readonly<{
+  links: InviteLink[];
+  canManage?: boolean;
+  locale?: Locale;
+  onCreate?: () => void;
+  onCopy?: (link: InviteLink) => void;
+  onRotate?: (link: InviteLink) => void;
+  onRevoke?: (link: InviteLink) => void;
+}>) {
+  const text =
+    locale === "fa"
+      ? {
+          title: "پیوندهای دعوت",
+          create: "ساخت پیوند",
+          empty: "هنوز پیوند دعوتی ساخته نشده است.",
+          copy: "کپی کد",
+          rotate: "ساخت کد تازه",
+          revoke: "لغو پیوند",
+          expires: "انقضا",
+        }
+      : {
+          title: "Invite links",
+          create: "Create link",
+          empty: "No invite links have been created.",
+          copy: "Copy code",
+          rotate: "Rotate code",
+          revoke: "Revoke link",
+          expires: "Expires",
+        };
   return (
     <TooltipProvider>
-      <Card>
+      <Card data-testid="invite-links">
         <CardHeader className="flex-row items-center justify-between space-y-0">
           <CardTitle className="flex items-center gap-2 text-base">
             <Link2 className="size-4" aria-hidden="true" />
-            Invite links
+            {text.title}
           </CardTitle>
-          {canManage ? <Button size="sm">Create link</Button> : null}
+          {canManage ? (
+            <Button onClick={onCreate} size="sm">
+              {text.create}
+            </Button>
+          ) : null}
         </CardHeader>
         <CardContent>
           {links.length === 0 ? (
             <div className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
-              No invite links have been created.
+              {text.empty}
             </div>
           ) : (
             <ul className="space-y-3">
@@ -42,7 +80,7 @@ export function InviteLinkList({
                   <div className="min-w-0 flex-1">
                     <p className="font-mono text-sm font-medium">{link.code}</p>
                     <p className="text-xs text-muted-foreground">
-                      {link.target} · Expires {link.expiresAt}
+                      {link.target} · {text.expires} {link.expiresAt}
                     </p>
                   </div>
                   <Badge variant={link.status === "active" ? "secondary" : "outline"}>
@@ -52,27 +90,42 @@ export function InviteLinkList({
                     <div className="flex gap-1">
                       <Tooltip>
                         <TooltipTrigger asChild>
-                          <Button aria-label={`Copy ${link.code}`} size="icon" variant="ghost">
+                          <Button
+                            aria-label={`${text.copy} ${link.code}`}
+                            onClick={() => onCopy?.(link)}
+                            size="icon"
+                            variant="ghost"
+                          >
                             <Copy className="size-4" />
                           </Button>
                         </TooltipTrigger>
-                        <TooltipContent>Copy invite link</TooltipContent>
+                        <TooltipContent>{text.copy}</TooltipContent>
                       </Tooltip>
                       <Tooltip>
                         <TooltipTrigger asChild>
-                          <Button aria-label={`Rotate ${link.code}`} size="icon" variant="ghost">
+                          <Button
+                            aria-label={`${text.rotate} ${link.code}`}
+                            onClick={() => onRotate?.(link)}
+                            size="icon"
+                            variant="ghost"
+                          >
                             <RotateCw className="size-4" />
                           </Button>
                         </TooltipTrigger>
-                        <TooltipContent>Rotate invite link</TooltipContent>
+                        <TooltipContent>{text.rotate}</TooltipContent>
                       </Tooltip>
                       <Tooltip>
                         <TooltipTrigger asChild>
-                          <Button aria-label={`Revoke ${link.code}`} size="icon" variant="ghost">
+                          <Button
+                            aria-label={`${text.revoke} ${link.code}`}
+                            onClick={() => onRevoke?.(link)}
+                            size="icon"
+                            variant="ghost"
+                          >
                             <Trash2 className="size-4 text-destructive" />
                           </Button>
                         </TooltipTrigger>
-                        <TooltipContent>Revoke invite link</TooltipContent>
+                        <TooltipContent>{text.revoke}</TooltipContent>
                       </Tooltip>
                     </div>
                   ) : null}

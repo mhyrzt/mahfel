@@ -3,12 +3,9 @@
 import { useRouter } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
-import { localeCookieName, locales, type Locale } from "@/lib/i18n/config";
+import { locales, type Locale } from "@/lib/i18n/config";
 import { messagesFor } from "@/lib/i18n/messages";
-
-function persistLocalePreference(locale: Locale) {
-  document.cookie = `${localeCookieName}=${locale}; Path=/; Max-Age=31536000; SameSite=Lax`;
-}
+import { persistLocalePreference } from "@/features/i18n/locale-preference";
 
 interface LocaleSwitcherProps {
   locale: Locale;

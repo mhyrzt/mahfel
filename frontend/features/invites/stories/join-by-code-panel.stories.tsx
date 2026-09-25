@@ -20,3 +20,14 @@ export const Approved: Story = { args: { status: "approved" } };
 export const Rejected: Story = { args: { status: "rejected" } };
 
 export const Unavailable: Story = { args: { status: "unavailable" } };
+
+export const PersianEntry: Story = {
+  args: { status: "entry", locale: "fa" },
+  decorators: [
+    (Story) => (
+      <div dir="rtl">
+        <Story />
+      </div>
+    ),
+  ],
+};
