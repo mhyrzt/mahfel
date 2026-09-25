@@ -13,6 +13,9 @@ const { clients } = vi.hoisted(() => ({
 }));
 
 const { getRoster } = vi.hoisted(() => ({ getRoster: vi.fn() }));
+const { push } = vi.hoisted(() => ({ push: vi.fn() }));
+
+vi.mock("next/navigation", () => ({ useRouter: () => ({ push }) }));
 
 vi.mock("@/lib/api/browser", () => ({
   browserApiClient: { get: getRoster },
@@ -58,6 +61,7 @@ function mountSession() {
       capabilities={capabilities}
       locale="en"
       sessionId="session-1"
+      roomId="room-1"
       title="Biology 101"
     />,
   );
@@ -75,6 +79,16 @@ function deliver(message: object) {
 afterEach(() => {
   clients.length = 0;
   getRoster.mockReset();
+  push.mockReset();
+});
+
+test("leave closes signaling and returns to the room", () => {
+  const client = mountSession();
+  deliver({ v: 1, type: "joined", session_id: "session-1", participant_id: "part-a111" });
+  fireEvent.click(screen.getByRole("button", { name: "Leave session" }));
+  expect(client.leave).toHaveBeenCalledOnce();
+  expect(client.close).toHaveBeenCalledOnce();
+  expect(push).toHaveBeenCalledWith("/room/room-1");
 });
 
 test("shows the resolved display name in the live roster", async () => {

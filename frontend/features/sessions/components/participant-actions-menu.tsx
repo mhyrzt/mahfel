@@ -21,6 +21,7 @@ interface ParticipantActionsMenuProps {
   tone?: "light" | "dark";
   compact?: boolean;
   icon?: "more" | "settings";
+  onAction?: (action: ParticipantAction, participant: Participant) => void;
 }
 
 export function ParticipantActionsMenu({
@@ -30,6 +31,7 @@ export function ParticipantActionsMenu({
   tone = "light",
   compact = false,
   icon = "more",
+  onAction,
 }: Readonly<ParticipantActionsMenuProps>) {
   if (actions.length === 0) {
     return null;
@@ -62,19 +64,25 @@ export function ParticipantActionsMenu({
         <DropdownMenuLabel>{participant.name}</DropdownMenuLabel>
         <DropdownMenuSeparator />
         {actions.includes("mute") ? (
-          <DropdownMenuItem>
+          <DropdownMenuItem onSelect={() => onAction?.("mute", participant)}>
             <MicOff className="size-4" />
             {text.muteParticipant}
           </DropdownMenuItem>
         ) : null}
         {actions.includes("remove") ? (
-          <DropdownMenuItem className="text-destructive focus:text-destructive">
+          <DropdownMenuItem
+            className="text-destructive focus:text-destructive"
+            onSelect={() => onAction?.("remove", participant)}
+          >
             <UserRoundX className="size-4" />
             {text.removeParticipant}
           </DropdownMenuItem>
         ) : null}
         {actions.includes("block") ? (
-          <DropdownMenuItem className="text-destructive focus:text-destructive">
+          <DropdownMenuItem
+            className="text-destructive focus:text-destructive"
+            onSelect={() => onAction?.("block", participant)}
+          >
             <Ban className="size-4" />
             {text.blockParticipant}
           </DropdownMenuItem>

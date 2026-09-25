@@ -80,3 +80,29 @@ test("waiting and unavailable states do not enable media controls", () => {
   expect(canUseMediaControls(waiting)).toBe(false);
   expect(canUseMediaControls(unavailable)).toBe(false);
 });
+
+test("speaker and mute events update existing participant tiles without reordering them", () => {
+  const connected = connectedState();
+  const speaking = sessionReducer(connected, {
+    type: "active-speakers-changed",
+    participantIds: [taylor.id],
+  });
+  const muted = sessionReducer(
+    {
+      ...speaking,
+      participants: speaking.participants.map((participant) => ({
+        ...participant,
+        actorId: participant.id,
+      })),
+    },
+    { type: "participant-muted", actorId: taylor.id, muted: true },
+  );
+
+  expect(muted.participants.map((participant) => participant.id)).toEqual([alex.id, taylor.id]);
+  expect(muted.participants[1]).toEqual({
+    ...taylor,
+    actorId: taylor.id,
+    speaking: true,
+    muted: true,
+  });
+});

@@ -1,0 +1,54 @@
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { beforeEach, expect, test, vi } from "vitest";
+
+const { post, refresh } = vi.hoisted(() => ({ post: vi.fn(), refresh: vi.fn() }));
+
+vi.mock("@/lib/api/browser", () => ({ browserApiClient: { post } }));
+vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh }) }));
+
+import { SessionLifecyclePanel } from "../components/session-lifecycle-panel";
+
+const session = {
+  id: "session-1",
+  room_id: "room-1",
+  status: "scheduled" as const,
+  title: "Weekly review",
+  title_overridden: true,
+  created_at: "2026-09-25T00:00:00Z",
+  updated_at: "2026-09-25T00:00:00Z",
+};
+
+beforeEach(() => {
+  post.mockReset();
+  refresh.mockReset();
+});
+
+test("a manager can start a scheduled session", async () => {
+  post.mockResolvedValue({ data: { ...session, status: "live" } });
+  render(<SessionLifecyclePanel session={session} canManage locale="en" />);
+
+  fireEvent.click(screen.getByRole("button", { name: "Start session" }));
+
+  await waitFor(() => expect(refresh).toHaveBeenCalled());
+  expect(post).toHaveBeenCalledWith("/v1/sessions/session-1/start");
+});
+
+test("a member sees the schedule without management actions", () => {
+  render(<SessionLifecyclePanel session={session} canManage={false} locale="en" />);
+
+  expect(screen.getByText(/planned time does not prevent an early start/)).toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "Start session" })).not.toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "Cancel session" })).not.toBeInTheDocument();
+});
+
+test("ending a live session requires confirmation", async () => {
+  post.mockResolvedValue({ data: { ...session, status: "ended" } });
+  render(<SessionLifecyclePanel session={{ ...session, status: "live" }} canManage locale="en" />);
+
+  fireEvent.click(screen.getByRole("button", { name: "End session for everyone" }));
+  expect(post).not.toHaveBeenCalled();
+  const dialog = screen.getByRole("dialog", { name: "End session for everyone" });
+  fireEvent.click(within(dialog).getByRole("button", { name: "End session for everyone" }));
+
+  await waitFor(() => expect(post).toHaveBeenCalledWith("/v1/sessions/session-1/end"));
+});

@@ -1,10 +1,10 @@
 ---
 id: TASK-127
 title: M4-11 Frontend moderation and admission UI
-status: To Do
+status: In Progress
 assignee: []
 created_date: '2026-09-20 18:58'
-updated_date: '2026-09-20 19:00'
+updated_date: '2026-09-25 00:44'
 labels:
   - frontend
 milestone: m-4
@@ -32,3 +32,9 @@ Capability-gated moderation and admission controls in the browser app: mute requ
 - [ ] #4 Removed or blocked participants see an explicit state instead of a silent failure.
 - [ ] #5 Capability-gated actions give clear feedback and never assume success before the server confirms.
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+2026-09-25: Added capability-gated moderation actions, confirmation for remove and block, roster event handling, and a polling admission queue with admit/reject. Full media publish/screen gating and enforced-mute feedback still need the live RTC integration.
+<!-- SECTION:NOTES:END -->

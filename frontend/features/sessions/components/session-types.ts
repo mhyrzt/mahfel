@@ -4,6 +4,7 @@ export type ParticipantAction = "mute" | "remove" | "block";
 
 export interface Participant {
   id: string;
+  actorId?: string;
   name: string;
   initials: string;
   avatarUrl?: string;
@@ -21,7 +22,12 @@ export interface ParticipantMediaStreams {
 
 export interface AdmissionRequest {
   id: string;
+  actorId?: string;
   name: string;
   initials: string;
   requestedAt: string;
 }
+
+export type SessionTiming =
+  | { status: "available"; startedAt: string | null; endedAt: string | null; observedAt: string }
+  | { status: "unavailable" };

@@ -1,4 +1,5 @@
 import { Mic, MicOff, UsersRound } from "lucide-react";
+import type { ReactNode } from "react";
 
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -11,12 +12,13 @@ import type { Participant } from "./session-types";
 
 export function ParticipantRoster({
   participants,
+  summary,
   locale = defaultLocale,
-}: Readonly<{ participants: Participant[]; locale?: Locale }>) {
+}: Readonly<{ participants: Participant[]; summary?: ReactNode; locale?: Locale }>) {
   const text = messagesFor(locale).sessions;
 
   return (
-    <Card className="h-full shadow-none">
+    <Card className="flex h-full flex-col shadow-none">
       <CardHeader className="flex-row items-center justify-between space-y-0">
         <CardTitle className="flex items-center gap-2 text-base">
           <UsersRound className="size-4" aria-hidden="true" />
@@ -24,14 +26,15 @@ export function ParticipantRoster({
         </CardTitle>
         <Badge variant="secondary">{participants.length}</Badge>
       </CardHeader>
-      <CardContent className="h-80 p-0">
+      {summary}
+      <CardContent className="min-h-0 flex-1 p-0">
         {participants.length === 0 ? (
           <div className="flex h-full flex-col items-center justify-center gap-2 px-6 text-center text-sm text-muted-foreground">
             <UsersRound className="size-6" aria-hidden="true" />
             {text.emptyRoster}
           </div>
         ) : (
-          <ScrollArea className="h-full px-6 pb-6">
+          <ScrollArea className="h-full px-6 pb-6" dir={locale === "fa" ? "rtl" : "ltr"}>
             <ul className="space-y-3">
               {participants.map((participant) => (
                 <li className="flex items-center justify-between gap-3" key={participant.id}>

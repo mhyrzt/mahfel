@@ -16,6 +16,7 @@ interface ParticipantTileProps {
   participant: Participant;
   screenShareStream?: MediaStream;
   locale?: Locale;
+  onAction?: (action: ParticipantAction, participant: Participant) => void;
 }
 
 export function ParticipantTile({
@@ -24,6 +25,7 @@ export function ParticipantTile({
   participant,
   screenShareStream,
   locale = defaultLocale,
+  onAction,
 }: Readonly<ParticipantTileProps>) {
   const text = messagesFor(locale).sessions;
   const cameraEnabled = participant.videoEnabled === true;
@@ -53,6 +55,7 @@ export function ParticipantTile({
             participant={participant}
             locale={locale}
             tone="dark"
+            onAction={onAction}
           />
         </div>
         <div className="absolute right-3 top-3 size-20 overflow-hidden rounded-full border-2 border-white/90 bg-slate-900 shadow-lg sm:right-4 sm:top-4 sm:size-28">
@@ -112,6 +115,7 @@ export function ParticipantTile({
               locale={locale}
               compact
               icon="settings"
+              onAction={onAction}
             />
           </div>
         ) : null}

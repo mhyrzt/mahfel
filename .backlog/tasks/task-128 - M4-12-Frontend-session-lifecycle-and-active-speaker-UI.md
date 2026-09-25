@@ -1,10 +1,10 @@
 ---
 id: TASK-128
 title: M4-12 Frontend session lifecycle and active speaker UI
-status: To Do
+status: In Progress
 assignee: []
 created_date: '2026-09-20 18:58'
-updated_date: '2026-09-20 19:45'
+updated_date: '2026-09-25 00:44'
 labels:
   - frontend
 milestone: m-4
@@ -35,3 +35,9 @@ Browser app surfaces for the generic session lifecycle and active speaker: start
 - [ ] #5 The engine UI contains no LMS-specific strings, and education copy is optional theming.
 - [ ] #6 A capable principal can create an ad-hoc or scheduled session, optionally set or clear the session title and duration, and see the schedule; duration is presented as advisory and never shown as a hard end.
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+2026-09-25: Added room/session creation, lifecycle controls, scheduled/live/ended views, active-speaker event handling, and an ended-session participation summary. Editing scheduled title/duration and live multi-client validation remain.
+<!-- SECTION:NOTES:END -->

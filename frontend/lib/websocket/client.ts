@@ -26,7 +26,7 @@ export class SignalingClient {
   private hasConnected = false;
 
   constructor(
-    private readonly sessionId: string,
+    private readonly sessionId: string | null,
     private readonly onMessage: (message: ServerMessage) => void,
     private readonly onStatus: (status: SignalingStatus) => void = () => undefined,
   ) {}
@@ -100,7 +100,9 @@ export class SignalingClient {
           this.hasConnected = true;
           this.reconnectAttempt = 0;
           this.onStatus("connected");
-          socket.send(JSON.stringify({ v: 1, type: "join", session_id: this.sessionId }));
+          if (this.sessionId) {
+            socket.send(JSON.stringify({ v: 1, type: "join", session_id: this.sessionId }));
+          }
         }
         this.onMessage(message);
       };

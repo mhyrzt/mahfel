@@ -35,7 +35,9 @@ export type SessionAction =
   | { type: "connection-unavailable"; message: string }
   | { type: "roster-synchronized"; participants: Participant[] }
   | { type: "participant-upserted"; participant: Participant }
-  | { type: "participant-removed"; participantId: string };
+  | { type: "participant-removed"; participantId: string }
+  | { type: "active-speakers-changed"; participantIds: string[] }
+  | { type: "participant-muted"; actorId: string; muted: boolean };
 
 const noCapabilities: SessionCapabilities = {
   canPublishAudio: false,
@@ -103,6 +105,29 @@ export function sessionReducer(state: SessionState, action: SessionAction): Sess
             ...state,
             participants: state.participants.filter(
               (participant) => participant.id !== action.participantId,
+            ),
+          }
+        : state;
+    case "active-speakers-changed": {
+      const active = new Set(action.participantIds);
+      return state.phase === "live"
+        ? {
+            ...state,
+            participants: state.participants.map((participant) => ({
+              ...participant,
+              speaking: active.has(participant.id),
+            })),
+          }
+        : state;
+    }
+    case "participant-muted":
+      return state.phase === "live"
+        ? {
+            ...state,
+            participants: state.participants.map((participant) =>
+              participant.actorId === action.actorId
+                ? { ...participant, muted: action.muted }
+                : participant,
             ),
           }
         : state;

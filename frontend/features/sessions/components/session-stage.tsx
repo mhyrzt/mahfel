@@ -26,6 +26,8 @@ interface SessionStageProps {
   toolbarCapabilities?: SessionToolbarCapabilities;
   participantMedia?: Readonly<Record<string, ParticipantMediaStreams>>;
   locale?: Locale;
+  onParticipantAction?: (action: ParticipantAction, participant: Participant) => void;
+  onLeave?: () => void;
 }
 
 export function SessionStage({
@@ -37,6 +39,8 @@ export function SessionStage({
   toolbarCapabilities,
   participantMedia,
   locale = defaultLocale,
+  onParticipantAction,
+  onLeave,
 }: Readonly<SessionStageProps>) {
   const text = messagesFor(locale).sessions;
   const participantCount = Math.max(participants.length, 1);
@@ -102,11 +106,12 @@ export function SessionStage({
             participant={participant}
             screenShareStream={participantMedia?.[participant.id]?.screenShare}
             locale={locale}
+            onAction={onParticipantAction}
           />
         ))}
       </div>
       <div className="fixed inset-x-0 bottom-[calc(4rem+env(safe-area-inset-bottom))] z-40 flex justify-center px-4 md:bottom-4 md:pb-0">
-        <SessionToolbar {...toolbarCapabilities} locale={locale} />
+        <SessionToolbar {...toolbarCapabilities} locale={locale} onLeave={onLeave} />
       </div>
     </section>
   );

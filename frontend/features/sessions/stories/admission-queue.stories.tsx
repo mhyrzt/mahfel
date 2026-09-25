@@ -7,8 +7,8 @@ const meta = {
   component: AdmissionQueue,
   args: {
     requests: [
-      { id: "a", name: "Misato Katsuragi", initials: "MK", requestedAt: "2 minutes ago" },
-      { id: "b", name: "Rei Ayanami", initials: "RA", requestedAt: "just now" },
+      { id: "a", name: "Misato Katsuragi", initials: "MK", requestedAt: minutesAgo(2) },
+      { id: "b", name: "Rei Ayanami", initials: "RA", requestedAt: minutesAgo(0) },
     ],
   },
 } satisfies Meta<typeof AdmissionQueue>;
@@ -16,6 +16,10 @@ const meta = {
 export default meta;
 
 type Story = StoryObj<typeof meta>;
+
+function minutesAgo(minutes: number) {
+  return new Date(Date.now() - minutes * 60_000).toISOString();
+}
 
 export const Waiting: Story = {};
 
