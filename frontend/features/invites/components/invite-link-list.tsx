@@ -41,6 +41,8 @@ export function InviteLinkList({
           rotate: "ساخت کد تازه",
           revoke: "لغو پیوند",
           expires: "انقضا",
+          room: "محفل",
+          session: "دیدار",
         }
       : {
           title: "Invite links",
@@ -50,6 +52,8 @@ export function InviteLinkList({
           rotate: "Rotate code",
           revoke: "Revoke link",
           expires: "Expires",
+          room: "Room",
+          session: "Session",
         };
   return (
     <TooltipProvider>
@@ -80,7 +84,7 @@ export function InviteLinkList({
                   <div className="min-w-0 flex-1">
                     <p className="font-mono text-sm font-medium">{link.code}</p>
                     <p className="text-xs text-muted-foreground">
-                      {link.target} · {text.expires} {link.expiresAt}
+                      {text[link.target]} · {text.expires} {link.expiresAt}
                     </p>
                   </div>
                   <Badge variant={link.status === "active" ? "secondary" : "outline"}>

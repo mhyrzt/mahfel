@@ -15,7 +15,7 @@ test("route error offers a retry without showing technical error details", () =>
 
 test("route error supports Persian", () => {
   render(<RouteError scope="sessions" locale="fa" reset={() => undefined} />);
-  expect(screen.getByRole("heading", { name: "بارگذاری جلسه‌ها ممکن نشد" })).toBeInTheDocument();
+  expect(screen.getByRole("heading", { name: "بارگذاری دیدارها ممکن نشد" })).toBeInTheDocument();
   expect(screen.getByRole("button", { name: "تلاش دوباره" })).toBeInTheDocument();
 });
 
