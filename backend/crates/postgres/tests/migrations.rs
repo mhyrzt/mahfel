@@ -399,7 +399,11 @@ async fn verify_migrations_and_stores(
     );
     assert!(files.link_room_file_to_session(file.id, session.id).await?);
     assert!(files.link_room_file_to_session(file.id, session.id).await?);
-    assert!(!files.link_room_file_to_session(session_file.id, session.id).await?);
+    assert!(
+        !files
+            .link_room_file_to_session(session_file.id, session.id)
+            .await?
+    );
     let attached = files.list(FileContext::Session(session.id), 100, 0).await?;
     assert_eq!(attached.len(), 2);
     assert!(attached.iter().any(|item| item.id == file.id));
