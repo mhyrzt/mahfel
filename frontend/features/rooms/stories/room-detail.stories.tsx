@@ -19,13 +19,38 @@ const room = {
 };
 const sessions = [
   {
+    id: "live-workshop",
+    room_id: room.id,
+    title: "Methods workshop",
+    title_overridden: true,
+    status: "live" as const,
+    scheduled_start_at: "2026-09-25T13:00:00Z",
+    scheduled_duration_minutes: 90,
+    started_at: "2026-09-25T12:58:00Z",
+    created_at: "2026-09-20T09:00:00Z",
+    updated_at: "2026-09-25T12:58:00Z",
+  },
+  {
     id: "weekly-discussion",
     room_id: room.id,
     title: "Weekly research discussion",
     title_overridden: true,
     status: "scheduled" as const,
+    scheduled_start_at: "2026-09-27T09:00:00Z",
+    scheduled_duration_minutes: 60,
     created_at: "2026-09-24T09:00:00Z",
     updated_at: "2026-09-24T09:00:00Z",
+  },
+  {
+    id: "prior-review",
+    room_id: room.id,
+    title: "Prior review",
+    title_overridden: true,
+    status: "ended" as const,
+    started_at: "2026-09-19T09:00:00Z",
+    ended_at: "2026-09-19T10:15:00Z",
+    created_at: "2026-09-18T09:00:00Z",
+    updated_at: "2026-09-19T10:15:00Z",
   },
 ];
 const files = [
