@@ -71,4 +71,5 @@ nav:
       - 0023 Dyn-compatible store ports: adr/0023-dyn-compatible-store-ports.md
       - 0024 WebSocket AsyncAPI generation: adr/0024-generate-websocket-asyncapi.md
       - 0025 Single-use WebSocket tickets: adr/0025-single-use-websocket-auth-tickets.md
+      - 0026 Vidstack media player: adr/0026-vidstack-media-player.md
   - Backlog: backlog/roadmap.md

@@ -1,9 +1,12 @@
 "use client";
 
 import Image from "next/image";
+import dynamic from "next/dynamic";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { Square } from "lucide-react";
 import * as Y from "yjs";
 
+import { Button } from "@/components/ui/button";
 import { browserApiClient } from "@/lib/api/browser";
 import {
   MahfelCollaborationProvider,
@@ -14,11 +17,28 @@ import { messagesFor } from "@/lib/i18n/messages";
 
 import { PdfPage } from "./pdf-page";
 import { PresentationViewer } from "./presentation-viewer";
+import type { PlaybackState } from "./presentation-playback";
+
+const PresentationPlayer = dynamic(
+  () => import("./presentation-player").then((module) => module.PresentationPlayer),
+  { ssr: false },
+);
+
+interface PresentationPlayback {
+  position_ms: number;
+  paused: boolean;
+  rate: number;
+}
 
 interface PresentationState {
   file_ids: string[];
   current_page: number;
   total_pages: number;
+  playback?: PresentationPlayback | null;
+}
+
+function isVideoMime(mime: string): boolean {
+  return mime.startsWith("video/");
 }
 
 export function PresentationPane({
@@ -100,6 +120,17 @@ export function PresentationPane({
           headers: { name: string; value: string }[];
           file: { mime: string };
         }>(`/v1/files/${encodeURIComponent(activeId)}/download`);
+        if (isVideoMime(data.file.mime)) {
+          if (!cancelled) {
+            setMedia({
+              id: activeId,
+              bytes: new Uint8Array(),
+              mime: data.file.mime,
+              url: data.url,
+            });
+          }
+          return;
+        }
         const response = await fetch(data.url, {
           headers: Object.fromEntries(data.headers.map((header) => [header.name, header.value])),
         });
@@ -145,6 +176,64 @@ export function PresentationPane({
     },
     [refresh, sessionId],
   );
+
+  const emitPlayback = useCallback(
+    (playback: PlaybackState) => {
+      void browserApiClient
+        .post(`/v1/sessions/${encodeURIComponent(sessionId)}/collaboration/presentation`, {
+          action: "playback",
+          position_ms: playback.positionMs,
+          paused: playback.paused,
+          rate: playback.rate,
+        })
+        .catch(() => setFailed(true));
+    },
+    [sessionId],
+  );
+
+  if (media && isVideoMime(media.mime)) {
+    const ready = media.id === activeId;
+    const playback: PlaybackState | null = state?.playback
+      ? {
+          positionMs: state.playback.position_ms,
+          paused: state.playback.paused,
+          rate: state.playback.rate,
+        }
+      : null;
+    return (
+      <div className="flex h-full min-h-0 flex-1 flex-col gap-3 overflow-hidden rounded-xl border bg-background p-3">
+        {failed ? (
+          <p role="alert" className="text-sm text-destructive">
+            {text.unavailable}
+          </p>
+        ) : null}
+        <div className="min-h-0 flex-1">
+          {ready ? (
+            <PresentationPlayer
+              canPresent={canPresent}
+              locale={locale}
+              onPlayback={emitPlayback}
+              playback={playback}
+              url={media.url}
+            />
+          ) : (
+            <p role="status" className="p-6 text-sm text-muted-foreground">
+              {text.loading}
+            </p>
+          )}
+        </div>
+        <div className="flex items-center justify-between gap-3 border-t pt-3">
+          <span className="text-xs font-medium text-muted-foreground">{text.presentation}</span>
+          {canPresent && live ? (
+            <Button onClick={() => void change({ action: "stop" })} size="sm" variant="outline">
+              <Square aria-hidden="true" className="size-3 fill-current" />
+              {text.stop}
+            </Button>
+          ) : null}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <PresentationViewer

@@ -155,6 +155,10 @@ export interface Messages {
     imageFailed: string;
     numbers: string;
     pdfUnavailable: string;
+    watchToStart: string;
+    mute: string;
+    unmute: string;
+    playbackFailed: string;
   };
 }
 
@@ -289,7 +293,7 @@ const messages: Record<Locale, Messages> = {
       canEdit: "Can edit",
       allowEdit: "Allow editing",
       revokeEdit: "Revoke editing",
-      selectFiles: "Choose a PDF or image from Files to present.",
+      selectFiles: "Choose a PDF, image, or video from Files to present.",
       present: "Present",
       stop: "Stop presenting",
       previous: "Previous",
@@ -311,6 +315,10 @@ const messages: Record<Locale, Messages> = {
       imageFailed: "Image could not be added.",
       numbers: "Numbers",
       pdfUnavailable: "PDF preview unavailable.",
+      watchToStart: "Tap to watch together",
+      mute: "Mute",
+      unmute: "Unmute",
+      playbackFailed: "Playback could not be synced.",
     },
   },
   fa: {
@@ -443,7 +451,7 @@ const messages: Record<Locale, Messages> = {
       canEdit: "مجاز به ویرایش",
       allowEdit: "اجازه ویرایش",
       revokeEdit: "لغو اجازه ویرایش",
-      selectFiles: "برای ارائه، یک PDF یا تصویر از فایل‌ها انتخاب کنید.",
+      selectFiles: "برای ارائه، یک PDF، تصویر یا ویدیو از فایل‌ها انتخاب کنید.",
       present: "ارائه",
       stop: "توقف ارائه",
       previous: "قبلی",
@@ -465,6 +473,10 @@ const messages: Record<Locale, Messages> = {
       imageFailed: "افزودن تصویر ممکن نشد.",
       numbers: "فهرست شماره‌دار",
       pdfUnavailable: "پیش‌نمایش PDF در دسترس نیست.",
+      watchToStart: "برای تماشای هم‌زمان ضربه بزنید",
+      mute: "بی‌صدا",
+      unmute: "باصدا",
+      playbackFailed: "همگام‌سازی پخش ممکن نشد.",
     },
   },
 };

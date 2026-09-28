@@ -83,7 +83,10 @@ export function FileList({
               onDownload={onDownload}
               onPreview={onPreview}
               onPresent={
-                onPresent && ["application/pdf", "image/png", "image/jpeg"].includes(file.mime)
+                onPresent &&
+                ["application/pdf", "image/png", "image/jpeg", "video/mp4", "video/webm"].includes(
+                  file.mime,
+                )
                   ? onPresent
                   : undefined
               }
