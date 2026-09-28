@@ -19,15 +19,27 @@ variables:
   image: $BUN_CI_IMAGE
   variables:
     BUN_INSTALL_CACHE_DIR: $CI_PROJECT_DIR/.bun-cache
-  cache:
+  cache: &frontend-dependency-cache
     key:
       prefix: bun-1.4.2
       files:
         - frontend/bun.lock
     paths:
       - .bun-cache/
+    policy: pull
   before_script:
     - cd frontend
+    - bun install --frozen-lockfile
+
+frontend-prepare:
+  extends: .frontend-base
+  stage: prepare
+  cache:
+    <<: *frontend-dependency-cache
+    policy: pull-push
+  before_script:
+    - cd frontend
+  script:
     - bun install --frozen-lockfile
 
 frontend-format:

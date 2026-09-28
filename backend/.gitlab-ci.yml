@@ -16,24 +16,46 @@ variables:
         - .dockerignore
         - deploy/keycloak/**/*
 
-.backend-base:
+.backend-dependencies:
   extends: .backend-rules
   image: $RUST_CI_IMAGE
   variables:
     CARGO_HOME: $CI_PROJECT_DIR/.cargo-ci
     CARGO_INCREMENTAL: "0"
     CARGO_NET_RETRY: "5"
-  cache:
+  cache: &backend-dependency-cache
     key:
-      prefix: rust-1.95.0
+      prefix: rust-deps-1.95.0
       files:
         - backend/Cargo.lock
         - backend/rust-toolchain.toml
     paths:
-      - .cargo-ci/bin/
       - .cargo-ci/registry/
       - .cargo-ci/git/
-      - backend/target/
+    policy: pull
+
+backend-prepare:
+  extends: .backend-dependencies
+  stage: prepare
+  cache:
+    <<: *backend-dependency-cache
+    policy: pull-push
+  script:
+    - cd backend
+    - cargo fetch --locked
+
+.backend-base:
+  extends: .backend-dependencies
+  cache:
+    - *backend-dependency-cache
+    - key:
+        prefix: rust-build-1.95.0
+        files:
+          - backend/Cargo.lock
+          - backend/rust-toolchain.toml
+      paths:
+        - .cargo-ci/bin/
+        - backend/target/
   before_script:
     - apt-get update && apt-get install -y --no-install-recommends ca-certificates clang cmake g++ make pkg-config python3 python3-pip
     - python3 -m pip --version

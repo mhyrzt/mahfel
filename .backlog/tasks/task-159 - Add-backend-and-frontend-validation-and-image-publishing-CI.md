@@ -5,7 +5,7 @@ status: Done
 assignee:
   - '@codex'
 created_date: '2026-09-28 08:56'
-updated_date: '2026-09-28 10:54'
+updated_date: '2026-09-28 10:59'
 labels:
   - ci
   - backend
@@ -54,6 +54,14 @@ Release-tag refinement supersedes automatic main publishing/deployment. Stable p
 Image-tag refinement: kept Git APP_NAME-vVERSION release triggers, stripped the component prefix for Docker APP_NAME:vVERSION and Darkube vVERSION, including publisher cleanup. Eight local component/version scenarios using stubbed Docker/Darkube CLIs passed publishing, cleanup, and deployment argument assertions. YAML parsing, strict MkDocs, and git diff --check passed. No images were published or deployed.
 
 Live backend-lint failed because the shared Rust CI setup installed python3 without python3-pip. Verified mediasoup-sys 0.17.0 build.rs invokes python3 -m pip install --target for invoke. Added python3-pip and an early pip-version check to .backend-base, covering lint/unit/doctest jobs; Docker chef already installs pip. YAML/inheritance assertions, strict MkDocs, and diff checks pass. The corrected runner build has not yet been executed.
+
+User requested LMS-style preparation and independent Pages. Add a prepare stage with change/tag-aware Cargo fetch and frozen Bun install cache writers. Consumers pull dependency caches; Rust build/tool cache stays separate. Pages and docs-check use needs=[]; Pages performs its own strict build with dependencies=[] and can publish regardless of app-job failures.
+
+User withdrew the requested docs-job independence change. Removed only the new needs/dependencies edits and corresponding independence docs; Pages/docs job configuration is unchanged. Preparation changes remain in scope.
+
+Final docs requirement: docs-check starts immediately with needs=[] and is always selected on main. Pages has one required needs entry for docs-check with artifacts=false, so it starts automatically after docs-check succeeds and does not wait for application jobs. This supersedes the preceding docs withdrawal.
+
+Preparation/Pages validation: GitLab CI Lint main dry-run accepts the final assembled configuration. Local YAML assertions verify prepare-stage ordering, dependency cache writer/consumer policies, distinct Rust build cache, required Pages->docs-check edge and unchanged release stage gates. Focused frontend YAML formatting, strict docs and git diff checks pass. Live prepare-cache performance and Pages scheduling await the pushed pipeline.
 <!-- SECTION:NOTES:END -->
 
 ## Final Summary

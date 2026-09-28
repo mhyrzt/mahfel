@@ -17,7 +17,9 @@ Backend changes, protobuf changes, and the Keycloak realm fixture select backend
 exported API contract changes select frontend jobs. Shared CI changes, the root pipeline, and
 `.dockerignore` select both. Protobuf changes also run Buf formatting and linting. Documentation
 changes run a strict MkDocs validation, including in merge requests. Docs Pages
-publishing remains on the default branch.
+publishing remains on the default branch. `docs-check` starts immediately and runs on every default
+branch pipeline. Pages depends only on that job, so a successful docs check allows automatic
+publishing without waiting for application jobs. Pages also performs its own strict build.
 
 | Component | Checks |
 | --- | --- |
@@ -29,8 +31,13 @@ publishing remains on the default branch.
 Backend compile jobs install Python and `python3-pip` alongside the native toolchain because
 `mediasoup-sys` installs its Python build dependencies through `python3 -m pip`.
 
-Cargo dependencies and compiled targets use a lockfile/toolchain cache. Bun caches downloaded
-packages and always installs from the frozen lockfile. Vitest runs with two workers to bound memory
+The `prepare` stage runs `cargo fetch --locked` and `bun install --frozen-lockfile` for the selected
+components before application checks. These jobs populate lockfile/toolchain-keyed dependency
+caches; subsequent jobs pull those caches without uploading competing copies. Rust compiled
+targets and installed tools use a separate build cache. Bun jobs still install from the frozen
+lockfile into their own workspace using the prepared download cache. Docker builds keep their
+separate BuildKit caches; they do not consume these job caches. System packages remain part of
+each backend compile job's setup. Vitest runs with two workers to bound memory
 and CPU use on shared runners. Trivy caches its databases. Nextest and
 Vitest upload JUnit reports, including on failure. The CI nextest profile allows up to ten minutes
 for slow infrastructure tests and writes `target/nextest/ci/junit.xml`.

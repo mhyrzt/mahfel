@@ -8,6 +8,7 @@ include:
   - local: docs/.gitlab-ci.yml
 
 stages:
+  - prepare
   - lint
   - test
   - build
