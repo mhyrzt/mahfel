@@ -13,13 +13,18 @@ Lexical's Yjs adapter. The whiteboard stores Excalidraw elements by ID in a Yjs 
 elements remain tombstoned in the scene model.
 
 Only an admitted current room member or a room manager may read a live session document. A
-manager can always edit and can grant or revoke a single shared edit permission for an admitted participant. A
-granted editor may also present files. Any admitted participant may move the shared notes scroll
-or whiteboard viewport. After the session ends, current room members can inspect the workspace
-read only. Rejected access does not expose whether a document exists.
+manager has full session access and may set separate talk, camera, screen share, presentation, and
+document editing permissions for another admitted member. Managers cannot change their own access
+or override another manager's room role. Members may talk, use a camera, and share a screen by
+default; presenting and document editing require explicit grants. The API checks these permissions
+when media is published or a collaboration change is submitted. Revoking a media permission closes
+the target's existing producer for that source. Any admitted participant may move the shared notes
+scroll or whiteboard viewport. After the session ends, current room members can inspect the
+workspace read only. Rejected access does not expose whether a document exists.
 
 The journal assigns one increasing sequence per session to document updates, viewport moves,
-presentation changes, and edit grants. Checkpoints contain Yrs state, state vector, sequence,
+presentation changes, and participant access changes. The access changes retain the existing
+`edit_grant` event kind for journal compatibility. Checkpoints contain Yrs state, state vector, sequence,
 and SHA-256 digest. An invalid checkpoint is ignored and the retained journal is replayed.
 Historical updates remain available for a later event player and recording alignment; awareness
 is never persisted. The REST event endpoint exposes pages of at most 100 events, with binary

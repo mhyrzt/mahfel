@@ -31,8 +31,10 @@ just compose-up
 Compose services are grouped into three stack profiles: `mahfel` (the four buildable application services),
 `infrastructure` (Caddy, PostgreSQL, Redis, RabbitMQ, RustFS, Keycloak, and coturn), and `observability`
 (Prometheus, Grafana, and Alertmanager). `just compose-up` enables all three profiles. To start a
-subset explicitly, use for example `docker compose --profile infrastructure up -d`; the `mahfel`
-and `observability` profiles require their dependency profiles as well.
+subset, use `just compose-up infrastructure`, `just compose-up mahfel`, or
+`just compose-up observability`; the Just recipes add the required profiles. When invoking Docker
+Compose directly, include dependencies explicitly, for example:
+`docker compose --profile infrastructure --profile mahfel up -d`.
 
 Caddy also has a dedicated `caddy` profile for starting only the reverse proxy:
 
@@ -72,6 +74,17 @@ The canonical browser endpoints are `https://mahfel.localhost`, `https://api.mah
 the local-only RabbitMQ management route `https://rabbitmq.mahfel.localhost`. Direct loopback ports
 `3000`, `8080`, and `15672` remain available for low-level debugging, but normal browser development
 must use Caddy HTTPS so secure-context and CORS behavior match deployment assumptions.
+Keycloak is available through `https://auth.mahfel.localhost` and does not publish a host HTTP port.
+This keeps host port `8080` available for the API.
+
+The Compose web container reads its local OIDC settings from `frontend/.env.docker`. Bootstrap
+creates `.local/caddy/root.crt`; Compose mounts it into the web container so NextAuth can validate
+the local Keycloak HTTPS endpoint. The certificate is world-readable because the application
+containers run as non-root users. The Compose network resolves `auth.mahfel.localhost` to Caddy
+for server-side OIDC discovery and callbacks. Server-side refresh requests use
+`KEYCLOAK_TOKEN_ENDPOINT=http://keycloak:8080/realms/rastai/protocol/openid-connect/token` in
+Compose, while the OIDC issuer remains the public HTTPS URL. Bun treats `.localhost` as loopback
+for its `fetch()` calls inside the container, so refresh must use the internal service name.
 
 `https://caddy.mahfel.localhost` serves a small static page directly from Caddy and is useful for
 confirming local HTTPS and certificate trust independently of the application services. Unknown
@@ -82,14 +95,21 @@ it remains a private internal port and must not be exposed through public ingres
 
 When running web or API directly on the host, set `MAHFEL_CADDY_WEB_UPSTREAM` or
 `MAHFEL_CADDY_API_UPSTREAM` to `host.docker.internal:<port>` in `.env`. Caddy then keeps the same
-trusted HTTPS domains while proxying to host processes. Ports 80/443 remain owned by Caddy.
+trusted HTTPS domains while proxying to host processes. For example, use
+`host.docker.internal:3000` for a host-run frontend and `host.docker.internal:8080` for a host-run
+API, then recreate Caddy with `docker compose --profile caddy up -d --force-recreate caddy`.
+The host processes must listen on an address reachable from Docker, such as `0.0.0.0`; a process
+bound only to host `127.0.0.1` cannot be reached through `host.docker.internal`. Stop the matching
+Compose application container before using the same host port. Ports 80/443 remain owned by Caddy.
 
 RustFS provides the browser-facing S3-compatible endpoint at `https://s3.mahfel.localhost` and its
 console at `https://storage.mahfel.localhost`. Containers use the internal
 `http://rustfs:9000` endpoint. Keeping separate internal and public endpoint settings prevents
 presigned browser URLs from containing an unresolvable Compose service name. The one-shot
-`rustfs-init` service creates `MAHFEL_S3_BUCKET` idempotently with the AWS CLI. RustFS data uses the
-`rustfs-data` named volume. A previous `minio-data` volume is deliberately not reused because
+`rustfs-init` service creates `MAHFEL_S3_BUCKET` idempotently with the AWS CLI. Caddy allows the
+`https://mahfel.localhost` origin to make direct presigned uploads and downloads through the S3
+host, including PUT preflight requests. RustFS data uses the `rustfs-data` named volume. A previous
+`minio-data` volume is deliberately not reused because
 RustFS's default storage format must not be assumed to be compatible; migrate any valuable local
 objects through the S3 API before removing that old volume.
 
@@ -102,6 +122,10 @@ import defines clients and roles; canonical development accounts live in
 
 Browser authentication is provided by `mahfel-web` with Keycloak, and the API verifies the resulting
 access token as a resource server (ADR 0019); `GET /v1/auth/me` returns `401` without a valid token.
+The Compose API resolves issuer requests to Caddy on the Docker network and trusts the generated
+local Caddy CA, while retaining the public Keycloak issuer URL for token validation.
+Compose starts Caddy before the API because its entrypoint resolves Caddy, then starts the media
+service after the API because media registers itself with the API.
 Development fixtures live separately from schema migrations in `backend/seeds/`. The seed command
 parses and validates every selected TOML file before applying it in file-name order. The bundled
 fixtures include the local development principal, Keycloak-backed users, and a classroom with a

@@ -41,8 +41,11 @@ fixture; no copies of these files are maintained in the Minikube directory. Mani
 The root Kustomization renders them with `kubectl kustomize deploy/minikube` for inspection. The helper
 applies them in dependency order so migrations and seeds complete before the API starts. The
 documentation-only address `192.0.2.1` in the checked-in manifests is replaced with the actual
-`minikube ip` during `up`; applying the Kustomization directly will not configure RTC or OIDC
-networking correctly.
+`minikube ip` during `up` for RTC traffic. The OIDC host alias uses `192.0.2.2` as a placeholder
+and is replaced with the in-cluster Caddy Service IP. The web pod uses this for Keycloak requests;
+the API's OIDC HTTP client uses the same IP as a DNS override for discovery and JWKS requests while
+preserving the public issuer hostname and TLS certificate. Applying the Kustomization directly will
+not configure RTC or OIDC networking correctly.
 
 ## Browser HTTPS
 

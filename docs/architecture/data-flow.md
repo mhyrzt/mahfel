@@ -218,13 +218,28 @@ sequenceDiagram
   participant M as mahfel-media gRPC
   B->>A: Request transport
   A->>M: CreateWebRtcTransport
-  M-->>A: ICE, DTLS, SCTP parameters
+  M-->>A: ICE, DTLS, router RTP capabilities
   A-->>B: Transport parameters
-  B->>A: Connect/produce/consume signals
+  B->>A: Connect and produce signals
   A->>M: Matching internal RPC
   M-->>A: Control result
   A-->>B: Signaling result
+  B->>A: Request current room producers
+  A->>M: ListProducers
+  M-->>A: Producer IDs, owners, kinds, sources
+  A-->>B: Producer snapshot
+  B->>A: Create receive transport and consume producer
+  A->>M: Consume paused first
+  M-->>A: Consumer ID and RTP parameters
+  A-->>B: Consumer parameters
+  B->>A: Resume consumer after local attachment
+  A->>M: ResumeConsumer
 ```
+
+The browser refreshes the ephemeral producer snapshot every three seconds while joined. This
+also reconciles producers missed during a WebSocket reconnect or publication on another API
+replica. Producer and consumer state remains on the assigned media node; the snapshot is not
+durable room state.
 
 ## Direct media path
 
