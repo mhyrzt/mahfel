@@ -5,7 +5,7 @@ status: In Progress
 assignee:
   - '@codex'
 created_date: '2026-09-28 01:10'
-updated_date: '2026-09-28 01:27'
+updated_date: '2026-09-28 09:28'
 labels:
   - frontend
   - bug
@@ -40,3 +40,13 @@ Added Embla carousel with presenter-only swipe/keyboard controls and remote page
 
 Extracted ConversationPanel so Storybook room and session previews use the same composer and message layout as the app. Final focused suite: 24 passed; focused lint, types, formatting, diff check, and Storybook packaging passed. Production packaging remains unverified: Turbopack fails due sandbox port binding, and webpack fallback fails parsing TypeScript --showConfig. Task remains in progress while the separate-versus-shared session chat decision is pending.
 <!-- SECTION:NOTES:END -->
+
+## Comments
+
+<!-- COMMENTS:BEGIN -->
+author: @deepseek
+created: 2026-09-28 09:28
+---
+Session chat scope decision made: separate session-scoped messages were implemented under TASK-158 (optional session_id on chat messages, migration 0026, session_id filter on /v1/rooms/{room_id}/messages, session_id in chat_event). The session sidebar now renders a session-scoped RoomChat instead of the shared room conversation, so the pending decision in this task is resolved.
+---
+<!-- COMMENTS:END -->
