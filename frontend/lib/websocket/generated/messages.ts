@@ -212,6 +212,13 @@ export interface Left {
   v: 1;
 }
 
+export interface ListProducers {
+  id?: string;
+  room_id: string;
+  type: "list_producers";
+  v?: 1;
+}
+
 export interface MuteParticipant {
   actor_id: string;
   id?: string;
@@ -314,6 +321,19 @@ export interface Produced {
   v: 1;
 }
 
+export interface ProducerSnapshot {
+  id?: string;
+  producers: {
+    actor_id: string;
+    kind: string;
+    producer_id: string;
+    source: string;
+  }[];
+  room_id: string;
+  type: "producer_snapshot";
+  v: 1;
+}
+
 export interface RemoveParticipant {
   actor_id: string;
   id?: string;
@@ -339,6 +359,22 @@ export interface SessionRoster {
   version: number;
 }
 
+export interface SourceStopped {
+  id?: string;
+  room_id: string;
+  source: string;
+  type: "source_stopped";
+  v: 1;
+}
+
+export interface StopSource {
+  id?: string;
+  room_id: string;
+  source: string;
+  type: "stop_source";
+  v?: 1;
+}
+
 export interface SubscribeChat {
   after_sequence: number;
   id?: string;
@@ -361,6 +397,7 @@ export interface TransportCreated {
   ice_parameters: string;
   id?: string;
   room_id: string;
+  rtp_capabilities: string;
   transport_id: string;
   type: "transport_created";
   v: 1;
@@ -429,6 +466,8 @@ export type ClientMessage =
   | CreateTransport
   | ConnectTransport
   | Produce
+  | StopSource
+  | ListProducers
   | Consume
   | PauseConsumer
   | ResumeConsumer;
@@ -457,6 +496,8 @@ export type ServerMessage =
   | TransportCreated
   | TransportConnected
   | Produced
+  | SourceStopped
+  | ProducerSnapshot
   | Consumed
   | ConsumerPaused
   | ConsumerResumed;

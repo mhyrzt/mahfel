@@ -102,6 +102,9 @@
         "Left": {
           "$ref": "#/components/messages/Left"
         },
+        "ListProducers": {
+          "$ref": "#/components/messages/ListProducers"
+        },
         "MuteParticipant": {
           "$ref": "#/components/messages/MuteParticipant"
         },
@@ -135,6 +138,9 @@
         "Produced": {
           "$ref": "#/components/messages/Produced"
         },
+        "ProducerSnapshot": {
+          "$ref": "#/components/messages/ProducerSnapshot"
+        },
         "RemoveParticipant": {
           "$ref": "#/components/messages/RemoveParticipant"
         },
@@ -143,6 +149,12 @@
         },
         "SessionRoster": {
           "$ref": "#/components/messages/SessionRoster"
+        },
+        "SourceStopped": {
+          "$ref": "#/components/messages/SourceStopped"
+        },
+        "StopSource": {
+          "$ref": "#/components/messages/StopSource"
         },
         "SubscribeChat": {
           "$ref": "#/components/messages/SubscribeChat"
@@ -1043,6 +1055,35 @@
         },
         "title": "Left"
       },
+      "ListProducers": {
+        "contentType": "application/json",
+        "name": "ListProducers",
+        "payload": {
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "room_id": {
+              "type": "string"
+            },
+            "type": {
+              "const": "list_producers",
+              "type": "string"
+            },
+            "v": {
+              "const": 1,
+              "default": 1,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "type",
+            "room_id"
+          ],
+          "type": "object"
+        },
+        "title": "ListProducers"
+      },
       "MuteParticipant": {
         "contentType": "application/json",
         "name": "MuteParticipant",
@@ -1488,6 +1529,43 @@
         },
         "title": "Produced"
       },
+      "ProducerSnapshot": {
+        "contentType": "application/json",
+        "name": "ProducerSnapshot",
+        "payload": {
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "producers": {
+              "items": {
+                "$ref": "#/components/schemas/ProducerSnapshotEntry"
+              },
+              "type": "array"
+            },
+            "room_id": {
+              "type": "string"
+            },
+            "type": {
+              "const": "producer_snapshot",
+              "type": "string"
+            },
+            "v": {
+              "const": 1,
+              "default": 1,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "type",
+            "room_id",
+            "producers",
+            "v"
+          ],
+          "type": "object"
+        },
+        "title": "ProducerSnapshot"
+      },
       "RemoveParticipant": {
         "contentType": "application/json",
         "name": "RemoveParticipant",
@@ -1599,6 +1677,73 @@
         },
         "title": "SessionRoster"
       },
+      "SourceStopped": {
+        "contentType": "application/json",
+        "name": "SourceStopped",
+        "payload": {
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "room_id": {
+              "type": "string"
+            },
+            "source": {
+              "type": "string"
+            },
+            "type": {
+              "const": "source_stopped",
+              "type": "string"
+            },
+            "v": {
+              "const": 1,
+              "default": 1,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "type",
+            "room_id",
+            "source",
+            "v"
+          ],
+          "type": "object"
+        },
+        "title": "SourceStopped"
+      },
+      "StopSource": {
+        "contentType": "application/json",
+        "name": "StopSource",
+        "payload": {
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "room_id": {
+              "type": "string"
+            },
+            "source": {
+              "type": "string"
+            },
+            "type": {
+              "const": "stop_source",
+              "type": "string"
+            },
+            "v": {
+              "const": 1,
+              "default": 1,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "type",
+            "room_id",
+            "source"
+          ],
+          "type": "object"
+        },
+        "title": "StopSource"
+      },
       "SubscribeChat": {
         "contentType": "application/json",
         "name": "SubscribeChat",
@@ -1688,6 +1833,9 @@
             "room_id": {
               "type": "string"
             },
+            "rtp_capabilities": {
+              "type": "string"
+            },
             "transport_id": {
               "type": "string"
             },
@@ -1708,6 +1856,7 @@
             "ice_parameters",
             "ice_candidates",
             "dtls_parameters",
+            "rtp_capabilities",
             "v"
           ],
           "type": "object"
@@ -1985,6 +2134,29 @@
           "created_at"
         ],
         "type": "object"
+      },
+      "ProducerSnapshotEntry": {
+        "properties": {
+          "actor_id": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "producer_id": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "producer_id",
+          "actor_id",
+          "kind",
+          "source"
+        ],
+        "type": "object"
       }
     }
   },
@@ -2047,6 +2219,12 @@
         },
         {
           "$ref": "#/components/messages/Produce"
+        },
+        {
+          "$ref": "#/components/messages/StopSource"
+        },
+        {
+          "$ref": "#/components/messages/ListProducers"
         },
         {
           "$ref": "#/components/messages/Consume"
@@ -2164,6 +2342,12 @@
         },
         {
           "$ref": "#/components/messages/Produced"
+        },
+        {
+          "$ref": "#/components/messages/SourceStopped"
+        },
+        {
+          "$ref": "#/components/messages/ProducerSnapshot"
         },
         {
           "$ref": "#/components/messages/Consumed"

@@ -1202,6 +1202,10 @@ export interface components {
     CollaborationDocumentsResponse: {
       can_edit: boolean;
       can_manage: boolean;
+      can_present: boolean;
+      can_publish_audio: boolean;
+      can_publish_video: boolean;
+      can_share_screen: boolean;
       documents: components["schemas"]["DocumentResponse"][];
       live: boolean;
       room_id: string;
@@ -1295,9 +1299,6 @@ export interface components {
     EditChatMessageRequest: {
       content: string;
       mentions?: string[];
-    };
-    EditGrantRequest: {
-      can_edit: boolean;
     };
     ErrorBody: {
       error: components["schemas"]["ErrorDetail"];
@@ -1499,10 +1500,22 @@ export interface components {
       /** Format: int64 */
       total?: number | null;
     };
+    ParticipantAccessRequest: {
+      can_edit?: boolean | null;
+      can_present?: boolean | null;
+      can_publish_audio?: boolean | null;
+      can_publish_video?: boolean | null;
+      can_share_screen?: boolean | null;
+    };
     ParticipantGrantResponse: {
       actor_id: string;
       can_edit: boolean;
+      can_present: boolean;
+      can_publish_audio: boolean;
+      can_publish_video: boolean;
+      can_share_screen: boolean;
       display_name: string;
+      is_manager: boolean;
     };
     ParticipantGrantsResponse: {
       participants: components["schemas"]["ParticipantGrantResponse"][];
@@ -4791,7 +4804,7 @@ export interface operations {
     };
     requestBody: {
       content: {
-        "application/json": components["schemas"]["EditGrantRequest"];
+        "application/json": components["schemas"]["ParticipantAccessRequest"];
       };
     };
     responses: {

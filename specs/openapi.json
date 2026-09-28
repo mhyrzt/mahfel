@@ -4030,7 +4030,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/EditGrantRequest"
+                "$ref": "#/components/schemas/ParticipantAccessRequest"
               }
             }
           },
@@ -5253,6 +5253,10 @@
           "room_id",
           "documents",
           "can_edit",
+          "can_publish_audio",
+          "can_publish_video",
+          "can_share_screen",
+          "can_present",
           "can_manage",
           "live"
         ],
@@ -5261,6 +5265,18 @@
             "type": "boolean"
           },
           "can_manage": {
+            "type": "boolean"
+          },
+          "can_present": {
+            "type": "boolean"
+          },
+          "can_publish_audio": {
+            "type": "boolean"
+          },
+          "can_publish_video": {
+            "type": "boolean"
+          },
+          "can_share_screen": {
             "type": "boolean"
           },
           "documents": {
@@ -5534,17 +5550,6 @@
               "type": "string",
               "format": "uuid"
             }
-          }
-        }
-      },
-      "EditGrantRequest": {
-        "type": "object",
-        "required": [
-          "can_edit"
-        ],
-        "properties": {
-          "can_edit": {
-            "type": "boolean"
           }
         }
       },
@@ -6159,12 +6164,52 @@
           }
         }
       },
+      "ParticipantAccessRequest": {
+        "type": "object",
+        "properties": {
+          "can_edit": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "can_present": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "can_publish_audio": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "can_publish_video": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "can_share_screen": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          }
+        }
+      },
       "ParticipantGrantResponse": {
         "type": "object",
         "required": [
           "actor_id",
           "display_name",
-          "can_edit"
+          "can_edit",
+          "can_publish_audio",
+          "can_publish_video",
+          "can_share_screen",
+          "can_present",
+          "is_manager"
         ],
         "properties": {
           "actor_id": {
@@ -6173,8 +6218,23 @@
           "can_edit": {
             "type": "boolean"
           },
+          "can_present": {
+            "type": "boolean"
+          },
+          "can_publish_audio": {
+            "type": "boolean"
+          },
+          "can_publish_video": {
+            "type": "boolean"
+          },
+          "can_share_screen": {
+            "type": "boolean"
+          },
           "display_name": {
             "type": "string"
+          },
+          "is_manager": {
+            "type": "boolean"
           }
         }
       },
