@@ -5,7 +5,7 @@ status: Done
 assignee:
   - '@codex'
 created_date: '2026-09-28 08:56'
-updated_date: '2026-09-28 09:53'
+updated_date: '2026-09-28 10:54'
 labels:
   - ci
   - backend
@@ -52,6 +52,8 @@ Darkube completion: verified actual v1.1 CLI deploy help supports token, app-id,
 Release-tag refinement supersedes automatic main publishing/deployment. Stable protected api-vX.Y.Z/media-vX.Y.Z/worker-vX.Y.Z/web-vX.Y.Z push tags select only their runtime image and release jobs. Backend tags retain shared workspace checks; every release checks main ancestry. Exact CI_COMMIT_TAG is used for Docker and Darkube. Main builds use validation fixture URL; web release builds require MAHFEL_API_URL_PRODUCTION. Validation: 18 local pipeline-selection contexts (protected/unprotected components, invalid/leading-zero/prerelease tags, main/MR/feature/schedule/UI contexts), dependency/inheritance assertions, three build URL scenarios, disposable Git ancestry acceptance/rejection, ShellCheck, focused YAML formatting, strict docs, and diff checks pass. GitLab CI Lint accepted main and four synthetic protected-component tag contexts. No actual Git tag, registry publication, deployment, or protected-tag setting was created.
 
 Image-tag refinement: kept Git APP_NAME-vVERSION release triggers, stripped the component prefix for Docker APP_NAME:vVERSION and Darkube vVERSION, including publisher cleanup. Eight local component/version scenarios using stubbed Docker/Darkube CLIs passed publishing, cleanup, and deployment argument assertions. YAML parsing, strict MkDocs, and git diff --check passed. No images were published or deployed.
+
+Live backend-lint failed because the shared Rust CI setup installed python3 without python3-pip. Verified mediasoup-sys 0.17.0 build.rs invokes python3 -m pip install --target for invoke. Added python3-pip and an early pip-version check to .backend-base, covering lint/unit/doctest jobs; Docker chef already installs pip. YAML/inheritance assertions, strict MkDocs, and diff checks pass. The corrected runner build has not yet been executed.
 <!-- SECTION:NOTES:END -->
 
 ## Final Summary

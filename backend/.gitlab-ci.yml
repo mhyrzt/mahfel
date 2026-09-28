@@ -35,7 +35,8 @@ variables:
       - .cargo-ci/git/
       - backend/target/
   before_script:
-    - apt-get update && apt-get install -y --no-install-recommends ca-certificates clang cmake g++ make pkg-config python3
+    - apt-get update && apt-get install -y --no-install-recommends ca-certificates clang cmake g++ make pkg-config python3 python3-pip
+    - python3 -m pip --version
     - export PATH="$CARGO_HOME/bin:$PATH"
     - cd backend
 

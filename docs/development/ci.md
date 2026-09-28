@@ -26,6 +26,9 @@ publishing remains on the default branch.
 | Shared protocol | Buf formatting and lint |
 | Images | Trivy HIGH/CRITICAL vulnerability checks for API, media, worker, and web |
 
+Backend compile jobs install Python and `python3-pip` alongside the native toolchain because
+`mediasoup-sys` installs its Python build dependencies through `python3 -m pip`.
+
 Cargo dependencies and compiled targets use a lockfile/toolchain cache. Bun caches downloaded
 packages and always installs from the frozen lockfile. Vitest runs with two workers to bound memory
 and CPU use on shared runners. Trivy caches its databases. Nextest and
