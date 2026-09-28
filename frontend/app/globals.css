@@ -24,6 +24,12 @@
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
+  --color-sidebar: var(--background);
+  --color-sidebar-foreground: var(--foreground);
+  --color-sidebar-accent: var(--accent);
+  --color-sidebar-accent-foreground: var(--accent-foreground);
+  --color-sidebar-border: var(--border);
+  --color-sidebar-ring: var(--ring);
 }
 
 :root {
@@ -63,6 +69,96 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: "Vazirmatn Variable", "Inter", system-ui, sans-serif;
+}
+
+main:has([data-session-sidebar]) {
+  height: 100dvh;
+  min-height: 0;
+  overflow: hidden;
+  padding: 0;
+}
+
+main:has([data-session-sidebar]) [data-testid="session-detail"] {
+  height: 100%;
+  min-height: 0;
+}
+
+.session-participant-grid {
+  grid-template-rows: repeat(var(--stage-mobile-rows), minmax(0, 1fr));
+}
+
+@media (min-width: 640px) {
+  .session-participant-grid {
+    grid-template-rows: repeat(var(--stage-grid-rows), minmax(0, 1fr));
+  }
+}
+
+@keyframes session-enter {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes session-surface-enter {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes speaker-wave {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 0.65;
+  }
+  50% {
+    transform: scale(1.08);
+    opacity: 0.25;
+  }
+}
+
+.speaking-avatar::after {
+  content: "";
+  position: absolute;
+  inset: -0.55rem;
+  border: 2px solid var(--success);
+  border-radius: 9999px;
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .session-stage-enter {
+    animation: session-enter 320ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  }
+  .session-participant-enter {
+    animation: session-enter 380ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  }
+  .session-surface-enter {
+    animation: session-surface-enter 220ms ease-out both;
+  }
+  .speaking-avatar::after {
+    animation: speaker-wave 1.25s ease-in-out infinite;
+  }
+}
+
+@media (min-width: 48rem) {
+  [data-session-sidebar] [data-state="expanded"][data-side="left"] > .session-context-panel {
+    left: 4rem;
+  }
+
+  [data-session-sidebar] [data-state="expanded"][data-side="right"] > .session-context-panel {
+    right: 4rem;
+  }
 }
 
 @media (prefers-color-scheme: dark) {

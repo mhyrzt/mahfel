@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { CalendarClock, UsersRound } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -19,26 +20,51 @@ import {
 } from "@/components/ui/sheet";
 
 import type { ScheduledSession } from "./workspace-types";
+import type { Locale } from "@/lib/i18n/config";
 
-function Details({ session }: Readonly<{ session: ScheduledSession }>) {
+interface SessionDetailsProps {
+  session: ScheduledSession;
+  locale: Locale;
+  timeZone: string;
+}
+
+function sessionTime(session: ScheduledSession, locale: Locale, timeZone: string) {
+  return new Intl.DateTimeFormat(locale === "fa" ? "fa-IR" : "en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+    timeZone,
+  }).format(new Date(session.scheduledAt));
+}
+
+function Details({ session, locale, timeZone }: Readonly<SessionDetailsProps>) {
   return (
     <div className="space-y-5">
       <div className="grid gap-3 text-sm">
         <p className="flex items-center gap-2 text-muted-foreground">
           <CalendarClock className="size-4" aria-hidden="true" />
-          {session.startsAt} · {session.duration}
+          {sessionTime(session, locale, timeZone)}
+          {session.durationMinutes
+            ? ` · ${session.durationMinutes} ${locale === "fa" ? "دقیقه" : "min"}`
+            : null}
         </p>
-        <p className="flex items-center gap-2 text-muted-foreground">
-          <UsersRound className="size-4" aria-hidden="true" />
-          {session.participantCount} expected participants
-        </p>
+        {session.participantCount !== undefined ? (
+          <p className="flex items-center gap-2 text-muted-foreground">
+            <UsersRound className="size-4" aria-hidden="true" />
+            {session.participantCount}{" "}
+            {locale === "fa" ? "شرکت‌کنندهٔ مورد انتظار" : "expected participants"}
+          </p>
+        ) : null}
       </div>
-      <Button className="w-full">View session</Button>
+      <Button asChild className="w-full">
+        <Link href={`/session/${session.id}`}>
+          {locale === "fa" ? "مشاهدهٔ جلسه" : "View session"}
+        </Link>
+      </Button>
     </div>
   );
 }
 
-export function SessionDetails({ session }: Readonly<{ session: ScheduledSession }>) {
+export function SessionDetails({ session, locale, timeZone }: Readonly<SessionDetailsProps>) {
   return (
     <>
       <Dialog>
@@ -47,7 +73,7 @@ export function SessionDetails({ session }: Readonly<{ session: ScheduledSession
             className="hidden w-full rounded-xl text-left outline-none focus-visible:ring-2 focus-visible:ring-ring md:block"
             type="button"
           >
-            <SessionAgendaRow session={session} />
+            <SessionAgendaRow locale={locale} session={session} timeZone={timeZone} />
           </button>
         </DialogTrigger>
         <DialogContent>
@@ -55,7 +81,7 @@ export function SessionDetails({ session }: Readonly<{ session: ScheduledSession
             <DialogTitle>{session.title}</DialogTitle>
             <DialogDescription>{session.roomName}</DialogDescription>
           </DialogHeader>
-          <Details session={session} />
+          <Details locale={locale} session={session} timeZone={timeZone} />
         </DialogContent>
       </Dialog>
       <Sheet>
@@ -64,7 +90,7 @@ export function SessionDetails({ session }: Readonly<{ session: ScheduledSession
             className="w-full rounded-xl text-left outline-none focus-visible:ring-2 focus-visible:ring-ring md:hidden"
             type="button"
           >
-            <SessionAgendaRow session={session} />
+            <SessionAgendaRow locale={locale} session={session} timeZone={timeZone} />
           </button>
         </SheetTrigger>
         <SheetContent side="bottom">
@@ -73,7 +99,7 @@ export function SessionDetails({ session }: Readonly<{ session: ScheduledSession
             <SheetDescription>{session.roomName}</SheetDescription>
           </SheetHeader>
           <div className="mt-5">
-            <Details session={session} />
+            <Details locale={locale} session={session} timeZone={timeZone} />
           </div>
         </SheetContent>
       </Sheet>
@@ -81,16 +107,19 @@ export function SessionDetails({ session }: Readonly<{ session: ScheduledSession
   );
 }
 
-function SessionAgendaRow({ session }: Readonly<{ session: ScheduledSession }>) {
+function SessionAgendaRow({ session, locale, timeZone }: Readonly<SessionDetailsProps>) {
   return (
     <div className="flex gap-3 rounded-xl border border-transparent p-3 transition-colors hover:border-border hover:bg-muted/70">
       <span className="w-11 shrink-0 pt-0.5 text-xs font-medium tabular-nums text-muted-foreground">
-        {session.startsAt}
+        {sessionTime(session, locale, timeZone)}
       </span>
       <div className="min-w-0">
         <p className="truncate text-sm font-medium">{session.title}</p>
         <p className="truncate text-xs text-muted-foreground">
-          {session.roomName} · {session.duration}
+          {session.roomName}
+          {session.durationMinutes
+            ? ` · ${session.durationMinutes} ${locale === "fa" ? "دقیقه" : "min"}`
+            : null}
         </p>
       </div>
     </div>

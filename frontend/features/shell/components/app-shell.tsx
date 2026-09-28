@@ -6,9 +6,9 @@ import type { CalendarPreference } from "@/features/account/calendar-preference"
 import type { Theme } from "@/features/appearance/theme";
 import { defaultLocale, type Locale } from "@/lib/i18n/config";
 import { AccountQuickSettings } from "./account-quick-settings";
-import { SidebarActions } from "./sidebar-actions";
 import { SidebarNavigation } from "./sidebar-navigation";
 import { MobileNavigation } from "./mobile-navigation";
+import { SidebarThemeToggle } from "./sidebar-theme-toggle";
 
 export function AppShell({
   children,
@@ -32,7 +32,7 @@ export function AppShell({
   return (
     <div className="min-h-screen bg-muted/40">
       <aside
-        className="fixed inset-y-0 start-0 z-20 hidden w-16 flex-col items-center border-e bg-background md:flex"
+        className="fixed inset-y-0 start-0 z-20 hidden w-16 flex-col items-center border-e bg-sidebar md:flex"
         dir={locale === "fa" ? "rtl" : "ltr"}
       >
         <Link
@@ -42,9 +42,15 @@ export function AppShell({
         >
           <Image alt="" height={40} priority src="/mahfel-mark.svg" width={40} />
         </Link>
-        <SidebarNavigation locale={locale} />
-        <div className="mt-auto flex w-full flex-col items-center gap-2 pb-2">
-          <SidebarActions locale={locale} />
+        <div className="shrink-0">
+          <SidebarNavigation locale={locale} />
+        </div>
+        <div
+          id="session-sidebar-actions"
+          className="flex min-h-0 w-full flex-1 flex-col items-center justify-center gap-2 overflow-y-auto"
+        />
+        <div className="mt-auto flex w-full shrink-0 flex-col items-center gap-2 pb-2">
+          <SidebarThemeToggle initialTheme={theme} locale={locale} />
           <AccountQuickSettings
             accountImage={accountImage}
             email={accountEmail}
@@ -56,7 +62,7 @@ export function AppShell({
         </div>
       </aside>
       <div className="md:ps-16">
-        <main className="mx-auto w-full max-w-7xl p-4 pb-[calc(4rem+env(safe-area-inset-bottom))] md:p-8">
+        <main className="w-full p-4 pb-[calc(4rem+env(safe-area-inset-bottom))] md:p-8">
           {children}
         </main>
       </div>

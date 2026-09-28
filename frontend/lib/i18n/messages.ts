@@ -12,6 +12,7 @@ export interface Messages {
     title: string;
     description: string;
     openSettings: string;
+    preferences: string;
     profile: string;
     picture: string;
     name: string;
@@ -68,6 +69,7 @@ export interface Messages {
     emptyRoster: string;
     muted: string;
     microphoneOn: string;
+    speaking: string;
     cameraOff: string;
     cameraActive: string;
     screenSharePreview: string;
@@ -118,6 +120,13 @@ export interface Messages {
     whiteboard: string;
     presentation: string;
     permissions: string;
+    accessTalk: string;
+    accessCamera: string;
+    accessScreen: string;
+    accessPresent: string;
+    accessEdit: string;
+    accessManaged: string;
+    accessSelf: string;
     loading: string;
     unavailable: string;
     viewOnly: string;
@@ -135,8 +144,12 @@ export interface Messages {
     notesPlaceholder: string;
     noteFormatting: string;
     heading: string;
+    paragraph: string;
     bold: string;
     italic: string;
+    underline: string;
+    undo: string;
+    redo: string;
     bullets: string;
     insertImage: string;
     imageFailed: string;
@@ -153,6 +166,7 @@ const messages: Record<Locale, Messages> = {
       title: "Account",
       description: "Manage your profile and Mahfel preferences.",
       openSettings: "Open account settings",
+      preferences: "Preferences",
       profile: "Profile details",
       picture: "Profile picture",
       name: "Name",
@@ -210,6 +224,7 @@ const messages: Record<Locale, Messages> = {
       emptyRoster: "No one has joined this session yet.",
       muted: "Muted",
       microphoneOn: "Microphone on",
+      speaking: "Speaking",
       cameraOff: "Video off",
       cameraActive: "Camera is on",
       screenSharePreview: "Screen share preview",
@@ -260,14 +275,21 @@ const messages: Record<Locale, Messages> = {
       notes: "Notes",
       whiteboard: "Whiteboard",
       presentation: "Presentation",
-      permissions: "Editing access",
+      permissions: "Access",
+      accessTalk: "Talk",
+      accessCamera: "Camera",
+      accessScreen: "Share screen",
+      accessPresent: "Present",
+      accessEdit: "Edit",
+      accessManaged: "Manager access",
+      accessSelf: "Your access",
       loading: "Loading shared workspace…",
       unavailable: "Shared workspace is unavailable.",
       viewOnly: "View only",
       canEdit: "Can edit",
       allowEdit: "Allow editing",
       revokeEdit: "Revoke editing",
-      selectFiles: "Select a PDF or images in order",
+      selectFiles: "Choose a PDF or image from Files to present.",
       present: "Present",
       stop: "Stop presenting",
       previous: "Previous",
@@ -278,8 +300,12 @@ const messages: Record<Locale, Messages> = {
       notesPlaceholder: "Write notes together",
       noteFormatting: "Note formatting",
       heading: "Heading",
+      paragraph: "Paragraph",
       bold: "Bold",
       italic: "Italic",
+      underline: "Underline",
+      undo: "Undo",
+      redo: "Redo",
       bullets: "Bullets",
       insertImage: "Insert image",
       imageFailed: "Image could not be added.",
@@ -294,6 +320,7 @@ const messages: Record<Locale, Messages> = {
       title: "حساب کاربری",
       description: "نمایه و تنظیمات محفل را مدیریت کنید.",
       openSettings: "باز کردن تنظیمات حساب کاربری",
+      preferences: "ترجیحات",
       profile: "جزئیات نمایه",
       picture: "تصویر نمایه",
       name: "نام",
@@ -351,6 +378,7 @@ const messages: Record<Locale, Messages> = {
       emptyRoster: "هنوز کسی به این دیدار نپیوسته است.",
       muted: "بی‌صدا",
       microphoneOn: "میکروفون روشن",
+      speaking: "در حال صحبت",
       cameraOff: "دوربین خاموش",
       cameraActive: "دوربین روشن است",
       screenSharePreview: "پیش‌نمایش اشتراک‌گذاری صفحه",
@@ -401,14 +429,21 @@ const messages: Record<Locale, Messages> = {
       notes: "یادداشت‌ها",
       whiteboard: "تخته سفید",
       presentation: "ارائه",
-      permissions: "دسترسی ویرایش",
+      permissions: "دسترسی",
+      accessTalk: "گفت‌وگو",
+      accessCamera: "دوربین",
+      accessScreen: "اشتراک صفحه",
+      accessPresent: "ارائه",
+      accessEdit: "ویرایش",
+      accessManaged: "دسترسی مدیر",
+      accessSelf: "دسترسی شما",
       loading: "فضای کار مشترک در حال بارگذاری است…",
       unavailable: "فضای کار مشترک در دسترس نیست.",
       viewOnly: "فقط نمایش",
       canEdit: "مجاز به ویرایش",
       allowEdit: "اجازه ویرایش",
       revokeEdit: "لغو اجازه ویرایش",
-      selectFiles: "یک PDF یا تصاویر را به ترتیب انتخاب کنید",
+      selectFiles: "برای ارائه، یک PDF یا تصویر از فایل‌ها انتخاب کنید.",
       present: "ارائه",
       stop: "توقف ارائه",
       previous: "قبلی",
@@ -419,8 +454,12 @@ const messages: Record<Locale, Messages> = {
       notesPlaceholder: "با هم یادداشت بنویسید",
       noteFormatting: "قالب‌بندی یادداشت",
       heading: "عنوان",
+      paragraph: "بند",
       bold: "پررنگ",
       italic: "کج",
+      underline: "زیرخط",
+      undo: "واگرد",
+      redo: "ازنو",
       bullets: "فهرست نشانه‌دار",
       insertImage: "افزودن تصویر",
       imageFailed: "افزودن تصویر ممکن نشد.",

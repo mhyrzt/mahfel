@@ -9,6 +9,7 @@ import {
 import { isTheme, themeCookieName } from "@/features/appearance/theme";
 import { getProfile } from "@/features/account/profile";
 import { getServerSessionUser } from "@/lib/auth/server";
+import { SessionRefresh } from "@/lib/auth/session-refresh";
 import { getLocale } from "@/lib/i18n/server";
 
 export default async function WorkspaceLayout({
@@ -23,16 +24,18 @@ export default async function WorkspaceLayout({
   ]);
   const themeCookie = cookieStore.get(themeCookieName)?.value;
   return (
-    <AppShell
-      accountImage={profile?.avatar_url ?? user?.image}
-      accountEmail={user?.email ?? ""}
-      accountName={profile?.display_name ?? user?.name}
-      calendar={getCalendarPreference(cookieStore.get(calendarPreferenceCookie)?.value)}
-      locale={locale}
-      modal={modal}
-      theme={isTheme(themeCookie) ? themeCookie : "system"}
-    >
-      {children}
-    </AppShell>
+    <SessionRefresh>
+      <AppShell
+        accountImage={profile?.avatar_url ?? user?.image}
+        accountEmail={user?.email ?? ""}
+        accountName={profile?.display_name ?? user?.name}
+        calendar={getCalendarPreference(cookieStore.get(calendarPreferenceCookie)?.value)}
+        locale={locale}
+        modal={modal}
+        theme={isTheme(themeCookie) ? themeCookie : "system"}
+      >
+        {children}
+      </AppShell>
+    </SessionRefresh>
   );
 }

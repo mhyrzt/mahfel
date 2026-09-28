@@ -1,8 +1,11 @@
 import { notFound, redirect } from "next/navigation";
-import axios from "axios";
 
 import { RoomDetail } from "@/features/rooms/room-detail";
-import { createServerApiClient, ServerApiAuthenticationError } from "@/lib/api/server";
+import {
+  createServerApiClient,
+  ServerApiAuthenticationError,
+  ServerApiRequestError,
+} from "@/lib/api/server";
 import type { components } from "@/lib/api/generated/schema";
 import { getLocale } from "@/lib/i18n/server";
 import { getServerSessionUser } from "@/lib/auth/server";
@@ -39,7 +42,7 @@ export default async function RoomPage({
     if (error instanceof ServerApiAuthenticationError) {
       redirect(`/login?callbackUrl=${encodeURIComponent(`/room/${roomId}`)}`);
     }
-    if (axios.isAxiosError(error) && error.response?.status === 404) {
+    if (error instanceof ServerApiRequestError && error.status === 404) {
       notFound();
     }
     throw error;

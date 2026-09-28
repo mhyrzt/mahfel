@@ -2,7 +2,27 @@ import { INSERT_ORDERED_LIST_COMMAND, INSERT_UNORDERED_LIST_COMMAND } from "@lex
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import { $setBlocksType } from "@lexical/selection";
 import { $createHeadingNode } from "@lexical/rich-text";
-import { $getSelection, $insertNodes, FORMAT_TEXT_COMMAND, $isRangeSelection } from "lexical";
+import {
+  $createParagraphNode,
+  $getSelection,
+  $insertNodes,
+  FORMAT_TEXT_COMMAND,
+  $isRangeSelection,
+  REDO_COMMAND,
+  UNDO_COMMAND,
+} from "lexical";
+import {
+  Bold,
+  Heading2,
+  ImagePlus,
+  Italic,
+  List,
+  ListOrdered,
+  Redo2,
+  Underline,
+  Undo2,
+  Pilcrow,
+} from "lucide-react";
 import { useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
@@ -29,6 +49,13 @@ export function NotesToolbar({
         $setBlocksType(selection, () => $createHeadingNode("h2"));
       }
     });
+  const paragraph = () =>
+    editor.update(() => {
+      const selection = $getSelection();
+      if ($isRangeSelection(selection)) {
+        $setBlocksType(selection, () => $createParagraphNode());
+      }
+    });
   const insertImage = async (file: File) => {
     setUploadingImage(true);
     setImageError(false);
@@ -46,58 +73,123 @@ export function NotesToolbar({
   };
   return (
     <div
-      className="flex flex-wrap gap-1 border-b p-2"
+      className="flex flex-wrap items-center gap-1 border-b bg-muted/30 p-2"
       role="toolbar"
       aria-label={text.noteFormatting}
     >
-      <Button type="button" size="sm" variant="ghost" disabled={disabled} onClick={heading}>
-        {text.heading}
+      <Button
+        type="button"
+        size="icon"
+        variant="ghost"
+        aria-label={text.undo}
+        title={text.undo}
+        disabled={disabled}
+        onClick={() => editor.dispatchCommand(UNDO_COMMAND, undefined)}
+      >
+        <Undo2 className="size-4" />
       </Button>
       <Button
         type="button"
-        size="sm"
+        size="icon"
         variant="ghost"
+        aria-label={text.redo}
+        title={text.redo}
+        disabled={disabled}
+        onClick={() => editor.dispatchCommand(REDO_COMMAND, undefined)}
+      >
+        <Redo2 className="size-4" />
+      </Button>
+      <span className="mx-1 h-6 w-px bg-border" aria-hidden="true" />
+      <Button
+        type="button"
+        size="icon"
+        variant="ghost"
+        aria-label={text.paragraph}
+        title={text.paragraph}
+        disabled={disabled}
+        onClick={paragraph}
+      >
+        <Pilcrow className="size-4" />
+      </Button>
+      <Button
+        type="button"
+        size="icon"
+        variant="ghost"
+        aria-label={text.heading}
+        title={text.heading}
+        disabled={disabled}
+        onClick={heading}
+      >
+        <Heading2 className="size-4" />
+      </Button>
+      <span className="mx-1 h-6 w-px bg-border" aria-hidden="true" />
+      <Button
+        type="button"
+        size="icon"
+        variant="ghost"
+        aria-label={text.bold}
+        title={text.bold}
         disabled={disabled}
         onClick={() => editor.dispatchCommand(FORMAT_TEXT_COMMAND, "bold")}
       >
-        {text.bold}
+        <Bold className="size-4" />
       </Button>
       <Button
         type="button"
-        size="sm"
+        size="icon"
         variant="ghost"
+        aria-label={text.italic}
+        title={text.italic}
         disabled={disabled}
         onClick={() => editor.dispatchCommand(FORMAT_TEXT_COMMAND, "italic")}
       >
-        {text.italic}
+        <Italic className="size-4" />
       </Button>
       <Button
         type="button"
-        size="sm"
+        size="icon"
         variant="ghost"
+        aria-label={text.underline}
+        title={text.underline}
+        disabled={disabled}
+        onClick={() => editor.dispatchCommand(FORMAT_TEXT_COMMAND, "underline")}
+      >
+        <Underline className="size-4" />
+      </Button>
+      <span className="mx-1 h-6 w-px bg-border" aria-hidden="true" />
+      <Button
+        type="button"
+        size="icon"
+        variant="ghost"
+        aria-label={text.bullets}
+        title={text.bullets}
         disabled={disabled}
         onClick={() => editor.dispatchCommand(INSERT_UNORDERED_LIST_COMMAND, undefined)}
       >
-        {text.bullets}
+        <List className="size-4" />
       </Button>
       <Button
         type="button"
-        size="sm"
+        size="icon"
         variant="ghost"
+        aria-label={text.numbers}
+        title={text.numbers}
         disabled={disabled}
         onClick={() => editor.dispatchCommand(INSERT_ORDERED_LIST_COMMAND, undefined)}
       >
-        {text.numbers}
+        <ListOrdered className="size-4" />
       </Button>
       <Button
         type="button"
-        size="sm"
+        size="icon"
         variant="ghost"
+        aria-label={text.insertImage}
+        title={text.insertImage}
         data-testid="notes-insert-image"
         disabled={disabled || uploadingImage}
         onClick={() => imageInput.current?.click()}
       >
-        {uploadingImage ? text.loading : text.insertImage}
+        {uploadingImage ? text.loading : <ImagePlus className="size-4" />}
       </Button>
       <input
         ref={imageInput}

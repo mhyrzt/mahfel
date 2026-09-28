@@ -15,9 +15,11 @@ test("a manager can change the room's joining policy", async () => {
   await waitFor(() =>
     expect(put).toHaveBeenCalledWith("/v1/rooms/room-1/admission", { policy: "lobby" }),
   );
-  expect(screen.getByRole("switch", { name: "Lobby admission" })).toHaveAttribute(
-    "aria-checked",
-    "true",
-  );
-  expect(refresh).toHaveBeenCalledOnce();
+  await waitFor(() => {
+    expect(screen.getByRole("switch", { name: "Lobby admission" })).toHaveAttribute(
+      "aria-checked",
+      "true",
+    );
+    expect(refresh).toHaveBeenCalledOnce();
+  });
 });

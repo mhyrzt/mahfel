@@ -3,13 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { SegmentedControl } from "@/components/ui/segmented-control";
 import { messagesFor } from "@/lib/i18n/messages";
 import type { Locale } from "@/lib/i18n/config";
 
@@ -24,28 +18,18 @@ export function CalendarSwitcher({
   const [selectedCalendar, setSelectedCalendar] = useState(calendar);
   const messages = messagesFor(locale).account;
 
-  function changeCalendar(value: string) {
-    const nextCalendar = calendarPreferences.find((item) => item === value);
-    if (!nextCalendar) {
-      return;
-    }
+  function changeCalendar(nextCalendar: CalendarPreference) {
     setSelectedCalendar(nextCalendar);
     persistCalendarPreference(nextCalendar);
     router.refresh();
   }
 
   return (
-    <Select onValueChange={changeCalendar} value={selectedCalendar}>
-      <SelectTrigger aria-label={messages.calendarType}>
-        <SelectValue />
-      </SelectTrigger>
-      <SelectContent dir={locale === "fa" ? "rtl" : "ltr"}>
-        {calendarPreferences.map((availableCalendar) => (
-          <SelectItem key={availableCalendar} value={availableCalendar}>
-            {messages[availableCalendar]}
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
+    <SegmentedControl
+      label={messages.calendarType}
+      onValueChange={changeCalendar}
+      options={calendarPreferences.map((value) => ({ value, label: messages[value] }))}
+      value={selectedCalendar}
+    />
   );
 }

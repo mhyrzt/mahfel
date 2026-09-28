@@ -42,16 +42,16 @@ const sessions = [
     id: "1",
     title: "Pilot preparation",
     roomName: "Pilot study group",
-    startsAt: "14:30",
-    duration: "45 min",
+    scheduledAt: "2026-09-22T14:30:00Z",
+    durationMinutes: 45,
     participantCount: 4,
   },
   {
     id: "2",
     title: "Technical review",
     roomName: "Technical review",
-    startsAt: "17:00",
-    duration: "60 min",
+    scheduledAt: "2026-09-22T17:00:00Z",
+    durationMinutes: 60,
     participantCount: 3,
   },
 ];
@@ -67,7 +67,7 @@ const meta = {
       </AppShell>
     ),
   ],
-  args: { rooms, sessions },
+  args: { rooms, sessions, referenceDate: "2026-09-22T12:00:00Z" },
 } satisfies Meta<typeof WorkspaceHome>;
 
 export default meta;

@@ -5,8 +5,10 @@ import "@excalidraw/excalidraw/index.css";
 import { restoreElements, CaptureUpdateAction } from "@excalidraw/excalidraw";
 import type {
   BinaryFiles,
+  Collaborator,
   ExcalidrawImperativeAPI,
   NormalizedZoomValue,
+  SocketId,
 } from "@excalidraw/excalidraw/types";
 import dynamic from "next/dynamic";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -35,11 +37,19 @@ const Excalidraw = dynamic(
 );
 
 interface WhiteboardEditorProps {
+  displayName?: string;
   sessionId: string;
   canEdit: boolean;
   live: boolean;
   locale: Locale;
   onEvent: (event: CollaborationEventFrame) => void;
+}
+
+type WhiteboardStatus =
+  "connecting" | "connected" | "reconnecting" | "unauthorized" | "closed" | "image-error";
+
+function isConnectionStatus(status: string): status is Exclude<WhiteboardStatus, "image-error"> {
+  return ["connecting", "connected", "reconnecting", "unauthorized", "closed"].includes(status);
 }
 
 function receiveBoardEvent(
@@ -80,15 +90,17 @@ function applyViewport(
 }
 
 export function WhiteboardEditor({
+  displayName,
   sessionId,
-  canEdit: initialCanEdit,
+  canEdit: grantedEdit,
   live,
   locale,
   onEvent,
 }: Readonly<WhiteboardEditorProps>) {
   const text = messagesFor(locale).collaboration;
-  const [canEdit, setCanEdit] = useState(initialCanEdit);
-  const [status, setStatus] = useState("connecting");
+  const [socketCanEdit, setSocketCanEdit] = useState<boolean | null>(null);
+  const canEdit = live && (socketCanEdit ?? grantedEdit);
+  const [status, setStatus] = useState<WhiteboardStatus>("connecting");
   const api = useRef<ExcalidrawImperativeAPI | null>(null);
   const applyingRemote = useRef(false);
   const latestViewport = useRef<{ x: number; y: number; zoom: number } | null>(null);
@@ -104,7 +116,7 @@ export function WhiteboardEditor({
         sessionId,
         "whiteboard",
         doc,
-        setCanEdit,
+        setSocketCanEdit,
         // eslint-disable-next-line react-hooks/refs
         (event) => receiveBoardEvent(event, api, applyingRemote, latestViewport, onEvent),
       ),
@@ -112,8 +124,54 @@ export function WhiteboardEditor({
   );
 
   useEffect(() => {
-    const onStatus = ({ status }: { status: string }) => setStatus(status);
-    const render = () => {
+    provider.awareness.setLocalStateField("user", { name: displayName ?? "Participant" });
+    const updateCollaborators = () => {
+      const collaborators = new Map<SocketId, Collaborator>();
+      for (const [clientId, state] of provider.awareness.getStates()) {
+        if (clientId === doc.clientID || typeof state !== "object" || state === null) {
+          continue;
+        }
+        const user = "user" in state ? state.user : null;
+        const pointer = "pointer" in state ? state.pointer : null;
+        if (
+          typeof pointer !== "object" ||
+          pointer === null ||
+          !("x" in pointer) ||
+          !("y" in pointer) ||
+          typeof pointer.x !== "number" ||
+          typeof pointer.y !== "number"
+        ) {
+          continue;
+        }
+        const name =
+          typeof user === "object" &&
+          user !== null &&
+          "name" in user &&
+          typeof user.name === "string"
+            ? user.name
+            : "Participant";
+        collaborators.set(String(clientId) as SocketId, {
+          username: name,
+          pointer: { x: pointer.x, y: pointer.y, tool: "pointer" },
+          color: { background: "#2563eb", stroke: "#1d4ed8" },
+        });
+      }
+      api.current?.updateScene({ collaborators });
+    };
+    provider.awareness.on("update", updateCollaborators);
+    return () => provider.awareness.off("update", updateCollaborators);
+  }, [displayName, doc, provider]);
+
+  useEffect(() => {
+    const onStatus = ({ status }: { status: string }) => {
+      if (isConnectionStatus(status)) {
+        setStatus(status);
+      }
+    };
+    const render = (_event: Y.YMapEvent<string>, transaction: Y.Transaction) => {
+      if (transaction.local) {
+        return;
+      }
       if (!api.current) {
         return;
       }
@@ -257,7 +315,7 @@ export function WhiteboardEditor({
   };
 
   const onScrollChange = (x: number, y: number, zoom: { value: number }) => {
-    if (!live || applyingRemote.current) {
+    if (!live || !canEdit || applyingRemote.current) {
       return;
     }
     const now = Date.now();
@@ -279,20 +337,34 @@ export function WhiteboardEditor({
   let statusText = text.loading;
   if (status === "connected") {
     statusText = text.connected;
-  } else if (status === "image-error") {
+  } else if (
+    status === "reconnecting" ||
+    status === "unauthorized" ||
+    status === "closed" ||
+    status === "image-error"
+  ) {
     statusText = text.unavailable;
   }
 
   return (
-    <div className="overflow-hidden rounded-lg border bg-background">
-      <p className="border-b px-3 py-2 text-xs text-muted-foreground" role="status">
-        {statusText}
-      </p>
-      <div className="h-[36rem]">
+    <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border bg-background">
+      <div className="flex items-center justify-between gap-3 border-b px-3 py-2 text-xs text-muted-foreground">
+        <p role="status">{statusText}</p>
+        <span>{canEdit ? text.canEdit : text.viewOnly}</span>
+      </div>
+      <div
+        dir="ltr"
+        className={`min-h-0 flex-1 ${canEdit ? "" : "pointer-events-none"}`}
+        inert={!canEdit}
+      >
         <Excalidraw
           excalidrawAPI={onApi}
           onChange={onChange}
           onScrollChange={onScrollChange}
+          onPointerUpdate={({ pointer }) => {
+            provider.awareness.setLocalStateField("pointer", pointer);
+          }}
+          isCollaborating
           viewModeEnabled={!canEdit}
           UIOptions={{
             canvasActions: { loadScene: false, saveToActiveFile: false, export: false },

@@ -73,6 +73,20 @@ test("scheduled sessions link from their title without a separate join action", 
   expect(screen.queryByRole("link", { name: "Join session" })).not.toBeInTheDocument();
 });
 
+test("renders an unscheduled session using its RFC 3339 creation time", () => {
+  render(
+    <RoomSessions
+      locale="en"
+      sessions={[{ ...session, status: "ended", scheduled_start_at: null }]}
+    />,
+  );
+  expect(screen.getByTestId("session-schedule").querySelector("time")).toHaveAttribute(
+    "datetime",
+    session.created_at,
+  );
+  expect(screen.queryByText("Created")).not.toBeInTheDocument();
+});
+
 test("uses Persian status and playback copy", () => {
   render(<RoomSessions locale="fa" sessions={[session]} />);
   expect(screen.getByText("در حال برگزاری")).toBeInTheDocument();

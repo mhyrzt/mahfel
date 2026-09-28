@@ -3,6 +3,8 @@ import type { components } from "@/lib/api/generated/schema";
 
 import { InviteLinkList } from "@/features/invites/components/invite-link-list";
 import { AdmissionQueue } from "@/features/sessions/components/admission-queue";
+import { ConversationPreview } from "@/features/chat/stories/conversation-preview";
+import { AppShell } from "@/features/shell/components/app-shell";
 
 import { RoomAdmissionSettings } from "../room-admission-settings";
 import { RoomDetailView, RoomHeader, RoomSessions } from "../room-detail";
@@ -162,6 +164,14 @@ const managerSettings = (
 const meta = {
   title: "Rooms/Detail Page",
   component: RoomDetailView,
+  parameters: { layout: "fullscreen" },
+  decorators: [
+    (Story, context) => (
+      <AppShell locale={context.args.locale ?? "en"} accountName="Misato Katsuragi">
+        <Story />
+      </AppShell>
+    ),
+  ],
   args: {
     room,
     sessions,
@@ -169,6 +179,7 @@ const meta = {
     canManageSession: true,
     settings: managerSettings,
     fileData,
+    chat: <ConversationPreview />,
   },
 } satisfies Meta<typeof RoomDetailView>;
 
@@ -219,6 +230,7 @@ export const MobileRoom: Story = {
 export const Persian: Story = {
   args: {
     locale: "fa",
+    chat: <ConversationPreview locale="fa" />,
     settings: (
       <RoomSettingsDialog
         locale="fa"

@@ -1,7 +1,15 @@
 "use client";
 
-import { useCallback, useEffect, useState, type ChangeEvent, type ReactNode } from "react";
+import {
+  useCallback,
+  useEffect,
+  useState,
+  type ChangeEvent,
+  type DragEvent,
+  type ReactNode,
+} from "react";
 import Image from "next/image";
+import { UploadCloud } from "lucide-react";
 
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { roomCopy } from "@/features/rooms/room-copy";
@@ -19,7 +27,20 @@ export function ContextFileLibrary({
   locale,
   canDelete,
   actorId,
-}: Readonly<{ context: FileContext; locale: Locale; canDelete: boolean; actorId?: string }>) {
+  compact = false,
+  presentationSessionId,
+  roomContextId,
+  onPresented,
+}: Readonly<{
+  context: FileContext;
+  locale: Locale;
+  canDelete: boolean;
+  actorId?: string;
+  compact?: boolean;
+  presentationSessionId?: string;
+  roomContextId?: string;
+  onPresented?: () => void;
+}>) {
   const text = roomCopy(locale);
   const { kind, id } = context;
   const [files, setFiles] = useState<FileRecord[]>([]);
@@ -28,21 +49,56 @@ export function ContextFileLibrary({
   const [previewing, setPreviewing] = useState(false);
   const [preview, setPreview] = useState<{ url: string; name: string; mime: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [canPresent, setCanPresent] = useState(false);
+  const [dragging, setDragging] = useState(false);
+  const dropLabel =
+    locale === "fa"
+      ? "فایل را بکشید یا برای بارگذاری انتخاب کنید"
+      : "Drop a file or click to upload";
 
   const refresh = useCallback(async () => {
-    try {
-      setFiles(await listFiles({ kind, id }));
-      setError(null);
-    } catch {
-      setError(text.fileUnavailable);
-    } finally {
-      setLoading(false);
-    }
-  }, [kind, id, text.fileUnavailable]);
+    const [contextResult, roomResult] = await Promise.allSettled([
+      listFiles({ kind, id }),
+      roomContextId ? listFiles({ kind: "room", id: roomContextId }) : Promise.resolve([]),
+    ]);
+    setFiles([
+      ...(contextResult.status === "fulfilled" ? contextResult.value : []),
+      ...(roomResult.status === "fulfilled" ? roomResult.value : []),
+    ]);
+    setError(
+      contextResult.status === "rejected" || roomResult.status === "rejected"
+        ? text.fileUnavailable
+        : null,
+    );
+    setLoading(false);
+  }, [kind, id, roomContextId, text.fileUnavailable]);
 
   useEffect(() => {
     void Promise.resolve().then(refresh);
   }, [refresh]);
+
+  useEffect(() => {
+    if (!presentationSessionId) {
+      return undefined;
+    }
+    let active = true;
+    const refreshAccess = async () => {
+      const response = await browserApiClient
+        .get<{ can_present: boolean }>(
+          `/v1/sessions/${encodeURIComponent(presentationSessionId)}/collaboration`,
+        )
+        .catch(() => null);
+      if (active && response) {
+        setCanPresent(response.data.can_present);
+      }
+    };
+    void refreshAccess();
+    const timer = window.setInterval(() => void refreshAccess(), 3_000);
+    return () => {
+      active = false;
+      window.clearInterval(timer);
+    };
+  }, [presentationSessionId]);
 
   useEffect(() => {
     return () => {
@@ -54,9 +110,13 @@ export function ContextFileLibrary({
 
   async function onFileChange(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
-    if (!file) {
-      return;
+    if (file) {
+      await saveFile(file);
     }
+    event.target.value = "";
+  }
+
+  async function saveFile(file: File) {
     setUploading(true);
     setError(null);
     try {
@@ -66,7 +126,31 @@ export function ContextFileLibrary({
       setError(text.uploadFailed);
     } finally {
       setUploading(false);
-      event.target.value = "";
+    }
+  }
+
+  async function onDrop(event: DragEvent<HTMLElement>) {
+    event.preventDefault();
+    setDragging(false);
+    const file = event.dataTransfer.files[0];
+    if (file) {
+      await saveFile(file);
+    }
+  }
+
+  async function present(fileId: string) {
+    if (!presentationSessionId || !canPresent) {
+      return;
+    }
+    try {
+      await browserApiClient.post(
+        `/v1/sessions/${encodeURIComponent(presentationSessionId)}/collaboration/presentation`,
+        { action: "select", file_ids: [fileId] },
+      );
+      setError(null);
+      onPresented?.();
+    } catch {
+      setError(text.fileUnavailable);
     }
   }
 
@@ -133,11 +217,28 @@ export function ContextFileLibrary({
   }
 
   return (
-    <section aria-label={text.files} className="space-y-4" data-testid={`${kind}-files`}>
+    <section aria-label={text.files} className="min-w-0 space-y-3" data-testid={`${kind}-files`}>
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 className="text-lg font-semibold">{text.files}</h2>
-        <label className="inline-flex min-h-10 cursor-pointer items-center rounded-md border px-4 text-sm font-medium hover:bg-muted focus-within:ring-2 focus-within:ring-ring">
-          {uploading ? text.uploading : text.upload}
+        <h2 className={compact ? "text-base font-semibold" : "text-lg font-semibold"}>
+          {text.files}
+        </h2>
+      </div>
+      <div
+        className={`rounded-lg border border-dashed transition-colors ${dragging ? "border-primary bg-primary/10" : "border-border/70 bg-muted/25"}`}
+        onDragEnter={(event) => {
+          event.preventDefault();
+          setDragging(true);
+        }}
+        onDragOver={(event) => event.preventDefault()}
+        onDragLeave={(event) => {
+          event.preventDefault();
+          setDragging(false);
+        }}
+        onDrop={(event) => void onDrop(event)}
+      >
+        <label className="flex min-h-20 cursor-pointer flex-col items-center justify-center gap-1 px-3 py-3 text-center text-xs text-muted-foreground focus-within:ring-2 focus-within:ring-ring">
+          <UploadCloud aria-hidden="true" className="size-5" />
+          <span>{uploading ? text.uploading : dropLabel}</span>
           <input
             aria-label={text.upload}
             className="sr-only"
@@ -157,9 +258,11 @@ export function ContextFileLibrary({
           actorId={actorId}
           canDelete={canDelete}
           files={files}
+          compact={compact}
           locale={locale}
           onDownload={(fileId) => void download(fileId)}
           onPreview={previewing ? undefined : (file) => void openPreview(file)}
+          onPresent={canPresent ? (fileId) => void present(fileId) : undefined}
           onRemove={(fileId) => void remove(fileId)}
         />
       )}

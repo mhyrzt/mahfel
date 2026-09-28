@@ -13,7 +13,7 @@ const room = {
   created_by: "manager-1",
 };
 
-test("keeps manager controls in a tabbed dialog and omits conversation", () => {
+test("shows room context and keeps manager controls in a tabbed dialog", () => {
   render(
     <RoomDetailView
       room={room}
@@ -40,7 +40,7 @@ test("keeps manager controls in a tabbed dialog and omits conversation", () => {
   expect(within(page).getByTestId("room-sessions")).toBeInTheDocument();
   expect(within(page).getByRole("heading", { name: "Research methods" })).toBeInTheDocument();
   expect(within(page).queryByRole("heading", { name: "Sessions" })).not.toBeInTheDocument();
-  expect(within(page).queryByText("Invite only")).not.toBeInTheDocument();
+  expect(within(page).getByText("Invite only")).toBeInTheDocument();
   expect(within(page).queryByText("Lobby admission")).not.toBeInTheDocument();
   expect(within(page).queryByText("Files")).not.toBeInTheDocument();
   expect(within(page).queryByText("Conversation")).not.toBeInTheDocument();
@@ -61,4 +61,25 @@ test("member room view has no management entry", () => {
   render(<RoomDetailView room={room} sessions={[]} locale="en" canManageSession={false} />);
   expect(screen.queryByRole("button", { name: "Room settings" })).not.toBeInTheDocument();
   expect(screen.getByTestId("room-sessions")).toBeInTheDocument();
+});
+
+test("keeps the conversation outside room page content and opens it from its sidebar entry", async () => {
+  render(
+    <RoomDetailView
+      room={room}
+      sessions={[]}
+      locale="en"
+      canManageSession={false}
+      chat={<p>Workshop conversation</p>}
+    />,
+  );
+  expect(
+    within(screen.getByTestId("room-detail")).queryByText("Workshop conversation"),
+  ).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "Conversation" }));
+  expect(
+    within(await screen.findByRole("dialog", { name: "Conversation" })).getByText(
+      "Workshop conversation",
+    ),
+  ).toBeInTheDocument();
 });

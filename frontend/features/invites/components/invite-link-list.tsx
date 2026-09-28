@@ -1,8 +1,7 @@
-import { Copy, Link2, RotateCw, Trash2 } from "lucide-react";
+import { Copy, Link2, Plus, RotateCw, Trash2 } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import type { Locale } from "@/lib/i18n/config";
 
@@ -57,19 +56,20 @@ export function InviteLinkList({
         };
   return (
     <TooltipProvider>
-      <Card data-testid="invite-links">
-        <CardHeader className="flex-row items-center justify-between space-y-0">
-          <CardTitle className="flex items-center gap-2 text-base">
+      <section className="min-w-0 space-y-3" data-testid="invite-links">
+        <header className="flex items-center justify-between gap-2">
+          <h3 className="flex min-w-0 items-center gap-2 text-sm font-semibold">
             <Link2 className="size-4" aria-hidden="true" />
             {text.title}
-          </CardTitle>
+          </h3>
           {canManage ? (
-            <Button onClick={onCreate} size="sm">
-              {text.create}
+            <Button aria-label={text.create} onClick={onCreate} size="sm" variant="outline">
+              <Plus aria-hidden="true" className="size-4" />
+              <span className="hidden sm:inline">{text.create}</span>
             </Button>
           ) : null}
-        </CardHeader>
-        <CardContent>
+        </header>
+        <div>
           {links.length === 0 ? (
             <div className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
               {text.empty}
@@ -78,67 +78,74 @@ export function InviteLinkList({
             <ul className="space-y-3">
               {links.map((link) => (
                 <li
-                  className="flex flex-wrap items-center gap-3 rounded-lg border p-3"
+                  className="min-w-0 space-y-3 rounded-lg border bg-background/60 p-3"
                   key={link.id}
                 >
-                  <div className="min-w-0 flex-1">
-                    <p className="font-mono text-sm font-medium">{link.code}</p>
-                    <p className="text-xs text-muted-foreground">
+                  <div className="flex min-w-0 items-start justify-between gap-2">
+                    <code className="min-w-0 break-all font-mono text-sm font-semibold">
+                      {link.code}
+                    </code>
+                    <Badge
+                      className="shrink-0"
+                      variant={link.status === "active" ? "secondary" : "outline"}
+                    >
+                      {link.status}
+                    </Badge>
+                  </div>
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="min-w-0 text-xs text-muted-foreground">
                       {text[link.target]} · {text.expires} {link.expiresAt}
                     </p>
+                    {canManage && link.status === "active" ? (
+                      <div className="flex shrink-0 gap-0.5">
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              aria-label={`${text.copy} ${link.code}`}
+                              onClick={() => onCopy?.(link)}
+                              size="icon"
+                              variant="ghost"
+                            >
+                              <Copy className="size-4" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>{text.copy}</TooltipContent>
+                        </Tooltip>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              aria-label={`${text.rotate} ${link.code}`}
+                              onClick={() => onRotate?.(link)}
+                              size="icon"
+                              variant="ghost"
+                            >
+                              <RotateCw className="size-4" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>{text.rotate}</TooltipContent>
+                        </Tooltip>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              aria-label={`${text.revoke} ${link.code}`}
+                              onClick={() => onRevoke?.(link)}
+                              size="icon"
+                              variant="ghost"
+                            >
+                              <Trash2 className="size-4 text-destructive" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>{text.revoke}</TooltipContent>
+                        </Tooltip>
+                      </div>
+                    ) : null}
                   </div>
-                  <Badge variant={link.status === "active" ? "secondary" : "outline"}>
-                    {link.status}
-                  </Badge>
-                  {canManage && link.status === "active" ? (
-                    <div className="flex gap-1">
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Button
-                            aria-label={`${text.copy} ${link.code}`}
-                            onClick={() => onCopy?.(link)}
-                            size="icon"
-                            variant="ghost"
-                          >
-                            <Copy className="size-4" />
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent>{text.copy}</TooltipContent>
-                      </Tooltip>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Button
-                            aria-label={`${text.rotate} ${link.code}`}
-                            onClick={() => onRotate?.(link)}
-                            size="icon"
-                            variant="ghost"
-                          >
-                            <RotateCw className="size-4" />
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent>{text.rotate}</TooltipContent>
-                      </Tooltip>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Button
-                            aria-label={`${text.revoke} ${link.code}`}
-                            onClick={() => onRevoke?.(link)}
-                            size="icon"
-                            variant="ghost"
-                          >
-                            <Trash2 className="size-4 text-destructive" />
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent>{text.revoke}</TooltipContent>
-                      </Tooltip>
-                    </div>
-                  ) : null}
                 </li>
               ))}
             </ul>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </section>
     </TooltipProvider>
   );
 }

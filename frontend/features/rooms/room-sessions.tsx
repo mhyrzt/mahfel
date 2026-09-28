@@ -119,9 +119,6 @@ export function RoomSessions({
                     >
                       {session.title}
                     </Link>
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      {session.scheduled_start_at ? text.scheduledFor : text.createdOn}
-                    </p>
                   </div>
                   <TooltipProvider>
                     <div className="col-span-2 flex shrink-0 items-center justify-end gap-2 sm:col-span-1 sm:ms-auto">

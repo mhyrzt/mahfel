@@ -22,8 +22,25 @@ test("opens account settings from the avatar in the workspace shell", () => {
     />,
   );
 
-  fireEvent.click(screen.getByRole("button", { name: "Open account settings" }));
+  fireEvent.pointerDown(screen.getByRole("button", { name: "Account" }), {
+    button: 0,
+    ctrlKey: false,
+  });
+
+  const menu = screen.getByRole("menu");
+  expect(within(menu).queryByText("Appearance")).not.toBeInTheDocument();
+  expect(within(menu).getByText("Roya Azadi")).toBeInTheDocument();
+  fireEvent.click(within(menu).getByRole("menuitem", { name: "Open account settings" }));
 
   const dialog = screen.getByRole("dialog", { name: "Account" });
   expect(within(dialog).getByText("roya@example.com")).toBeInTheDocument();
+  expect(within(dialog).getByRole("group", { name: "Appearance" })).toBeInTheDocument();
+
+  const calendar = within(dialog).getByRole("group", { name: "Calendar type" });
+  fireEvent.click(within(calendar).getByRole("button", { name: "Persian" }));
+  expect(within(calendar).getByRole("button", { name: "Persian" })).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
+  expect(document.cookie).toContain("mahfel_calendar=persian");
 });

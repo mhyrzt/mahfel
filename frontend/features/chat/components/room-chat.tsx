@@ -2,14 +2,13 @@
 
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 
-import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
 import { roomCopy } from "@/features/rooms/room-copy";
 import { browserApiClient } from "@/lib/api/browser";
 import type { components } from "@/lib/api/generated/schema";
 import type { Locale } from "@/lib/i18n/config";
 import { SignalingClient } from "@/lib/websocket/client";
 import { ChatMessageList } from "./chat-message-list";
+import { ConversationPanel } from "./conversation-panel";
 
 type Message = components["schemas"]["ChatMessageResponse"];
 type History = components["schemas"]["ChatMessageHistoryResponse"];
@@ -30,7 +29,14 @@ export function RoomChat({
   locale,
   actorId,
   canModerate = false,
-}: Readonly<{ roomId: string; locale: Locale; actorId?: string; canModerate?: boolean }>) {
+  compact = false,
+}: Readonly<{
+  roomId: string;
+  locale: Locale;
+  actorId?: string;
+  canModerate?: boolean;
+  compact?: boolean;
+}>) {
   const text = roomCopy(locale);
   const [messages, setMessages] = useState<Message[]>([]);
   const [cursor, setCursor] = useState<string | null>(null);
@@ -184,22 +190,18 @@ export function RoomChat({
   }
 
   return (
-    <section
-      aria-label={text.chat}
-      className="space-y-5 rounded-xl border bg-card p-4 sm:p-6"
-      data-testid="room-chat"
+    <ConversationPanel
+      roomId={roomId}
+      locale={locale}
+      compact={compact}
+      draft={draft}
+      onDraftChange={setDraft}
+      onSend={send}
+      sending={sending}
+      replying={Boolean(replyTo)}
+      onCancelReply={() => setReplyTo(null)}
+      error={error}
     >
-      <div className="border-b pb-4">
-        <p className="mb-1 text-xs font-semibold tracking-wide text-muted-foreground">
-          {text.roomActivity}
-        </p>
-        <h2 className="text-xl font-semibold tracking-tight">{text.chat}</h2>
-      </div>
-      {error ? (
-        <p role="alert" className="text-sm text-destructive">
-          {error}
-        </p>
-      ) : null}
       <ChatMessageList
         messages={messages}
         roomId={roomId}
@@ -227,28 +229,6 @@ export function RoomChat({
         onRemove={(messageId) => void remove(messageId)}
         showReactions
       />
-      <form className="flex items-end gap-2" onSubmit={send}>
-        {replyTo ? (
-          <div className="text-xs text-muted-foreground">
-            {text.reply}
-            <Button onClick={() => setReplyTo(null)} size="sm" type="button" variant="ghost">
-              {text.cancel}
-            </Button>
-          </div>
-        ) : null}
-        <label className="sr-only" htmlFor={`chat-draft-${roomId}`}>
-          {text.writeMessage}
-        </label>
-        <Textarea
-          className="min-h-11 flex-1"
-          id={`chat-draft-${roomId}`}
-          onChange={(event) => setDraft(event.target.value)}
-          value={draft}
-        />
-        <Button disabled={sending || !draft.trim()} type="submit">
-          {text.send}
-        </Button>
-      </form>
-    </section>
+    </ConversationPanel>
   );
 }

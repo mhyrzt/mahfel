@@ -24,7 +24,7 @@ export function AccountSettingsDialog(props: Readonly<AccountSettingsDialogProps
 
   return (
     <Dialog open onOpenChange={(open) => !open && router.back()}>
-      <DialogContent className="max-h-[calc(100dvh-2rem)] max-w-4xl overflow-y-auto p-5 sm:p-7">
+      <DialogContent className="max-h-[calc(100dvh-2rem)] max-w-3xl overflow-y-auto p-5 sm:p-7">
         <DialogTitle className="sr-only">{messages.title}</DialogTitle>
         <DialogDescription className="sr-only">{messages.description}</DialogDescription>
         <AccountSettingsPanel {...props} />

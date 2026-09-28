@@ -43,10 +43,10 @@ export function AccountSettingsPanel({
         <h1 className="text-xl font-semibold">{messages.title}</h1>
         <p className="mt-1 text-sm text-muted-foreground">{messages.description}</p>
       </header>
-      <section className="grid gap-6 rounded-xl bg-card p-5 sm:grid-cols-[minmax(9rem,0.7fr)_minmax(0,1.3fr)]">
+      <section className="grid gap-6 rounded-2xl border bg-card/80 p-5 sm:grid-cols-[minmax(9rem,0.55fr)_minmax(0,1.45fr)] sm:p-6">
         <div className="flex flex-col items-center gap-3 sm:items-start">
           <h2 className="text-sm font-medium">{messages.picture}</h2>
-          <Avatar className="size-28 text-3xl">
+          <Avatar className="size-24 text-3xl ring-4 ring-primary/10">
             <AvatarImage alt={messages.picture} src={image ?? undefined} />
             <AvatarFallback className="bg-primary text-primary-foreground">
               {initials || "?"}
@@ -59,16 +59,21 @@ export function AccountSettingsPanel({
           <ProfileField label={messages.email} value={email || messages.notSet} />
         </div>
       </section>
-      <section className="grid gap-4 rounded-xl bg-card p-5 sm:grid-cols-3">
-        <SettingField icon={SunMoon} label={messagesFor(locale).appearance.label}>
-          <ThemeSwitcher locale={locale} theme={theme} />
-        </SettingField>
-        <SettingField icon={CalendarDays} label={messages.calendarType}>
-          <CalendarSwitcher calendar={calendar} locale={locale} />
-        </SettingField>
-        <SettingField icon={Languages} label={messages.language}>
-          <LocaleSwitcher locale={locale} />
-        </SettingField>
+      <section className="overflow-hidden rounded-2xl border bg-card/80">
+        <h2 className="border-b px-5 py-4 text-base font-semibold sm:px-6">
+          {messages.preferences}
+        </h2>
+        <div className="divide-y">
+          <SettingField icon={SunMoon} label={messagesFor(locale).appearance.label}>
+            <ThemeSwitcher locale={locale} theme={theme} />
+          </SettingField>
+          <SettingField icon={CalendarDays} label={messages.calendarType}>
+            <CalendarSwitcher calendar={calendar} locale={locale} />
+          </SettingField>
+          <SettingField icon={Languages} label={messages.language}>
+            <LocaleSwitcher locale={locale} />
+          </SettingField>
+        </div>
       </section>
       <DevicePreferences locale={locale} />
     </div>
@@ -94,12 +99,14 @@ function SettingField({
   label: string;
 }>) {
   return (
-    <div className="flex min-w-0 flex-col items-start gap-2">
-      <span className="flex h-5 items-center gap-2 text-sm font-medium">
-        <Icon aria-hidden="true" className="size-4 text-muted-foreground" />
+    <div className="grid min-w-0 gap-3 px-5 py-4 sm:grid-cols-[minmax(0,1fr)_minmax(17rem,1.2fr)] sm:items-center sm:gap-6 sm:px-6">
+      <span className="flex min-w-0 items-center gap-3 text-sm font-medium">
+        <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-muted/70">
+          <Icon aria-hidden="true" className="size-4 text-muted-foreground" />
+        </span>
         {label}
       </span>
-      {children}
+      <div className="min-w-0">{children}</div>
     </div>
   );
 }

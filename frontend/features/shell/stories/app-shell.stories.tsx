@@ -9,6 +9,8 @@ const meta = {
   component: AppShell,
   parameters: { layout: "fullscreen" },
   args: {
+    accountName: "Roya Azadi",
+    accountEmail: "roya@example.com",
     children: (
       <Card>
         <CardHeader>
@@ -33,7 +35,7 @@ export const NarrowViewport: Story = {
 };
 
 export const PersianRTL: Story = {
-  args: { locale: "fa" },
+  args: { locale: "fa", accountName: "رویا آزادی" },
   parameters: { viewport: { defaultViewport: "mobile1" } },
   decorators: [
     (Story) => (

@@ -16,7 +16,7 @@ const meta = {
   },
   decorators: [
     (Story) => (
-      <div className="w-[min(56rem,calc(100vw-2rem))] rounded-2xl border bg-background p-6">
+      <div className="w-[min(48rem,calc(100vw-2rem))] rounded-2xl border bg-background p-6">
         <Story />
       </div>
     ),
@@ -33,11 +33,7 @@ export const Persian: Story = {
   args: { locale: "fa", name: "رویا آزادی" },
   decorators: [
     (Story) => (
-      <div
-        dir="rtl"
-        lang="fa"
-        className="w-[min(56rem,calc(100vw-2rem))] rounded-2xl border bg-background p-6"
-      >
+      <div dir="rtl" lang="fa">
         <Story />
       </div>
     ),

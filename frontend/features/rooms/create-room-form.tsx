@@ -62,20 +62,22 @@ export function CreateRoomForm({
           value={title}
         />
       </div>
-      <div className="space-y-2">
-        <label className="block text-sm font-medium" htmlFor="room-visibility">
-          {text.visibility}
-        </label>
-        <select
-          className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          id="room-visibility"
-          onChange={(event) => setVisibility(event.target.value as "public" | "invite_only")}
-          value={visibility}
-        >
-          <option value="invite_only">{text.inviteOnly}</option>
-          <option value="public">{text.public}</option>
-        </select>
-      </div>
+      <fieldset className="space-y-2">
+        <legend className="text-sm font-medium">{text.visibility}</legend>
+        <div className="grid grid-cols-2 gap-2 rounded-xl border bg-muted/40 p-1">
+          {(["invite_only", "public"] as const).map((option) => (
+            <button
+              aria-pressed={visibility === option}
+              className={`min-h-11 rounded-lg px-3 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${visibility === option ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+              key={option}
+              onClick={() => setVisibility(option)}
+              type="button"
+            >
+              {option === "invite_only" ? text.inviteOnly : text.public}
+            </button>
+          ))}
+        </div>
+      </fieldset>
       {error ? (
         <p role="alert" className="text-sm text-destructive">
           {error}

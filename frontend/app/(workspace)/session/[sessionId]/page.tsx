@@ -1,10 +1,13 @@
-import axios from "axios";
 import { notFound, redirect } from "next/navigation";
 
 import { SessionClient } from "@/features/sessions/components/session-client";
 import type { SessionCapabilities } from "@/features/sessions/session-state";
 import { getLocale } from "@/lib/i18n/server";
-import { createServerApiClient, ServerApiAuthenticationError } from "@/lib/api/server";
+import {
+  createServerApiClient,
+  ServerApiAuthenticationError,
+  ServerApiRequestError,
+} from "@/lib/api/server";
 import type { components } from "@/lib/api/types";
 import { getServerSessionUser } from "@/lib/auth/server";
 import { CollaborationWorkspace } from "@/features/sessions/components/collaboration-workspace";
@@ -12,8 +15,10 @@ import { SessionLifecyclePanel } from "@/features/sessions/components/session-li
 import { InviteManager } from "@/features/invites/components/invite-manager";
 import type { SessionTiming } from "@/features/sessions/components/session-types";
 import { ContextFileLibrary } from "@/features/files/components/context-file-library";
+import { getProfile } from "@/features/account/profile";
 import { ParticipationSummary } from "@/features/sessions/components/participation-summary";
 import { SessionDetailView } from "@/features/sessions/components/session-detail-view";
+import { SessionBreadcrumb } from "@/features/sessions/components/session-breadcrumb";
 
 interface SessionPageProps {
   params: Promise<{ sessionId: string }>;
@@ -24,14 +29,16 @@ interface SessionCapabilitiesResponse {
 }
 
 export default async function SessionPage({ params }: Readonly<SessionPageProps>) {
-  const [{ sessionId }, locale, user] = await Promise.all([
+  const [{ sessionId }, locale, user, profile] = await Promise.all([
     params,
     getLocale(),
     getServerSessionUser(),
+    getProfile(),
   ]);
   let capabilities: SessionCapabilities;
   let sessionTiming: SessionTiming | null = null;
   let session: components["schemas"]["SessionResponse"];
+  let roomName: string;
   let canManage = false;
   let participation: components["schemas"]["SessionParticipationResponse"] | null = null;
   try {
@@ -45,6 +52,11 @@ export default async function SessionPage({ params }: Readonly<SessionPageProps>
       ),
     ]);
     session = sessionResponse.data;
+    roomName = (
+      await api.get<components["schemas"]["RoomResponse"]>(
+        `/v1/rooms/${encodeURIComponent(session.room_id)}`,
+      )
+    ).data.title;
     const granted = new Set(capabilityResponse.data.capabilities);
     canManage = granted.has("manage_session");
     if (canManage) {
@@ -72,12 +84,14 @@ export default async function SessionPage({ params }: Readonly<SessionPageProps>
       canModerate: ["mute_others", "remove_participant", "admit_participant"].some((item) =>
         granted.has(item),
       ),
+      canMuteOthers: granted.has("mute_others"),
+      canRemoveParticipant: granted.has("remove_participant"),
     };
   } catch (error) {
     if (error instanceof ServerApiAuthenticationError) {
       redirect(`/login?callbackUrl=${encodeURIComponent(`/session/${sessionId}`)}`);
     }
-    if (axios.isAxiosError(error) && error.response?.status === 404) {
+    if (error instanceof ServerApiRequestError && error.status === 404) {
       notFound();
     }
     throw error;
@@ -86,6 +100,14 @@ export default async function SessionPage({ params }: Readonly<SessionPageProps>
   if (session.status !== "live") {
     return (
       <SessionDetailView
+        breadcrumb={
+          <SessionBreadcrumb
+            roomId={session.room_id}
+            roomName={roomName}
+            title={session.title}
+            locale={locale}
+          />
+        }
         lifecycle={
           <SessionLifecyclePanel session={session} canManage={canManage} locale={locale} />
         }
@@ -118,31 +140,30 @@ export default async function SessionPage({ params }: Readonly<SessionPageProps>
 
   return (
     <SessionDetailView
-      lifecycle={
-        canManage ? <SessionLifecyclePanel session={session} canManage locale={locale} /> : null
-      }
       stage={
         <SessionClient
           actorId={user?.userId}
+          actorName={profile?.display_name ?? user?.name}
           sessionId={sessionId}
           roomId={session.room_id}
+          roomName={roomName}
           locale={locale}
           title={session.title}
           capabilities={capabilities}
           canAdmit={canManage}
+          canDeleteFiles={canManage}
           sessionTiming={sessionTiming}
+          endAction={
+            canManage ? (
+              <SessionLifecyclePanel session={session} canManage locale={locale} compact />
+            ) : null
+          }
+          invites={
+            canManage ? (
+              <InviteManager target="session" targetId={sessionId} locale={locale} />
+            ) : null
+          }
         />
-      }
-      files={
-        <ContextFileLibrary
-          context={{ kind: "session", id: sessionId }}
-          locale={locale}
-          canDelete={canManage}
-          actorId={user?.userId}
-        />
-      }
-      invites={
-        canManage ? <InviteManager target="session" targetId={sessionId} locale={locale} /> : null
       }
     />
   );

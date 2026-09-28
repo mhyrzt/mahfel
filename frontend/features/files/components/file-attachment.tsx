@@ -1,4 +1,8 @@
-import { Download, Eye, File, FileImage, FileText, Trash2 } from "lucide-react";
+"use client";
+
+import { useEffect, useState } from "react";
+import Image from "next/image";
+import { Download, Eye, File, FileImage, FileText, Presentation, Trash2 } from "lucide-react";
 
 import {
   Attachment,
@@ -13,6 +17,7 @@ import {
 import { roomCopy } from "@/features/rooms/room-copy";
 import type { components } from "@/lib/api/generated/schema";
 import type { Locale } from "@/lib/i18n/config";
+import { getFileDownloadUrl } from "../client";
 
 type FileRecord = components["schemas"]["FileResponse"];
 
@@ -42,6 +47,7 @@ export function FileAttachment({
   onPreview,
   onDownload,
   onRemove,
+  onPresent,
   compact = false,
 }: Readonly<{
   file: FileRecord;
@@ -49,23 +55,71 @@ export function FileAttachment({
   onPreview?: (file: FileRecord) => void;
   onDownload?: (fileId: string) => void;
   onRemove?: (fileId: string) => void;
+  onPresent?: (fileId: string) => void;
   compact?: boolean;
 }>) {
   const text = roomCopy(locale);
   const previewable = canPreviewFile(file.mime) && Boolean(onPreview);
+  const [thumbnail, setThumbnail] = useState<string | null>(null);
+  useEffect(() => {
+    if (!file.mime.startsWith("image/")) {
+      return undefined;
+    }
+    let cancelled = false;
+    let objectUrl: string | null = null;
+    void (async () => {
+      try {
+        const signedUrl = new URL(await getFileDownloadUrl(file.id), window.location.origin);
+        if (!["http:", "https:"].includes(signedUrl.protocol)) {
+          return;
+        }
+        const response = await fetch(signedUrl, { credentials: "omit", redirect: "error" });
+        if (!response.ok) {
+          return;
+        }
+        objectUrl = URL.createObjectURL(await response.blob());
+        if (!cancelled) {
+          setThumbnail(objectUrl);
+        } else {
+          URL.revokeObjectURL(objectUrl);
+        }
+      } catch {}
+    })();
+    return () => {
+      cancelled = true;
+      if (objectUrl) {
+        URL.revokeObjectURL(objectUrl);
+      }
+    };
+  }, [file.id, file.mime]);
   let media = <File aria-hidden="true" />;
   if (file.mime.startsWith("image/")) {
-    media = <FileImage aria-hidden="true" />;
+    media = thumbnail ? (
+      <Image
+        src={thumbnail}
+        alt=""
+        width={56}
+        height={56}
+        unoptimized
+        className="size-full rounded-md object-cover"
+      />
+    ) : (
+      <FileImage aria-hidden="true" />
+    );
   } else if (file.mime === "application/pdf" || file.mime.startsWith("text/")) {
     media = <FileText aria-hidden="true" />;
   }
   return (
     <Attachment
-      className="w-full hover:bg-muted/40"
+      className="w-full border-border/70 bg-background/60 hover:bg-muted/40"
       data-testid={`attachment-${file.id}`}
       size={compact ? "sm" : "default"}
     >
-      <AttachmentMedia>{media}</AttachmentMedia>
+      <AttachmentMedia
+        className={file.mime.startsWith("image/") ? "size-11 overflow-hidden" : undefined}
+      >
+        {media}
+      </AttachmentMedia>
       <AttachmentContent>
         <AttachmentTitle title={file.file_name}>{file.file_name}</AttachmentTitle>
         <AttachmentDescription>{fileDescription(file, locale)}</AttachmentDescription>
@@ -77,6 +131,14 @@ export function FileAttachment({
         />
       ) : null}
       <AttachmentActions>
+        {onPresent ? (
+          <AttachmentAction
+            aria-label={`${locale === "fa" ? "ارائه" : "Present"}: ${file.file_name}`}
+            onClick={() => onPresent(file.id)}
+          >
+            <Presentation aria-hidden="true" />
+          </AttachmentAction>
+        ) : null}
         {previewable ? (
           <AttachmentAction
             aria-label={`${text.preview}: ${file.file_name}`}

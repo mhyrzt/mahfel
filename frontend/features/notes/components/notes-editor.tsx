@@ -26,6 +26,7 @@ import { NotesToolbar } from "./notes-toolbar";
 import { NoteImageNode, NotesImageLocaleContext } from "./note-image-node";
 
 interface NotesEditorProps {
+  displayName?: string;
   sessionId: string;
   canEdit: boolean;
   canManage: boolean;
@@ -60,15 +61,15 @@ function EditableState({ canEdit }: Readonly<{ canEdit: boolean }>) {
 }
 
 export function NotesEditor({
+  displayName,
   sessionId,
-  canEdit: initialCanEdit,
   canManage,
   live,
   locale,
   onEvent,
 }: Readonly<NotesEditorProps>) {
   const text = messagesFor(locale).collaboration;
-  const [canEdit, setCanEdit] = useState(initialCanEdit);
+  const [canEdit, setCanEdit] = useState(false);
   const [status, setStatus] = useState("connecting");
   const scrollRef = useRef<HTMLDivElement>(null);
   const remoteScroll = useRef(false);
@@ -106,7 +107,7 @@ export function NotesEditor({
   }, [doc, provider]);
 
   const onScroll = () => {
-    if (!live || remoteScroll.current || !scrollRef.current) {
+    if (!live || !canEdit || remoteScroll.current || !scrollRef.current) {
       return;
     }
     const now = Date.now();
@@ -125,7 +126,7 @@ export function NotesEditor({
   };
 
   return (
-    <div className="overflow-hidden rounded-lg border bg-background">
+    <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border bg-background">
       <p className="border-b px-3 py-2 text-xs text-muted-foreground" role="status">
         {status === "connected" ? text.connected : text.loading}
       </p>
@@ -144,8 +145,10 @@ export function NotesEditor({
             }}
           >
             <EditableState canEdit={canEdit} />
-            <NotesToolbar disabled={!canEdit} locale={locale} sessionId={sessionId} />
-            <div ref={scrollRef} onScroll={onScroll} className="h-[28rem] overflow-y-auto p-4">
+            {canEdit ? (
+              <NotesToolbar disabled={false} locale={locale} sessionId={sessionId} />
+            ) : null}
+            <div ref={scrollRef} onScroll={onScroll} className="min-h-0 flex-1 overflow-y-auto p-4">
               <RichTextPlugin
                 contentEditable={
                   <ContentEditable
@@ -163,6 +166,7 @@ export function NotesEditor({
               <ListPlugin />
               <CollaborationPlugin
                 id={`notes-${sessionId}`}
+                username={displayName}
                 providerFactory={providerFactory}
                 shouldBootstrap={canManage}
               />

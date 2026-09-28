@@ -17,6 +17,13 @@ const messages = [
     content: "Thanks. I’ll review it before the next session.",
     created_at: "2026-09-25T09:01:00Z",
   },
+  {
+    id: "message-3",
+    channel_id: "room-1",
+    author_id: "me",
+    content: "I left a few comments on the second page.",
+    created_at: "2026-09-25T09:02:00Z",
+  },
 ];
 
 const meta = {

@@ -23,7 +23,9 @@ export function FileList({
   onDownload,
   onPreview,
   onRemove,
+  onPresent,
   initialView = "list",
+  compact = false,
 }: Readonly<{
   files: FileRecord[];
   locale: Locale;
@@ -32,7 +34,9 @@ export function FileList({
   onDownload?: (fileId: string) => void;
   onPreview?: (file: FileRecord) => void;
   onRemove?: (fileId: string) => void;
+  onPresent?: (fileId: string) => void;
   initialView?: FileView;
+  compact?: boolean;
 }>) {
   const text = roomCopy(locale);
   const [view, setView] = useState<FileView>(initialView);
@@ -41,26 +45,28 @@ export function FileList({
   }
   return (
     <div className="space-y-3">
-      <div aria-label={text.fileView} className="flex justify-end gap-1" role="group">
-        <Button
-          aria-label={text.listView}
-          aria-pressed={view === "list"}
-          onClick={() => setView("list")}
-          size="icon"
-          variant={view === "list" ? "secondary" : "ghost"}
-        >
-          <List aria-hidden="true" className="size-4" />
-        </Button>
-        <Button
-          aria-label={text.gridView}
-          aria-pressed={view === "grid"}
-          onClick={() => setView("grid")}
-          size="icon"
-          variant={view === "grid" ? "secondary" : "ghost"}
-        >
-          <LayoutGrid aria-hidden="true" className="size-4" />
-        </Button>
-      </div>
+      {!compact ? (
+        <div aria-label={text.fileView} className="flex justify-end gap-1" role="group">
+          <Button
+            aria-label={text.listView}
+            aria-pressed={view === "list"}
+            onClick={() => setView("list")}
+            size="icon"
+            variant={view === "list" ? "secondary" : "ghost"}
+          >
+            <List aria-hidden="true" className="size-4" />
+          </Button>
+          <Button
+            aria-label={text.gridView}
+            aria-pressed={view === "grid"}
+            onClick={() => setView("grid")}
+            size="icon"
+            variant={view === "grid" ? "secondary" : "ghost"}
+          >
+            <LayoutGrid aria-hidden="true" className="size-4" />
+          </Button>
+        </div>
+      ) : null}
       <ul
         className={
           view === "grid"
@@ -76,11 +82,17 @@ export function FileList({
               locale={locale}
               onDownload={onDownload}
               onPreview={onPreview}
+              onPresent={
+                onPresent && ["application/pdf", "image/png", "image/jpeg"].includes(file.mime)
+                  ? onPresent
+                  : undefined
+              }
               onRemove={
                 canDelete || (actorId !== undefined && file.owner_id === actorId)
                   ? onRemove
                   : undefined
               }
+              compact={compact}
             />
           </li>
         ))}
