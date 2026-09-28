@@ -339,10 +339,28 @@ pub(super) async fn handle_text(
                 source,
                 principal,
                 state,
+                rtc_participation.map(|handle| handle.session_id),
                 media_room,
                 media.as_ref(),
             )
             .await
+        }
+        ClientMessage::StopSource { room_id, source } => {
+            rtc::handle_stop_source(
+                connection,
+                rid,
+                kind,
+                room_id,
+                source,
+                principal,
+                media_room,
+                media.as_ref(),
+            )
+            .await
+        }
+        ClientMessage::ListProducers { room_id } => {
+            rtc::handle_list_producers(connection, rid, kind, room_id, media_room, media.as_ref())
+                .await
         }
         ClientMessage::Consume {
             room_id,
@@ -404,6 +422,8 @@ fn rtc_room_id(message: &ClientMessage) -> Option<&str> {
         ClientMessage::CreateTransport { room_id }
         | ClientMessage::ConnectTransport { room_id, .. }
         | ClientMessage::Produce { room_id, .. }
+        | ClientMessage::StopSource { room_id, .. }
+        | ClientMessage::ListProducers { room_id }
         | ClientMessage::Consume { room_id, .. }
         | ClientMessage::PauseConsumer { room_id, .. }
         | ClientMessage::ResumeConsumer { room_id, .. } => Some(room_id),
@@ -416,6 +436,8 @@ fn rtc_kind(msg: &ClientMessage) -> &'static str {
         ClientMessage::CreateTransport { .. } => "create_transport",
         ClientMessage::ConnectTransport { .. } => "connect_transport",
         ClientMessage::Produce { .. } => "produce",
+        ClientMessage::StopSource { .. } => "stop_source",
+        ClientMessage::ListProducers { .. } => "list_producers",
         ClientMessage::Consume { .. } => "consume",
         ClientMessage::PauseConsumer { .. } => "pause_consumer",
         ClientMessage::ResumeConsumer { .. } => "resume_consumer",

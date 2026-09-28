@@ -109,6 +109,13 @@ impl mahfel_rtc_protocol::media::media_control_service_server::MediaControlServi
         crate::handlers::producer::produce(&self.media, request).await
     }
 
+    async fn list_producers(
+        &self,
+        request: Request<mahfel_rtc_protocol::media::ListProducersRequest>,
+    ) -> Result<Response<mahfel_rtc_protocol::media::ListProducersResponse>, Status> {
+        crate::handlers::producer::list_producers(&self.media, request).await
+    }
+
     async fn pause_producer(
         &self,
         request: Request<mahfel_rtc_protocol::media::PauseProducerRequest>,

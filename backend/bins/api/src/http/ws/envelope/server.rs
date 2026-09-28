@@ -19,6 +19,16 @@ pub struct ChatEventPayload {
     pub deleted_at: Option<String>,
 }
 
+#[derive(
+    Debug, Clone, PartialEq, Eq, Serialize, Deserialize, asyncapi_rust::schemars::JsonSchema,
+)]
+pub struct ProducerSnapshotEntry {
+    pub producer_id: String,
+    pub actor_id: String,
+    pub kind: String,
+    pub source: String,
+}
+
 /// Frames sent by the server.
 #[derive(
     Debug,
@@ -147,6 +157,7 @@ pub enum ServerMessage {
         ice_parameters: String,
         ice_candidates: String,
         dtls_parameters: String,
+        rtp_capabilities: String,
     },
     TransportConnected {
         room_id: String,
@@ -155,6 +166,14 @@ pub enum ServerMessage {
     Produced {
         room_id: String,
         producer_id: String,
+    },
+    SourceStopped {
+        room_id: String,
+        source: String,
+    },
+    ProducerSnapshot {
+        room_id: String,
+        producers: Vec<ProducerSnapshotEntry>,
     },
     Consumed {
         room_id: String,

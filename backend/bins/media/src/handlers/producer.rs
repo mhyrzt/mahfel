@@ -1,16 +1,40 @@
 use crate::validation::{
     CloseParticipantValidated, ParticipantSourceValidated, ProduceValidated, ProducerValidated,
-    Validated,
+    Validated, parse_room_id,
 };
-use mahfel_rtc::MediaRuntime;
+use mahfel_rtc::{MediaKind, MediaRuntime};
 use mahfel_rtc_protocol::media::{
     CloseParticipantRequest, CloseParticipantResponse, CloseParticipantSourceRequest,
-    CloseParticipantSourceResponse, PauseParticipantSourceRequest, PauseParticipantSourceResponse,
-    PauseProducerRequest, PauseProducerResponse, ProduceRequest, ProduceResponse,
+    CloseParticipantSourceResponse, ListProducersRequest, ListProducersResponse,
+    PauseParticipantSourceRequest, PauseParticipantSourceResponse, PauseProducerRequest,
+    PauseProducerResponse, ProduceRequest, ProduceResponse, ProducerInfo,
     ResumeParticipantSourceRequest, ResumeParticipantSourceResponse, ResumeProducerRequest,
     ResumeProducerResponse,
 };
 use tonic::{Request, Response, Status};
+
+pub(crate) async fn list_producers(
+    media: &MediaRuntime,
+    request: Request<ListProducersRequest>,
+) -> Result<Response<ListProducersResponse>, Status> {
+    let room_id = parse_room_id(&request.into_inner().room_id)?;
+    let producers = media
+        .list_producers(room_id)
+        .await
+        .into_iter()
+        .map(|entry| ProducerInfo {
+            producer_id: entry.producer_id,
+            actor_id: entry.actor_id.to_string(),
+            kind: match entry.kind {
+                MediaKind::Audio => "audio",
+                MediaKind::Video => "video",
+            }
+            .to_owned(),
+            source: entry.source.as_str().to_owned(),
+        })
+        .collect();
+    Ok(Response::new(ListProducersResponse { producers }))
+}
 
 pub(crate) async fn produce(
     media: &MediaRuntime,

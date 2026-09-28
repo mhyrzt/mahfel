@@ -20,6 +20,7 @@ service MediaControlService {
   rpc ConnectWebRtcTransport(ConnectWebRtcTransportRequest) returns (ConnectWebRtcTransportResponse);
   rpc CloseWebRtcTransport(CloseWebRtcTransportRequest) returns (CloseWebRtcTransportResponse);
   rpc Produce(ProduceRequest) returns (ProduceResponse);
+  rpc ListProducers(ListProducersRequest) returns (ListProducersResponse);
   rpc PauseProducer(PauseProducerRequest) returns (PauseProducerResponse);
   rpc PauseParticipantSource(PauseParticipantSourceRequest) returns (PauseParticipantSourceResponse);
   rpc ResumeParticipantSource(ResumeParticipantSourceRequest) returns (ResumeParticipantSourceResponse);

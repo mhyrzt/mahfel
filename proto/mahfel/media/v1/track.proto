@@ -15,6 +15,21 @@ message ProduceResponse {
   string producer_id = 1;
 }
 
+message ListProducersRequest {
+  string room_id = 1;
+}
+
+message ProducerInfo {
+  string producer_id = 1;
+  string actor_id = 2;
+  string kind = 3;
+  string source = 4;
+}
+
+message ListProducersResponse {
+  repeated ProducerInfo producers = 1;
+}
+
 message ConsumeRequest {
   string room_id = 1;
   string participant_id = 2;

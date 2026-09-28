@@ -11,4 +11,4 @@ mod server;
 pub use client::ClientMessage;
 pub use codec::{ProtocolError, encode, encode_with_id, parse, parse_envelope};
 pub use frame::{Envelope, PROTOCOL_VERSION};
-pub use server::{ChatEventPayload, ServerMessage};
+pub use server::{ChatEventPayload, ProducerSnapshotEntry, ServerMessage};

@@ -21,13 +21,8 @@ use mahfel_domain::AdmissionOrigin;
 use mahfel_domain::SessionId;
 use uuid::Uuid;
 
-fn parse_session_id(raw: &str) -> Result<SessionId, ServerMessage> {
-    Uuid::parse_str(raw)
-        .map(SessionId::from_uuid)
-        .map_err(|_| ServerMessage::JoinRejected {
-            code: "invalid_session_id".to_owned(),
-            message: "session_id must be a uuid".to_owned(),
-        })
+fn parse_session_id(raw: &str) -> Option<SessionId> {
+    Uuid::parse_str(raw).ok().map(SessionId::from_uuid)
 }
 
 /// Handle a `join` frame: authorize, resolve identity, and announce.
@@ -39,9 +34,13 @@ pub(super) async fn handle_join(
     principal: &Principal,
     state: &WsState,
 ) -> Result<(), DisconnectReason> {
-    let session_id = match parse_session_id(raw_session_id) {
-        Ok(session_id) => session_id,
-        Err(rejection) => return connection.send(rejection).await,
+    let Some(session_id) = parse_session_id(raw_session_id) else {
+        return connection
+            .send(ServerMessage::JoinRejected {
+                code: "invalid_session_id".to_owned(),
+                message: "session_id must be a uuid".to_owned(),
+            })
+            .await;
     };
     if let Some(current) = registry.participation(id) {
         return connection

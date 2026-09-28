@@ -16,13 +16,14 @@ pub(crate) async fn create_web_rtc_transport(
         participant_id,
         ..
     }) = request.into_inner().try_into()?;
-    let (transport_id, ice_parameters, ice_candidates, dtls_parameters) =
+    let (transport_id, ice_parameters, ice_candidates, dtls_parameters, rtp_capabilities) =
         media.create_transport(room_id, participant_id).await?;
     Ok(Response::new(CreateWebRtcTransportResponse {
         transport_id,
         ice_parameters,
         ice_candidates,
         dtls_parameters,
+        rtp_capabilities,
     }))
 }
 

@@ -60,7 +60,9 @@ pub(super) async fn send_err(
     kind: &str,
     status: tonic::Status,
 ) -> Result<(), DisconnectReason> {
+    let detail = status.to_string();
     let (code, message) = map_status(status);
+    tracing::warn!(operation = kind, code, detail, "rtc request failed");
     connection
         .send_with_id(rid, protocol_error(&code, &message))
         .await?;

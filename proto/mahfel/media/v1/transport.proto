@@ -13,6 +13,7 @@ message CreateWebRtcTransportResponse {
   string ice_parameters = 2;
   string ice_candidates = 3;
   string dtls_parameters = 4;
+  string rtp_capabilities = 5;
 }
 
 message ConnectWebRtcTransportRequest {

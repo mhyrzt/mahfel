@@ -9,6 +9,7 @@ mod transport;
 
 pub use codecs::media_codecs;
 pub use error::RtcError;
+pub use producer::PublishedProducer;
 pub use runtime::MediaRuntime;
 pub use speaker::{SpeakerHub, SpeakerSnapshot};
 

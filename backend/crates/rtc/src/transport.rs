@@ -24,7 +24,7 @@ pub(super) async fn create_transport(
     transports: &TransportMap,
     room_id: RoomId,
     participant_id: ActorId,
-) -> Result<(String, String, String, String), RtcError> {
+) -> Result<(String, String, String, String, String), RtcError> {
     let (router, worker_index) = {
         let map = rooms.read().await;
         let entry = map
@@ -48,6 +48,8 @@ pub(super) async fn create_transport(
         serde_json::to_string(ice_candidates).map_err(|e| RtcError::Transport(e.to_string()))?;
     let dtls_parameters_json =
         serde_json::to_string(&dtls_parameters).map_err(|e| RtcError::Transport(e.to_string()))?;
+    let rtp_capabilities_json = serde_json::to_string(&router.rtp_capabilities())
+        .map_err(|e| RtcError::Transport(e.to_string()))?;
 
     let transport_id = transport.id().to_string();
     transports.write().await.insert(
@@ -64,6 +66,7 @@ pub(super) async fn create_transport(
         ice_parameters_json,
         ice_candidates_json,
         dtls_parameters_json,
+        rtp_capabilities_json,
     ))
 }
 

@@ -180,7 +180,7 @@ impl MediaRuntime {
         &self,
         room_id: RoomId,
         participant_id: ActorId,
-    ) -> Result<(String, String, String, String), RtcError> {
+    ) -> Result<(String, String, String, String, String), RtcError> {
         super::transport::create_transport(
             &self.rooms,
             &self._servers,
@@ -286,6 +286,10 @@ impl MediaRuntime {
 
     pub async fn pause_producer(&self, room_id: RoomId, producer_id: &str) -> Result<(), RtcError> {
         super::producer::pause_producer(&self.producers, &self.speakers, room_id, producer_id).await
+    }
+
+    pub async fn list_producers(&self, room_id: RoomId) -> Vec<super::producer::PublishedProducer> {
+        super::producer::list_producers(&self.producers, room_id).await
     }
 
     #[allow(clippy::too_many_arguments)]

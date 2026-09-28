@@ -1,10 +1,39 @@
 use super::gateway::GrpcMediaGateway;
 use mahfel_domain::{ActorId, MediaKind, ProducerSource, RoomId};
 use mahfel_rtc_protocol::media::{
-    CloseParticipantRequest, PauseProducerRequest, ProduceRequest, ResumeProducerRequest,
+    CloseParticipantRequest, ListProducersRequest, PauseProducerRequest, ProduceRequest,
+    ResumeProducerRequest,
 };
 
+pub struct MediaProducer {
+    pub producer_id: String,
+    pub actor_id: String,
+    pub kind: String,
+    pub source: String,
+}
+
 impl GrpcMediaGateway {
+    pub async fn list_producers(&self, room: RoomId) -> Result<Vec<MediaProducer>, tonic::Status> {
+        let response = self
+            .with_retry(|mut client| {
+                let request = ListProducersRequest {
+                    room_id: room.to_string(),
+                };
+                async move { client.list_producers(request).await }
+            })
+            .await?;
+        Ok(response
+            .producers
+            .into_iter()
+            .map(|entry| MediaProducer {
+                producer_id: entry.producer_id,
+                actor_id: entry.actor_id,
+                kind: entry.kind,
+                source: entry.source,
+            })
+            .collect())
+    }
+
     pub async fn produce(
         &self,
         room: RoomId,

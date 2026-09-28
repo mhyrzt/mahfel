@@ -1,7 +1,11 @@
 use super::super::writer::Connection;
 use super::helpers::{parse_room_or_send_error, send_err, send_ok};
-use crate::http::ws::{envelope::ServerMessage, metrics::DisconnectReason, state::WsState};
-use mahfel_application::ports::{Capability, Principal};
+use crate::http::ws::{
+    envelope::{ProducerSnapshotEntry, ServerMessage},
+    metrics::DisconnectReason,
+    state::WsState,
+};
+use mahfel_application::ports::{Capability, MediaGateway, Principal};
 use mahfel_domain::{MediaKind, ProducerSource, RoomId, SessionId};
 use mahfel_media_client::GrpcMediaGateway;
 
@@ -23,7 +27,7 @@ pub(super) async fn handle_create_transport(
         .create_transport(media_room.unwrap_or(room), principal.actor_id)
         .await
     {
-        Ok((tid, ice_p, ice_c, dtls_p)) => {
+        Ok((tid, ice_p, ice_c, dtls_p, rtp_capabilities)) => {
             if let Some(session_id) = session_id {
                 c.own_transport(session_id, room, tid.clone());
             }
@@ -37,6 +41,7 @@ pub(super) async fn handle_create_transport(
                     ice_parameters: ice_p,
                     ice_candidates: ice_c,
                     dtls_parameters: dtls_p,
+                    rtp_capabilities,
                 },
             )
             .await
@@ -106,6 +111,7 @@ pub(super) async fn handle_produce(
     source: Option<String>,
     principal: &Principal,
     state: &WsState,
+    session_id: Option<SessionId>,
     media_room: Option<RoomId>,
     media: &GrpcMediaGateway,
 ) -> Result<(), DisconnectReason> {
@@ -167,6 +173,50 @@ pub(super) async fn handle_produce(
             .await;
         return Ok(());
     }
+    let Some(session_id) = session_id else {
+        return send_err(
+            c,
+            rid,
+            kind_label,
+            tonic::Status::permission_denied("join a session first"),
+        )
+        .await;
+    };
+    let Some(collaboration) = state.collaboration.as_ref() else {
+        return send_err(
+            c,
+            rid,
+            kind_label,
+            tonic::Status::unavailable("access unavailable"),
+        )
+        .await;
+    };
+    let access = match collaboration.access(session_id, principal.actor_id).await {
+        Ok(access) => access,
+        Err(_) => {
+            return send_err(
+                c,
+                rid,
+                kind_label,
+                tonic::Status::unavailable("access unavailable"),
+            )
+            .await;
+        }
+    };
+    let allowed = match source {
+        ProducerSource::Microphone => access.can_publish_audio,
+        ProducerSource::Camera => access.can_publish_video,
+        ProducerSource::Screen => access.can_share_screen,
+    };
+    if !allowed {
+        return send_err(
+            c,
+            rid,
+            kind_label,
+            tonic::Status::permission_denied("publishing is not permitted in this session"),
+        )
+        .await;
+    }
     match media
         .produce(
             media_room.unwrap_or(room),
@@ -191,6 +241,98 @@ pub(super) async fn handle_produce(
             .await
         }
         Err(s) => send_err(c, rid, kind_label, s).await,
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(super) async fn handle_stop_source(
+    c: &mut Connection,
+    rid: Option<String>,
+    kind: &str,
+    room_id: String,
+    source: String,
+    principal: &Principal,
+    media_room: Option<RoomId>,
+    media: &GrpcMediaGateway,
+) -> Result<(), DisconnectReason> {
+    let Some(room) = parse_room_or_send_error(c, rid.clone(), &room_id).await else {
+        return Ok(());
+    };
+    let source: ProducerSource = match source.as_str().try_into() {
+        Ok(source) => source,
+        Err(_) => {
+            return send_err(
+                c,
+                rid,
+                kind,
+                tonic::Status::invalid_argument("invalid source"),
+            )
+            .await;
+        }
+    };
+    match MediaGateway::close_participant_source(
+        media,
+        media_room.unwrap_or(room),
+        principal.actor_id,
+        source,
+    )
+    .await
+    {
+        Ok(_) => {
+            send_ok(
+                c,
+                rid,
+                kind,
+                ServerMessage::SourceStopped {
+                    room_id,
+                    source: source.as_str().to_owned(),
+                },
+            )
+            .await
+        }
+        Err(_) => {
+            send_err(
+                c,
+                rid,
+                kind,
+                tonic::Status::unavailable("media unavailable"),
+            )
+            .await
+        }
+    }
+}
+
+pub(super) async fn handle_list_producers(
+    c: &mut Connection,
+    rid: Option<String>,
+    kind: &str,
+    room_id: String,
+    media_room: Option<RoomId>,
+    media: &GrpcMediaGateway,
+) -> Result<(), DisconnectReason> {
+    let Some(room) = parse_room_or_send_error(c, rid.clone(), &room_id).await else {
+        return Ok(());
+    };
+    match media.list_producers(media_room.unwrap_or(room)).await {
+        Ok(entries) => {
+            let producers = entries
+                .into_iter()
+                .map(|entry| ProducerSnapshotEntry {
+                    producer_id: entry.producer_id,
+                    actor_id: entry.actor_id,
+                    kind: entry.kind,
+                    source: entry.source,
+                })
+                .collect();
+            send_ok(
+                c,
+                rid,
+                kind,
+                ServerMessage::ProducerSnapshot { room_id, producers },
+            )
+            .await
+        }
+        Err(status) => send_err(c, rid, kind, status).await,
     }
 }
 

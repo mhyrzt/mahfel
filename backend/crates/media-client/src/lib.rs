@@ -2,6 +2,7 @@ mod consumer;
 mod error;
 mod gateway;
 mod producer;
+pub use producer::MediaProducer;
 mod retry;
 mod room;
 mod transport;

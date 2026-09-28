@@ -22,6 +22,29 @@ pub(super) struct ProducerEntry {
 
 pub(super) type ProducerMap = Arc<RwLock<HashMap<String, ProducerEntry>>>;
 
+pub struct PublishedProducer {
+    pub producer_id: String,
+    pub actor_id: ActorId,
+    pub kind: MediaKind,
+    pub source: ProducerSource,
+}
+
+pub(super) async fn list_producers(
+    producers: &ProducerMap,
+    room_id: RoomId,
+) -> Vec<PublishedProducer> {
+    let map = producers.read().await;
+    map.iter()
+        .filter(|(_, entry)| entry.room_id == room_id)
+        .map(|(producer_id, entry)| PublishedProducer {
+            producer_id: producer_id.clone(),
+            actor_id: entry.participant_id,
+            kind: entry.kind,
+            source: entry.source,
+        })
+        .collect()
+}
+
 #[allow(clippy::too_many_arguments)]
 pub(super) async fn create_producer(
     rooms: &RoomMap,

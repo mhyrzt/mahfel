@@ -9,7 +9,7 @@ impl GrpcMediaGateway {
         &self,
         room: RoomId,
         participant_id: ActorId,
-    ) -> Result<(String, String, String, String), tonic::Status> {
+    ) -> Result<(String, String, String, String, String), tonic::Status> {
         let res = self
             .with_retry(|mut client| {
                 let req = CreateWebRtcTransportRequest {
@@ -24,6 +24,7 @@ impl GrpcMediaGateway {
             res.ice_parameters,
             res.ice_candidates,
             res.dtls_parameters,
+            res.rtp_capabilities,
         ))
     }
 

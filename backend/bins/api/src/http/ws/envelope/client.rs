@@ -117,6 +117,13 @@ pub enum ClientMessage {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         source: Option<String>,
     },
+    StopSource {
+        room_id: String,
+        source: String,
+    },
+    ListProducers {
+        room_id: String,
+    },
     Consume {
         room_id: String,
         transport_id: String,
