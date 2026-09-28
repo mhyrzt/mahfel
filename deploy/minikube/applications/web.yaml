@@ -11,7 +11,7 @@ spec:
       labels: {app: mahfel-web}
     spec:
       hostAliases:
-        - ip: 192.0.2.1
+        - ip: 192.0.2.2
           hostnames: [auth.mahfel.localhost]
       containers:
         - name: web

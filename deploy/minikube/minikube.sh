@@ -222,6 +222,13 @@ up() {
   trap - EXIT
   success 'Caddy local CA is available to application pods'
 
+  local caddy_service_ip
+  caddy_service_ip="$(kubectl -n "${namespace}" get service/caddy -o jsonpath='{.spec.clusterIP}')"
+  [[ "${caddy_service_ip}" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]] || {
+    error 'Caddy Service did not return a ClusterIP'
+    return 1
+  }
+
   step 'Initializing storage before applying development seeds'
   kubectl -n "${namespace}" delete job rustfs-init --ignore-not-found >/dev/null
   kubectl -n "${namespace}" apply -f "${infra_dir}/rustfs-init.yaml" >/dev/null
@@ -231,7 +238,10 @@ up() {
   wait_for_job mahfel-seed 5m
   step 'Applying application deployments'
   for manifest in api web media; do
-    sed "s/192\.0\.2\.1/${node_ip}/g" "${apps_dir}/${manifest}.yaml" |
+    sed \
+      -e "s/192\.0\.2\.1/${node_ip}/g" \
+      -e "s/192\.0\.2\.2/${caddy_service_ip}/g" \
+      "${apps_dir}/${manifest}.yaml" |
       kubectl -n "${namespace}" apply -f - >/dev/null
   done
   kubectl -n "${namespace}" apply -f "${apps_dir}/worker.yaml" >/dev/null

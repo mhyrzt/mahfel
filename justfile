@@ -76,8 +76,24 @@ minikube *args:
 compose-up *profiles:
     #!/usr/bin/env bash
     set -euo pipefail
-    selected=("{{profiles}}")
-    if [[ -z "${selected[*]}" ]]; then selected=(mahfel infrastructure observability); fi
+    requested=("{{profiles}}")
+    if [[ -z "${requested[*]}" ]]; then requested=(mahfel infrastructure observability); fi
+    selected=()
+    declare -A seen=()
+    add_profile() {
+        local profile="$1"
+        if [[ -z "${seen[$profile]:-}" ]]; then
+            selected+=("${profile}")
+            seen[$profile]=1
+        fi
+    }
+    for profile in "${requested[@]}"; do
+        case "${profile}" in
+            observability) add_profile infrastructure; add_profile mahfel ;;
+            mahfel) add_profile infrastructure ;;
+        esac
+        add_profile "${profile}"
+    done
     flags=()
     for profile in "${selected[@]}"; do flags+=(--profile "$profile"); done
     build_args=(--build-arg HTTP_PROXY --build-arg HTTPS_PROXY --build-arg ALL_PROXY --build-arg NO_PROXY)
@@ -100,8 +116,24 @@ compose-clean:
 compose-logs *profiles:
     #!/usr/bin/env bash
     set -euo pipefail
-    selected=("{{profiles}}")
-    if [[ -z "${selected[*]}" ]]; then selected=(mahfel infrastructure observability); fi
+    requested=("{{profiles}}")
+    if [[ -z "${requested[*]}" ]]; then requested=(mahfel infrastructure observability); fi
+    selected=()
+    declare -A seen=()
+    add_profile() {
+        local profile="$1"
+        if [[ -z "${seen[$profile]:-}" ]]; then
+            selected+=("${profile}")
+            seen[$profile]=1
+        fi
+    }
+    for profile in "${requested[@]}"; do
+        case "${profile}" in
+            observability) add_profile infrastructure; add_profile mahfel ;;
+            mahfel) add_profile infrastructure ;;
+        esac
+        add_profile "${profile}"
+    done
     flags=()
     for profile in "${selected[@]}"; do flags+=(--profile "$profile"); done
     docker compose "${flags[@]}" logs -f
@@ -113,9 +145,11 @@ trust-local-ca:
     set -euo pipefail
     certificate_dir=".local/caddy"
     certificate_path="${certificate_dir}/root.crt"
+    incoming_path="${certificate_path}.incoming"
     mkdir -p "${certificate_dir}"
+    trap 'rm -f "${incoming_path}"' EXIT
     for attempt in {1..30}; do
-        if docker compose cp caddy:/data/caddy/pki/authorities/local/root.crt "${certificate_path}"; then
+        if docker compose cp caddy:/data/caddy/pki/authorities/local/root.crt "${incoming_path}"; then
             break
         fi
         if [[ "${attempt}" == 30 ]]; then
@@ -124,6 +158,9 @@ trust-local-ca:
         fi
         sleep 1
     done
+    # Keep the existing inode so running containers retain their bind mount.
+    cat "${incoming_path}" > "${certificate_path}"
+    chmod 0644 "${certificate_path}"
     case "$(uname -s)" in
         Linux)
             if command -v update-ca-trust >/dev/null 2>&1; then

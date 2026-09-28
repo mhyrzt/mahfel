@@ -11,8 +11,7 @@ https://auth.mahfel.localhost/realms/rastai
 ```
 
 Use the Caddy hostname for browser flows so the local trusted HTTPS certificate and issuer match.
-The direct loopback port `http://127.0.0.1:8080` is useful for low-level debugging, but it is not the
-configured issuer.
+Keycloak does not publish a direct host port; host port `8080` belongs to `mahfel-api`.
 
 ## Local run
 
@@ -60,16 +59,18 @@ These credentials are intentionally public local fixtures and must never be reus
 
 | Client | Type | Purpose |
 | --- | --- | --- |
-| `mahfel-web` | public, PKCE | browser OIDC client (NextAuth); becomes a confidential client |
-| `mahfel-api` | confidential (`mahfel-dev-secret`) | reserved; superseded by the `mahfel-web` browser flow (ADR 0019) |
+| `mahfel-web` | confidential, PKCE (`mahfel-web-dev-secret`) | browser OIDC client (NextAuth) |
+| `mahfel-api` | confidential (`mahfel-dev-secret`) | legacy authorization-code client; API verifies `mahfel-web` access tokens as a resource server |
 | `mahfel-admin` | confidential service account (`mahfel-admin-dev-secret`) | Admin API access for `mahfel-api` through the client-credentials grant |
 
-The API requests the `openid`, `profile`, `email`, and `roles` scopes, so Keycloak emits `sub`,
+The web and API clients include Keycloak's `basic` default client scope, which adds `sub` to access
+tokens in Keycloak 26. Without it, API token verification rejects otherwise valid logins. The
+clients also include `profile`, `email`, and `roles`, so Keycloak emits `sub`,
 `preferred_username`, `name`, `email`, and `realm_access.roles` / `resource_access.*.roles`. Mahfel
 authorization consumes its provider-neutral identity model and maps these claims only at the
 authentication boundary.
 
-Both clients also map the `mahfel_user_id` user attribute to an `app_user_id` access-token claim.
+The web client also maps the `mahfel_user_id` user attribute to an `app_user_id` access-token claim.
 `POST /v1/auth/provision` writes that attribute after provisioning the local user, so subsequent
 tokens identify the application user without a database lookup. A token issued before provisioning
 carries no `app_user_id` and is rejected with `403`; the client refreshes the token after
@@ -92,5 +93,4 @@ Interactive administrator credentials are never used by the application. The cor
 settings live under `[keycloak]` (`base_url`, `realm`, `admin_client_id`, `admin_client_secret`).
 
 The browser authenticates through `mahfel-web` with NextAuth and the API verifies the resulting
-access token as a resource server (ADR 0019). No login route exists in the bootstrap yet, so this
-provider setup is not a claim that browser login is already available.
+access token as a resource server (ADR 0019).

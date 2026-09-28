@@ -5,17 +5,29 @@
 https://mahfel.localhost {
 	tls internal
 	encode zstd gzip
+	# Compose service name or host.docker.internal:<port> for a host-run frontend.
 	reverse_proxy {$MAHFEL_CADDY_WEB_UPSTREAM}
 }
 
 https://api.mahfel.localhost {
 	tls internal
 	encode zstd gzip
+	# Compose service name or host.docker.internal:<port> for a host-run API.
 	reverse_proxy {$MAHFEL_CADDY_API_UPSTREAM}
 }
 
 https://s3.mahfel.localhost {
 	tls internal
+	@mahfel_origin header Origin https://mahfel.localhost
+	header @mahfel_origin Access-Control-Allow-Origin "https://mahfel.localhost"
+	header @mahfel_origin Access-Control-Allow-Methods "GET, PUT, HEAD, OPTIONS"
+	header @mahfel_origin Access-Control-Allow-Headers "*"
+	header @mahfel_origin Vary "Origin"
+	@mahfel_preflight {
+		method OPTIONS
+		header Origin https://mahfel.localhost
+	}
+	respond @mahfel_preflight "" 204
 	reverse_proxy rustfs:9000
 }
 

@@ -19,15 +19,14 @@ spec:
     metadata:
       labels: {app: mahfel-api}
     spec:
-      hostAliases:
-        - ip: 192.0.2.1
-          hostnames: [auth.mahfel.localhost]
       containers:
         - name: api
           image: mahfel-api:local
           imagePullPolicy: Never
           env:
             - {name: MAHFEL_CONFIG_PROFILE, value: docker}
+            - name: MAHFEL_OIDC__ISSUER_RESOLVE_IP
+              value: 192.0.2.2
             - {name: MAHFEL_KEYCLOAK__BASE_URL, value: http://keycloak:8080}
             - name: MAHFEL_KEYCLOAK__ADMIN_CLIENT_SECRET
               valueFrom: {secretKeyRef: {name: local-credentials, key: keycloak-admin-client-secret}}
