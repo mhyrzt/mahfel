@@ -14,6 +14,7 @@ interface WebSocketTicketResponse {
 const INITIAL_RECONNECT_DELAY_MS = 500;
 const MAX_RECONNECT_DELAY_MS = 15_000;
 const AUTH_TIMEOUT_MS = 10_000;
+const REQUEST_TIMEOUT_MS = 12_000;
 
 export type SignalingStatus =
   "connecting" | "connected" | "reconnecting" | "unauthorized" | "unavailable" | "closed";
@@ -24,6 +25,14 @@ export class SignalingClient {
   private reconnectAttempt = 0;
   private stopped = false;
   private hasConnected = false;
+  private pending = new Map<
+    string,
+    {
+      resolve: (message: ServerMessage) => void;
+      reject: (error: Error) => void;
+      timer: ReturnType<typeof setTimeout>;
+    }
+  >();
 
   constructor(
     private readonly sessionId: string | null,
@@ -48,6 +57,26 @@ export class SignalingClient {
     this.socket.send(JSON.stringify({ v: 1, ...message }));
   }
 
+  request(message: ClientMessage): Promise<ServerMessage> {
+    const id = crypto.randomUUID();
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => {
+        this.pending.delete(id);
+        reject(new Error("The media request timed out."));
+      }, REQUEST_TIMEOUT_MS);
+      this.pending.set(id, { resolve, reject, timer });
+      try {
+        this.send({ ...message, id });
+      } catch (error) {
+        clearTimeout(timer);
+        this.pending.delete(id);
+        reject(
+          error instanceof Error ? error : new Error("The session connection is unavailable."),
+        );
+      }
+    });
+  }
+
   leave(): void {
     if (this.socket?.readyState === WebSocket.OPEN) {
       this.socket.send(JSON.stringify({ v: 1, type: "leave" }));
@@ -62,6 +91,7 @@ export class SignalingClient {
     this.reconnectTimer = null;
     this.socket?.close(1000, "client closed");
     this.socket = null;
+    this.rejectPending();
     this.onStatus("closed");
   }
 
@@ -94,6 +124,18 @@ export class SignalingClient {
         if (!message) {
           return;
         }
+        if (message.id) {
+          const pending = this.pending.get(message.id);
+          if (pending) {
+            clearTimeout(pending.timer);
+            this.pending.delete(message.id);
+            if (message.type === "error") {
+              pending.reject(new Error(message.message));
+            } else {
+              pending.resolve(message);
+            }
+          }
+        }
         if (message.type === "welcome" && !welcomed) {
           welcomed = true;
           clearTimeout(authTimeout);
@@ -112,6 +154,7 @@ export class SignalingClient {
         }
       };
       socket.onclose = (event: CloseEvent) => {
+        this.rejectPending();
         clearTimeout(authTimeout);
         if (this.socket === socket) {
           this.socket = null;
@@ -159,6 +202,14 @@ export class SignalingClient {
       this.reconnectTimer = null;
       void this.open(false);
     }, delay);
+  }
+
+  private rejectPending(): void {
+    for (const pending of this.pending.values()) {
+      clearTimeout(pending.timer);
+      pending.reject(new Error("The session connection was interrupted."));
+    }
+    this.pending.clear();
   }
 }
 

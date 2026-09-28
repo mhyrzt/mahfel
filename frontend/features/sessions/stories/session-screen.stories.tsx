@@ -1,4 +1,9 @@
 import type { Meta, StoryObj } from "@storybook/nextjs";
+import { AppShell } from "@/features/shell/components/app-shell";
+import { FileList } from "@/features/files/components/file-list";
+import { InviteLinkList } from "@/features/invites/components/invite-link-list";
+import { ConversationSidebar } from "@/features/chat/components/conversation-sidebar";
+import { ConversationPreview } from "@/features/chat/stories/conversation-preview";
 
 import { initialSessionState, sessionReducer } from "../session-state";
 import { SessionScreen } from "../components/session-screen";
@@ -114,11 +119,61 @@ const liveTiming = {
 const meta = {
   title: "Sessions/Session Screen",
   component: SessionScreen,
+  parameters: { layout: "fullscreen" },
+  decorators: [
+    (Story, context) => (
+      <AppShell locale={context.args.locale ?? "en"} accountName="Misato Katsuragi">
+        <Story />
+        <ConversationSidebar
+          locale={context.args.locale ?? "en"}
+          conversation={<ConversationPreview locale={context.args.locale ?? "en"} />}
+        />
+      </AppShell>
+    ),
+  ],
   args: {
+    roomId: "research-methods",
+    roomName: "Research methods",
     title: "Weekly research discussion",
     state: liveState,
     sessionTiming: liveTiming,
     admissionRequests,
+    files: (
+      <FileList
+        compact
+        files={[
+          {
+            id: "agenda",
+            file_name: "Research agenda.pdf",
+            owner_id: "manager-1",
+            context_id: "session-demo",
+            context_kind: "session",
+            checksum_sha256: "fixture",
+            created_at: "2026-09-27T09:00:00Z",
+            updated_at: "2026-09-27T09:00:00Z",
+            mime: "application/pdf",
+            size_bytes: 2048,
+            status: "ready",
+          },
+        ]}
+        locale="en"
+        canDelete
+        onPresent={() => undefined}
+      />
+    ),
+    invites: (
+      <InviteLinkList
+        links={[
+          {
+            id: "invite-demo",
+            code: "mrb-kvd-kxi",
+            expiresAt: "Oct 4, 2026",
+            status: "active",
+            target: "session",
+          },
+        ]}
+      />
+    ),
   },
 } satisfies Meta<typeof SessionScreen>;
 

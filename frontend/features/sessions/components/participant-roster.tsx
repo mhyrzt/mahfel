@@ -10,12 +10,15 @@ import { messagesFor } from "@/lib/i18n/messages";
 
 import type { Participant } from "./session-types";
 
+const roleOrder: Record<Participant["role"], number> = { manager: 0, moderator: 1, member: 2 };
+
 export function ParticipantRoster({
   participants,
   summary,
   locale = defaultLocale,
 }: Readonly<{ participants: Participant[]; summary?: ReactNode; locale?: Locale }>) {
   const text = messagesFor(locale).sessions;
+  const names = new Intl.Collator(locale, { sensitivity: "base", numeric: true });
 
   return (
     <Card className="flex h-full flex-col shadow-none">
@@ -35,35 +38,47 @@ export function ParticipantRoster({
           </div>
         ) : (
           <ScrollArea className="h-full px-6 pb-6" dir={locale === "fa" ? "rtl" : "ltr"}>
-            <ul className="space-y-3">
-              {participants.map((participant) => (
-                <li className="flex items-center justify-between gap-3" key={participant.id}>
-                  <div className="flex min-w-0 items-center gap-3">
-                    <Avatar className="size-9">
-                      <AvatarFallback className="text-xs font-semibold">
-                        {participant.initials}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-medium">{participant.name}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {text.roles[participant.role]}
-                      </p>
+            <ul className="space-y-2">
+              {[...participants]
+                .sort(
+                  (left, right) =>
+                    roleOrder[left.role] - roleOrder[right.role] ||
+                    Number(Boolean(right.speaking)) - Number(Boolean(left.speaking)) ||
+                    names.compare(left.name, right.name),
+                )
+                .map((participant) => (
+                  <li
+                    className={`flex items-center justify-between gap-3 rounded-lg px-2 py-2 transition-colors ${participant.speaking ? "bg-success/10" : ""}`}
+                    key={participant.id}
+                  >
+                    <div className="flex min-w-0 items-center gap-3">
+                      <Avatar
+                        className={`size-9 ${participant.speaking ? "ring-2 ring-success ring-offset-2 ring-offset-background" : ""}`}
+                      >
+                        <AvatarFallback className="text-xs font-semibold">
+                          {participant.initials}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-medium">{participant.name}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {text.roles[participant.role]}
+                        </p>
+                      </div>
                     </div>
-                  </div>
-                  {participant.muted ? (
-                    <MicOff
-                      className="size-4 shrink-0 text-muted-foreground"
-                      aria-label={text.muted}
-                    />
-                  ) : (
-                    <Mic
-                      className="size-4 shrink-0 text-muted-foreground"
-                      aria-label={text.microphoneOn}
-                    />
-                  )}
-                </li>
-              ))}
+                    {participant.muted ? (
+                      <MicOff
+                        className="size-4 shrink-0 text-muted-foreground"
+                        aria-label={text.muted}
+                      />
+                    ) : (
+                      <Mic
+                        className={`size-4 shrink-0 ${participant.speaking ? "text-success drop-shadow-[0_0_8px_var(--success)]" : "text-muted-foreground"}`}
+                        aria-label={participant.speaking ? text.speaking : text.microphoneOn}
+                      />
+                    )}
+                  </li>
+                ))}
             </ul>
           </ScrollArea>
         )}

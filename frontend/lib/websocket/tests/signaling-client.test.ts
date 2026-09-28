@@ -122,3 +122,44 @@ test("reports an expired browser session without trying a bearer token", async (
   expect(MockWebSocket.instances).toHaveLength(0);
   client.close();
 });
+
+test("correlates media requests and surfaces server errors", async () => {
+  vi.stubGlobal("WebSocket", MockWebSocket);
+  postMock.mockResolvedValue({ data: { ticket: "ticket-one", expires_in: 10 } });
+  const client = new SignalingClient("session-123", vi.fn());
+  client.connect();
+  await vi.waitFor(() => expect(MockWebSocket.instances).toHaveLength(1));
+  const socket = MockWebSocket.instances[0];
+  socket.open();
+  socket.receive({ v: 1, type: "welcome", connection_id: "connection-1" });
+
+  const created = client.request({ type: "create_transport", room_id: "room-1" });
+  const first = JSON.parse(socket.sent.at(-1) ?? "{}") as { id: string };
+  socket.receive({
+    v: 1,
+    id: first.id,
+    type: "transport_created",
+    room_id: "room-1",
+    transport_id: "transport-1",
+    ice_parameters: "{}",
+    ice_candidates: "[]",
+    dtls_parameters: "{}",
+    rtp_capabilities: "{}",
+  });
+  await expect(created).resolves.toMatchObject({
+    type: "transport_created",
+    transport_id: "transport-1",
+  });
+
+  const denied = client.request({ type: "stop_source", room_id: "room-1", source: "microphone" });
+  const second = JSON.parse(socket.sent.at(-1) ?? "{}") as { id: string };
+  socket.receive({
+    v: 1,
+    id: second.id,
+    type: "error",
+    code: "forbidden",
+    message: "not permitted",
+  });
+  await expect(denied).rejects.toThrow("not permitted");
+  client.close();
+});

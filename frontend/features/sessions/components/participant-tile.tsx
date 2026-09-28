@@ -35,8 +35,8 @@ export function ParticipantTile({
     return (
       <article
         aria-label={`${participant.name}: ${text.screenSharePreview}`}
-        className={`relative aspect-video w-full overflow-hidden rounded-xl bg-slate-950 ring-1 ring-white/10 sm:w-[min(100%,var(--stage-tile-max-width))] sm:justify-self-center ${
-          participant.speaking ? "ring-2 ring-primary ring-offset-2" : ""
+        className={`session-participant-enter relative aspect-video w-full overflow-hidden rounded-xl bg-slate-950 ring-1 ring-white/10 sm:w-[min(100%,var(--stage-tile-max-width))] sm:justify-self-center ${
+          participant.speaking ? "ring-2 ring-success ring-offset-2" : ""
         }`}
       >
         {screenShareStream ? (
@@ -82,11 +82,13 @@ export function ParticipantTile({
   return (
     <article
       aria-label={participant.name}
-      className="flex aspect-video w-full flex-col items-center justify-center gap-2 bg-transparent"
+      className="session-participant-enter flex min-h-0 w-full flex-col items-center justify-center gap-2 bg-transparent sm:gap-3"
     >
       <div
-        className={`group relative aspect-square w-[min(24vw,6rem)] shrink-0 rounded-full bg-slate-900 ring-2 ring-white/15 sm:w-[clamp(6rem,14vw,10rem)] sm:ring-4 ${
-          participant.speaking ? "ring-primary ring-offset-2 ring-offset-background" : ""
+        className={`group relative aspect-square w-[min(24vw,var(--stage-mobile-avatar-size,6rem))] shrink-0 rounded-full bg-slate-900 ring-2 ring-white/15 sm:w-[min(14vw,var(--stage-avatar-size,10rem))] sm:ring-4 ${
+          participant.speaking
+            ? "speaking-avatar ring-success ring-offset-2 ring-offset-background"
+            : ""
         }`}
       >
         {cameraEnabled && cameraStream ? (

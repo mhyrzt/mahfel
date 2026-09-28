@@ -1,5 +1,5 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { afterEach, expect, test, vi } from "vitest";
+import { afterEach, beforeEach, expect, test, vi } from "vitest";
 
 const { clients } = vi.hoisted(() => ({
   clients: [] as Array<{
@@ -63,6 +63,7 @@ function mountSession() {
       sessionId="session-1"
       roomId="room-1"
       title="Biology 101"
+      files={<div />}
     />,
   );
   const client = clients.at(-1);
@@ -75,6 +76,10 @@ function mountSession() {
 function deliver(message: object) {
   act(() => clients.at(-1)?.onMessage(message));
 }
+
+beforeEach(() => {
+  getRoster.mockResolvedValue({ data: [] });
+});
 
 afterEach(() => {
   clients.length = 0;
@@ -89,6 +94,18 @@ test("leave closes signaling and returns to the room", () => {
   expect(client.leave).toHaveBeenCalledOnce();
   expect(client.close).toHaveBeenCalledOnce();
   expect(push).toHaveBeenCalledWith("/room/room-1");
+});
+
+test("joined participants can try media controls and see setup failures", async () => {
+  mountSession();
+  deliver({ v: 1, type: "joined", session_id: "session-1", participant_id: "part-a111" });
+
+  const microphone = screen.getByRole("button", { name: "Unmute microphone" });
+  expect(microphone).toBeEnabled();
+  fireEvent.click(microphone);
+  await waitFor(() =>
+    expect(screen.getByRole("alert")).toHaveTextContent("Media connection unavailable"),
+  );
 });
 
 test("shows the resolved display name in the live roster", async () => {
@@ -176,4 +193,33 @@ test("turns a blocked-identity event and auth expiry into visible states", () =>
 
   act(() => client.onStatus("unauthorized"));
   expect(screen.getByText("Your sign-in expired. Sign in again to continue.")).toBeInTheDocument();
+});
+
+test("opens the sidebar conversation from a new-message toast without leaving the session", async () => {
+  getRoster.mockImplementation((url: string) =>
+    Promise.resolve({ data: url.endsWith("/messages") ? { messages: [], next_cursor: null } : [] }),
+  );
+  const client = mountSession();
+  act(() => client.onStatus("connected"));
+  expect(client.send).toHaveBeenCalledWith({
+    type: "subscribe_chat",
+    room_id: "room-1",
+    after_sequence: 0,
+  });
+  deliver({ v: 1, type: "chat_subscribed", room_id: "room-1", head_sequence: 3 });
+  deliver({
+    v: 1,
+    type: "chat_event",
+    event: {
+      room_id: "room-1",
+      author_id: "actor-2",
+      kind: "created",
+      sequence: 4,
+      content: "Hello from class",
+    },
+  });
+  expect(screen.getByText("Hello from class")).toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: /New message/ }));
+  expect(await screen.findByRole("dialog", { name: "Conversation" })).toBeInTheDocument();
+  expect(push).not.toHaveBeenCalled();
 });

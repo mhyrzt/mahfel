@@ -15,7 +15,7 @@ export function createSendTransport(
   device: Device,
   params: TransportParams,
   onConnect: (dtlsParameters: unknown) => Promise<void>,
-  onProduce: (kind: string, rtpParameters: unknown) => Promise<string>,
+  onProduce: (kind: string, rtpParameters: unknown, source: string) => Promise<string>,
 ): RtcTransport {
   const transport = device.createSendTransport({
     id: params.id,
@@ -30,8 +30,8 @@ export function createSendTransport(
       .catch(errback);
   });
 
-  transport.on("produce", ({ kind, rtpParameters }, callback, errback) => {
-    onProduce(kind, rtpParameters)
+  transport.on("produce", ({ kind, rtpParameters, appData }, callback, errback) => {
+    onProduce(kind, rtpParameters, String(appData.source ?? ""))
       .then((id) => callback({ id }))
       .catch(errback);
   });

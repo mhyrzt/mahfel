@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useReducer, useRef, useState } from "react";
+import { useEffect, useReducer, useRef, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
+import { MessageCircle, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -13,6 +14,9 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { roomCopy } from "@/features/rooms/room-copy";
+import { ContextFileLibrary } from "@/features/files/components/context-file-library";
+import { ConversationSidebar } from "@/features/chat/components/conversation-sidebar";
+import { RoomChat } from "@/features/chat/components/room-chat";
 import { browserApiClient } from "@/lib/api/browser";
 import type { Locale } from "@/lib/i18n/config";
 import { messagesFor } from "@/lib/i18n/messages";
@@ -28,16 +32,24 @@ import type {
 } from "./session-types";
 import { SessionScreen } from "./session-screen";
 import { CollaborationWorkspace } from "./collaboration-workspace";
+import { useSessionMedia } from "./use-session-media";
+import { useRemoteSessionMedia } from "./use-remote-session-media";
 
 interface SessionClientProps {
   actorId?: string;
+  actorName?: string | null;
   capabilities: SessionCapabilities;
   locale: Locale;
   sessionId: string;
   roomId: string;
+  roomName?: string;
   sessionTiming?: SessionTiming | null;
   title: string;
   canAdmit?: boolean;
+  files?: ReactNode;
+  canDeleteFiles?: boolean;
+  invites?: ReactNode;
+  endAction?: ReactNode;
 }
 
 interface RosterParticipant {
@@ -48,33 +60,111 @@ interface RosterParticipant {
   avatar_url: string | null;
 }
 
+interface PersonalAccess {
+  can_publish_audio: boolean;
+  can_publish_video: boolean;
+  can_share_screen: boolean;
+}
+
 export function SessionClient({
   actorId,
+  actorName,
   capabilities,
   locale,
   sessionId,
   roomId,
+  roomName,
   sessionTiming,
   title,
   canAdmit = false,
+  files,
+  canDeleteFiles = false,
+  invites,
+  endAction,
 }: Readonly<SessionClientProps>) {
   const [state, dispatch] = useReducer(sessionReducer, initialSessionState);
   const router = useRouter();
   const clientRef = useRef<SignalingClient | null>(null);
+  const media = useSessionMedia(clientRef, roomId, locale);
+  const { enabled: mediaEnabled, stop: stopMedia } = media;
+  const remoteMedia = useRemoteSessionMedia(
+    clientRef,
+    roomId,
+    actorId,
+    state.phase === "live",
+    locale,
+  );
   const participantsRef = useRef<Participant[]>([]);
   const pendingRosterRef = useRef<string[] | null>(null);
   const rosterVersionRef = useRef(-1);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [personalAccess, setPersonalAccess] = useState<PersonalAccess | null>(null);
+  const [chatNotice, setChatNotice] = useState<string | null>(null);
+  const [chatOpen, setChatOpen] = useState(false);
+  const chatHeadRef = useRef<number | null>(null);
   const [confirmation, setConfirmation] = useState<{
     action: "remove" | "block";
     participant: Participant;
   } | null>(null);
   const [admissionRequests, setAdmissionRequests] = useState<AdmissionRequest[]>([]);
+  const [activeSurface, setActiveSurface] = useState<
+    "participants" | "notes" | "whiteboard" | "presentation"
+  >("participants");
   const actionText = roomCopy(locale);
+
+  useEffect(() => {
+    if (state.phase !== "live") {
+      return undefined;
+    }
+    let active = true;
+    const refresh = async () => {
+      const response = await browserApiClient
+        .get<PersonalAccess>(`/v1/sessions/${encodeURIComponent(sessionId)}/collaboration`)
+        .catch(() => null);
+      if (active && response) {
+        setPersonalAccess(response.data);
+      }
+    };
+    void refresh();
+    const interval = window.setInterval(() => void refresh(), 3_000);
+    return () => {
+      active = false;
+      window.clearInterval(interval);
+    };
+  }, [sessionId, state.phase]);
+
+  useEffect(() => {
+    if (!personalAccess) {
+      return;
+    }
+    if (!personalAccess.can_publish_audio && mediaEnabled.microphone) {
+      void stopMedia("microphone");
+    }
+    if (!personalAccess.can_publish_video && mediaEnabled.camera) {
+      void stopMedia("camera");
+    }
+    if (!personalAccess.can_share_screen && mediaEnabled.screen) {
+      void stopMedia("screen");
+    }
+  }, [
+    mediaEnabled.microphone,
+    mediaEnabled.camera,
+    mediaEnabled.screen,
+    stopMedia,
+    personalAccess,
+  ]);
 
   useEffect(() => {
     participantsRef.current = state.participants;
   }, [state.participants]);
+
+  useEffect(() => {
+    if (!chatNotice) {
+      return undefined;
+    }
+    const timer = window.setTimeout(() => setChatNotice(null), 6_000);
+    return () => window.clearTimeout(timer);
+  }, [chatNotice]);
 
   useEffect(() => {
     const text = messagesFor(locale).sessions;
@@ -133,7 +223,10 @@ export function SessionClient({
     }
 
     function handleStatus(status: SignalingStatus) {
-      if (status === "unauthorized") {
+      if (status === "connected") {
+        chatHeadRef.current = null;
+        client.send({ type: "subscribe_chat", room_id: roomId, after_sequence: 0 });
+      } else if (status === "unauthorized") {
         dispatch({
           type: "connection-unavailable",
           message: text.signInAgainMessage,
@@ -154,6 +247,22 @@ export function SessionClient({
       }
 
       switch (message.type) {
+        case "chat_subscribed":
+          if (message.room_id === roomId) {
+            chatHeadRef.current = message.head_sequence;
+          }
+          return;
+        case "chat_event":
+          if (message.event.room_id === roomId && chatHeadRef.current !== null) {
+            const isNew = message.event.sequence > chatHeadRef.current;
+            chatHeadRef.current = Math.max(chatHeadRef.current, message.event.sequence);
+            if (isNew && message.event.kind === "created" && message.event.author_id !== actorId) {
+              setChatNotice(
+                message.event.content?.trim() || (locale === "fa" ? "پیام تازه" : "New message"),
+              );
+            }
+          }
+          return;
         case "joined": {
           const ids = pendingRosterRef.current ?? participantsRef.current.map(({ id }) => id);
           const participants = participantList(ids);
@@ -234,7 +343,7 @@ export function SessionClient({
         default:
       }
     }
-  }, [actorId, capabilities, locale, sessionId, title]);
+  }, [actorId, capabilities, locale, roomId, sessionId, title]);
 
   useEffect(() => {
     if (!canAdmit) {
@@ -287,6 +396,9 @@ export function SessionClient({
   }
 
   function sendParticipantAction(action: ParticipantAction, participant: Participant) {
+    if (participant.id === state.participantId || participant.actorId === actorId) {
+      return;
+    }
     if (!participant.actorId) {
       setActionError(actionText.moderationFailed);
       return;
@@ -335,17 +447,66 @@ export function SessionClient({
   }
 
   return (
-    <div className="space-y-8">
+    <div className="h-full min-h-0">
       <SessionScreen
+        actorId={actorId}
+        sessionId={sessionId}
+        roomId={roomId}
+        roomName={roomName ?? title}
+        activeSurface={activeSurface}
+        onSelectSurface={setActiveSurface}
+        collaboration={
+          activeSurface !== "participants" ? (
+            <CollaborationWorkspace
+              displayName={
+                state.participants.find((participant) => participant.actorId === actorId)?.name ??
+                actorName ??
+                undefined
+              }
+              sessionId={sessionId}
+              locale={locale}
+              selectedSurface={activeSurface}
+            />
+          ) : null
+        }
         title={title}
-        state={state}
+        state={{
+          ...state,
+          capabilities: {
+            ...state.capabilities,
+            canPublishAudio:
+              state.capabilities.canPublishAudio && (personalAccess?.can_publish_audio ?? true),
+            canPublishVideo:
+              state.capabilities.canPublishVideo && (personalAccess?.can_publish_video ?? true),
+            canShareScreen:
+              state.capabilities.canShareScreen && (personalAccess?.can_share_screen ?? true),
+          },
+        }}
         sessionTiming={sessionTiming}
         locale={locale}
         onRetryJoin={() => clientRef.current?.send({ type: "join", session_id: sessionId })}
         onParticipantAction={sendParticipantAction}
         actionError={actionError}
+        media={media}
+        remoteMedia={remoteMedia}
         admissionRequests={admissionRequests}
         canAdmit={canAdmit}
+        files={
+          files ?? (
+            <ContextFileLibrary
+              context={{ kind: "session", id: sessionId }}
+              roomContextId={roomId}
+              presentationSessionId={sessionId}
+              actorId={actorId}
+              canDelete={canDeleteFiles}
+              locale={locale}
+              compact
+              onPresented={() => setActiveSurface("presentation")}
+            />
+          )
+        }
+        invites={invites}
+        endAction={endAction}
         onAdmit={(request) => void decideAdmission(request, "admit")}
         onReject={(request) => void decideAdmission(request, "reject")}
         onLeave={() => {
@@ -354,8 +515,48 @@ export function SessionClient({
           router.push(`/room/${roomId}`);
         }}
       />
-      {state.phase === "live" || state.phase === "ended" ? (
-        <CollaborationWorkspace sessionId={sessionId} locale={locale} />
+      <ConversationSidebar
+        locale={locale}
+        open={chatOpen}
+        onOpenChange={setChatOpen}
+        conversation={
+          <RoomChat
+            roomId={roomId}
+            actorId={actorId}
+            locale={locale}
+            canModerate={capabilities.canModerate}
+            compact
+          />
+        }
+      />
+      {chatNotice ? (
+        <div
+          className="fixed end-4 top-4 z-50 flex max-w-[min(22rem,calc(100vw-2rem))] items-start gap-3 rounded-xl border bg-card p-3 text-sm shadow-lg"
+          role="status"
+        >
+          <MessageCircle aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-primary" />
+          <button
+            className="min-w-0 flex-1 text-start"
+            type="button"
+            onClick={() => {
+              setChatNotice(null);
+              setChatOpen(true);
+            }}
+          >
+            <span className="block font-semibold">
+              {locale === "fa" ? "پیام تازه" : "New message"}
+            </span>
+            <span className="block truncate text-muted-foreground">{chatNotice}</span>
+          </button>
+          <button
+            aria-label={locale === "fa" ? "بستن" : "Dismiss"}
+            className="rounded-md p-1 hover:bg-muted"
+            onClick={() => setChatNotice(null)}
+            type="button"
+          >
+            <X aria-hidden="true" className="size-4" />
+          </button>
+        </div>
       ) : null}
       <Dialog
         onOpenChange={(open) => {

@@ -7,6 +7,8 @@ export interface SessionCapabilities {
   canPublishVideo: boolean;
   canShareScreen: boolean;
   canModerate: boolean;
+  canMuteOthers?: boolean;
+  canRemoveParticipant?: boolean;
 }
 
 export interface SessionState {

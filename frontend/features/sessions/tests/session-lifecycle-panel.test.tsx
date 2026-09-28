@@ -1,9 +1,14 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, expect, test, vi } from "vitest";
+import { AxiosError } from "axios";
 
-const { post, refresh } = vi.hoisted(() => ({ post: vi.fn(), refresh: vi.fn() }));
+const { get, post, refresh } = vi.hoisted(() => ({
+  get: vi.fn(),
+  post: vi.fn(),
+  refresh: vi.fn(),
+}));
 
-vi.mock("@/lib/api/browser", () => ({ browserApiClient: { post } }));
+vi.mock("@/lib/api/browser", () => ({ browserApiClient: { get, post } }));
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh }) }));
 
 import { SessionLifecyclePanel } from "../components/session-lifecycle-panel";
@@ -20,7 +25,24 @@ const session = {
 
 beforeEach(() => {
   post.mockReset();
+  get.mockReset();
   refresh.mockReset();
+});
+
+test("a conflicting live session is identified and linked when start returns 409", async () => {
+  const conflict = new AxiosError("Conflict");
+  Object.assign(conflict, { response: { status: 409 } });
+  post.mockRejectedValue(conflict);
+  get.mockResolvedValue({ data: [{ ...session, id: "live-session", status: "live" }] });
+  render(<SessionLifecyclePanel session={session} canManage locale="en" />);
+
+  fireEvent.click(screen.getByRole("button", { name: "Start session" }));
+
+  expect(await screen.findByText(/Another session is already live/)).toBeInTheDocument();
+  expect(screen.getByRole("link", { name: "Open the live session" })).toHaveAttribute(
+    "href",
+    "/session/live-session",
+  );
 });
 
 test("a manager can start a scheduled session", async () => {

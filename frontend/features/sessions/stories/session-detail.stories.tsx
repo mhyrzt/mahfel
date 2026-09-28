@@ -92,13 +92,25 @@ export const ScheduledMember: Story = {
 export const LiveManager: Story = {
   render: () => (
     <SessionDetailView
-      lifecycle={
-        <SessionLifecyclePanel session={{ ...session, status: "live" }} canManage locale="en" />
-      }
       stage={
-        <SessionScreen title={session.title} state={liveState} locale="en" admissionRequests={[]} />
+        <SessionScreen
+          roomId={session.room_id}
+          roomName="Research methods"
+          title={session.title}
+          state={liveState}
+          locale="en"
+          admissionRequests={[]}
+          endAction={
+            <SessionLifecyclePanel
+              session={{ ...session, status: "live" }}
+              canManage
+              locale="en"
+              compact
+            />
+          }
+          files={<FileList files={files} locale="en" canDelete onPresent={() => undefined} />}
+        />
       }
-      files={<FileList files={files} locale="en" canDelete />}
     />
   ),
 };

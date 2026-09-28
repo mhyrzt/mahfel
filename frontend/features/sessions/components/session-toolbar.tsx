@@ -1,4 +1,16 @@
-import { Mic, MicOff, MonitorUp, PhoneOff, Video, VideoOff } from "lucide-react";
+import {
+  Presentation,
+  Mic,
+  MicOff,
+  MonitorUp,
+  NotebookPen,
+  PhoneOff,
+  UsersRound,
+  Video,
+  VideoOff,
+  PencilRuler,
+} from "lucide-react";
+import type { ReactNode } from "react";
 
 import { Button } from "@/components/ui/button";
 import { defaultLocale, type Locale } from "@/lib/i18n/config";
@@ -13,30 +25,39 @@ export interface SessionToolbarCapabilities {
 }
 
 interface SessionToolbarProps extends Partial<SessionToolbarCapabilities> {
+  activeSurface?: "participants" | "notes" | "whiteboard" | "presentation";
+  onSelectSurface?: (surface: "participants" | "notes" | "whiteboard" | "presentation") => void;
   cameraEnabled?: boolean;
   microphoneEnabled?: boolean;
   screenShareEnabled?: boolean;
+  mediaBusy?: boolean;
   locale?: Locale;
   onLeave?: () => void;
   onToggleMicrophone?: () => void;
   onToggleCamera?: () => void;
   onToggleScreenShare?: () => void;
+  endAction?: ReactNode;
 }
 
 export function SessionToolbar({
+  activeSurface = "participants",
+  onSelectSurface,
   canPublishAudio = true,
   canPublishVideo = true,
   canShareScreen = true,
   cameraEnabled = false,
   microphoneEnabled = false,
   screenShareEnabled = false,
+  mediaBusy = false,
   locale = defaultLocale,
   onLeave,
   onToggleMicrophone,
   onToggleCamera,
   onToggleScreenShare,
+  endAction,
 }: Readonly<SessionToolbarProps>) {
   const text = messagesFor(locale).sessions;
+  const collaboration = messagesFor(locale).collaboration;
   const unavailable = roomCopy(locale).mediaUnavailable;
   const controls = [
     {
@@ -64,14 +85,14 @@ export function SessionToolbar({
 
   return (
     <TooltipProvider>
-      <div className="flex w-fit items-center gap-1 rounded-2xl border border-slate-800 bg-slate-950 p-1.5 shadow-[0_12px_32px_-12px_rgba(15,23,42,0.65)]">
+      <div className="flex w-fit max-w-[calc(100vw-2rem)] items-center gap-1 overflow-x-auto rounded-2xl border border-slate-800 bg-slate-950 p-1.5 shadow-[0_12px_32px_-12px_rgba(15,23,42,0.65)]">
         {controls.map(({ label, icon: Icon, pressed, onClick }) => (
           <Tooltip key={label}>
             <TooltipTrigger asChild>
               <Button
                 aria-label={label}
                 aria-pressed={pressed}
-                disabled={!onClick}
+                disabled={!onClick || mediaBusy}
                 onClick={onClick}
                 className={`size-10 rounded-xl transition-all duration-200 active:scale-95 ${
                   pressed
@@ -87,6 +108,31 @@ export function SessionToolbar({
             <TooltipContent side="top" sideOffset={10}>
               {onClick ? label : unavailable}
             </TooltipContent>
+          </Tooltip>
+        ))}
+        <div className="mx-1 h-6 w-px bg-slate-800" />
+        {(
+          [
+            { surface: "participants", label: text.participants, icon: UsersRound },
+            { surface: "notes", label: collaboration.notes, icon: NotebookPen },
+            { surface: "whiteboard", label: collaboration.whiteboard, icon: PencilRuler },
+            { surface: "presentation", label: collaboration.presentation, icon: Presentation },
+          ] as const
+        ).map(({ surface, label, icon: Icon }) => (
+          <Tooltip key={surface}>
+            <TooltipTrigger asChild>
+              <Button
+                aria-label={label}
+                aria-pressed={activeSurface === surface}
+                className={`size-10 rounded-xl ${activeSurface === surface ? "bg-slate-800 text-white" : "text-slate-400 hover:bg-slate-800 hover:text-white"}`}
+                onClick={() => onSelectSurface?.(surface)}
+                size="icon"
+                variant="ghost"
+              >
+                <Icon className="size-[1.125rem]" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="top">{label}</TooltipContent>
           </Tooltip>
         ))}
         <div className="mx-1 h-6 w-px bg-slate-800" />
@@ -107,6 +153,12 @@ export function SessionToolbar({
             {text.leaveSession}
           </TooltipContent>
         </Tooltip>
+        {endAction ? (
+          <>
+            <div className="mx-1 h-6 w-px bg-slate-800" />
+            {endAction}
+          </>
+        ) : null}
       </div>
     </TooltipProvider>
   );

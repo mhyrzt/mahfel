@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 
 export function SessionDetailView({
+  breadcrumb,
   lifecycle,
   stage,
   collaboration,
@@ -8,6 +9,7 @@ export function SessionDetailView({
   files,
   invites,
 }: Readonly<{
+  breadcrumb?: ReactNode;
   lifecycle?: ReactNode;
   stage?: ReactNode;
   collaboration?: ReactNode;
@@ -16,7 +18,11 @@ export function SessionDetailView({
   invites?: ReactNode;
 }>) {
   return (
-    <div className="space-y-8" data-testid="session-detail">
+    <div
+      className={stage ? "h-full min-h-0" : "mx-auto max-w-5xl space-y-6 pb-16"}
+      data-testid="session-detail"
+    >
+      {breadcrumb}
       {lifecycle}
       {stage}
       {collaboration}
