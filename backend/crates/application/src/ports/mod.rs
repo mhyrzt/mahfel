@@ -33,7 +33,7 @@ pub use chat_activity::{ChatActivitySnapshot, ChatActivityStore};
 pub use chat_store::{ChatReactionSnapshot, ChatStore};
 pub use collaboration_store::{
     CollaborationAccess, CollaborationCheckpoint, CollaborationParticipant, CollaborationStore,
-    NewCollaborationEvent, PresentationState,
+    NewCollaborationEvent, ParticipantAccessUpdate, PresentationState,
 };
 pub use coordination::{CoordinationError, CoordinationStore};
 pub use file_storage::{FileStorage, FileStorageError, PresignedFileRequest, StoredFile};

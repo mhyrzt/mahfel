@@ -25,6 +25,10 @@ pub(crate) struct CollaborationDocumentsResponse {
     pub room_id: String,
     pub documents: Vec<DocumentResponse>,
     pub can_edit: bool,
+    pub can_publish_audio: bool,
+    pub can_publish_video: bool,
+    pub can_share_screen: bool,
+    pub can_present: bool,
     pub can_manage: bool,
     pub live: bool,
 }
@@ -34,6 +38,11 @@ pub(crate) struct ParticipantGrantResponse {
     pub actor_id: String,
     pub display_name: String,
     pub can_edit: bool,
+    pub can_publish_audio: bool,
+    pub can_publish_video: bool,
+    pub can_share_screen: bool,
+    pub can_present: bool,
+    pub is_manager: bool,
 }
 
 #[derive(Serialize, ToSchema)]
@@ -42,8 +51,12 @@ pub(crate) struct ParticipantGrantsResponse {
 }
 
 #[derive(Deserialize, ToSchema)]
-pub(crate) struct EditGrantRequest {
-    pub can_edit: bool,
+pub(crate) struct ParticipantAccessRequest {
+    pub can_edit: Option<bool>,
+    pub can_publish_audio: Option<bool>,
+    pub can_publish_video: Option<bool>,
+    pub can_share_screen: Option<bool>,
+    pub can_present: Option<bool>,
 }
 
 #[derive(Deserialize, ToSchema)]

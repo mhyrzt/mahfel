@@ -25,7 +25,9 @@ pub(super) async fn append(
     if !allowed.can_read || !allowed.live {
         return Err(StoreError::NotFound("live collaboration".into()));
     }
-    if event.kind != CollaborationEventKind::Viewport && !allowed.can_edit {
+    if (event.kind == CollaborationEventKind::DocumentUpdate && !allowed.can_edit)
+        || (event.kind == CollaborationEventKind::Presentation && !allowed.can_present)
+    {
         return Err(StoreError::NotFound("collaboration editing".into()));
     }
     match event.kind {

@@ -1,7 +1,8 @@
 use mahfel_application::jobs::JobEnvelope;
 use mahfel_application::ports::{
     ChatStore, CollaborationStore, FileStore, IdentityProfile, IdentityStore,
-    NewCollaborationEvent, ParticipantStore, RoomStore, SessionStore, StoreError, UserStore,
+    NewCollaborationEvent, ParticipantAccessUpdate, ParticipantStore, RoomStore, SessionStore,
+    StoreError, UserStore,
 };
 use mahfel_domain::{
     ActorId, AvatarUrl, ChatChannel, ChatChannelId, ChatMessageDraft, ChatMessageId,
@@ -1040,9 +1041,40 @@ async fn verify_collaboration(
         Err(StoreError::NotFound(_))
     ));
     collaboration
-        .set_edit_grant(session_id, manager, member.id, true, Uuid::new_v4())
+        .set_participant_access(
+            session_id,
+            manager,
+            member.id,
+            ParticipantAccessUpdate {
+                can_edit: Some(true),
+                can_present: Some(true),
+                ..Default::default()
+            },
+            Uuid::new_v4(),
+        )
         .await?;
     assert!(collaboration.access(session_id, member.id).await?.can_edit);
+    assert!(
+        collaboration
+            .access(session_id, member.id)
+            .await?
+            .can_present
+    );
+    assert!(matches!(
+        collaboration
+            .set_participant_access(
+                session_id,
+                manager,
+                manager,
+                ParticipantAccessUpdate {
+                    can_publish_audio: Some(false),
+                    ..Default::default()
+                },
+                Uuid::new_v4(),
+            )
+            .await,
+        Err(StoreError::Conflict(_))
+    ));
     let manager_update = NewCollaborationEvent {
         session_id,
         id: Uuid::new_v4(),
@@ -1163,6 +1195,28 @@ async fn verify_collaboration(
             .await?
             .is_none()
     );
+
+    collaboration
+        .set_participant_access(
+            session_id,
+            manager,
+            member.id,
+            ParticipantAccessUpdate {
+                can_edit: Some(false),
+                can_publish_audio: Some(false),
+                ..Default::default()
+            },
+            Uuid::new_v4(),
+        )
+        .await?;
+    let limited = collaboration.access(session_id, member.id).await?;
+    assert!(!limited.can_edit);
+    assert!(!limited.can_publish_audio);
+    assert!(limited.can_present);
+    assert!(matches!(
+        collaboration.append(&member_update).await,
+        Err(StoreError::NotFound(_))
+    ));
 
     session.end(now + TimeDuration::seconds(2))?;
     sessions.save(&session).await?;

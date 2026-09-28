@@ -74,16 +74,16 @@ impl CollaborationStore for PostgresCollaborationStore {
         ))
     }
 
-    fn set_edit_grant(
+    fn set_participant_access(
         &self,
         session_id: SessionId,
         manager: ActorId,
         target: ActorId,
-        can_edit: bool,
+        update: mahfel_application::ports::ParticipantAccessUpdate,
         event_id: Uuid,
     ) -> BoxFuture<'_, Result<CollaborationEvent, StoreError>> {
-        Box::pin(access::set_edit_grant(
-            &self.pool, session_id, manager, target, can_edit, event_id,
+        Box::pin(access::set_participant_access(
+            &self.pool, session_id, manager, target, update, event_id,
         ))
     }
 

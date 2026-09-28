@@ -50,6 +50,9 @@ where
     S: MembershipStore + ?Sized,
     M: MediaGateway + ?Sized,
 {
+    if command.actor == command.subject {
+        return Err(ModerationError::Forbidden);
+    }
     let session = sessions
         .get(command.session_id)
         .await?
@@ -166,6 +169,9 @@ where
     S: MembershipStore + ?Sized,
     M: MediaGateway + ?Sized,
 {
+    if command.actor == command.subject {
+        return Err(ModerationError::Forbidden);
+    }
     let room_id = super::scope::authorize_scope(rooms, sessions, &command.scope).await?;
     crate::policy::require_actor_capability(
         memberships,
@@ -275,6 +281,9 @@ where
     B: BlockStore + ?Sized,
     S: MembershipStore + ?Sized,
 {
+    if command.actor == command.subject {
+        return Err(ModerationError::Forbidden);
+    }
     let room_id = super::scope::authorize_scope(rooms, sessions, &command.scope).await?;
     crate::policy::require_actor_capability(
         memberships,

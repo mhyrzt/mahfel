@@ -3,8 +3,9 @@ pub(crate) mod handlers;
 pub(crate) mod presentation;
 
 pub(crate) use dto::{
-    CollaborationDocumentsResponse, CollaborationEventsResponse, EditGrantRequest, EventResponse,
-    ParticipantGrantsResponse, PresentationRequest, RegisterImageRequest, ViewportRequest,
+    CollaborationDocumentsResponse, CollaborationEventsResponse, EventResponse,
+    ParticipantAccessRequest, ParticipantGrantsResponse, PresentationRequest, RegisterImageRequest,
+    ViewportRequest,
 };
 pub(crate) use handlers::{documents, events, grants, register_image, set_grant, update_viewport};
 pub(crate) use presentation::{PresentationStateResponse, get_presentation, update_presentation};

@@ -36,7 +36,13 @@ pub(crate) async fn get_presentation(
     let current = store
         .presentation(SessionId::from_uuid(session_id), principal.actor_id)
         .await
-        .map_err(|_| ApiError::not_found("presentation unavailable"))?;
+        .map_err(|error| match error {
+            StoreError::NotFound(_) | StoreError::MissingReference(_) => {
+                ApiError::not_found("presentation unavailable")
+            }
+            StoreError::Conflict(_) => ApiError::unprocessable("presentation state changed"),
+            StoreError::Unexpected(_) => ApiError::unavailable("presentation unavailable"),
+        })?;
     Ok(Json(current.map(|state| PresentationStateResponse {
         file_ids: state.file_ids.into_iter().map(FileId::as_uuid).collect(),
         current_page: state.current_page,

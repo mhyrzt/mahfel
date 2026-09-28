@@ -46,7 +46,7 @@ pub async fn change_presentation<
     action: PresentationAction,
 ) -> Result<CollaborationEvent, PresentationError> {
     let access = collaboration.access(session_id, actor_id).await?;
-    if !access.can_edit || !access.live {
+    if !access.can_present || !access.live {
         return Err(PresentationError::Denied);
     }
     let data = match action {

@@ -20,6 +20,78 @@ use std::{
 };
 use time::OffsetDateTime;
 
+#[tokio::test]
+async fn moderator_cannot_target_themself() {
+    let f = fixture();
+    f.participants.seed_active(f.session.id, f.manager);
+    let now = OffsetDateTime::now_utc();
+    let removed = remove_participant(
+        &f.participants,
+        &f.sessions,
+        &f.memberships,
+        &f.media,
+        RemoveCommand {
+            actor: f.manager,
+            session_id: f.session.id,
+            subject: f.manager,
+        },
+        now,
+    )
+    .await;
+    assert!(matches!(removed, Err(ModerationError::Forbidden)));
+    let muted = mute(
+        &f.participants,
+        &f.sessions,
+        &f.memberships,
+        &f.media,
+        mute_command(f.manager, f.manager, f.session.clone()),
+        now,
+    )
+    .await;
+    assert!(matches!(muted, Err(ModerationError::Forbidden)));
+    let blocked = block(
+        &f.rooms,
+        &f.sessions,
+        &f.participants,
+        &f.blocks,
+        &f.memberships,
+        &f.media,
+        BlockCommand {
+            actor: f.manager,
+            scope: BlockScope::Session(f.session.id),
+            subject: f.manager,
+            reason: None,
+            expires_at: None,
+        },
+        now,
+    )
+    .await;
+    assert!(matches!(blocked, Err(ModerationError::Forbidden)));
+    let unblocked = unblock(
+        &f.rooms,
+        &f.sessions,
+        &f.blocks,
+        &f.memberships,
+        BlockCommand {
+            actor: f.manager,
+            scope: BlockScope::Session(f.session.id),
+            subject: f.manager,
+            reason: None,
+            expires_at: None,
+        },
+        now,
+    )
+    .await;
+    assert!(matches!(unblocked, Err(ModerationError::Forbidden)));
+    assert!(
+        f.participants
+            .get_active(f.session.id, f.manager)
+            .await
+            .expect("lookup")
+            .is_some()
+    );
+}
+
 #[derive(Clone, Default)]
 struct FakeRooms {
     rooms: Arc<Mutex<Vec<Room>>>,

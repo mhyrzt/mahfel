@@ -11,6 +11,10 @@ use uuid::Uuid;
 pub struct CollaborationAccess {
     pub can_read: bool,
     pub can_edit: bool,
+    pub can_publish_audio: bool,
+    pub can_publish_video: bool,
+    pub can_share_screen: bool,
+    pub can_present: bool,
     pub can_manage: bool,
     pub live: bool,
 }
@@ -29,6 +33,20 @@ pub struct CollaborationParticipant {
     pub actor_id: ActorId,
     pub display_name: String,
     pub can_edit: bool,
+    pub can_publish_audio: bool,
+    pub can_publish_video: bool,
+    pub can_share_screen: bool,
+    pub can_present: bool,
+    pub is_manager: bool,
+}
+
+#[derive(Clone, Copy, Debug, Default)]
+pub struct ParticipantAccessUpdate {
+    pub can_edit: Option<bool>,
+    pub can_publish_audio: Option<bool>,
+    pub can_publish_video: Option<bool>,
+    pub can_share_screen: Option<bool>,
+    pub can_present: Option<bool>,
 }
 
 pub struct PresentationState {
@@ -65,12 +83,12 @@ pub trait CollaborationStore: Send + Sync {
         file_id: FileId,
     ) -> BoxFuture<'_, Result<(), StoreError>>;
 
-    fn set_edit_grant(
+    fn set_participant_access(
         &self,
         session_id: SessionId,
         manager: ActorId,
         target: ActorId,
-        can_edit: bool,
+        update: ParticipantAccessUpdate,
         event_id: Uuid,
     ) -> BoxFuture<'_, Result<CollaborationEvent, StoreError>>;
 

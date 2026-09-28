@@ -88,6 +88,9 @@ where
     S: MembershipStore + ?Sized,
     M: MediaGateway + ?Sized,
 {
+    if command.actor == command.subject {
+        return Err(ModerationError::Forbidden);
+    }
     let session = sessions
         .get(command.session_id)
         .await?

@@ -1,14 +1,19 @@
 use super::dto::{
-    CollaborationDocumentsResponse, CollaborationEventsResponse, EditGrantRequest, EventsQuery,
-    ParticipantGrantResponse, ParticipantGrantsResponse, RegisterImageRequest, ViewportRequest,
+    CollaborationDocumentsResponse, CollaborationEventsResponse, EventsQuery,
+    ParticipantAccessRequest, ParticipantGrantResponse, ParticipantGrantsResponse,
+    RegisterImageRequest, ViewportRequest,
 };
 use crate::http::{auth::Authenticated, error::ApiError, state::AppState};
 use axum::{
     Json,
     extract::{Path, Query, State},
 };
-use mahfel_application::ports::{CollaborationStore, NewCollaborationEvent, StoreError};
-use mahfel_domain::{CollaborationEventKind, CollaborationKind, SessionId};
+use mahfel_application::ports::{
+    CollaborationStore, MediaGateway, NewCollaborationEvent, ParticipantAccessUpdate, StoreError,
+};
+use mahfel_domain::{
+    ActorId, CollaborationEventKind, CollaborationKind, ProducerSource, SessionId,
+};
 use serde_json::json;
 use uuid::Uuid;
 
@@ -65,6 +70,10 @@ pub(crate) async fn documents(
         room_id: session.room_id.to_string(),
         documents,
         can_edit: access.can_edit,
+        can_publish_audio: access.can_publish_audio,
+        can_publish_video: access.can_publish_video,
+        can_share_screen: access.can_share_screen,
+        can_present: access.can_present,
         can_manage: access.can_manage,
         live: access.live,
     }))
@@ -127,24 +136,84 @@ pub(crate) async fn events(
 
 #[utoipa::path(put, path = "/v1/sessions/{session_id}/collaboration/grants/{actor_id}", tag = "collaboration",
     params(("session_id" = String, Path), ("actor_id" = String, Path)),
-    request_body = EditGrantRequest,
+    request_body = ParticipantAccessRequest,
     responses((status = 204), (status = 404)))]
 pub(crate) async fn set_grant(
     State(state): State<AppState>,
     Authenticated(principal): Authenticated,
     Path((session_id, actor_id)): Path<(Uuid, Uuid)>,
-    Json(request): Json<EditGrantRequest>,
+    Json(request): Json<ParticipantAccessRequest>,
 ) -> Result<axum::http::StatusCode, ApiError> {
+    if principal.actor_id.as_uuid() == actor_id {
+        return Err(ApiError::forbidden("cannot change your own access"));
+    }
+    if request.can_edit.is_none()
+        && request.can_publish_audio.is_none()
+        && request.can_publish_video.is_none()
+        && request.can_share_screen.is_none()
+        && request.can_present.is_none()
+    {
+        return Err(ApiError::bad_request("no access change provided"));
+    }
+    let session_id = SessionId::from_uuid(session_id);
+    let target = ActorId::from_uuid(actor_id);
     store(&state)?
-        .set_edit_grant(
-            SessionId::from_uuid(session_id),
+        .set_participant_access(
+            session_id,
             principal.actor_id,
-            mahfel_domain::ActorId::from_uuid(actor_id),
-            request.can_edit,
+            target,
+            ParticipantAccessUpdate {
+                can_edit: request.can_edit,
+                can_publish_audio: request.can_publish_audio,
+                can_publish_video: request.can_publish_video,
+                can_share_screen: request.can_share_screen,
+                can_present: request.can_present,
+            },
             Uuid::new_v4(),
         )
         .await
         .map_err(map_store)?;
+    let revoked = [
+        (
+            request.can_publish_audio == Some(false),
+            ProducerSource::Microphone,
+        ),
+        (
+            request.can_publish_video == Some(false),
+            ProducerSource::Camera,
+        ),
+        (
+            request.can_share_screen == Some(false),
+            ProducerSource::Screen,
+        ),
+    ];
+    if revoked.iter().any(|(is_revoked, _)| *is_revoked) {
+        let session = state
+            .sessions
+            .get(session_id)
+            .await
+            .map_err(map_store)?
+            .ok_or_else(|| ApiError::not_found("session unavailable"))?;
+        let media = match &state.realtime.placement {
+            Some(placement) => placement
+                .lookup(session_id, session.room_id)
+                .await
+                .map_err(|_| ApiError::unavailable("media unavailable"))?,
+            None => state.realtime.media.clone(),
+        };
+        let media_room = if state.realtime.placement.is_some() {
+            crate::http::ws::media_room_id(session_id)
+        } else {
+            session.room_id
+        };
+        for (is_revoked, source) in revoked {
+            if is_revoked {
+                MediaGateway::close_participant_source(media.as_ref(), media_room, target, source)
+                    .await
+                    .map_err(|_| ApiError::unavailable("media unavailable"))?;
+            }
+        }
+    }
     Ok(axum::http::StatusCode::NO_CONTENT)
 }
 
@@ -167,6 +236,11 @@ pub(crate) async fn grants(
                 actor_id: participant.actor_id.to_string(),
                 display_name: participant.display_name,
                 can_edit: participant.can_edit,
+                can_publish_audio: participant.can_publish_audio,
+                can_publish_video: participant.can_publish_video,
+                can_share_screen: participant.can_share_screen,
+                can_present: participant.can_present,
+                is_manager: participant.is_manager,
             })
             .collect(),
     }))

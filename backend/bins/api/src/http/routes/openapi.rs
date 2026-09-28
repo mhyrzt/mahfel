@@ -178,7 +178,7 @@ Protected routes require an Authorization: Bearer token. User requests use Keycl
         super::collaboration::CollaborationDocumentsResponse,
         super::collaboration::CollaborationEventsResponse,
         super::collaboration::EventResponse,
-        super::collaboration::EditGrantRequest,
+        super::collaboration::ParticipantAccessRequest,
         super::collaboration::RegisterImageRequest,
         super::collaboration::ParticipantGrantsResponse,
         super::collaboration::ViewportRequest,
