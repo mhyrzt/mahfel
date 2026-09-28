@@ -28,6 +28,7 @@ nav:
       - Repository structure: development/repository-structure.md
       - Conventions: development/conventions.md
       - Testing: development/testing.md
+      - Continuous integration: development/ci.md
   - Deployment:
       - Local: deployment/local.md
       - Minikube: deployment/minikube.md

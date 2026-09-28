@@ -1,5 +1,16 @@
-stages:
-  - docs
+docs-check:
+  stage: lint
+  image: docker.arvancloud.ir/python:3.13-slim
+  script:
+    - pip install --no-cache-dir mkdocs-material
+    - mkdocs build --strict
+  rules:
+    - if: '$CI_COMMIT_TAG || $CI_PIPELINE_SOURCE == "web" || $CI_PIPELINE_SOURCE == "schedule"'
+    - changes:
+        - docs/**/*
+        - mkdocs.yml
+        - .gitlab-ci.yml
+        - ci/**/*
 
 pages:
   stage: docs

@@ -8,3 +8,8 @@ site
 **/.next
 **/coverage
 **/*.log
+.cargo-ci
+.bun-cache
+.trivycache
+ci-artifacts
+.docker-ci

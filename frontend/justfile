@@ -51,3 +51,10 @@ storybook-build:
 # Create the production Next.js build.
 build:
     bun run build
+
+# Build the web image used by the local Compose stack.
+docker:
+    docker build \
+        --target runtime \
+        --tag "mahfel-web:local" \
+        --file frontend/Dockerfile ..

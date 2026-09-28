@@ -71,9 +71,8 @@ api-docs-export:
 minikube *args:
     just --justfile deploy/minikube/justfile {{args}}
 
-# Start selected Compose profiles; no arguments starts all profiles.
-[group('Compose')]
-compose-up *profiles:
+# Resolve requested Compose profiles and print the selected profiles, one per line.
+_compose-selected-profiles *profiles:
     #!/usr/bin/env bash
     set -euo pipefail
     requested=("{{profiles}}")
@@ -94,6 +93,25 @@ compose-up *profiles:
         esac
         add_profile "${profile}"
     done
+    printf '%s\n' "${selected[@]}"
+
+# Build images for selected Compose profiles without starting containers.
+[group('Compose')]
+compose-build *profiles:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    mapfile -t selected < <(just _compose-selected-profiles {{profiles}})
+    flags=()
+    for profile in "${selected[@]}"; do flags+=(--profile "$profile"); done
+    build_args=(--build-arg HTTP_PROXY --build-arg HTTPS_PROXY --build-arg ALL_PROXY --build-arg NO_PROXY)
+    docker compose "${flags[@]}" build "${build_args[@]}"
+
+# Start selected Compose profiles; no arguments starts all profiles.
+[group('Compose')]
+compose-up *profiles:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    mapfile -t selected < <(just _compose-selected-profiles {{profiles}})
     flags=()
     for profile in "${selected[@]}"; do flags+=(--profile "$profile"); done
     build_args=(--build-arg HTTP_PROXY --build-arg HTTPS_PROXY --build-arg ALL_PROXY --build-arg NO_PROXY)
@@ -116,24 +134,7 @@ compose-clean:
 compose-logs *profiles:
     #!/usr/bin/env bash
     set -euo pipefail
-    requested=("{{profiles}}")
-    if [[ -z "${requested[*]}" ]]; then requested=(mahfel infrastructure observability); fi
-    selected=()
-    declare -A seen=()
-    add_profile() {
-        local profile="$1"
-        if [[ -z "${seen[$profile]:-}" ]]; then
-            selected+=("${profile}")
-            seen[$profile]=1
-        fi
-    }
-    for profile in "${requested[@]}"; do
-        case "${profile}" in
-            observability) add_profile infrastructure; add_profile mahfel ;;
-            mahfel) add_profile infrastructure ;;
-        esac
-        add_profile "${profile}"
-    done
+    mapfile -t selected < <(just _compose-selected-profiles {{profiles}})
     flags=()
     for profile in "${selected[@]}"; do flags+=(--profile "$profile"); done
     docker compose "${flags[@]}" logs -f
@@ -146,8 +147,29 @@ trust-local-ca:
     certificate_dir=".local/caddy"
     certificate_path="${certificate_dir}/root.crt"
     incoming_path="${certificate_path}.incoming"
+    digest_path="${certificate_dir}/root.sha256"
     mkdir -p "${certificate_dir}"
     trap 'rm -f "${incoming_path}"' EXIT
+
+    file_digest() {
+        if command -v sha256sum >/dev/null 2>&1; then
+            sha256sum "$1" | awk '{print $1}'
+        elif command -v shasum >/dev/null 2>&1; then
+            shasum -a 256 "$1" | awk '{print $1}'
+        else
+            echo "No SHA-256 tool found (need sha256sum or shasum)" >&2
+            return 1
+        fi
+    }
+
+    linux_anchor_path() {
+        if command -v update-ca-trust >/dev/null 2>&1; then
+            printf '%s' "/etc/pki/ca-trust/source/anchors/mahfel-caddy-root.crt"
+        elif command -v update-ca-certificates >/dev/null 2>&1; then
+            printf '%s' "/usr/local/share/ca-certificates/mahfel-caddy-root.crt"
+        fi
+    }
+
     for attempt in {1..30}; do
         if docker compose cp caddy:/data/caddy/pki/authorities/local/root.crt "${incoming_path}"; then
             break
@@ -161,26 +183,46 @@ trust-local-ca:
     # Keep the existing inode so running containers retain their bind mount.
     cat "${incoming_path}" > "${certificate_path}"
     chmod 0644 "${certificate_path}"
+    incoming_digest="$(file_digest "${incoming_path}")"
+
     case "$(uname -s)" in
         Linux)
-            if command -v update-ca-trust >/dev/null 2>&1; then
-                sudo install -m 0644 "${certificate_path}" /etc/pki/ca-trust/source/anchors/mahfel-caddy-root.crt
-                sudo update-ca-trust
-            elif command -v update-ca-certificates >/dev/null 2>&1; then
-                sudo install -m 0644 "${certificate_path}" /usr/local/share/ca-certificates/mahfel-caddy-root.crt
-                sudo update-ca-certificates
-            else
+            anchor_path="$(linux_anchor_path)"
+            if [[ -z "${anchor_path}" ]]; then
                 echo "Unsupported Linux trust store; install ${certificate_path} manually" >&2
                 exit 1
             fi
+            if [[ -f "${anchor_path}" ]] && [[ "$(file_digest "${anchor_path}")" == "${incoming_digest}" ]]; then
+                printf '%s' "${incoming_digest}" > "${digest_path}"
+                echo "Caddy local root CA is already trusted; skipping trust update"
+                exit 0
+            fi
             ;;
         Darwin)
-            sudo security add-trusted-cert -d -r trustRoot \
-                -k /Library/Keychains/System.keychain "${certificate_path}"
+            if [[ -f "${digest_path}" ]] && [[ "$(<"${digest_path}")" == "${incoming_digest}" ]]; then
+                echo "Caddy local root CA is already trusted; skipping trust update"
+                exit 0
+            fi
             ;;
         *)
             echo "Unsupported host OS; install ${certificate_path} manually" >&2
             exit 1
             ;;
     esac
+
+    case "$(uname -s)" in
+        Linux)
+            sudo install -m 0644 "${certificate_path}" "${anchor_path}"
+            if command -v update-ca-trust >/dev/null 2>&1; then
+                sudo update-ca-trust
+            else
+                sudo update-ca-certificates
+            fi
+            ;;
+        Darwin)
+            sudo security add-trusted-cert -d -r trustRoot \
+                -k /Library/Keychains/System.keychain "${certificate_path}"
+            ;;
+    esac
+    printf '%s' "${incoming_digest}" > "${digest_path}"
     echo "Trusted Mahfel local CA. Restart open browsers before using https://mahfel.localhost"

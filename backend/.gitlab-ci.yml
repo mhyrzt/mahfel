@@ -1,0 +1,216 @@
+variables:
+  RUST_CI_IMAGE: docker.arvancloud.ir/rust:1.95.0-bookworm
+  CARGO_NEXTEST_VERSION: "0.9.146"
+
+.backend-rules:
+  rules:
+    - if: '$CI_COMMIT_TAG =~ $BACKEND_RELEASE_TAG_PATTERN'
+    - if: '$CI_COMMIT_TAG'
+      when: never
+    - if: '$CI_PIPELINE_SOURCE == "web" || $CI_PIPELINE_SOURCE == "schedule"'
+    - changes: &backend-changes
+        - backend/**/*
+        - proto/**/*
+        - ci/**/*
+        - .gitlab-ci.yml
+        - .dockerignore
+        - deploy/keycloak/**/*
+
+.backend-base:
+  extends: .backend-rules
+  image: $RUST_CI_IMAGE
+  variables:
+    CARGO_HOME: $CI_PROJECT_DIR/.cargo-ci
+    CARGO_INCREMENTAL: "0"
+    CARGO_NET_RETRY: "5"
+  cache:
+    key:
+      prefix: rust-1.95.0
+      files:
+        - backend/Cargo.lock
+        - backend/rust-toolchain.toml
+    paths:
+      - .cargo-ci/bin/
+      - .cargo-ci/registry/
+      - .cargo-ci/git/
+      - backend/target/
+  before_script:
+    - apt-get update && apt-get install -y --no-install-recommends ca-certificates clang cmake g++ make pkg-config python3
+    - export PATH="$CARGO_HOME/bin:$PATH"
+    - cd backend
+
+backend-format:
+  extends: .backend-rules
+  image: $RUST_CI_IMAGE
+  stage: lint
+  script:
+    - cd backend
+    - cargo fmt --all -- --check
+
+backend-lint:
+  extends: .backend-base
+  stage: lint
+  script:
+    - cargo clippy --locked --workspace --all-targets --all-features -- -D warnings
+
+backend-sql-lint:
+  extends: .backend-rules
+  stage: lint
+  image: docker.arvancloud.ir/python:3.13-slim
+  script:
+    - pip install --no-cache-dir 'sqlfluff[rs]==4.1.0'
+    - cd backend
+    - sqlfluff lint migrations
+
+backend-unit-test:
+  extends: .backend-base
+  stage: test
+  variables:
+    NO_PROXY: localhost,127.0.0.1
+    no_proxy: localhost,127.0.0.1
+  script:
+    - cargo install cargo-nextest --version "$CARGO_NEXTEST_VERSION" --locked
+    - cargo nextest run --locked --profile ci --workspace --all-features --lib --bins
+  artifacts:
+    when: always
+    reports:
+      junit: backend/target/nextest/ci/junit.xml
+    expire_in: 7 days
+
+backend-doc-test:
+  extends: .backend-base
+  stage: test
+  script:
+    - cargo test --locked --workspace --all-features --doc
+
+backend-integration-test:
+  extends: [.docker-base, .backend-rules]
+  stage: test
+  timeout: 1h
+  script:
+    - sh ci/backend-integration.sh
+  artifacts:
+    when: always
+    reports:
+      junit: ci-artifacts/integration-junit.xml
+    expire_in: 7 days
+
+.backend-image:
+  variables:
+    DOCKERFILE: backend/Dockerfile
+
+.backend-api-image-rules:
+  rules:
+    - if: '$CI_COMMIT_TAG =~ $API_RELEASE_TAG_PATTERN'
+    - if: '$CI_COMMIT_TAG'
+      when: never
+    - if: '$CI_PIPELINE_SOURCE == "web" || $CI_PIPELINE_SOURCE == "schedule"'
+    - changes: *backend-changes
+
+.backend-media-image-rules:
+  rules:
+    - if: '$CI_COMMIT_TAG =~ $MEDIA_RELEASE_TAG_PATTERN'
+    - if: '$CI_COMMIT_TAG'
+      when: never
+    - if: '$CI_PIPELINE_SOURCE == "web" || $CI_PIPELINE_SOURCE == "schedule"'
+    - changes: *backend-changes
+
+.backend-worker-image-rules:
+  rules:
+    - if: '$CI_COMMIT_TAG =~ $WORKER_RELEASE_TAG_PATTERN'
+    - if: '$CI_COMMIT_TAG'
+      when: never
+    - if: '$CI_PIPELINE_SOURCE == "web" || $CI_PIPELINE_SOURCE == "schedule"'
+    - changes: *backend-changes
+
+backend-api-build:
+  extends: [.docker-build, .backend-api-image-rules, .backend-image]
+  variables:
+    IMAGE_TARGET: api
+    DOCKER_TARGET: api
+
+backend-media-build:
+  extends: [.docker-build, .backend-media-image-rules, .backend-image]
+  variables:
+    IMAGE_TARGET: media
+    DOCKER_TARGET: media
+
+backend-worker-build:
+  extends: [.docker-build, .backend-worker-image-rules, .backend-image]
+  variables:
+    IMAGE_TARGET: worker
+    DOCKER_TARGET: worker
+
+backend-api-scan:
+  extends: [.image-scan, .backend-api-image-rules]
+  needs: [backend-api-build]
+  variables:
+    IMAGE_TARGET: api
+
+backend-media-scan:
+  extends: [.image-scan, .backend-media-image-rules]
+  needs: [backend-media-build]
+  variables:
+    IMAGE_TARGET: media
+
+backend-worker-scan:
+  extends: [.image-scan, .backend-worker-image-rules]
+  needs: [backend-worker-build]
+  variables:
+    IMAGE_TARGET: worker
+
+.backend-api-release-rules:
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_REF_PROTECTED == "true" && $CI_COMMIT_TAG =~ $API_RELEASE_TAG_PATTERN'
+
+.backend-media-release-rules:
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_REF_PROTECTED == "true" && $CI_COMMIT_TAG =~ $MEDIA_RELEASE_TAG_PATTERN'
+
+.backend-worker-release-rules:
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_REF_PROTECTED == "true" && $CI_COMMIT_TAG =~ $WORKER_RELEASE_TAG_PATTERN'
+
+backend-api-publish:
+  extends: [.image-publish, .backend-api-release-rules]
+  dependencies: [backend-api-build]
+  variables:
+    IMAGE_TARGET: api
+
+backend-media-publish:
+  extends: [.image-publish, .backend-media-release-rules]
+  dependencies: [backend-media-build]
+  variables:
+    IMAGE_TARGET: media
+
+backend-worker-publish:
+  extends: [.image-publish, .backend-worker-release-rules]
+  dependencies: [backend-worker-build]
+  variables:
+    IMAGE_TARGET: worker
+
+backend-api-deploy:
+  extends: [.darkube-deploy, .backend-api-release-rules]
+  stage: deploy
+  variables:
+    IMAGE_TARGET: api
+    DARKUBE_APP_ID: $MAHFEL_API_DARKUBE_APP_ID
+    DARKUBE_DEPLOY_TOKEN: $MAHFEL_API_DARKUBE_DEPLOY_TOKEN
+
+backend-worker-deploy:
+  extends: [.darkube-deploy, .backend-worker-release-rules]
+  stage: deploy
+  variables:
+    IMAGE_TARGET: worker
+    DARKUBE_APP_ID: $MAHFEL_WORKER_DARKUBE_APP_ID
+    DARKUBE_DEPLOY_TOKEN: $MAHFEL_WORKER_DARKUBE_DEPLOY_TOKEN
+
+backend-media-deploy:
+  extends: [.darkube-deploy, .backend-media-release-rules]
+  stage: deploy
+  when: manual
+  allow_failure: true
+  variables:
+    IMAGE_TARGET: media
+    DARKUBE_APP_ID: $MAHFEL_MEDIA_DARKUBE_APP_ID
+    DARKUBE_DEPLOY_TOKEN: $MAHFEL_MEDIA_DARKUBE_DEPLOY_TOKEN

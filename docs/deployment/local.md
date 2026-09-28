@@ -17,7 +17,8 @@ just bootstrap
 `just bootstrap` creates `.env` and `frontend/.env.local` without overwriting existing files, starts
 only Caddy without building application images, and runs `just trust-local-ca`.
 The trust step uses `sudo` to install the generated root certificate into Fedora/RHEL,
-Debian/Ubuntu, or macOS system trust. This is mandatory: do not bypass browser certificate
+Debian/Ubuntu, or macOS system trust. It skips the privileged update when the current Caddy root is
+already installed in the system trust store. This is mandatory: do not bypass browser certificate
 warnings. Restart open browsers after the first trust operation. Caddy keeps its CA in the
 persistent `caddy-data` volume, so subsequent runs retain the same trusted root unless that volume
 is intentionally deleted.
@@ -32,7 +33,8 @@ Compose services are grouped into three stack profiles: `mahfel` (the four build
 `infrastructure` (Caddy, PostgreSQL, Redis, RabbitMQ, RustFS, Keycloak, and coturn), and `observability`
 (Prometheus, Grafana, and Alertmanager). `just compose-up` enables all three profiles. To start a
 subset, use `just compose-up infrastructure`, `just compose-up mahfel`, or
-`just compose-up observability`; the Just recipes add the required profiles. When invoking Docker
+`just compose-up observability`; the Just recipes add the required profiles. Use `just compose-build`
+with the same profile arguments to build images without starting containers. When invoking Docker
 Compose directly, include dependencies explicitly, for example:
 `docker compose --profile infrastructure --profile mahfel up -d`.
 
@@ -49,9 +51,9 @@ The first media build is slow because `mediasoup-sys` builds the native worker. 
 Python build tooling and Meson wrap dependencies; CI/build networks must permit those downloads or
 provide a prewarmed cache/mirror.
 The backend image builder also needs access to `static.rust-lang.org` to install the components
-listed in `backend/rust-toolchain.toml`. `just compose-up` uses the host network for image builds
-and forwards configured `HTTP_PROXY`, `HTTPS_PROXY`, `ALL_PROXY`, and `NO_PROXY` variables to
-BuildKit when they are set.
+listed in `backend/rust-toolchain.toml`. `just compose-up` and `just compose-build` build through
+Compose, which uses the host network for image builds, and forward configured `HTTP_PROXY`,
+`HTTPS_PROXY`, `ALL_PROXY`, and `NO_PROXY` variables to BuildKit when they are set.
 
 Verify endpoints:
 

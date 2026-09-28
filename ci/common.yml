@@ -1,0 +1,85 @@
+variables:
+  RELEASE_TAG_PATTERN: '/^(api|media|worker|web)-v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$/'
+  BACKEND_RELEASE_TAG_PATTERN: '/^(api|media|worker)-v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$/'
+  API_RELEASE_TAG_PATTERN: '/^api-v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$/'
+  MEDIA_RELEASE_TAG_PATTERN: '/^media-v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$/'
+  WORKER_RELEASE_TAG_PATTERN: '/^worker-v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$/'
+  WEB_RELEASE_TAG_PATTERN: '/^web-v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$/'
+  MAHFEL_IMAGE_REGISTRY: registry.hamdocker.ir
+  MAHFEL_IMAGE_PREFIX: registry.hamdocker.ir/hamdars/mahfel
+  DOCKER_CLI_IMAGE: hub.hamdocker.ir/library/docker:29-cli
+  TRIVY_IMAGE: hub.hamdocker.ir/aquasec/trivy:0.69.3
+  NEXT_PUBLIC_MAHFEL_API_URL: https://api.mahfel.localhost
+
+.docker-base:
+  image: $DOCKER_CLI_IMAGE
+  variables:
+    DOCKER_BUILDKIT: "1"
+    DOCKER_CONFIG: $CI_PROJECT_DIR/.docker-ci
+  before_script:
+    - docker info > /dev/null
+
+.docker-build:
+  extends: .docker-base
+  stage: build
+  timeout: 1h
+  script:
+    - if [ "$IMAGE_TARGET" = web ]; then . ci/web-build-env.sh; fi
+    - mkdir -p ci-artifacts
+    - >-
+      docker buildx build --load
+      --target "$DOCKER_TARGET" --file "$DOCKERFILE"
+      --tag "mahfel-ci-$IMAGE_TARGET:$CI_PIPELINE_ID"
+      --build-arg "NEXT_PUBLIC_MAHFEL_API_URL=$NEXT_PUBLIC_MAHFEL_API_URL" .
+    - docker save --output "ci-artifacts/$IMAGE_TARGET.tar" "mahfel-ci-$IMAGE_TARGET:$CI_PIPELINE_ID"
+    - gzip "ci-artifacts/$IMAGE_TARGET.tar"
+  after_script:
+    - docker image rm "mahfel-ci-$IMAGE_TARGET:$CI_PIPELINE_ID" > /dev/null 2>&1 || true
+  artifacts:
+    paths:
+      - ci-artifacts/$IMAGE_TARGET.tar.gz
+    expire_in: 1 day
+
+.image-scan:
+  stage: security
+  image:
+    name: $TRIVY_IMAGE
+    entrypoint: [""]
+  variables:
+    TRIVY_NO_PROGRESS: "true"
+    TRIVY_CACHE_DIR: $CI_PROJECT_DIR/.trivycache
+  cache:
+    key: trivy-db
+    paths:
+      - .trivycache/
+  script:
+    - gunzip "ci-artifacts/$IMAGE_TARGET.tar.gz"
+    - >-
+      trivy image --input "ci-artifacts/$IMAGE_TARGET.tar"
+      --scanners vuln --severity HIGH,CRITICAL --exit-code 0 --timeout 15m
+      --format template --template @/contrib/gitlab.tpl
+      --output "ci-artifacts/$IMAGE_TARGET-container-scanning.json"
+    - >-
+      trivy image --input "ci-artifacts/$IMAGE_TARGET.tar"
+      --scanners vuln --severity HIGH,CRITICAL --exit-code 1 --timeout 15m
+  artifacts:
+    when: always
+    paths:
+      - ci-artifacts/$IMAGE_TARGET-container-scanning.json
+    reports:
+      container_scanning: ci-artifacts/$IMAGE_TARGET-container-scanning.json
+    expire_in: 7 days
+
+.image-publish:
+  extends: .docker-base
+  stage: publish
+  interruptible: false
+  script:
+    - test -n "$CI_REGISTRY_USERNAME" && test -n "$CI_REGISTRY_PASSWORD"
+    - printf '%s' "$CI_REGISTRY_PASSWORD" | docker login "$MAHFEL_IMAGE_REGISTRY" --username "$CI_REGISTRY_USERNAME" --password-stdin
+    - docker load --input "ci-artifacts/$IMAGE_TARGET.tar.gz"
+    - docker tag "mahfel-ci-$IMAGE_TARGET:$CI_PIPELINE_ID" "$MAHFEL_IMAGE_PREFIX/$IMAGE_TARGET:${CI_COMMIT_TAG#"$IMAGE_TARGET"-}"
+    - docker push "$MAHFEL_IMAGE_PREFIX/$IMAGE_TARGET:${CI_COMMIT_TAG#"$IMAGE_TARGET"-}"
+  after_script:
+    - docker image rm "mahfel-ci-$IMAGE_TARGET:$CI_PIPELINE_ID" "$MAHFEL_IMAGE_PREFIX/$IMAGE_TARGET:${CI_COMMIT_TAG#"$IMAGE_TARGET"-}" > /dev/null 2>&1 || true
+    - docker logout "$MAHFEL_IMAGE_REGISTRY" > /dev/null 2>&1 || true

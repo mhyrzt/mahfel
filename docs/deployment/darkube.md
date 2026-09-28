@@ -38,6 +38,13 @@ retransmissions, ingress/egress, PPS, and load-balancer behavior.
 
 ## Rollout behavior
 
+Protected component version tags on main commits publish validated images and update the matching
+existing API, worker, or web Darkube app. Media tags publish its image and offer a manual rollout job
+until its networking and drain requirements below are qualified.
+App IDs, protected deploy tokens, registry access, and migration prerequisites are documented in
+[continuous integration](../development/ci.md#darkube-deployment). Production app provisioning and
+platform qualification remain M16 work; the CI jobs do not supply those prerequisites.
+
 Readiness removes API/worker traffic or work without triggering liveness restarts. A media rollout
 first marks a node draining in Redis, stops new room placement, waits for rooms to end (or reaches a
 documented deadline), and then terminates gracefully. `announced_address` is deployment

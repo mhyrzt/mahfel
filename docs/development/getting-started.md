@@ -86,7 +86,8 @@ just compose-up
 `just bootstrap` creates `.env` and `frontend/.env.local` only when they do not already exist,
 starts only Caddy without building application images, and
 installs/trusts Caddy's local CA. `just compose-up` then starts all three Compose profiles (`mahfel`, `infrastructure`, and
-`observability`) and builds application images. Local OIDC is available at
+`observability`) and builds application images; use `just compose-build` to build those images
+without starting the stack. Local OIDC is available at
 `https://auth.mahfel.localhost/realms/rastai`; the same Keycloak provider is used in production. Browse through
 `https://mahfel.localhost`; do not bypass certificate warnings.
 

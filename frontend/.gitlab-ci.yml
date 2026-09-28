@@ -1,0 +1,105 @@
+variables:
+  BUN_CI_IMAGE: docker.arvancloud.ir/oven/bun:1.4.2
+
+.frontend-rules:
+  rules:
+    - if: "$CI_COMMIT_TAG =~ $WEB_RELEASE_TAG_PATTERN"
+    - if: "$CI_COMMIT_TAG"
+      when: never
+    - if: '$CI_PIPELINE_SOURCE == "web" || $CI_PIPELINE_SOURCE == "schedule"'
+    - changes: &frontend-changes
+        - frontend/**/*
+        - specs/**/*
+        - ci/**/*
+        - .gitlab-ci.yml
+        - .dockerignore
+
+.frontend-base:
+  extends: .frontend-rules
+  image: $BUN_CI_IMAGE
+  variables:
+    BUN_INSTALL_CACHE_DIR: $CI_PROJECT_DIR/.bun-cache
+  cache:
+    key:
+      prefix: bun-1.4.2
+      files:
+        - frontend/bun.lock
+    paths:
+      - .bun-cache/
+  before_script:
+    - cd frontend
+    - bun install --frozen-lockfile
+
+frontend-format:
+  extends: .frontend-base
+  stage: lint
+  script:
+    - bun run format
+
+frontend-lint:
+  extends: .frontend-base
+  stage: lint
+  script:
+    - bun run lint
+
+frontend-typecheck:
+  extends: .frontend-base
+  stage: lint
+  script:
+    - bun run typecheck
+
+frontend-test:
+  extends: .frontend-base
+  stage: test
+  script:
+    - bun run test --maxWorkers=2 --reporter=default --reporter=junit --outputFile.junit=../ci-artifacts/frontend-junit.xml
+  artifacts:
+    when: always
+    reports:
+      junit: ci-artifacts/frontend-junit.xml
+    expire_in: 7 days
+
+frontend-build:
+  extends: .frontend-base
+  stage: build
+  variables:
+    NEXT_TELEMETRY_DISABLED: "1"
+  script:
+    - . ../ci/web-build-env.sh
+    - bun run build
+
+frontend-storybook:
+  extends: .frontend-base
+  stage: build
+  script:
+    - bun run storybook:build
+
+frontend-web-build:
+  extends: [.docker-build, .frontend-rules]
+  variables:
+    IMAGE_TARGET: web
+    DOCKERFILE: frontend/Dockerfile
+    DOCKER_TARGET: runtime
+
+frontend-web-scan:
+  extends: [.image-scan, .frontend-rules]
+  needs: [frontend-web-build]
+  variables:
+    IMAGE_TARGET: web
+
+.frontend-release-rules:
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_REF_PROTECTED == "true" && $CI_COMMIT_TAG =~ $WEB_RELEASE_TAG_PATTERN'
+
+frontend-web-publish:
+  extends: [.image-publish, .frontend-release-rules]
+  dependencies: [frontend-web-build]
+  variables:
+    IMAGE_TARGET: web
+
+frontend-web-deploy:
+  extends: [.darkube-deploy, .frontend-release-rules]
+  variables:
+    IMAGE_TARGET: web
+    DARKUBE_APP_ID: $MAHFEL_WEB_DARKUBE_APP_ID
+    DARKUBE_DEPLOY_TOKEN: $MAHFEL_WEB_DARKUBE_DEPLOY_TOKEN

@@ -1,0 +1,22 @@
+variables:
+  DARKUBE_CLI_IMAGE: hamravesh.hamdocker.ir/public/darkube-cli:v1.1
+
+.darkube-deploy:
+  image:
+    name: $DARKUBE_CLI_IMAGE
+    entrypoint: [""]
+  stage: deploy
+  interruptible: false
+  dependencies: []
+  resource_group: darkube-production-$IMAGE_TARGET
+  timeout: 10m
+  environment:
+    name: production/$IMAGE_TARGET
+    deployment_tier: production
+  script:
+    - test -n "$DARKUBE_APP_ID" && test -n "$DARKUBE_DEPLOY_TOKEN"
+    - >-
+      darkube deploy --token "$DARKUBE_DEPLOY_TOKEN"
+      --app-id "$DARKUBE_APP_ID"
+      --image-tag "${CI_COMMIT_TAG#"$IMAGE_TARGET"-}"
+      --job-id "$CI_JOB_ID"

@@ -1,0 +1,15 @@
+proto-check:
+  stage: lint
+  image:
+    name: docker.arvancloud.ir/bufbuild/buf:1.73.0
+    entrypoint: [""]
+  script:
+    - cd proto
+    - buf format --diff --exit-code .
+    - buf lint .
+  rules:
+    - if: '$CI_COMMIT_TAG || $CI_PIPELINE_SOURCE == "web" || $CI_PIPELINE_SOURCE == "schedule"'
+    - changes:
+        - proto/**/*
+        - ci/**/*
+        - .gitlab-ci.yml
