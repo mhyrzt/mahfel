@@ -1186,6 +1186,8 @@ export interface components {
       next_cursor?: string | null;
     };
     ChatMessageResponse: {
+      /** @description Ready files attached to this message, for inline rendering. */
+      attachments?: components["schemas"]["FileResponse"][];
       author_id: string;
       channel_id: string;
       /** @description Null for soft-deleted messages; prior text is preserved in revision audit data. */
@@ -1198,6 +1200,8 @@ export interface components {
       edited_at?: string | null;
       id: string;
       parent_id?: string | null;
+      /** @description Present when the message belongs to a session conversation. */
+      session_id?: string | null;
     };
     CollaborationDocumentsResponse: {
       can_edit: boolean;
@@ -1236,6 +1240,11 @@ export interface components {
     CreateChatMessageRequest: {
       content: string;
       mentions?: string[];
+      /**
+       * Format: uuid
+       * @description Scope the message to a live session conversation when present.
+       */
+      session_id?: string | null;
     };
     CreateRoomInviteLinkRequest: {
       /**
@@ -3707,6 +3716,8 @@ export interface operations {
         cursor?: string;
         /** @description Page size, 1-100; defaults to 50 */
         limit?: number;
+        /** @description Scope to one session; omit for the general room conversation */
+        session_id?: string;
       };
       header?: never;
       path: {

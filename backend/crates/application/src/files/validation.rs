@@ -16,6 +16,8 @@ pub fn verify(file: &FileObject, stored: &StoredFile) -> Option<&'static str> {
         "application/pdf" if valid_pdf(&stored.bytes) => "application/pdf",
         "image/png" if valid_png(&stored.bytes) => "image/png",
         "image/jpeg" if valid_jpeg(&stored.bytes) => "image/jpeg",
+        "video/mp4" if valid_mp4(&stored.bytes) => "video/mp4",
+        "video/webm" if valid_webm(&stored.bytes) => "video/webm",
         _ => return None,
     };
     if stored.content_type.as_deref() != Some(mime) {
@@ -41,9 +43,17 @@ fn valid_jpeg(bytes: &[u8]) -> bool {
     bytes.starts_with(b"\xff\xd8\xff") && bytes.ends_with(b"\xff\xd9")
 }
 
+fn valid_mp4(bytes: &[u8]) -> bool {
+    bytes.len() >= 12 && bytes.get(4..8) == Some(b"ftyp")
+}
+
+fn valid_webm(bytes: &[u8]) -> bool {
+    bytes.starts_with(b"\x1a\x45\xdf\xa3")
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{valid_jpeg, valid_pdf, valid_png, verify};
+    use super::{valid_jpeg, valid_mp4, valid_pdf, valid_png, valid_webm, verify};
     use crate::ports::StoredFile;
     use mahfel_domain::{ActorId, FileContext, FileObject, RoomId};
     use time::OffsetDateTime;
@@ -54,6 +64,14 @@ mod tests {
         assert!(!valid_pdf(b"%PDF-1.7\n%%EOF\nPK\x03\x04"));
         assert!(!valid_png(b"\x89PNG\r\n\x1a\nMZ"));
         assert!(!valid_jpeg(b"\xff\xd8\xff\xd9PK\x03\x04"));
+        assert!(!valid_mp4(b"MZ\x00\x00\x00\x18ftyp"));
+        assert!(!valid_webm(b"MZ\x1a\x45\xdf\xa3"));
+    }
+
+    #[test]
+    fn accepts_mp4_and_webm_containers() {
+        assert!(valid_mp4(b"\x00\x00\x00\x18ftypisom\x00\x00\x00\x00isom"));
+        assert!(valid_webm(b"\x1a\x45\xdf\xa3\x01\x00\x00\x00"));
     }
 
     #[test]

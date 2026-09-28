@@ -190,6 +190,7 @@ fn frame(event: &ChatEvent) -> ServerMessage {
             kind: kind.to_owned(),
             message_id: event.message.id.to_string(),
             parent_id: event.message.parent_id.map(|id| id.to_string()),
+            session_id: event.message.session_id.map(|id| id.to_string()),
             author_id: event.message.author_id.to_string(),
             reaction_actor_id: event.reaction_actor_id.map(|id| id.to_string()),
             reaction_emoji: event.reaction_emoji.clone(),

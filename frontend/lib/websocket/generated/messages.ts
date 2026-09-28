@@ -64,6 +64,7 @@ export interface ChatEvent {
     reaction_emoji?: string | null;
     room_id: string;
     sequence: number;
+    session_id?: string | null;
   };
   id?: string;
   type: "chat_event";

@@ -152,6 +152,34 @@ impl FileStore for PostgresFileStore {
         })
     }
 
+    fn list_for_messages<'a>(
+        &'a self,
+        message_ids: &'a [ChatMessageId],
+    ) -> BoxFuture<'a, Result<Vec<FileObject>, StoreError>> {
+        Box::pin(async move {
+            if message_ids.is_empty() {
+                return Ok(Vec::new());
+            }
+            let ids = message_ids
+                .iter()
+                .map(|id| id.as_uuid())
+                .collect::<Vec<_>>();
+            let rows = sqlx::query_as::<_, FileRow>(
+                "SELECT id, object_key, owner_actor_id, room_id, session_id, chat_message_id, \
+                 avatar_actor_id, recording_session_id, status, file_name, declared_mime, \
+                 verified_mime, size_bytes, checksum_sha_256, created_at, updated_at \
+                 FROM mahfel.files \
+                 WHERE status = 'ready' AND chat_message_id = ANY($1) \
+                 ORDER BY created_at, id",
+            )
+            .bind(&ids)
+            .fetch_all(&self.pool)
+            .await
+            .map_err(sqlx_store_error)?;
+            rows.into_iter().map(TryInto::try_into).collect()
+        })
+    }
+
     fn link_room_file_to_session(
         &self,
         file_id: FileId,
@@ -211,6 +239,37 @@ impl FileStore for PostgresFileStore {
                 .await
                 .map_err(sqlx_store_error)?;
             Ok(())
+        })
+    }
+
+    fn detach_presentation(&self, id: FileId) -> BoxFuture<'_, Result<bool, StoreError>> {
+        Box::pin(async move {
+            let mut tx = self.pool.begin().await.map_err(sqlx_store_error)?;
+            sqlx::query("DELETE FROM mahfel.collaboration_presentation_assets WHERE file_id = $1")
+                .bind(id.as_uuid())
+                .execute(&mut *tx)
+                .await
+                .map_err(sqlx_store_error)?;
+            sqlx::query(
+                "UPDATE mahfel.collaboration_presentations \
+                 SET selection_event_id = NULL, current_page = NULL, total_pages = NULL \
+                 WHERE selection_event_id IS NOT NULL AND NOT EXISTS ( \
+                     SELECT 1 FROM mahfel.collaboration_presentation_assets asset \
+                     WHERE asset.event_id = mahfel.collaboration_presentations.selection_event_id \
+                 )",
+            )
+            .execute(&mut *tx)
+            .await
+            .map_err(sqlx_store_error)?;
+            let embedded: bool = sqlx::query_scalar(
+                "SELECT EXISTS (SELECT 1 FROM mahfel.collaboration_document_assets WHERE file_id = $1)",
+            )
+            .bind(id.as_uuid())
+            .fetch_one(&mut *tx)
+            .await
+            .map_err(sqlx_store_error)?;
+            tx.commit().await.map_err(sqlx_store_error)?;
+            Ok(embedded)
         })
     }
 

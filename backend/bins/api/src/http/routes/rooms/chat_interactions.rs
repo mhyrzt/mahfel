@@ -19,7 +19,7 @@ use utoipa::ToSchema;
 
 use super::chat::{
     ChatMessageHistoryQuery, ChatMessageHistoryResponse, ChatMessagePath, ChatMessageResponse,
-    CreateChatMessageRequest, decode_cursor, encode_cursor,
+    CreateChatMessageRequest, decode_cursor, encode_cursor, with_attachments,
 };
 
 #[derive(Debug, Serialize, ToSchema)]
@@ -77,11 +77,7 @@ pub(crate) async fn list_replies(
         .await
         .map_err(ChatOperationError::from)?;
     Ok(Json(ChatMessageHistoryResponse {
-        messages: page
-            .messages
-            .into_iter()
-            .map(ChatMessageResponse::from)
-            .collect(),
+        messages: with_attachments(&state, page.messages).await?,
         next_cursor: page.next_cursor.map(encode_cursor).transpose()?,
     }))
 }
@@ -116,6 +112,7 @@ pub(crate) async fn create_reply(
             content: body.content,
             parent_id: Some(ChatMessageId::from_uuid(path.message_id)),
             mentions: body.mentions.into_iter().map(ActorId::from_uuid).collect(),
+            session_id: None,
         },
     )
     .await?;

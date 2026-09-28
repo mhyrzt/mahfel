@@ -1,6 +1,7 @@
 use crate::actor::ActorId;
 use crate::ids::entity_id;
 use crate::room::RoomId;
+use crate::session::SessionId;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use time::OffsetDateTime;
@@ -48,6 +49,9 @@ pub struct ChatMessageDraft {
     pub created_at: OffsetDateTime,
     pub parent_id: Option<ChatMessageId>,
     pub mentions: Vec<ActorId>,
+    /// When set, the message belongs to a live session conversation instead of
+    /// the general room conversation.
+    pub session_id: Option<SessionId>,
 }
 
 impl ChatMessageDraft {
@@ -71,7 +75,14 @@ impl ChatMessageDraft {
             created_at,
             parent_id: None,
             mentions: Vec::new(),
+            session_id: None,
         })
+    }
+
+    #[must_use]
+    pub fn with_session(mut self, session_id: Option<SessionId>) -> Self {
+        self.session_id = session_id;
+        self
     }
 
     pub fn with_details(
@@ -106,6 +117,7 @@ pub struct ChatMessage {
     /// Set by soft deletion; the row remains as a tombstone for stable history.
     pub deleted_at: Option<OffsetDateTime>,
     pub parent_id: Option<ChatMessageId>,
+    pub session_id: Option<SessionId>,
 }
 
 impl ChatMessage {
@@ -120,6 +132,7 @@ impl ChatMessage {
             edited_at: None,
             deleted_at: None,
             parent_id: draft.parent_id,
+            session_id: draft.session_id,
         }
     }
 }

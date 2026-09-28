@@ -114,6 +114,7 @@ type MessageRow = (
     Option<OffsetDateTime>,
     Option<OffsetDateTime>,
     Option<uuid::Uuid>,
+    Option<uuid::Uuid>,
 );
 
 fn message(row: MessageRow) -> ChatMessage {
@@ -126,6 +127,7 @@ fn message(row: MessageRow) -> ChatMessage {
         edited_at: row.5,
         deleted_at: row.6,
         parent_id: row.7.map(ChatMessageId::from_uuid),
+        session_id: row.8.map(mahfel_domain::SessionId::from_uuid),
     }
 }
 
@@ -181,7 +183,7 @@ pub(super) async fn list_replies(
         ));
     }
     let rows = sqlx::query_as::<_, MessageRow>(
-        "SELECT id, channel_id, author_actor_id, body, created_at, edited_at, deleted_at, parent_id \
+        "SELECT id, channel_id, author_actor_id, body, created_at, edited_at, deleted_at, parent_id, session_id \
          FROM mahfel.chat_messages WHERE parent_id = $1 \
            AND ($2::TIMESTAMPTZ IS NULL OR (created_at, id) < ($2, $3)) \
          ORDER BY created_at DESC, id DESC LIMIT $4",

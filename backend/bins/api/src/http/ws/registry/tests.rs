@@ -49,6 +49,7 @@ async fn two_replica_hubs_apply_one_event_once_and_bound_slow_clients() {
             kind: "created".to_owned(),
             message_id: Uuid::new_v4().to_string(),
             parent_id: None,
+            session_id: None,
             author_id: actor.to_string(),
             reaction_actor_id: None,
             reaction_emoji: None,

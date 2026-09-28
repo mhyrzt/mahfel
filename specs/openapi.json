@@ -2498,6 +2498,16 @@
               "format": "int32",
               "minimum": 0
             }
+          },
+          {
+            "name": "session_id",
+            "in": "query",
+            "description": "Scope to one session; omit for the general room conversation",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
           }
         ],
         "responses": {
@@ -5205,6 +5215,13 @@
           "created_at"
         ],
         "properties": {
+          "attachments": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FileResponse"
+            },
+            "description": "Ready files attached to this message, for inline rendering."
+          },
           "author_id": {
             "type": "string"
           },
@@ -5244,6 +5261,13 @@
               "string",
               "null"
             ]
+          },
+          "session_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Present when the message belongs to a session conversation."
           }
         }
       },
@@ -5357,6 +5381,14 @@
               "type": "string",
               "format": "uuid"
             }
+          },
+          "session_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "Scope the message to a live session conversation when present."
           }
         }
       },

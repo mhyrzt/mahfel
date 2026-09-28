@@ -10,6 +10,8 @@ pub struct ChatEventPayload {
     pub kind: String,
     pub message_id: String,
     pub parent_id: Option<String>,
+    /// Present when the message belongs to a session conversation.
+    pub session_id: Option<String>,
     pub author_id: String,
     pub reaction_actor_id: Option<String>,
     pub reaction_emoji: Option<String>,

@@ -1,7 +1,7 @@
 use super::{BoxFuture, StoreError};
 use mahfel_domain::{
     ActorId, ChatChannel, ChatEvent, ChatMessage, ChatMessageCursor, ChatMessageDraft,
-    ChatMessageId, ChatMessagePage, RoomId,
+    ChatMessageId, ChatMessagePage, RoomId, SessionId,
 };
 use time::OffsetDateTime;
 
@@ -97,11 +97,13 @@ pub trait ChatStore: Send + Sync {
     ) -> BoxFuture<'a, Result<ChatMessage, StoreError>>;
 
     /// List newest-first messages visible to a current room member. The cursor
-    /// is an exclusive `(created_at, id)` keyset boundary.
+    /// is an exclusive `(created_at, id)` keyset boundary. `session_id` selects
+    /// a session conversation; `None` selects messages with no session scope.
     fn list_messages<'a>(
         &'a self,
         room_id: RoomId,
         actor_id: ActorId,
+        session_id: Option<SessionId>,
         before: Option<&'a ChatMessageCursor>,
         limit: u32,
     ) -> BoxFuture<'a, Result<ChatMessagePage, StoreError>>;

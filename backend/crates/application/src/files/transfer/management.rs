@@ -116,6 +116,9 @@ pub async fn delete_file<F: FileStore + ?Sized, R: RoomStore + ?Sized, S: FileSt
     if file.owner != input.actor {
         require_access(files, rooms, file.context, input.actor, FileAccess::Delete).await?;
     }
+    if files.detach_presentation(file.id).await? {
+        return Err(FileOperationError::InUse);
+    }
     if file.status != FileStatus::Deleting
         && !files
             .transition(

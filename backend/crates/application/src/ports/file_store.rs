@@ -1,5 +1,7 @@
 use crate::ports::{BoxFuture, StoreError};
-use mahfel_domain::{ActorId, FileContext, FileId, FileObject, FileStatus, RoomId, SessionId};
+use mahfel_domain::{
+    ActorId, ChatMessageId, FileContext, FileId, FileObject, FileStatus, RoomId, SessionId,
+};
 use time::OffsetDateTime;
 
 pub trait FileStore: Send + Sync {
@@ -15,6 +17,12 @@ pub trait FileStore: Send + Sync {
         limit: u32,
         offset: u64,
     ) -> BoxFuture<'_, Result<Vec<FileObject>, StoreError>>;
+    /// Ready files attached to a set of chat messages, used to render message
+    /// attachments inline. The caller must authorize the messages first.
+    fn list_for_messages<'a>(
+        &'a self,
+        message_ids: &'a [ChatMessageId],
+    ) -> BoxFuture<'a, Result<Vec<FileObject>, StoreError>>;
     fn link_room_file_to_session(
         &self,
         file_id: FileId,
@@ -34,6 +42,10 @@ pub trait FileStore: Send + Sync {
         limit: u32,
     ) -> BoxFuture<'_, Result<Vec<FileObject>, StoreError>>;
     fn remove(&self, id: FileId) -> BoxFuture<'_, Result<(), StoreError>>;
+    /// Detach a file from every live presentation selection so it can be
+    /// deleted. Returns `true` when the file is still embedded in a
+    /// collaboration document and therefore must be retained.
+    fn detach_presentation(&self, id: FileId) -> BoxFuture<'_, Result<bool, StoreError>>;
     fn publish<'a>(
         &'a self,
         id: FileId,

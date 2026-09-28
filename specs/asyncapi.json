@@ -2122,6 +2122,13 @@
           "sequence": {
             "format": "int64",
             "type": "integer"
+          },
+          "session_id": {
+            "description": "Present when the message belongs to a session conversation.",
+            "type": [
+              "string",
+              "null"
+            ]
           }
         },
         "required": [

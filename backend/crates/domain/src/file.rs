@@ -98,7 +98,7 @@ impl FileObject {
         }
         if !matches!(
             declared_mime.as_str(),
-            "application/pdf" | "image/png" | "image/jpeg"
+            "application/pdf" | "image/png" | "image/jpeg" | "video/mp4" | "video/webm"
         ) {
             return Err(FileError::UnsupportedType);
         }

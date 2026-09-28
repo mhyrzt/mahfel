@@ -422,7 +422,7 @@ async fn verify_migrations_and_stores(
         "each room must resolve to its stable chat channel"
     );
 
-    let first_page = chat.list_messages(room.id, user.id, None, 1).await?;
+    let first_page = chat.list_messages(room.id, user.id, None, None, 1).await?;
     assert_eq!(first_page.messages, vec![later_message.clone()]);
     let cursor = first_page.next_cursor.expect("more chat history exists");
     let inserted_after_page = ChatMessageDraft::new(
@@ -434,7 +434,7 @@ async fn verify_migrations_and_stores(
     chat.create_message(&first_channel, &inserted_after_page)
         .await?;
     let second_page = chat
-        .list_messages(room.id, user.id, Some(&cursor), 10)
+        .list_messages(room.id, user.id, None, Some(&cursor), 10)
         .await?;
     assert_eq!(second_page.messages, vec![first_message.clone()]);
     assert!(
@@ -451,7 +451,8 @@ async fn verify_migrations_and_stores(
     users.insert(&outsider).await?;
     assert!(
         matches!(
-            chat.list_messages(room.id, outsider.id, None, 10).await,
+            chat.list_messages(room.id, outsider.id, None, None, 10)
+                .await,
             Err(StoreError::NotFound(_))
         ),
         "a nonmember must not read room chat history"
@@ -573,6 +574,28 @@ async fn verify_migrations_and_stores(
         chat.list_events(room.id, outsider.id, 0, 100).await,
         Err(StoreError::NotFound(_))
     ));
+
+    let scoped_draft = ChatMessageDraft::new(
+        ChatMessageId::new(),
+        user.id,
+        "Session-only note".to_owned(),
+        now + TimeDuration::seconds(10),
+    )?
+    .with_session(Some(session.id));
+    let scoped_message = chat.create_message(&first_channel, &scoped_draft).await?;
+    assert_eq!(scoped_message.session_id, Some(session.id));
+    let room_page = chat.list_messages(room.id, user.id, None, None, 50).await?;
+    assert!(
+        room_page
+            .messages
+            .iter()
+            .all(|message| message.session_id.is_none()),
+        "the room conversation must exclude session-scoped messages"
+    );
+    let session_page = chat
+        .list_messages(room.id, user.id, Some(session.id), None, 50)
+        .await?;
+    assert_eq!(session_page.messages, vec![scoped_message.clone()]);
 
     let reply_draft = ChatMessageDraft::new(
         ChatMessageId::new(),
@@ -742,6 +765,14 @@ async fn verify_migrations_and_stores(
             .len(),
         1
     );
+    let inline = files.list_for_messages(&[reply.id]).await?;
+    assert_eq!(
+        inline.len(),
+        1,
+        "inline attachments include ready files only"
+    );
+    assert_eq!(inline[0].id, attachments[0].id);
+    assert!(files.list_for_messages(&[]).await?.is_empty());
     let outsider_file = FileObject::pending(
         outsider.id,
         FileContext::ChatMessage(reply.id),
@@ -854,7 +885,7 @@ async fn verify_migrations_and_stores(
     .fetch_one(&restarted_pool)
     .await?;
     assert_eq!(
-        stored_chat_messages, 7,
+        stored_chat_messages, 8,
         "room chat messages must survive a pool restart"
     );
     let stored_message = sqlx::query_as::<_, (uuid::Uuid, uuid::Uuid, String)>(
@@ -1178,6 +1209,23 @@ async fn verify_collaboration(
             .await,
         Err(StoreError::Conflict(_))
     ));
+    assert!(
+        !files.detach_presentation(file_id).await?,
+        "a presented file is not embedded in a collaboration document"
+    );
+    assert!(
+        files
+            .transition(file_id, FileStatus::Ready, FileStatus::Deleting, None, now)
+            .await?,
+        "detaching presentation references allows deletion"
+    );
+    assert!(
+        collaboration
+            .presentation(session_id, member.id)
+            .await?
+            .is_none(),
+        "deleting a presented file clears the live selection"
+    );
     collaboration
         .append(&NewCollaborationEvent {
             session_id,

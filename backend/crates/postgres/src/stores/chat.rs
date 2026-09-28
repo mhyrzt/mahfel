@@ -5,6 +5,7 @@ use mahfel_application::{
 use mahfel_domain::{
     ActorId, CHAT_AUTHOR_MUTATION_WINDOW, ChatChannel, ChatChannelId, ChatEvent, ChatEventKind,
     ChatMessage, ChatMessageCursor, ChatMessageDraft, ChatMessageId, ChatMessagePage, RoomId,
+    SessionId,
 };
 use sqlx::PgPool;
 use time::OffsetDateTime;
@@ -168,9 +169,11 @@ impl ChatStore for PostgresChatStore {
                 "SELECT event.id, event.event_seq AS sequence, event.kind, event.message_id, \
                  event.channel_id, event.author_actor_id, event.body, \
                  event.message_created_at, event.message_edited_at, event.message_deleted_at, \
-                 event.parent_id, event.reaction_actor_id, event.reaction_emoji \
+                 event.parent_id, event.reaction_actor_id, event.reaction_emoji, \
+                 message.session_id \
                  FROM mahfel.chat_events event \
                  INNER JOIN mahfel.chat_channels channel ON channel.id = event.channel_id \
+                 LEFT JOIN mahfel.chat_messages message ON message.id = event.message_id \
                  WHERE channel.room_id = $1 AND event.event_seq > $2 \
                  ORDER BY event.event_seq ASC LIMIT $3",
             )
@@ -238,9 +241,10 @@ impl ChatStore for PostgresChatStore {
                 .map_err(sqlx_store_error)?,
             };
 
+            let mut session_id = draft.session_id;
             if let Some(parent_id) = draft.parent_id {
-                let parent: Option<uuid::Uuid> = sqlx::query_scalar(
-                    "SELECT id FROM mahfel.chat_messages \
+                let parent: Option<(uuid::Uuid, Option<uuid::Uuid>)> = sqlx::query_as(
+                    "SELECT id, session_id FROM mahfel.chat_messages \
                      WHERE id = $1 AND channel_id = $2 AND parent_id IS NULL \
                        AND deleted_at IS NULL FOR SHARE",
                 )
@@ -249,15 +253,29 @@ impl ChatStore for PostgresChatStore {
                 .fetch_optional(&mut *tx)
                 .await
                 .map_err(sqlx_store_error)?;
-                if parent.is_none() {
+                let Some((_, parent_session)) = parent else {
                     return Err(StoreError::Conflict("invalid thread parent".to_owned()));
+                };
+                session_id = parent_session.map(SessionId::from_uuid);
+            }
+            if let Some(scope) = session_id {
+                let valid: Option<i32> = sqlx::query_scalar(
+                    "SELECT 1 FROM mahfel.sessions WHERE id = $1 AND room_id = $2",
+                )
+                .bind(scope.as_uuid())
+                .bind(channel.room_id.as_uuid())
+                .fetch_optional(&mut *tx)
+                .await
+                .map_err(sqlx_store_error)?;
+                if valid.is_none() {
+                    return Err(StoreError::Conflict("invalid session scope".to_owned()));
                 }
             }
 
             sqlx::query(
                 "INSERT INTO mahfel.chat_messages \
-                 (id, channel_id, author_actor_id, body, created_at, parent_id) \
-                 VALUES ($1, $2, $3, $4, $5, $6)",
+                 (id, channel_id, author_actor_id, body, created_at, parent_id, session_id) \
+                 VALUES ($1, $2, $3, $4, $5, $6, $7)",
             )
             .bind(draft.id.as_uuid())
             .bind(channel_id)
@@ -265,6 +283,7 @@ impl ChatStore for PostgresChatStore {
             .bind(&draft.content)
             .bind(draft.created_at)
             .bind(draft.parent_id.map(|id| id.as_uuid()))
+            .bind(session_id.map(|id| id.as_uuid()))
             .execute(&mut *tx)
             .await
             .map_err(sqlx_store_error)?;
@@ -272,9 +291,11 @@ impl ChatStore for PostgresChatStore {
             replace_mentions(&mut tx, channel.room_id, draft.id, &draft.mentions).await?;
 
             tx.commit().await.map_err(sqlx_store_error)?;
+            let mut stored = draft.clone();
+            stored.session_id = session_id;
             Ok(ChatMessage::from_draft(
                 ChatChannelId::from_uuid(channel_id),
-                draft.clone(),
+                stored,
             ))
         })
     }
@@ -283,6 +304,7 @@ impl ChatStore for PostgresChatStore {
         &'a self,
         room_id: RoomId,
         actor_id: ActorId,
+        session_id: Option<SessionId>,
         before: Option<&'a ChatMessageCursor>,
         limit: u32,
     ) -> mahfel_application::ports::BoxFuture<'a, Result<ChatMessagePage, StoreError>> {
@@ -324,10 +346,11 @@ impl ChatStore for PostgresChatStore {
             let before_id = before.map(|cursor| cursor.message_id.as_uuid());
             let fetch_limit = limit.saturating_add(1);
             let rows = sqlx::query_as::<_, ChatMessageRow>(
-                "SELECT id, channel_id, author_actor_id, body, created_at, edited_at, deleted_at, parent_id \
+                "SELECT id, channel_id, author_actor_id, body, created_at, edited_at, deleted_at, parent_id, session_id \
                  FROM mahfel.chat_messages \
                  WHERE channel_id = $1 \
                    AND parent_id IS NULL \
+                   AND session_id IS NOT DISTINCT FROM $5 \
                    AND ($2::TIMESTAMPTZ IS NULL OR (created_at, id) < ($2, $3)) \
                  ORDER BY created_at DESC, id DESC \
                  LIMIT $4",
@@ -336,6 +359,7 @@ impl ChatStore for PostgresChatStore {
             .bind(before_created_at)
             .bind(before_id)
             .bind(i64::from(fetch_limit))
+            .bind(session_id.map(|id| id.as_uuid()))
             .fetch_all(&mut *tx)
             .await
             .map_err(sqlx_store_error)?;
@@ -376,7 +400,8 @@ impl ChatStore for PostgresChatStore {
             let mut tx = self.pool.begin().await.map_err(sqlx_store_error)?;
             let row = sqlx::query_as::<_, LockedChatMessageRow>(
                 "SELECT message.id, message.channel_id, message.author_actor_id, message.body, \
-                 message.created_at, message.edited_at, message.deleted_at, message.parent_id, membership.member_role \
+                 message.created_at, message.edited_at, message.deleted_at, message.parent_id, \
+                 message.session_id, membership.member_role \
                  FROM mahfel.chat_messages message \
                  INNER JOIN mahfel.chat_channels channel ON channel.id = message.channel_id \
                  INNER JOIN mahfel.rooms room ON room.id = channel.room_id \
@@ -419,7 +444,7 @@ impl ChatStore for PostgresChatStore {
                 "UPDATE mahfel.chat_messages \
                  SET body = $2, edited_at = $3 \
                  WHERE id = $1 \
-                 RETURNING id, channel_id, author_actor_id, body, created_at, edited_at, deleted_at, parent_id",
+                 RETURNING id, channel_id, author_actor_id, body, created_at, edited_at, deleted_at, parent_id, session_id",
             )
             .bind(message_id.as_uuid())
             .bind(content)
@@ -444,7 +469,8 @@ impl ChatStore for PostgresChatStore {
             let mut tx = self.pool.begin().await.map_err(sqlx_store_error)?;
             let row = sqlx::query_as::<_, LockedChatMessageRow>(
                 "SELECT message.id, message.channel_id, message.author_actor_id, message.body, \
-                 message.created_at, message.edited_at, message.deleted_at, message.parent_id, membership.member_role \
+                 message.created_at, message.edited_at, message.deleted_at, message.parent_id, \
+                 message.session_id, membership.member_role \
                  FROM mahfel.chat_messages message \
                  INNER JOIN mahfel.chat_channels channel ON channel.id = message.channel_id \
                  INNER JOIN mahfel.rooms room ON room.id = channel.room_id \
@@ -488,7 +514,7 @@ impl ChatStore for PostgresChatStore {
             let updated = sqlx::query_as::<_, ChatMessageRow>(
                 "UPDATE mahfel.chat_messages SET deleted_at = $2 \
                  WHERE id = $1 \
-                 RETURNING id, channel_id, author_actor_id, body, created_at, edited_at, deleted_at, parent_id",
+                 RETURNING id, channel_id, author_actor_id, body, created_at, edited_at, deleted_at, parent_id, session_id",
             )
             .bind(message_id.as_uuid())
             .bind(now)
@@ -525,6 +551,7 @@ type ChatMessageRow = (
     Option<OffsetDateTime>,
     Option<OffsetDateTime>,
     Option<uuid::Uuid>,
+    Option<uuid::Uuid>,
 );
 
 #[derive(sqlx::FromRow)]
@@ -542,6 +569,7 @@ struct ChatEventRow {
     parent_id: Option<uuid::Uuid>,
     reaction_actor_id: Option<uuid::Uuid>,
     reaction_emoji: Option<String>,
+    session_id: Option<uuid::Uuid>,
 }
 
 impl ChatEventRow {
@@ -568,6 +596,7 @@ impl ChatEventRow {
                 edited_at: self.message_edited_at,
                 deleted_at: self.message_deleted_at,
                 parent_id: self.parent_id.map(ChatMessageId::from_uuid),
+                session_id: self.session_id.map(SessionId::from_uuid),
             },
             reaction_actor_id: self.reaction_actor_id.map(ActorId::from_uuid),
             reaction_emoji: self.reaction_emoji,
@@ -585,6 +614,7 @@ struct LockedChatMessageRow {
     edited_at: Option<OffsetDateTime>,
     deleted_at: Option<OffsetDateTime>,
     parent_id: Option<uuid::Uuid>,
+    session_id: Option<uuid::Uuid>,
     member_role: String,
 }
 
@@ -599,6 +629,7 @@ impl LockedChatMessageRow {
             edited_at: self.edited_at,
             deleted_at: self.deleted_at,
             parent_id: self.parent_id.map(ChatMessageId::from_uuid),
+            session_id: self.session_id.map(SessionId::from_uuid),
         }
     }
 }
@@ -613,6 +644,7 @@ fn chat_message_from_row(row: ChatMessageRow) -> ChatMessage {
         edited_at: row.5,
         deleted_at: row.6,
         parent_id: row.7.map(ChatMessageId::from_uuid),
+        session_id: row.8.map(SessionId::from_uuid),
     }
 }
 

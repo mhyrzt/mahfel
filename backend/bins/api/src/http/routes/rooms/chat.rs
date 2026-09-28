@@ -2,6 +2,7 @@ use crate::http::{
     auth::Authenticated,
     error::ApiError,
     extractor::{ValidatedJson, ValidatedPath},
+    routes::files::FileResponse,
     state::AppState,
 };
 use axum::{
@@ -14,8 +15,12 @@ use mahfel_application::chat::{
     CreateChatMessage, DeleteChatMessage, EditChatMessage, ListChatMessages, check_chat_post_rate,
     create_chat_message, delete_chat_message, edit_chat_message, list_chat_messages,
 };
-use mahfel_domain::{ActorId, ChatMessage, ChatMessageCursor, ChatMessageId, RoomId};
+use mahfel_application::files::FileOperationError;
+use mahfel_domain::{
+    ActorId, ChatMessage, ChatMessageCursor, ChatMessageId, FileContext, RoomId, SessionId,
+};
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use time::OffsetDateTime;
 use utoipa::ToSchema;
 use uuid::Uuid;
@@ -25,6 +30,8 @@ pub(crate) struct CreateChatMessageRequest {
     pub(crate) content: String,
     #[serde(default)]
     pub(crate) mentions: Vec<Uuid>,
+    /// Scope the message to a live session conversation when present.
+    pub(crate) session_id: Option<Uuid>,
 }
 
 #[derive(Debug, Serialize, ToSchema)]
@@ -41,6 +48,11 @@ pub(crate) struct ChatMessageResponse {
     #[serde(with = "super::super::rfc3339::option")]
     pub(crate) deleted_at: Option<OffsetDateTime>,
     pub(crate) parent_id: Option<String>,
+    /// Present when the message belongs to a session conversation.
+    pub(crate) session_id: Option<String>,
+    /// Ready files attached to this message, for inline rendering.
+    #[serde(default)]
+    pub(crate) attachments: Vec<FileResponse>,
 }
 
 impl From<ChatMessage> for ChatMessageResponse {
@@ -54,8 +66,44 @@ impl From<ChatMessage> for ChatMessageResponse {
             edited_at: message.edited_at,
             deleted_at: message.deleted_at,
             parent_id: message.parent_id.map(|id| id.to_string()),
+            session_id: message.session_id.map(|id| id.to_string()),
+            attachments: Vec::new(),
         }
     }
+}
+
+/// Load ready attachments for a page of messages and group them per message.
+pub(super) async fn with_attachments(
+    state: &AppState,
+    messages: Vec<ChatMessage>,
+) -> Result<Vec<ChatMessageResponse>, ApiError> {
+    let ids = messages
+        .iter()
+        .map(|message| message.id)
+        .collect::<Vec<_>>();
+    let files = state
+        .files
+        .list_for_messages(&ids)
+        .await
+        .map_err(FileOperationError::from)?;
+    let mut by_message: HashMap<Uuid, Vec<FileResponse>> = HashMap::new();
+    for file in files {
+        if let FileContext::ChatMessage(message_id) = file.context {
+            by_message
+                .entry(message_id.as_uuid())
+                .or_default()
+                .push(FileResponse::from(file));
+        }
+    }
+    Ok(messages
+        .into_iter()
+        .map(|message| {
+            let id = message.id.as_uuid();
+            let mut response = ChatMessageResponse::from(message);
+            response.attachments = by_message.remove(&id).unwrap_or_default();
+            response
+        })
+        .collect())
 }
 
 #[derive(Debug, Serialize, ToSchema)]
@@ -68,6 +116,7 @@ pub(crate) struct ChatMessageHistoryResponse {
 pub(crate) struct ChatMessageHistoryQuery {
     pub(crate) cursor: Option<String>,
     pub(crate) limit: Option<u32>,
+    pub(crate) session_id: Option<Uuid>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -93,6 +142,7 @@ pub(crate) struct EditChatMessageRequest {
         ("room_id" = Uuid, Path, description = "Room chat channel"),
         ("cursor" = Option<String>, Query, description = "Opaque cursor from the previous page"),
         ("limit" = Option<u32>, Query, description = "Page size, 1-100; defaults to 50"),
+        ("session_id" = Option<Uuid>, Query, description = "Scope to one session; omit for the general room conversation"),
     ),
     responses(
         (status = 200, description = "Newest-first chat messages", body = ChatMessageHistoryResponse),
@@ -115,15 +165,12 @@ pub(crate) async fn list_messages(
             actor_id: principal.actor_id,
             before,
             limit: query.limit.unwrap_or(50),
+            session_id: query.session_id.map(SessionId::from_uuid),
         },
     )
     .await?;
     Ok(Json(ChatMessageHistoryResponse {
-        messages: page
-            .messages
-            .into_iter()
-            .map(ChatMessageResponse::from)
-            .collect(),
+        messages: with_attachments(&state, page.messages).await?,
         next_cursor: page.next_cursor.map(encode_cursor).transpose()?,
     }))
 }
@@ -164,6 +211,7 @@ pub(crate) async fn create_message(
             content: body.content,
             parent_id: None,
             mentions: body.mentions.into_iter().map(ActorId::from_uuid).collect(),
+            session_id: body.session_id.map(SessionId::from_uuid),
         },
     )
     .await?;

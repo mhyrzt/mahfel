@@ -1,6 +1,7 @@
 use crate::{chat::ChatOperationError, ports::ChatStore};
 use mahfel_domain::{
     ActorId, ChatChannel, ChatChannelId, ChatMessage, ChatMessageDraft, ChatMessageId, RoomId,
+    SessionId,
 };
 use time::OffsetDateTime;
 
@@ -11,6 +12,8 @@ pub struct CreateChatMessage {
     pub content: String,
     pub parent_id: Option<ChatMessageId>,
     pub mentions: Vec<ActorId>,
+    /// Scope the message to a live session conversation when present.
+    pub session_id: Option<SessionId>,
 }
 
 /// Persist a message in the room's durable chat channel.
@@ -29,6 +32,7 @@ where
         command.content,
         now,
     )?
-    .with_details(command.parent_id, command.mentions)?;
+    .with_details(command.parent_id, command.mentions)?
+    .with_session(command.session_id);
     Ok(chat.create_message(&channel, &draft).await?)
 }

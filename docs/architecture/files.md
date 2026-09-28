@@ -20,11 +20,13 @@ signs browser URLs against a public endpoint. In local Minikube these are `http:
    `GET /v1/files/{file_id}/download` returns a one-minute signed GET URL with attachment
    disposition and private, no-store caching. Each authorization is recorded in
    `mahfel.file_download_audit` without the signed URL.
-5. `DELETE /v1/files/{file_id}` marks the row as deleting, deletes both final and staging
-   objects, then removes metadata. Deleting a chat message queues one durable cleanup job per
-   attachment in the same database transaction; the worker removes those objects and metadata.
-   The existing worker sweep also retries expired pending, quarantined, rejected, and deleting
-   rows in batches of 100 every five minutes. The expiry threshold is 30 minutes.
+5. `DELETE /v1/files/{file_id}` detaches the file from every live presentation selection, marks the
+   row as deleting, deletes both final and staging objects, then removes metadata. A file embedded
+   in a collaboration document is retained and returns a conflict. Deleting a chat message queues
+   one durable cleanup job per attachment in the same database transaction; the worker removes
+   those objects and metadata. The existing worker sweep also retries expired pending, quarantined,
+   rejected, and deleting rows in batches of 100 every five minutes. The expiry threshold is 30
+   minutes.
 
 The frontend file client performs the signed PUT directly from the browser. Its BFF only forwards
 the small metadata requests. Returned signed URLs are capabilities; callers must avoid logging,
@@ -52,13 +54,14 @@ recording pipeline and retention rules are separate work.
 
 ## Validation and threat model
 
-Client MIME types and extensions are untrusted. This release accepts only PDF, PNG, and JPEG;
+Client MIME types and extensions are untrusted. This release accepts PDF, PNG, JPEG, MP4, and WebM;
 each file is limited to 50 MiB and each owner to 1 GiB of pending or ready files. The owner quota
 is checked under a database row lock to prevent concurrent initiations from exceeding it.
 Completion rejects size or checksum mismatches, MIME mismatches, missing format signatures, and
-trailing bytes after the PDF EOF, PNG IEND, or JPEG EOI marker. The verification path bounds
-concurrent S3 reads and blocking verification jobs to four each per API process. Invalid objects
-remain rejected until worker cleanup.
+trailing bytes after the PDF EOF, PNG IEND, or JPEG EOI marker. MP4 and WebM are accepted on their
+container signature (`ftyp` box and EBML header) rather than a full parse. The verification path
+bounds concurrent S3 reads and blocking verification jobs to four each per API process. Invalid
+objects remain rejected until worker cleanup.
 
 Marker checks are a type gate, not a malware scanner or full PDF/image parser. Files are served as
 attachments by default. The collaboration presentation view fetches authorized signed URLs and
@@ -69,9 +72,10 @@ Presentation selection parses the PDF page tree separately and limits decks to 1
 ordered images. The file API itself does not create slide sequences.
 
 Files selected for a collaboration presentation are referenced by the durable event journal.
-The delete transition returns a conflict while any presentation event references the file, so
-archived sessions retain the bytes needed for later playback. A retention policy for those
-assets must account for the presentation history before purging them.
+Deleting a presented file first removes it from every live presentation selection, clearing a
+selection that has no remaining assets, so the operation succeeds and the current presentation
+stops referencing the deleted bytes. A file embedded as an asset in a collaboration document is
+retained and the delete returns a conflict, because the document still references it.
 
 Object storage must keep the bucket private and expire residual `uploads/` objects after one day.
 The worker removes known abandoned objects; the storage lifecycle rule also catches a PUT that

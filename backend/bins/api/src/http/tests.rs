@@ -85,6 +85,12 @@ impl FileStore for FakeFileStore {
     ) -> BoxFuture<'_, Result<Vec<FileObject>, StoreError>> {
         Box::pin(async { Ok(Vec::new()) })
     }
+    fn list_for_messages<'a>(
+        &'a self,
+        _message_ids: &'a [ChatMessageId],
+    ) -> BoxFuture<'a, Result<Vec<FileObject>, StoreError>> {
+        Box::pin(async { Ok(Vec::new()) })
+    }
     fn link_room_file_to_session(
         &self,
         _file_id: FileId,
@@ -111,6 +117,9 @@ impl FileStore for FakeFileStore {
     }
     fn remove(&self, _id: FileId) -> BoxFuture<'_, Result<(), StoreError>> {
         Box::pin(async { Ok(()) })
+    }
+    fn detach_presentation(&self, _id: FileId) -> BoxFuture<'_, Result<bool, StoreError>> {
+        Box::pin(async { Ok(false) })
     }
     fn publish<'a>(
         &'a self,
@@ -313,6 +322,7 @@ impl ChatStore for FakeChatStore {
         &'a self,
         _room_id: RoomId,
         _actor_id: ActorId,
+        _session_id: Option<mahfel_domain::SessionId>,
         _before: Option<&'a ChatMessageCursor>,
         _limit: u32,
     ) -> BoxFuture<'a, Result<ChatMessagePage, StoreError>> {
