@@ -53,6 +53,9 @@ pub struct PresentationState {
     pub file_ids: Vec<FileId>,
     pub current_page: u32,
     pub total_pages: u32,
+    pub playback_position_ms: Option<u64>,
+    pub playback_paused: Option<bool>,
+    pub playback_rate: Option<f64>,
 }
 
 pub struct CollaborationCheckpoint {

@@ -30,12 +30,16 @@ Historical updates remain available for a later event player and recording align
 is never persisted. The REST event endpoint exposes pages of at most 100 events, with binary
 document updates encoded in base64.
 
-Presenters choose one ready PDF or up to 50 ordered ready images from the session or its room.
-The API reads the PDF to determine page count, validates the file context and permission, and
-records selection, page moves, and stop actions. PostgreSQL retains references to selected files
-and prevents their deletion while the presentation history references them. Each viewer obtains
-a fresh signed download and renders the current slide locally. Presentation changes are distinct
-from whiteboard drawing changes.
+Presenters choose one ready PDF, up to 50 ordered ready images, or one ready MP4/WebM video from
+the session or its room. A video selection is a single asset with one page. The API reads a PDF to
+determine page count, validates the file context and permission, and records selection, page moves,
+playback changes, and stop actions. Playback state (position, paused, rate) is retained with the
+presentation and returned to late joiners, so every participant watches the same position; the
+presenter drives play, pause, seek, and rate, and viewers converge on that state. PostgreSQL retains
+references to selected files; deleting a file detaches it from live presentation selections and is
+refused only while a collaboration document embeds it. Each viewer obtains a fresh signed download
+and renders the current slide or video locally. Presentation changes are distinct from whiteboard
+drawing changes.
 
 The current browser workspace provides live editing and read only access to ended sessions. It
 does not yet provide a historical scrubber across the journal; M9's player can consume that

@@ -75,8 +75,17 @@ pub(crate) struct ViewportRequest {
 #[derive(Deserialize, ToSchema)]
 #[serde(tag = "action", rename_all = "snake_case")]
 pub(crate) enum PresentationRequest {
-    Select { file_ids: Vec<uuid::Uuid> },
-    Page { page: u32 },
+    Select {
+        file_ids: Vec<uuid::Uuid>,
+    },
+    Page {
+        page: u32,
+    },
+    Playback {
+        position_ms: u64,
+        paused: bool,
+        rate: Option<f64>,
+    },
     Stop,
 }
 

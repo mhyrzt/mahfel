@@ -14,6 +14,11 @@ use uuid::Uuid;
 pub enum PresentationAction {
     Select(Vec<FileId>),
     Page(u32),
+    Playback {
+        position_ms: u64,
+        paused: bool,
+        rate: f64,
+    },
     Stop,
 }
 
@@ -62,6 +67,7 @@ pub async fn change_presentation<
                 .await?
                 .ok_or(PresentationError::Denied)?;
             let mut pdf_file = None;
+            let mut has_video = false;
             for (index, file_id) in file_ids.iter().enumerate() {
                 let file = files
                     .get(*file_id)
@@ -73,21 +79,23 @@ pub async fn change_presentation<
                 {
                     return Err(PresentationError::Denied);
                 }
-                let is_pdf = file.verified_mime.as_deref() == Some("application/pdf");
-                if !is_pdf
-                    && !matches!(
-                        file.verified_mime.as_deref(),
-                        Some("image/png" | "image/jpeg")
-                    )
-                {
-                    return Err(PresentationError::Invalid);
+                match file.verified_mime.as_deref() {
+                    Some("application/pdf") => {
+                        if index > 0 {
+                            return Err(PresentationError::Invalid);
+                        }
+                        pdf_file = Some(file);
+                    }
+                    Some("image/png" | "image/jpeg") => {}
+                    Some("video/mp4" | "video/webm") => has_video = true,
+                    _ => return Err(PresentationError::Invalid),
                 }
-                if index > 0 && (pdf_file.is_some() || is_pdf) {
-                    return Err(PresentationError::Invalid);
-                }
-                if is_pdf {
-                    pdf_file = Some(file);
-                }
+            }
+            if pdf_file.is_some() && file_ids.len() != 1 {
+                return Err(PresentationError::Invalid);
+            }
+            if has_video && file_ids.len() != 1 {
+                return Err(PresentationError::Invalid);
             }
             let pages = if let Some(file) = pdf_file {
                 let bytes = storage.read(&file.object_key, MAX_FILE_BYTES).await?.bytes;
@@ -97,6 +105,8 @@ pub async fn change_presentation<
                 .await
                 .map_err(|_| PresentationError::Unavailable)?
                 .map_err(|_| PresentationError::Invalid)?
+            } else if has_video {
+                1
             } else {
                 file_ids.len()
             };
@@ -105,6 +115,16 @@ pub async fn change_presentation<
             }
             json!({"action":"select","file_ids":file_ids.iter().map(ToString::to_string).collect::<Vec<_>>(),
                 "total_pages":pages,"page":1})
+        }
+        PresentationAction::Playback {
+            position_ms,
+            paused,
+            rate,
+        } => {
+            if !rate.is_finite() || !(0.25..=4.0).contains(&rate) {
+                return Err(PresentationError::Invalid);
+            }
+            json!({"action":"playback","position_ms":position_ms,"paused":paused,"rate":rate})
         }
         PresentationAction::Page(page) if page > 0 => json!({"action":"page","page":page}),
         PresentationAction::Page(_) => return Err(PresentationError::Invalid),

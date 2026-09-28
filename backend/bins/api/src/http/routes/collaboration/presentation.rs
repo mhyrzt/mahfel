@@ -16,10 +16,18 @@ use crate::http::{auth::Authenticated, error::ApiError, state::AppState};
 use super::dto::{EventResponse, PresentationRequest};
 
 #[derive(Serialize, ToSchema)]
+pub(crate) struct PlaybackResponse {
+    position_ms: u64,
+    paused: bool,
+    rate: f64,
+}
+
+#[derive(Serialize, ToSchema)]
 pub(crate) struct PresentationStateResponse {
     file_ids: Vec<Uuid>,
     current_page: u32,
     total_pages: u32,
+    playback: Option<PlaybackResponse>,
 }
 
 #[utoipa::path(get, path = "/v1/sessions/{session_id}/collaboration/presentation", tag = "collaboration",
@@ -47,6 +55,18 @@ pub(crate) async fn get_presentation(
         file_ids: state.file_ids.into_iter().map(FileId::as_uuid).collect(),
         current_page: state.current_page,
         total_pages: state.total_pages,
+        playback: match (
+            state.playback_position_ms,
+            state.playback_paused,
+            state.playback_rate,
+        ) {
+            (Some(position_ms), Some(paused), Some(rate)) => Some(PlaybackResponse {
+                position_ms,
+                paused,
+                rate,
+            }),
+            _ => None,
+        },
     })))
 }
 
@@ -68,6 +88,15 @@ pub(crate) async fn update_presentation(
             PresentationAction::Select(file_ids.into_iter().map(FileId::from_uuid).collect())
         }
         PresentationRequest::Page { page } => PresentationAction::Page(page),
+        PresentationRequest::Playback {
+            position_ms,
+            paused,
+            rate,
+        } => PresentationAction::Playback {
+            position_ms,
+            paused,
+            rate: rate.unwrap_or(1.0),
+        },
         PresentationRequest::Stop => PresentationAction::Stop,
     };
     let event = change_presentation(

@@ -1551,6 +1551,13 @@ export interface components {
       corrected_intervals: number;
       participant_id: string;
     };
+    PlaybackResponse: {
+      paused: boolean;
+      /** Format: int64 */
+      position_ms: number;
+      /** Format: double */
+      rate: number;
+    };
     PresentationRequest:
       | {
           /** @enum {string} */
@@ -1565,12 +1572,22 @@ export interface components {
         }
       | {
           /** @enum {string} */
+          action: "playback";
+          paused: boolean;
+          /** Format: int64 */
+          position_ms: number;
+          /** Format: double */
+          rate?: number | null;
+        }
+      | {
+          /** @enum {string} */
           action: "stop";
         };
     PresentationStateResponse: {
       /** Format: int32 */
       current_page: number;
       file_ids: string[];
+      playback?: null | components["schemas"]["PlaybackResponse"];
       /** Format: int32 */
       total_pages: number;
     };

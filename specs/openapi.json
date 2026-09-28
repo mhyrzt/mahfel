@@ -6340,6 +6340,28 @@
           }
         }
       },
+      "PlaybackResponse": {
+        "type": "object",
+        "required": [
+          "position_ms",
+          "paused",
+          "rate"
+        ],
+        "properties": {
+          "paused": {
+            "type": "boolean"
+          },
+          "position_ms": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "rate": {
+            "type": "number",
+            "format": "double"
+          }
+        }
+      },
       "PresentationRequest": {
         "oneOf": [
           {
@@ -6387,6 +6409,37 @@
           {
             "type": "object",
             "required": [
+              "position_ms",
+              "paused",
+              "action"
+            ],
+            "properties": {
+              "action": {
+                "type": "string",
+                "enum": [
+                  "playback"
+                ]
+              },
+              "paused": {
+                "type": "boolean"
+              },
+              "position_ms": {
+                "type": "integer",
+                "format": "int64",
+                "minimum": 0
+              },
+              "rate": {
+                "type": [
+                  "number",
+                  "null"
+                ],
+                "format": "double"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
               "action"
             ],
             "properties": {
@@ -6419,6 +6472,16 @@
               "type": "string",
               "format": "uuid"
             }
+          },
+          "playback": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/PlaybackResponse"
+              }
+            ]
           },
           "total_pages": {
             "type": "integer",

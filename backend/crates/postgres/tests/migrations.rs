@@ -1244,6 +1244,77 @@ async fn verify_collaboration(
             .is_none()
     );
 
+    let video = FileObject::pending(
+        manager,
+        FileContext::Session(session_id),
+        "lecture.mp4".into(),
+        "video/mp4".into(),
+        2048,
+        "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=".into(),
+        now,
+    )?;
+    files.insert(&video).await?;
+    assert!(
+        files
+            .transition(
+                video.id,
+                FileStatus::Pending,
+                FileStatus::Ready,
+                Some("video/mp4"),
+                now
+            )
+            .await?
+    );
+    collaboration
+        .append(&NewCollaborationEvent {
+            session_id,
+            id: Uuid::new_v4(),
+            actor_id: manager,
+            document_id: None,
+            kind: CollaborationEventKind::Presentation,
+            update: None,
+            data: json!({"action":"select","file_ids":[video.id],"total_pages":1,"page":1}),
+        })
+        .await?;
+    let selected = collaboration
+        .presentation(session_id, manager)
+        .await?
+        .expect("video presentation");
+    assert_eq!(selected.total_pages, 1);
+    assert!(selected.playback_position_ms.is_none());
+    collaboration
+        .append(&NewCollaborationEvent {
+            session_id,
+            id: Uuid::new_v4(),
+            actor_id: manager,
+            document_id: None,
+            kind: CollaborationEventKind::Presentation,
+            update: None,
+            data: json!({"action":"playback","position_ms":42000,"paused":false,"rate":1.5}),
+        })
+        .await?;
+    let playing = collaboration
+        .presentation(session_id, manager)
+        .await?
+        .expect("video presentation");
+    assert_eq!(playing.playback_position_ms, Some(42_000));
+    assert_eq!(playing.playback_paused, Some(false));
+    assert_eq!(playing.playback_rate, Some(1.5));
+    assert!(matches!(
+        collaboration
+            .append(&NewCollaborationEvent {
+                session_id,
+                id: Uuid::new_v4(),
+                actor_id: manager,
+                document_id: None,
+                kind: CollaborationEventKind::Presentation,
+                update: None,
+                data: json!({"action":"playback","position_ms":0,"paused":true,"rate":9}),
+            })
+            .await,
+        Err(StoreError::Conflict(_))
+    ));
+
     collaboration
         .set_participant_access(
             session_id,
