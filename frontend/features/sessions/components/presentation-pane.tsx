@@ -262,7 +262,7 @@ export function PresentationPane({
             width={1280}
             height={720}
             unoptimized
-            className="mx-auto h-auto max-h-full max-w-full object-contain"
+            className="h-full w-full object-contain"
           />
         );
       }}

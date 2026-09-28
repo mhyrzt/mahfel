@@ -3,15 +3,39 @@
 import { useEffect, useRef, useState } from "react";
 import type { RenderTask } from "pdfjs-dist";
 
+import { fitScale } from "./presentation-fit";
+
+const MAX_RENDER_SCALE = 4;
+
 export function PdfPage({
   bytes,
   page,
   unavailable,
 }: Readonly<{ bytes: Uint8Array; page: number; unavailable: string }>) {
+  const container = useRef<HTMLDivElement>(null);
   const canvas = useRef<HTMLCanvasElement>(null);
+  const [size, setSize] = useState<{ width: number; height: number } | null>(null);
   const [failed, setFailed] = useState(false);
 
   useEffect(() => {
+    const target = container.current;
+    if (!target || typeof ResizeObserver === "undefined") {
+      return undefined;
+    }
+    const observer = new ResizeObserver((entries) => {
+      const rect = entries[0]?.contentRect;
+      if (rect) {
+        setSize({ width: rect.width, height: rect.height });
+      }
+    });
+    observer.observe(target);
+    return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
+    if (!size) {
+      return undefined;
+    }
     let cancelled = false;
     let loading: ReturnType<(typeof import("pdfjs-dist"))["getDocument"]> | null = null;
     let render: RenderTask | null = null;
@@ -30,7 +54,13 @@ export function PdfPage({
           return;
         }
         const sheet = await pdf.getPage(page);
-        const viewport = sheet.getViewport({ scale: 1.5 });
+        const base = sheet.getViewport({ scale: 1 });
+        const dpr = typeof window === "undefined" ? 1 : window.devicePixelRatio || 1;
+        const scale = Math.min(
+          fitScale(size.width, size.height, base.width, base.height) * dpr,
+          MAX_RENDER_SCALE,
+        );
+        const viewport = sheet.getViewport({ scale });
         const target = canvas.current;
         if (!target || cancelled) {
           await task.destroy();
@@ -38,6 +68,8 @@ export function PdfPage({
         }
         target.width = Math.ceil(viewport.width);
         target.height = Math.ceil(viewport.height);
+        target.style.width = `${viewport.width / dpr}px`;
+        target.style.height = `${viewport.height / dpr}px`;
         const context = target.getContext("2d");
         if (!context) {
           await task.destroy();
@@ -58,11 +90,11 @@ export function PdfPage({
         void loading.destroy();
       }
     };
-  }, [bytes, page]);
+  }, [bytes, page, size]);
 
-  return failed ? (
-    <p role="alert">{unavailable}</p>
-  ) : (
-    <canvas ref={canvas} className="mx-auto max-w-full" />
+  return (
+    <div className="flex size-full items-center justify-center" ref={container}>
+      {failed ? <p role="alert">{unavailable}</p> : <canvas className="block" ref={canvas} />}
+    </div>
   );
 }
