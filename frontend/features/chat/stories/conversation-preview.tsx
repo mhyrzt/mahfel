@@ -4,8 +4,20 @@ import type { Locale } from "@/lib/i18n/config";
 import { ConversationPanel } from "../components/conversation-panel";
 import { ChatMessageList } from "../components/chat-message-list";
 
-export function ConversationPreview({ locale = "en" }: Readonly<{ locale?: Locale }>) {
+export function ConversationPreview({
+  locale = "en",
+  withAttachment = true,
+}: Readonly<{ locale?: Locale; withAttachment?: boolean }>) {
   const [draft, setDraft] = useState("");
+  const [attachments, setAttachments] = useState<File[]>(() =>
+    withAttachment
+      ? [
+          new File(["agenda"], `${locale === "fa" ? "دستور-جلسه" : "agenda"}.pdf`, {
+            type: "application/pdf",
+          }),
+        ]
+      : [],
+  );
   const [messages, setMessages] = useState<components["schemas"]["ChatMessageResponse"][]>([
     {
       id: "preview-message",
@@ -38,7 +50,13 @@ export function ConversationPreview({ locale = "en" }: Readonly<{ locale?: Local
           },
         ]);
         setDraft("");
+        setAttachments([]);
       }}
+      attachments={attachments}
+      onAttachFiles={(files) => setAttachments((previous) => [...previous, ...files])}
+      onRemoveAttachment={(index) =>
+        setAttachments((previous) => previous.filter((_, position) => position !== index))
+      }
     >
       <ChatMessageList
         messages={messages}

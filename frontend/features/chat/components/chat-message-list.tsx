@@ -1,26 +1,38 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { MoreVertical } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Bubble, BubbleContent } from "@/components/ui/bubble";
 import {
-  Message,
-  MessageAvatar,
-  MessageContent,
-  MessageFooter,
-  MessageHeader,
-} from "@/components/ui/message";
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Message, MessageAvatar, MessageContent } from "@/components/ui/message";
 import { Textarea } from "@/components/ui/textarea";
 import { roomCopy } from "@/features/rooms/room-copy";
 import type { components } from "@/lib/api/generated/schema";
 import type { Locale } from "@/lib/i18n/config";
 
+import { MessageAttachments } from "./message-attachments";
 import { MessageReactions } from "./message-reactions";
-import { MessageFiles } from "./message-files";
 
 type Message = components["schemas"]["ChatMessageResponse"];
+type Copy = ReturnType<typeof roomCopy>;
+
+function authorLabel(message: Message, actorId: string | undefined, text: Copy): string {
+  return message.author_id === actorId
+    ? text.you
+    : `${text.participant} ${message.author_id.slice(0, 4)}`;
+}
+
+function authorInitials(authorId: string): string {
+  return authorId.slice(0, 2).toUpperCase();
+}
 
 export function ChatMessageList({
   messages,
@@ -88,10 +100,53 @@ export function ChatMessageList({
       </p>
     );
   }
+  const sentAt = (value: string) =>
+    new Intl.DateTimeFormat(locale === "fa" ? "fa-IR" : "en-US", {
+      hour: "2-digit",
+      minute: "2-digit",
+    }).format(new Date(value));
+
+  const actions = (message: Message, own: boolean) => (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button
+          aria-label={text.messageActions}
+          className="size-6 text-current opacity-70 hover:opacity-100"
+          size="icon"
+          type="button"
+          variant="ghost"
+        >
+          <MoreVertical aria-hidden="true" className="size-4" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align={own ? "end" : "start"}>
+        {onReply ? (
+          <DropdownMenuItem onSelect={() => onReply(message.id)}>{text.reply}</DropdownMenuItem>
+        ) : null}
+        {onToggleReplies ? (
+          <DropdownMenuItem onSelect={() => onToggleReplies(message.id)}>
+            {text.replies}
+          </DropdownMenuItem>
+        ) : null}
+        {own && onEdit ? (
+          <DropdownMenuItem onSelect={() => onEdit(message)}>{text.editMessage}</DropdownMenuItem>
+        ) : null}
+        {(own || canModerate) && onRemove ? (
+          <DropdownMenuItem
+            className="text-destructive focus:text-destructive"
+            onSelect={() => onRemove(message.id)}
+          >
+            {text.deleteMessage}
+          </DropdownMenuItem>
+        ) : null}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+
   return (
     <div
       aria-label={text.chatHistory}
-      className="min-h-0 flex-1 space-y-5 overflow-y-auto overscroll-contain pe-1"
+      className="min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain pe-1"
       ref={logRef}
       role="log"
     >
@@ -100,145 +155,110 @@ export function ChatMessageList({
           {text.olderMessages}
         </Button>
       ) : null}
-      <ol data-testid="chat-messages">
+      <ol className="space-y-3" data-testid="chat-messages">
         {messages.map((message, index) => {
           const own = message.author_id === actorId;
           const grouped = index > 0 && messages[index - 1].author_id === message.author_id;
-          const groupCorner = own ? "rounded-se-md" : "rounded-ss-md";
-          const sentAt = new Intl.DateTimeFormat(locale === "fa" ? "fa-IR" : "en-US", {
-            hour: "2-digit",
-            minute: "2-digit",
-          }).format(new Date(message.created_at));
+          const deleted = message.deleted_at !== null && message.deleted_at !== undefined;
           return (
-            <li key={message.id} className={grouped ? "mt-1" : "mt-4"}>
-              <Message align={own ? "end" : "start"} className="group/message">
+            <li key={message.id}>
+              <Message align={own ? "end" : "start"} className="group/message gap-2">
                 <MessageAvatar className={grouped ? "invisible" : undefined}>
                   <Avatar className="size-8 text-xs">
-                    <AvatarFallback>
-                      {message.author_id === actorId
-                        ? text.you.slice(0, 2)
-                        : message.author_id.slice(0, 2).toUpperCase()}
-                    </AvatarFallback>
+                    <AvatarFallback>{authorInitials(message.author_id)}</AvatarFallback>
                   </Avatar>
                 </MessageAvatar>
-                <MessageContent className={own ? "items-end" : undefined}>
-                  {!grouped ? (
-                    <MessageHeader>
-                      {message.author_id === actorId
-                        ? text.you
-                        : `${text.participant} ${message.author_id.slice(0, 4)}`}
-                    </MessageHeader>
-                  ) : null}
+                <MessageContent className={own ? "w-full items-end" : "w-full"}>
                   <Bubble
-                    variant={own ? "default" : "secondary"}
                     align={own ? "end" : "start"}
-                    className={`max-w-full ${grouped ? groupCorner : ""}`}
+                    className="w-full"
+                    variant={own ? "default" : "secondary"}
                   >
-                    <BubbleContent>
-                      {editingId === message.id ? (
-                        <div className="space-y-2">
-                          <Textarea
-                            aria-label={text.editMessage}
-                            onChange={(event) => onEditDraftChange?.(event.target.value)}
-                            value={editDraft}
+                    <div className="mb-1 flex items-center gap-1">
+                      <span
+                        className={`truncate text-xs font-semibold opacity-70 ${grouped ? "invisible" : ""}`}
+                      >
+                        {authorLabel(message, actorId, text)}
+                      </span>
+                      <span className="ms-auto flex items-center gap-0.5">
+                        {showReactions && !deleted ? (
+                          <MessageReactions
+                            locale={locale}
+                            messageId={message.id}
+                            roomId={roomId}
                           />
-                          <div className="flex gap-2">
-                            <Button onClick={() => onSaveEdit?.(message.id)} size="sm">
-                              {text.save}
-                            </Button>
-                            <Button onClick={onCancelEdit} size="sm" variant="ghost">
-                              {text.cancel}
-                            </Button>
-                          </div>
+                        ) : null}
+                        {!deleted ? actions(message, own) : null}
+                      </span>
+                    </div>
+                    {editingId === message.id ? (
+                      <div className="space-y-2">
+                        <Textarea
+                          aria-label={text.editMessage}
+                          onChange={(event) => onEditDraftChange?.(event.target.value)}
+                          value={editDraft}
+                        />
+                        <div className="flex gap-2">
+                          <Button onClick={() => onSaveEdit?.(message.id)} size="sm">
+                            {text.save}
+                          </Button>
+                          <Button onClick={onCancelEdit} size="sm" variant="ghost">
+                            {text.cancel}
+                          </Button>
                         </div>
-                      ) : (
-                        (message.content ?? text.removedMessage)
-                      )}
-                    </BubbleContent>
+                      </div>
+                    ) : (
+                      <BubbleContent>{message.content ?? text.removedMessage}</BubbleContent>
+                    )}
+                    {!deleted ? (
+                      <MessageAttachments files={message.attachments ?? []} locale={locale} />
+                    ) : null}
                     <time
                       className={`mt-1 block text-end text-[10px] tabular-nums ${own ? "text-primary-foreground/70" : "text-muted-foreground"}`}
                       dateTime={message.created_at}
                     >
-                      {sentAt}
+                      {sentAt(message.created_at)}
                     </time>
                   </Bubble>
-                  {message.deleted_at === null || message.deleted_at === undefined ? (
-                    <MessageFooter
-                      className={`${own ? "justify-end" : ""} transition-opacity [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover/message:opacity-100 [@media(hover:hover)]:group-focus-within/message:opacity-100`}
-                    >
-                      {onReply ? (
-                        <Button onClick={() => onReply(message.id)} size="sm" variant="ghost">
-                          {text.reply}
-                        </Button>
-                      ) : null}
-                      {onToggleReplies ? (
-                        <Button
-                          onClick={() => onToggleReplies(message.id)}
-                          size="sm"
-                          variant="ghost"
-                        >
-                          {text.replies}
-                        </Button>
-                      ) : null}
-                      {showReactions ? (
-                        <MessageReactions roomId={roomId} messageId={message.id} locale={locale} />
-                      ) : null}
-                      {message.author_id === actorId && onEdit ? (
-                        <Button onClick={() => onEdit(message)} size="sm" variant="ghost">
-                          {text.editMessage}
-                        </Button>
-                      ) : null}
-                      {(message.author_id === actorId || canModerate) && onRemove ? (
-                        <Button onClick={() => onRemove(message.id)} size="sm" variant="ghost">
-                          {text.deleteMessage}
-                        </Button>
-                      ) : null}
-                      <MessageFiles
-                        canAttach={message.author_id === actorId}
-                        locale={locale}
-                        messageId={message.id}
-                      />
-                    </MessageFooter>
-                  ) : null}
                 </MessageContent>
               </Message>
               {replies[message.id] ? (
                 <ol
-                  className="ms-10 mt-3 space-y-3 border-s ps-4"
+                  className="ms-10 mt-2 space-y-2 border-s ps-4"
                   data-testid={`chat-replies-${message.id}`}
                 >
-                  {replies[message.id].map((reply) => (
-                    <li key={reply.id}>
-                      <Message align={reply.author_id === actorId ? "end" : "start"}>
-                        <MessageAvatar>
-                          <Avatar className="size-7 text-xs">
-                            <AvatarFallback>
-                              {reply.author_id.slice(0, 2).toUpperCase()}
-                            </AvatarFallback>
-                          </Avatar>
-                        </MessageAvatar>
-                        <MessageContent>
-                          <MessageHeader>
-                            {reply.author_id === actorId
-                              ? text.you
-                              : `${text.participant} ${reply.author_id.slice(0, 4)}`}
-                          </MessageHeader>
-                          <Bubble>
-                            <BubbleContent>{reply.content ?? text.removedMessage}</BubbleContent>
-                          </Bubble>
-                          {reply.deleted_at ? null : (
-                            <MessageFooter>
-                              <MessageFiles
-                                canAttach={reply.author_id === actorId}
-                                locale={locale}
-                                messageId={reply.id}
-                              />
-                            </MessageFooter>
-                          )}
-                        </MessageContent>
-                      </Message>
-                    </li>
-                  ))}
+                  {replies[message.id].map((reply) => {
+                    const replyOwn = reply.author_id === actorId;
+                    return (
+                      <li key={reply.id}>
+                        <Message align={replyOwn ? "end" : "start"} className="gap-2">
+                          <MessageAvatar>
+                            <Avatar className="size-7 text-xs">
+                              <AvatarFallback>{authorInitials(reply.author_id)}</AvatarFallback>
+                            </Avatar>
+                          </MessageAvatar>
+                          <MessageContent className={replyOwn ? "w-full items-end" : "w-full"}>
+                            <Bubble
+                              className="w-full"
+                              variant={replyOwn ? "default" : "secondary"}
+                              align={replyOwn ? "end" : "start"}
+                            >
+                              <p className="mb-1 truncate text-xs font-semibold opacity-70">
+                                {authorLabel(reply, actorId, text)}
+                              </p>
+                              <BubbleContent>{reply.content ?? text.removedMessage}</BubbleContent>
+                              {reply.deleted_at ? null : (
+                                <MessageAttachments
+                                  files={reply.attachments ?? []}
+                                  locale={locale}
+                                />
+                              )}
+                            </Bubble>
+                          </MessageContent>
+                        </Message>
+                      </li>
+                    );
+                  })}
                 </ol>
               ) : null}
             </li>

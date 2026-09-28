@@ -95,31 +95,36 @@ export function MonthCalendar({
   };
 
   return (
-    <section aria-label={monthLabel} className="space-y-4">
+    <section aria-label={monthLabel} className="space-y-3">
       <div className="flex items-center justify-between">
         <Button
           aria-label={locale === "fa" ? "ماه قبل" : "Previous month"}
+          className="size-8 rounded-lg"
           onClick={() => shiftMonth(-1)}
           size="icon"
           type="button"
           variant="ghost"
         >
-          <ChevronLeft className="size-4" />
+          <ChevronLeft className="size-4 rtl:rotate-180" />
         </Button>
-        <p className="text-sm font-semibold">{monthLabel}</p>
+        <p className="text-sm font-medium tracking-tight">{monthLabel}</p>
         <Button
           aria-label={locale === "fa" ? "ماه بعد" : "Next month"}
+          className="size-8 rounded-lg"
           onClick={() => shiftMonth(1)}
           size="icon"
           type="button"
           variant="ghost"
         >
-          <ChevronRight className="size-4" />
+          <ChevronRight className="size-4 rtl:rotate-180" />
         </Button>
       </div>
-      <div className="grid grid-cols-7 gap-y-2 text-center text-xs">
+      <div className="grid grid-cols-7 gap-1 text-center">
         {weekdays.map((weekday, index) => (
-          <span className="min-w-0 font-medium text-muted-foreground" key={index}>
+          <span
+            className="flex h-8 min-w-0 items-center justify-center text-[0.7rem] font-medium text-muted-foreground"
+            key={index}
+          >
             {weekday}
           </span>
         ))}
@@ -131,20 +136,28 @@ export function MonthCalendar({
           current.setUTCDate(current.getUTCDate() + index);
           const date = dateKey(current);
           const selected = date === selectedDate;
+          const isToday = date === today;
           const day = calendar === "persian" ? persianParts(current).day : current.getUTCDate();
+          let stateClass = "hover:bg-accent hover:text-accent-foreground";
+          if (selected) {
+            stateClass =
+              "bg-primary font-semibold text-primary-foreground shadow-sm hover:bg-primary/90";
+          } else if (isToday) {
+            stateClass = "font-semibold text-primary ring-1 ring-primary/40 hover:bg-accent";
+          }
           return (
             <button
-              aria-current={date === today ? "date" : undefined}
+              aria-current={isToday ? "date" : undefined}
               aria-label={date}
               aria-pressed={selected}
-              className={`relative mx-auto grid size-8 place-items-center rounded-lg text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${selected ? "bg-primary font-semibold text-primary-foreground" : "hover:bg-muted"}`}
+              className={`relative mx-auto grid size-9 place-items-center rounded-lg text-sm tabular-nums transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 ${stateClass}`}
               key={date}
               onClick={() => onSelectDate(date)}
               type="button"
             >
               {numberFormatter.format(day)}
               {active.has(date) && !selected ? (
-                <span className="absolute bottom-0.5 size-1 rounded-full bg-primary" />
+                <span className="absolute bottom-1 size-1 rounded-full bg-primary" />
               ) : null}
             </button>
           );

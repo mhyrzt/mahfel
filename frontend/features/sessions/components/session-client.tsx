@@ -253,7 +253,11 @@ export function SessionClient({
           }
           return;
         case "chat_event":
-          if (message.event.room_id === roomId && chatHeadRef.current !== null) {
+          if (
+            message.event.room_id === roomId &&
+            (message.event.session_id ?? null) === sessionId &&
+            chatHeadRef.current !== null
+          ) {
             const isNew = message.event.sequence > chatHeadRef.current;
             chatHeadRef.current = Math.max(chatHeadRef.current, message.event.sequence);
             if (isNew && message.event.kind === "created" && message.event.author_id !== actorId) {
@@ -522,6 +526,7 @@ export function SessionClient({
         conversation={
           <RoomChat
             roomId={roomId}
+            sessionId={sessionId}
             actorId={actorId}
             locale={locale}
             canModerate={capabilities.canModerate}

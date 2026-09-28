@@ -14,6 +14,7 @@ import { UploadCloud } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { roomCopy } from "@/features/rooms/room-copy";
 import { browserApiClient } from "@/lib/api/browser";
+import { apiFailureFrom } from "@/lib/api/errors";
 import type { components } from "@/lib/api/generated/schema";
 import type { Locale } from "@/lib/i18n/config";
 
@@ -187,13 +188,23 @@ export function ContextFileLibrary({
     try {
       await browserApiClient.delete(`/v1/files/${encodeURIComponent(fileId)}`);
       await refresh();
-    } catch {
-      setError(text.fileUnavailable);
+    } catch (failure) {
+      setError(
+        apiFailureFrom(failure).kind === "conflict" ? text.fileInUse : text.fileDeleteFailed,
+      );
     }
   }
 
   let previewContent: ReactNode = null;
-  if (preview?.mime.startsWith("image/")) {
+  if (preview?.mime.startsWith("video/")) {
+    previewContent = (
+      <video
+        className="mx-auto h-auto max-h-[70dvh] w-full rounded-md"
+        controls
+        src={preview.url}
+      />
+    );
+  } else if (preview?.mime.startsWith("image/")) {
     previewContent = (
       <Image
         alt={preview.name}
@@ -240,6 +251,7 @@ export function ContextFileLibrary({
           <UploadCloud aria-hidden="true" className="size-5" />
           <span>{uploading ? text.uploading : dropLabel}</span>
           <input
+            accept="application/pdf,image/png,image/jpeg,video/mp4,video/webm"
             aria-label={text.upload}
             className="sr-only"
             disabled={uploading}

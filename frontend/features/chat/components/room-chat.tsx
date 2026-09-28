@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 
+import { uploadFile } from "@/features/files/client";
 import { roomCopy } from "@/features/rooms/room-copy";
 import { browserApiClient } from "@/lib/api/browser";
 import type { components } from "@/lib/api/generated/schema";
@@ -26,12 +27,14 @@ function mergeMessages(existing: Message[], incoming: Message[], older = false):
 
 export function RoomChat({
   roomId,
+  sessionId,
   locale,
   actorId,
   canModerate = false,
   compact = false,
 }: Readonly<{
   roomId: string;
+  sessionId?: string;
   locale: Locale;
   actorId?: string;
   canModerate?: boolean;
@@ -41,6 +44,7 @@ export function RoomChat({
   const [messages, setMessages] = useState<Message[]>([]);
   const [cursor, setCursor] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
+  const [attachments, setAttachments] = useState<File[]>([]);
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -53,7 +57,13 @@ export function RoomChat({
       try {
         const { data } = await browserApiClient.get<History>(
           `/v1/rooms/${encodeURIComponent(roomId)}/messages`,
-          { params: before ? { cursor: before, limit: 50 } : { limit: 50 } },
+          {
+            params: {
+              limit: 50,
+              ...(before ? { cursor: before } : {}),
+              ...(sessionId ? { session_id: sessionId } : {}),
+            },
+          },
         );
         setMessages((previous) => mergeMessages(previous, data.messages, kind === "older"));
         if (kind !== "refresh") {
@@ -66,7 +76,7 @@ export function RoomChat({
         setLoading(false);
       }
     },
-    [roomId, text.messageUnavailable],
+    [roomId, sessionId, text.messageUnavailable],
   );
 
   useEffect(() => {
@@ -86,6 +96,10 @@ export function RoomChat({
             .catch(() => undefined);
         }
         if (message.type === "chat_event" && message.event.room_id === roomId) {
+          const scoped = message.event.session_id ?? null;
+          if (scoped !== (sessionId ?? null)) {
+            return;
+          }
           void load("refresh");
           if (document.visibilityState === "visible") {
             void browserApiClient
@@ -106,7 +120,7 @@ export function RoomChat({
     return () => {
       client.close();
     };
-  }, [roomId, load]);
+  }, [roomId, sessionId, load]);
 
   async function send(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -115,12 +129,22 @@ export function RoomChat({
       return;
     }
     setSending(true);
+    const files = attachments;
     try {
       const target = `/v1/rooms/${encodeURIComponent(roomId)}/messages`;
       const { data } = await browserApiClient.post<Message>(
         replyTo ? `${target}/${encodeURIComponent(replyTo)}/replies` : target,
-        { content },
+        {
+          content,
+          ...(sessionId && !replyTo ? { session_id: sessionId } : {}),
+        },
       );
+      for (const file of files) {
+        await uploadFile(file, { kind: "chat_message", id: data.id });
+      }
+      if (files.length > 0 && !replyTo) {
+        await load("refresh");
+      }
       if (replyTo) {
         const parentId = replyTo;
         setReplies((previous) => ({
@@ -131,6 +155,7 @@ export function RoomChat({
         setMessages((previous) => mergeMessages(previous, [data]));
       }
       setDraft("");
+      setAttachments([]);
       setReplyTo(null);
       setError(null);
     } catch {
@@ -200,6 +225,11 @@ export function RoomChat({
       sending={sending}
       replying={Boolean(replyTo)}
       onCancelReply={() => setReplyTo(null)}
+      attachments={attachments}
+      onAttachFiles={(files) => setAttachments((previous) => [...previous, ...files])}
+      onRemoveAttachment={(index) =>
+        setAttachments((previous) => previous.filter((_, position) => position !== index))
+      }
       error={error}
     >
       <ChatMessageList

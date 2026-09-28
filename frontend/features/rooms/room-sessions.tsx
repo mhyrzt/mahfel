@@ -11,6 +11,7 @@ import { cn } from "@/lib/utils";
 
 import { roomCopy } from "./room-copy";
 import { SessionFiles } from "./session-files";
+import { SessionParticipantCount } from "./session-participant-count";
 import { SessionSettingsDialog } from "./session-settings-dialog";
 
 type Session = components["schemas"]["SessionResponse"];
@@ -112,6 +113,7 @@ export function RoomSessions({
                           {session.scheduled_duration_minutes} {text.minutes}
                         </span>
                       ) : null}
+                      <SessionParticipantCount live={live} locale={locale} sessionId={session.id} />
                     </div>
                     <Link
                       className="block truncate text-lg font-semibold tracking-tight underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"

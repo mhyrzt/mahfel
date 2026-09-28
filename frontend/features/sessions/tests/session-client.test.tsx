@@ -212,6 +212,7 @@ test("opens the sidebar conversation from a new-message toast without leaving th
     type: "chat_event",
     event: {
       room_id: "room-1",
+      session_id: "session-1",
       author_id: "actor-2",
       kind: "created",
       sequence: 4,
@@ -222,4 +223,25 @@ test("opens the sidebar conversation from a new-message toast without leaving th
   fireEvent.click(screen.getByRole("button", { name: /New message/ }));
   expect(await screen.findByRole("dialog", { name: "Conversation" })).toBeInTheDocument();
   expect(push).not.toHaveBeenCalled();
+});
+
+test("does not notify a session participant about a room-only message", () => {
+  getRoster.mockImplementation((url: string) =>
+    Promise.resolve({ data: url.endsWith("/messages") ? { messages: [], next_cursor: null } : [] }),
+  );
+  const client = mountSession();
+  act(() => client.onStatus("connected"));
+  deliver({ v: 1, type: "chat_subscribed", room_id: "room-1", head_sequence: 3 });
+  deliver({
+    v: 1,
+    type: "chat_event",
+    event: {
+      room_id: "room-1",
+      author_id: "actor-2",
+      kind: "created",
+      sequence: 4,
+      content: "Room-only note",
+    },
+  });
+  expect(screen.queryByText("Room-only note")).not.toBeInTheDocument();
 });

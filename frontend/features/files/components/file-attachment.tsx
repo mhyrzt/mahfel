@@ -2,7 +2,16 @@
 
 import { useEffect, useState } from "react";
 import Image from "next/image";
-import { Download, Eye, File, FileImage, FileText, Presentation, Trash2 } from "lucide-react";
+import {
+  Download,
+  Eye,
+  File,
+  FileImage,
+  FileText,
+  FileVideo,
+  Presentation,
+  Trash2,
+} from "lucide-react";
 
 import {
   Attachment,
@@ -30,6 +39,8 @@ export function canPreviewFile(mime: string): boolean {
     "image/gif",
     "image/webp",
     "image/avif",
+    "video/mp4",
+    "video/webm",
   ].includes(mime);
 }
 
@@ -108,6 +119,8 @@ export function FileAttachment({
     );
   } else if (file.mime === "application/pdf" || file.mime.startsWith("text/")) {
     media = <FileText aria-hidden="true" />;
+  } else if (file.mime.startsWith("video/")) {
+    media = <FileVideo aria-hidden="true" />;
   }
   return (
     <Attachment

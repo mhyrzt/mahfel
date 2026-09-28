@@ -70,6 +70,7 @@ export function ConversationSidebar({
         aria-describedby={undefined}
         className={`flex w-[min(100vw,26rem)] flex-col gap-0 bg-sidebar p-0 sm:max-w-none ${locale === "fa" ? "md:right-16" : "md:left-16"}`}
         dir={locale === "fa" ? "rtl" : "ltr"}
+        hideClose
         side={locale === "fa" ? "right" : "left"}
       >
         <SheetHeader className="shrink-0 border-b px-5 py-5 text-start">

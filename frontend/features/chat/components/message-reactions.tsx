@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { SmilePlus } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { roomCopy } from "@/features/rooms/room-copy";
@@ -57,8 +58,16 @@ export function MessageReactions({
 
   return (
     <div data-testid={`reactions-${messageId}`}>
-      <Button aria-expanded={open} onClick={() => void toggle()} size="sm" variant="ghost">
-        {text.react}
+      <Button
+        aria-expanded={open}
+        aria-label={text.react}
+        className="size-6 text-current opacity-70 hover:opacity-100"
+        onClick={() => void toggle()}
+        size="icon"
+        type="button"
+        variant="ghost"
+      >
+        <SmilePlus aria-hidden="true" className="size-4" />
       </Button>
       {open ? (
         <div className="mt-1 flex flex-wrap items-center gap-1">

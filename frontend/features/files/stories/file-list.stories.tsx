@@ -29,6 +29,32 @@ const files = [
     size_bytes: 512,
     status: "ready",
   },
+  {
+    id: "file-3",
+    file_name: "Lecture recording.mp4",
+    owner_id: "teacher-1",
+    context_id: "research-methods",
+    context_kind: "room" as const,
+    checksum_sha256: "demo",
+    created_at: "2026-09-24T09:00:00Z",
+    updated_at: "2026-09-24T09:00:00Z",
+    mime: "video/mp4",
+    size_bytes: 18_000_000,
+    status: "ready",
+  },
+  {
+    id: "file-4",
+    file_name: "Screen capture.webm",
+    owner_id: "teacher-1",
+    context_id: "research-methods",
+    context_kind: "room" as const,
+    checksum_sha256: "demo",
+    created_at: "2026-09-24T09:00:00Z",
+    updated_at: "2026-09-24T09:00:00Z",
+    mime: "video/webm",
+    size_bytes: 9_500_000,
+    status: "ready",
+  },
 ];
 
 const meta = {

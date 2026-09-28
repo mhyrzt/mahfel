@@ -117,6 +117,7 @@ export function SessionFilePicker({
   return (
     <div className="space-y-2" data-testid={`session-file-picker-${sessionId}`}>
       <input
+        accept="application/pdf,image/png,image/jpeg,video/mp4,video/webm"
         aria-label={text.uploadFromComputer}
         className="sr-only"
         disabled={pending}
