@@ -5,7 +5,7 @@ status: In Progress
 assignee:
   - '@codex'
 created_date: '2026-09-08 00:31'
-updated_date: '2026-09-24 06:20'
+updated_date: '2026-09-26 14:38'
 labels: []
 milestone: m-7
 dependencies: []
@@ -42,4 +42,6 @@ Connect Lexical notes to the Yjs provider with reconnect, permission changes, sh
 Design note: The collaborative text editor shares scroll or viewport position room-wide. When one participant navigates, all follow the same view; the ordered shared-position changes are part of the replay timeline when recording is enabled.
 
 Implementation present. Validation: backend Clippy and formatting, PostgreSQL migration integration, API unit suite, frontend typecheck, lint, formatting and 19 tests, production webpack build. Acceptance needs live multi-client/restart verification before marking done.
+
+2026-09-26: Lexical collaboration now uses the roster display name and its toolbar has grouped formatting and undo/redo controls. Frontend typecheck/lint and focused session tests pass; live two-browser notes behavior remains unverified.
 <!-- SECTION:NOTES:END -->

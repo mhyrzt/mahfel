@@ -5,7 +5,7 @@ status: In Progress
 assignee:
   - '@codex'
 created_date: '2026-09-08 00:31'
-updated_date: '2026-09-25 02:29'
+updated_date: '2026-09-26 14:40'
 labels: []
 milestone: m-7
 dependencies: []
@@ -44,4 +44,8 @@ Design note: Whiteboard pan and zoom are shared room state: a participant changi
 Implementation present. Validation: backend Clippy and formatting, PostgreSQL migration integration, API unit suite, frontend typecheck, lint, formatting and 19 tests, production webpack build. Acceptance needs live multi-client/restart verification before marking done.
 
 Embedded PNG/JPEG images now use verified session-file uploads, document-scoped registration, PostgreSQL delete protection, and stable Yjs file references. Lexical notes and Excalidraw whiteboard load bytes through authorized presigned downloads. Backend unit/integration and frontend unit checks pass; live two-browser convergence/restart acceptance remains open.
+
+2026-09-26: Stopped applying local Yjs map changes back into Excalidraw during drawing; editing now waits for socket permission. Added awareness cursor relay and restricted viewer input/viewport updates in both client and PostgreSQL store. Source checks pass; two-browser convergence and reload acceptance remain unverified.
+
+2026-09-26: Presentation pane now offers direct session-file upload, and local Caddy adds CORS for the presigned S3 host. The prior API presentation error mapping was corrected in this working tree. Live upload and display still need a rebuilt stack and browser validation.
 <!-- SECTION:NOTES:END -->
