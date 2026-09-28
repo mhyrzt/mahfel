@@ -1,11 +1,11 @@
 ---
 id: TASK-49
 title: M7-06 Whiteboard object model
-status: In Progress
+status: Done
 assignee:
   - '@codex'
 created_date: '2026-09-08 00:31'
-updated_date: '2026-09-26 14:40'
+updated_date: '2026-09-28 08:41'
 labels: []
 milestone: m-7
 dependencies: []
@@ -27,7 +27,7 @@ Dependencies: M7-02–M7-04
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Two browsers edit objects concurrently and converge; reload preserves board.
+- [x] #1 Two browsers edit objects concurrently and converge; reload preserves board.
 <!-- AC:END -->
 
 ## Implementation Plan
@@ -48,4 +48,12 @@ Embedded PNG/JPEG images now use verified session-file uploads, document-scoped 
 2026-09-26: Stopped applying local Yjs map changes back into Excalidraw during drawing; editing now waits for socket permission. Added awareness cursor relay and restricted viewer input/viewport updates in both client and PostgreSQL store. Source checks pass; two-browser convergence and reload acceptance remain unverified.
 
 2026-09-26: Presentation pane now offers direct session-file upload, and local Caddy adds CORS for the presigned S3 host. The prior API presentation error mapping was corrected in this working tree. Live upload and display still need a rebuilt stack and browser validation.
+
+2026-09-28: User confirmed M7 implementation, testing, and refinement are complete and requested milestone closure. Acceptance closed on that confirmation; no tests rerun for this bookkeeping update.
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Completed as part of M7 collaborative notes and whiteboard. Implementation, testing, and refinement confirmed complete by the user on 2026-09-28.
+<!-- SECTION:FINAL_SUMMARY:END -->
