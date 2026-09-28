@@ -8,7 +8,7 @@ function isPublicPath(pathname: string): boolean {
   return PUBLIC_PATHS.some((path) => pathname === path || pathname.startsWith(`${path}/`));
 }
 
-export async function middleware(request: NextRequest): Promise<NextResponse> {
+export async function proxy(request: NextRequest): Promise<NextResponse> {
   const { pathname, search } = request.nextUrl;
   const publicPath = isPublicPath(pathname);
   const token = await getToken({
@@ -18,17 +18,13 @@ export async function middleware(request: NextRequest): Promise<NextResponse> {
     cookieName: sessionCookieName(),
   });
 
-  if (pathname !== "/" && token?.error && token.error !== "RefreshTemporarilyUnavailable") {
+  if (!publicPath && token?.error && token.error !== "RefreshTemporarilyUnavailable") {
     if (pathname.startsWith("/api/")) {
       return NextResponse.json({ error: "SessionExpired" }, { status: 401 });
     }
     const loginUrl = new URL("/login", request.url);
-    if (!publicPath) {
-      loginUrl.searchParams.set("callbackUrl", `${pathname}${search}`);
-    }
-    if (!loginUrl.searchParams.has("error")) {
-      loginUrl.searchParams.set("error", "SessionExpired");
-    }
+    loginUrl.searchParams.set("callbackUrl", `${pathname}${search}`);
+    loginUrl.searchParams.set("error", "SessionExpired");
     return NextResponse.redirect(loginUrl);
   }
 

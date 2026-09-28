@@ -18,6 +18,7 @@ interface ExtendedJWT extends JWT {
 
 const AUTH_UPSTREAM_TIMEOUT_MS = 10_000;
 const REFRESH_RETRY_MS = 5_000;
+const ACCESS_REFRESH_BUFFER_MS = 120_000;
 
 interface SignInAccount {
   access_token?: unknown;
@@ -158,7 +159,7 @@ export const jwtCallback = async ({
   if (current.refreshRetryAt && Date.now() < current.refreshRetryAt && current.error) {
     return current;
   }
-  if (Date.now() < current.expiresAt) {
+  if (Date.now() + ACCESS_REFRESH_BUFFER_MS < current.expiresAt) {
     return current;
   }
   if (!current.refreshToken || Date.now() >= current.refreshExpiresAt) {
@@ -200,7 +201,27 @@ export const serverSessionCallback = async ({
 }: {
   session: Session;
   token: JWT;
-}): Promise<Session & { accessToken?: string }> => ({
+}): Promise<Session & { accessToken?: string; accessTokenExpiresAt?: number }> => ({
   ...sessionFromToken(session, token),
   accessToken: (token as ExtendedJWT).accessToken,
+  accessTokenExpiresAt: (token as ExtendedJWT).expiresAt,
 });
+
+export function accessTokenFromServerSession(
+  session: {
+    accessToken?: string;
+    accessTokenExpiresAt?: number;
+    error?: string;
+  } | null,
+  now = Date.now(),
+): string | null {
+  if (
+    !session?.accessToken ||
+    !session.accessTokenExpiresAt ||
+    now >= session.accessTokenExpiresAt ||
+    (session.error && session.error !== "RefreshTemporarilyUnavailable")
+  ) {
+    return null;
+  }
+  return session.accessToken;
+}

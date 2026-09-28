@@ -31,7 +31,8 @@ export const AUTH_CONFIG = {
     issuer: keycloakIssuer,
     clientId: process.env.KEYCLOAK_CLIENT_ID ?? "mahfel-web",
     clientSecret: process.env.KEYCLOAK_CLIENT_SECRET ?? "mahfel-web-dev-secret",
-    tokenEndpoint: `${keycloakIssuer}/protocol/openid-connect/token`,
+    tokenEndpoint:
+      process.env.KEYCLOAK_TOKEN_ENDPOINT ?? `${keycloakIssuer}/protocol/openid-connect/token`,
   },
   session: {
     maxAge: sessionMaxAgeSeconds,

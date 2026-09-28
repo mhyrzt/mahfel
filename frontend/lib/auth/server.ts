@@ -2,6 +2,7 @@ import "server-only";
 import { cache } from "react";
 import { getServerSession } from "next-auth";
 import { serverAuthOptions } from "./options";
+import { accessTokenFromServerSession } from "./callbacks";
 
 const getCachedServerSession = cache(() => getServerSession(serverAuthOptions));
 
@@ -22,12 +23,11 @@ export async function getServerSessionUser(): Promise<ServerSessionUser | null> 
 
 export async function getServerAccessToken(): Promise<string | null> {
   const session = await getCachedServerSession();
-  const typedSession = session as { accessToken?: string; error?: string } | null;
-  if (typedSession?.error === "RefreshTemporarilyUnavailable") {
-    return null;
-  }
-  if (!typedSession?.accessToken || typedSession.error) {
-    return null;
-  }
-  return typedSession.accessToken;
+  return accessTokenFromServerSession(
+    session as {
+      accessToken?: string;
+      accessTokenExpiresAt?: number;
+      error?: string;
+    } | null,
+  );
 }

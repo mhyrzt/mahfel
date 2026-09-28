@@ -12,14 +12,29 @@ export class ServerApiAuthenticationError extends Error {
   }
 }
 
+export class ServerApiRequestError extends Error {
+  constructor(public readonly status?: number) {
+    super(status ? `Server API request failed (${status}).` : "Server API request failed.");
+    this.name = "ServerApiRequestError";
+  }
+}
+
 export async function createServerApiClient(): Promise<AxiosInstance> {
   const accessToken = await getServerAccessToken();
   if (!accessToken) {
     throw new ServerApiAuthenticationError();
   }
-  return axios.create({
+  const client = axios.create({
     baseURL: serverApiBaseUrl,
     headers: { authorization: `Bearer ${accessToken}` },
     timeout: 10_000,
   });
+  client.interceptors.response.use(undefined, (error: unknown) => {
+    const status = axios.isAxiosError(error) ? error.response?.status : undefined;
+    if (status === 401) {
+      throw new ServerApiAuthenticationError();
+    }
+    throw new ServerApiRequestError(status);
+  });
+  return client;
 }
