@@ -1,14 +1,18 @@
+# syntax=docker/dockerfile:1
+
 FROM docker.arvancloud.ir/oven/bun:1.4.2-alpine AS dependencies
 WORKDIR /app
 COPY frontend/package.json frontend/bun.lock ./
-RUN bun install --frozen-lockfile
+RUN --mount=type=cache,id=mahfel-web-bun,target=/root/.bun/install/cache,sharing=locked \
+    bun install --frozen-lockfile
 
 FROM dependencies AS builder
 WORKDIR /app
 COPY frontend/ ./
 ARG NEXT_PUBLIC_MAHFEL_API_URL=https://api.mahfel.localhost
 ENV NEXT_PUBLIC_MAHFEL_API_URL=$NEXT_PUBLIC_MAHFEL_API_URL
-RUN bun run build
+RUN --mount=type=cache,id=mahfel-web-next,target=/app/.next/cache,sharing=locked \
+    bun run build
 
 FROM docker.arvancloud.ir/oven/bun:1.4.2-alpine AS runtime
 WORKDIR /app

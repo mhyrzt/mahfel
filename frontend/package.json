@@ -17,6 +17,7 @@
     "generate:ws": "bun scripts/generate-websocket-types.ts && prettier --write lib/websocket/generated/messages.ts",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:e2e": "playwright test --config=playwright/playwright.config.ts",
     "typecheck": "next typegen && tsc --noEmit"
   },
   "dependencies": {
@@ -40,6 +41,7 @@
     "axios": "^1.20.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "embla-carousel-react": "^8.6.0",
     "lexical": "^0.51.0",
     "lib0": "^0.2.117",
     "lucide-react": "^0.544.0",
@@ -54,6 +56,7 @@
     "yjs": "^13.6.33"
   },
   "devDependencies": {
+    "@playwright/test": "^1.63.0",
     "@storybook/addon-a11y": "^10.6.0",
     "@storybook/nextjs": "10.6.0",
     "@tailwindcss/postcss": "^4.1.14",

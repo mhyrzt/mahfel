@@ -9,6 +9,7 @@ frontend/.next/
 frontend/out/
 frontend/storybook-static/
 frontend/coverage/
+frontend/playwright/artifacts/
 frontend/.env.local
 frontend/*.tsbuildinfo
 
