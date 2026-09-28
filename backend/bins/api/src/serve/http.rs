@@ -46,7 +46,7 @@ pub(super) async fn app(
     // One verifier serves both HTTP extraction and WebSocket upgrades.
     let authentication: std::sync::Arc<dyn http::auth::RequestAuthenticator> =
         Arc::new(http::auth::TokenAuthentication::new(
-            mahfel_auth::TokenVerifier::new(settings::jwt(settings)),
+            mahfel_auth::TokenVerifier::new(settings::jwt(settings)?),
         ));
     // Provisioning is the only path that touches identity storage; linking
     // writes the local user id onto the Keycloak identity.

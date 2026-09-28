@@ -14,6 +14,7 @@ use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use jsonwebtoken::{Algorithm, DecodingKey, Validation};
 use serde::Deserialize;
 use std::{
+    net::{IpAddr, SocketAddr},
     sync::Arc,
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
@@ -22,6 +23,10 @@ use std::{
 #[derive(Clone, Debug)]
 pub struct TokenVerifierConfig {
     pub issuer_url: String,
+    /// Optional address used to resolve the issuer host for discovery and JWKS requests.
+    pub issuer_resolve_ip: Option<IpAddr>,
+    /// Additional trusted root for issuer discovery and JWKS requests.
+    pub issuer_ca_cert: Option<reqwest::Certificate>,
     /// Audience or authorized party the token must be issued for.
     pub audience: String,
     /// Clock skew tolerated when validating time claims.
@@ -37,11 +42,19 @@ impl TokenVerifierConfig {
     pub fn new(issuer_url: impl Into<String>, audience: impl Into<String>) -> Self {
         Self {
             issuer_url: issuer_url.into(),
+            issuer_resolve_ip: None,
+            issuer_ca_cert: None,
             audience: audience.into(),
             leeway: crate::DEFAULT_LEEWAY,
             key_ttl: DEFAULT_KEY_TTL,
             http_timeout: DEFAULT_HTTP_TIMEOUT,
         }
+    }
+
+    /// Add a PEM-encoded local root used to validate the configured issuer.
+    pub fn with_issuer_ca_cert(mut self, pem: &[u8]) -> Result<Self, reqwest::Error> {
+        self.issuer_ca_cert = Some(reqwest::Certificate::from_pem(pem)?);
+        Ok(self)
     }
 }
 
@@ -58,14 +71,22 @@ pub struct TokenVerifier {
 impl TokenVerifier {
     #[must_use]
     pub fn new(config: TokenVerifierConfig) -> Self {
+        let issuer_url = config.issuer_url.trim_end_matches('/').to_owned();
+        let mut http = reqwest::Client::builder().timeout(config.http_timeout);
+        if let Some(certificate) = config.issuer_ca_cert {
+            http = http.add_root_certificate(certificate);
+        }
+        if let Some(resolve_ip) = config.issuer_resolve_ip
+            && let Ok(issuer) = reqwest::Url::parse(&issuer_url)
+            && let (Some(host), Some(port)) = (issuer.host_str(), issuer.port_or_known_default())
+        {
+            http = http.resolve(host, SocketAddr::new(resolve_ip, port));
+        }
         Self {
             audience: config.audience,
             leeway: config.leeway,
-            http: reqwest::Client::builder()
-                .timeout(config.http_timeout)
-                .build()
-                .unwrap_or_default(),
-            issuer_url: config.issuer_url.trim_end_matches('/').to_owned(),
+            http: http.build().unwrap_or_default(),
+            issuer_url,
             discovery: tokio::sync::Mutex::new(None),
             keys: tokio::sync::Mutex::new(None),
         }

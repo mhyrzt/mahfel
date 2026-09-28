@@ -21,6 +21,9 @@ max_message_bytes = 65536
 
 [oidc]
 issuer_url = "https://auth.mahfel.localhost/realms/rastai"
+# Optional IP override for issuer discovery and JWKS requests; issuer validation still uses issuer_url.
+# issuer_resolve_ip = "127.0.0.1"
+# issuer_ca_cert_path = "/path/to/local-ca.pem"
 client_id = "mahfel-api"
 client_secret = "mahfel-dev-secret"
 redirect_uri = "https://api.mahfel.localhost/v1/auth/oidc/callback"

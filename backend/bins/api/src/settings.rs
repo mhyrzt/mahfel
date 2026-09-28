@@ -47,11 +47,20 @@ pub(crate) fn allowed_origin(settings: &Settings) -> Result<HeaderValue> {
 }
 
 /// Verification configuration for the token Keycloak mints for `mahfel-api`.
-pub(crate) fn jwt(settings: &Settings) -> TokenVerifierConfig {
-    TokenVerifierConfig::new(
+pub(crate) fn jwt(settings: &Settings) -> Result<TokenVerifierConfig> {
+    let mut config = TokenVerifierConfig::new(
         settings.oidc.issuer_url.clone(),
         settings.oidc.client_id.clone(),
-    )
+    );
+    config.issuer_resolve_ip = settings.oidc.issuer_resolve_ip;
+    if let Some(path) = &settings.oidc.issuer_ca_cert_path {
+        let pem = std::fs::read(path)
+            .with_context(|| format!("read OIDC issuer CA certificate from {path}"))?;
+        config = config
+            .with_issuer_ca_cert(&pem)
+            .context("parse OIDC issuer CA certificate")?;
+    }
+    Ok(config)
 }
 
 /// Keycloak Admin API settings for linking local users to identities.

@@ -7,13 +7,16 @@ use axum::{
     http::{HeaderValue, header, request::Parts},
 };
 use mahfel_application::ports::Principal;
-use mahfel_auth::AuthenticatedIdentity;
+use mahfel_auth::{AuthenticatedIdentity, TokenError};
 
 /// Maps an authentication failure to its HTTP status.
 fn rejection(error: AuthenticationError) -> ApiError {
     match error {
         AuthenticationError::NotProvisioned => ApiError::forbidden("account is not provisioned"),
         AuthenticationError::Internal => ApiError::unavailable("authentication unavailable"),
+        AuthenticationError::Token(
+            TokenError::ProviderUnavailable | TokenError::KeysUnavailable,
+        ) => ApiError::unavailable("authentication unavailable"),
         _ => ApiError::unauthorized("authentication required"),
     }
 }
@@ -23,7 +26,8 @@ fn rejection(error: AuthenticationError) -> ApiError {
 /// A bearer credential that starts with `mhf_` is authenticated as a service
 /// principal; every other credential is verified as a Keycloak access token.
 /// Rejects with `401` when the credential is missing or invalid, and `403` when
-/// a token has no linked application user.
+/// a token has no linked application user. Returns `503` when the identity
+/// provider's metadata or signing keys are unavailable.
 pub struct Authenticated(pub Principal);
 
 impl FromRequestParts<crate::http::state::AppState> for Authenticated {
@@ -41,11 +45,10 @@ impl FromRequestParts<crate::http::state::AppState> for Authenticated {
                 .await
                 .map_err(rejection)?,
             _ => {
-                let claims = state
-                    .authentication
-                    .verify(token)
-                    .await
-                    .map_err(rejection)?;
+                let claims = state.authentication.verify(token).await.map_err(|error| {
+                    tracing::debug!(%error, "bearer token verification failed");
+                    rejection(error)
+                })?;
                 principal_from_claims(&claims).map_err(rejection)?
             }
         };
@@ -71,7 +74,10 @@ impl FromRequestParts<crate::http::state::AppState> for VerifiedToken {
             .verify(token)
             .await
             .map(Self)
-            .map_err(rejection)
+            .map_err(|error| {
+                tracing::debug!(%error, "bearer token verification failed");
+                rejection(error)
+            })
     }
 }
 
