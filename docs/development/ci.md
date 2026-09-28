@@ -30,6 +30,8 @@ publishing without waiting for application jobs. Pages also performs its own str
 
 Backend compile jobs install Python and `python3-pip` alongside the native toolchain because
 `mediasoup-sys` installs its Python build dependencies through `python3 -m pip`.
+Rust compile jobs limit Cargo to two build processes and disable dev/test debug information to
+reduce memory use while compiling the AWS SDK and native media dependencies on the shared runner.
 
 The `prepare` stage runs `cargo fetch --locked` and `bun install --frozen-lockfile` for the selected
 components before application checks. These jobs populate lockfile/toolchain-keyed dependency
@@ -41,6 +43,11 @@ each backend compile job's setup. Vitest runs with two workers to bound memory
 and CPU use on shared runners. Trivy caches its databases. Nextest and
 Vitest upload JUnit reports, including on failure. The CI nextest profile allows up to ten minutes
 for slow infrastructure tests and writes `target/nextest/ci/junit.xml`.
+
+The frontend test job uses Node 24.15.0 to execute Vitest and jsdom. It installs the pinned Bun
+1.4.2 binary and still uses Bun for frozen dependency installation. GitHub's Bun release archive
+must be reachable from the runner. Tests get a 15-second timeout for DOM-heavy interactions under
+shared-runner load. The other frontend jobs use the Bun image.
 
 ## Docker runner requirements
 

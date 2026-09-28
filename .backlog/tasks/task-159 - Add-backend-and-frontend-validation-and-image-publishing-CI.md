@@ -5,7 +5,7 @@ status: Done
 assignee:
   - '@codex'
 created_date: '2026-09-28 08:56'
-updated_date: '2026-09-28 10:59'
+updated_date: '2026-09-28 11:45'
 labels:
   - ci
   - backend
@@ -62,6 +62,12 @@ User withdrew the requested docs-job independence change. Removed only the new n
 Final docs requirement: docs-check starts immediately with needs=[] and is always selected on main. Pages has one required needs entry for docs-check with artifacts=false, so it starts automatically after docs-check succeeds and does not wait for application jobs. This supersedes the preceding docs withdrawal.
 
 Preparation/Pages validation: GitLab CI Lint main dry-run accepts the final assembled configuration. Local YAML assertions verify prepare-stage ordering, dependency cache writer/consumer policies, distinct Rust build cache, required Pages->docs-check edge and unchanged release stage gates. Focused frontend YAML formatting, strict docs and git diff checks pass. Live prepare-cache performance and Pages scheduling await the pushed pipeline.
+
+Live pipeline 2103789: both prepare jobs, backend lint and independent Pages succeeded. Failed jobs 7282536 (frontend-test) and 7282533 (backend-unit-test) never reached assertions: Vitest/jsdom workers failed under Bun; rustc compiling aws-sdk-s3 was killed by SIGKILL before test execution (resource pressure suspected, host OOM not confirmed). Switch only frontend-test to pinned Node 24.15.0 with Bun 1.4.2 bootstrap/frozen install and explicit Node Vitest entrypoint. Limit Cargo to two build jobs and disable CI dev/test debug symbols. Verified Node image availability and exact Bun bootstrap in a disposable container; local Node smoke passes while forced-Bun smoke cannot start a worker. CI Lint and strict docs pass; committed frontend full suite is being checked under Node.
+
+Node committed-source suite exposed one DOM-heavy pagination test exceeding the default five-second Vitest timeout. The same assertion passes with a 15-second budget under load (about 10.5 seconds of test execution). Added CI-only --testTimeout=15000; no test assertions or application code changed.
+
+Final local frontend validation against committed HEAD source (reusing the installed dependency tree): full Node suite ran all 125 tests; 124 passed and only pagination exceeded the old 5000ms budget. All eight tests in that file pass with --testTimeout=15000. No assertions were weakened. Node/Bun bootstrap container, focused YAML formatting, strict docs, configuration assertions and GitLab CI Lint pass. Backend mitigation remains unconfirmed until the next runner build; SIGKILL is not proof of a host OOM without host logs.
 <!-- SECTION:NOTES:END -->
 
 ## Final Summary

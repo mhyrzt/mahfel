@@ -1,5 +1,6 @@
 variables:
   BUN_CI_IMAGE: docker.arvancloud.ir/oven/bun:1.4.2
+  FRONTEND_TEST_IMAGE: docker.arvancloud.ir/node:24.15.0-bookworm
 
 .frontend-rules:
   rules:
@@ -62,9 +63,17 @@ frontend-typecheck:
 
 frontend-test:
   extends: .frontend-base
+  image: $FRONTEND_TEST_IMAGE
   stage: test
+  before_script:
+    - curl --fail --location --retry 3 https://github.com/oven-sh/bun/releases/download/bun-v1.4.2/bun-linux-x64.zip --output /tmp/bun.zip
+    - unzip -q /tmp/bun.zip -d /tmp
+    - install /tmp/bun-linux-x64/bun /usr/local/bin/bun
+    - bun --version && node --version
+    - cd frontend
+    - bun install --frozen-lockfile
   script:
-    - bun run test --maxWorkers=2 --reporter=default --reporter=junit --outputFile.junit=../ci-artifacts/frontend-junit.xml
+    - node node_modules/vitest/vitest.mjs run --maxWorkers=2 --testTimeout=15000 --reporter=default --reporter=junit --outputFile.junit=../ci-artifacts/frontend-junit.xml
   artifacts:
     when: always
     reports:
