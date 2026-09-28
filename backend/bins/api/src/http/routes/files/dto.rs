@@ -61,7 +61,9 @@ pub(crate) struct FileResponse {
     mime: String,
     size_bytes: u64,
     checksum_sha256: String,
+    #[serde(with = "super::super::rfc3339")]
     created_at: time::OffsetDateTime,
+    #[serde(with = "super::super::rfc3339")]
     updated_at: time::OffsetDateTime,
 }
 

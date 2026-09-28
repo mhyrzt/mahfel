@@ -60,7 +60,7 @@ pub(crate) struct CreateSessionRequest {
     #[schema(min_length = 1, max_length = 300)]
     pub(crate) title: Option<String>,
     /// Optional advisory start instant. A session may also be ad-hoc.
-    #[serde(default)]
+    #[serde(default, with = "super::super::rfc3339::option")]
     pub(crate) scheduled_start_at: Option<OffsetDateTime>,
     /// Optional advisory length in minutes, from 1 through 10080.
     #[schema(minimum = 1, maximum = 10080)]
@@ -75,6 +75,15 @@ where
     Option::<T>::deserialize(deserializer).map(Some)
 }
 
+fn nullable_rfc3339_patch<'de, D>(
+    deserializer: D,
+) -> Result<Option<Option<OffsetDateTime>>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    super::super::rfc3339::option::deserialize(deserializer).map(Some)
+}
+
 #[derive(Debug, Deserialize, ToSchema)]
 pub(crate) struct UpdateSessionDetailsRequest {
     /// Omit to keep, null to clear, or provide a custom title.
@@ -82,7 +91,7 @@ pub(crate) struct UpdateSessionDetailsRequest {
     #[schema(min_length = 1, max_length = 300)]
     pub(crate) title: Option<Option<String>>,
     /// Omit to keep, null to clear, or provide an RFC3339 instant.
-    #[serde(default, deserialize_with = "nullable_patch")]
+    #[serde(default, deserialize_with = "nullable_rfc3339_patch")]
     pub(crate) scheduled_start_at: Option<Option<OffsetDateTime>>,
     /// Omit to keep, null to clear, or provide 1 through 10080 minutes.
     #[serde(default, deserialize_with = "nullable_patch")]
@@ -98,16 +107,21 @@ pub(crate) struct SessionResponse {
     /// Effective display title, using the current room title when no custom title is set.
     pub(crate) title: String,
     pub(crate) title_overridden: bool,
+    #[serde(with = "super::super::rfc3339::option")]
     pub(crate) scheduled_start_at: Option<OffsetDateTime>,
     pub(crate) scheduled_duration_minutes: Option<u32>,
+    #[serde(with = "super::super::rfc3339::option")]
     pub(crate) started_at: Option<OffsetDateTime>,
+    #[serde(with = "super::super::rfc3339::option")]
     pub(crate) ended_at: Option<OffsetDateTime>,
     /// `None` means the session inherits its room's value.
     #[serde(default)]
     pub(crate) visibility: Option<SessionVisibilityDto>,
     #[serde(default)]
     pub(crate) admission: Option<AdmissionPolicyDto>,
+    #[serde(with = "super::super::rfc3339")]
     pub(crate) created_at: OffsetDateTime,
+    #[serde(with = "super::super::rfc3339")]
     pub(crate) updated_at: OffsetDateTime,
 }
 
@@ -169,6 +183,7 @@ pub(crate) async fn response_with_room(
 mod tests {
     use super::*;
     use mahfel_domain::{RoomId, SessionTitle};
+    use serde_json::json;
 
     #[test]
     fn details_patch_distinguishes_omitted_null_and_value() {
@@ -198,5 +213,34 @@ mod tests {
         let custom = SessionResponse::from_session(session, "New room title");
         assert_eq!(custom.title, "Custom");
         assert!(custom.title_overridden);
+    }
+
+    #[test]
+    fn session_wire_timestamps_are_rfc3339_strings() {
+        let start = OffsetDateTime::parse(
+            "2026-09-26T12:30:00+03:30",
+            &time::format_description::well_known::Rfc3339,
+        )
+        .expect("valid start");
+        let session = Session::schedule(RoomId::new(), Some(start), OffsetDateTime::now_utc());
+        let response = SessionResponse::from_session(session, "Room");
+        let value = serde_json::to_value(response).expect("serialize session");
+
+        assert_eq!(value["scheduled_start_at"], "2026-09-26T12:30:00+03:30");
+        assert!(value["created_at"].as_str().is_some());
+        assert!(value["updated_at"].as_str().is_some());
+        assert!(value["started_at"].is_null());
+
+        let request: CreateSessionRequest = serde_json::from_value(json!({
+            "scheduled_start_at": "2026-09-26T12:30:00+03:30"
+        }))
+        .expect("deserialize create request");
+        assert_eq!(request.scheduled_start_at, Some(start));
+
+        let patch: UpdateSessionDetailsRequest = serde_json::from_value(json!({
+            "scheduled_start_at": "2026-09-26T12:30:00+03:30"
+        }))
+        .expect("deserialize update request");
+        assert_eq!(patch.scheduled_start_at, Some(Some(start)));
     }
 }

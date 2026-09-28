@@ -34,8 +34,11 @@ pub(crate) struct ChatMessageResponse {
     pub(crate) author_id: String,
     /// Null for soft-deleted messages; prior text is preserved in revision audit data.
     pub(crate) content: Option<String>,
+    #[serde(with = "super::super::rfc3339")]
     pub(crate) created_at: OffsetDateTime,
+    #[serde(with = "super::super::rfc3339::option")]
     pub(crate) edited_at: Option<OffsetDateTime>,
+    #[serde(with = "super::super::rfc3339::option")]
     pub(crate) deleted_at: Option<OffsetDateTime>,
     pub(crate) parent_id: Option<String>,
 }
