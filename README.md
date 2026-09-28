@@ -15,6 +15,50 @@ The repository currently contains the engineering foundation only:
 See the [documentation](docs/index.md) for architecture, networking, deployment,
 and the implementation roadmap.
 
+## Feature comparison
+
+How Mahfel compares with common meeting and virtual-classroom products. The Mahfel column reflects
+implemented behavior, or a planned milestone where marked 🕒. Competitor entries are based on public
+product documentation at the time of writing and can change by plan, edition, or version — ❌ means
+"not advertised as a built-in feature" in the sources reviewed, not a definitive absence.
+
+Legend: ✅ supported · ❌ not supported / not advertised · 🕒 on the Mahfel roadmap (not yet implemented)
+
+| Feature | Mahfel | Google Meet | Jitsi Meet | BigBlueButton | Alocom | Skyroom |
+| --- | :---: | :---: | :---: | :---: | :---: | :---: |
+| Video meetings | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Large webinars / broadcasts | ❌ | ✅ | ✅ | ❌ | ✅ | ✅ |
+| Online classrooms | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Screen sharing | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| In-meeting chat | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Collaborative whiteboard | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Collaborative notes | ✅ | ❌ | ✅ | ✅ | ❌ | ❌ |
+| File sharing | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Presentation (PDF / images) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Video playback in presentation | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Session recording | 🕒 | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Transcription / captions | 🕒 | ✅ | ❌ | ❌ | ✅ | ❌ |
+| Breakout rooms / groups | ❌ | ✅ | ✅ | ✅ | ✅ | ❌ |
+| Polls / quizzes | ❌ | ✅ | ✅ | ✅ | ✅ | ❌ |
+| Raise hand | ❌ | ✅ | ✅ | ✅ | ❌ | ❌ |
+| Waiting room / lobby admission | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ |
+| Attendance & participation report | ✅ | ✅ | ❌ | ✅ | ✅ | ❌ |
+| Invite links / join by code | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Host moderation (mute / remove / block) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| SSO (OIDC / SAML) | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ |
+| Active speaker view | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ |
+| Virtual backgrounds / blur | ❌ | ✅ | ✅ | ✅ | ❌ | ❌ |
+| Noise suppression | ❌ | ✅ | ✅ | ❌ | ❌ | ❌ |
+| End-to-end encryption | ❌ | ✅ | ✅ | ❌ | ❌ | ❌ |
+| Phone dial-in (PSTN / SIP) | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ |
+| Live streaming (RTMP) | ❌ | ✅ | ✅ | ❌ | ❌ | ✅ |
+| Native mobile apps | ❌ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Self-hosting / on-premises | ✅ | ❌ | ✅ | ✅ | ✅ | ✅ |
+| REST API & integrations | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Farsi-first / RTL interface | ✅ | ❌ | ❌ | ❌ | ✅ | ✅ |
+| AI participant / assistant | 🕒 | ✅ | ❌ | ❌ | ❌ | ❌ |
+| AI voice interaction | 🕒 | ❌ | ❌ | ❌ | ❌ | ❌ |
+
 ## Quick start
 
 ```bash
