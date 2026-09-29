@@ -20,5 +20,10 @@ tonic.workspace = true
 tracing.workspace = true
 uuid.workspace = true
 
+mahfel-application = { path = "../../crates/application" }
+mahfel-storage = { path = "../../crates/storage" }
+serde_json.workspace = true
+sha2 = "0.10"
+
 [lints]
 workspace = true
