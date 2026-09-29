@@ -4849,6 +4849,161 @@
         }
       }
     },
+    "/v1/sessions/{session_id}/recordings": {
+      "get": {
+        "tags": [
+          "recordings"
+        ],
+        "operationId": "listSessionRecordings",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/RecordingResponse"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/sessions/{session_id}/recordings/commands": {
+      "post": {
+        "tags": [
+          "recordings"
+        ],
+        "operationId": "controlSessionRecording",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecordingCommandRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecordingResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/sessions/{session_id}/roster": {
       "get": {
         "tags": [
@@ -5459,6 +5614,12 @@
       "CreateSessionRequest": {
         "type": "object",
         "properties": {
+          "auto_record": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
           "scheduled_duration_minutes": {
             "type": [
               "integer",
@@ -6585,6 +6746,82 @@
           }
         }
       },
+      "RecordingActionDto": {
+        "type": "string",
+        "enum": [
+          "start",
+          "pause",
+          "resume",
+          "stop"
+        ]
+      },
+      "RecordingCommandRequest": {
+        "type": "object",
+        "required": [
+          "command_id",
+          "action"
+        ],
+        "properties": {
+          "action": {
+            "$ref": "#/components/schemas/RecordingActionDto"
+          },
+          "command_id": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
+      "RecordingResponse": {
+        "type": "object",
+        "required": [
+          "id",
+          "session_id",
+          "status",
+          "revision",
+          "capture_generation",
+          "started_at",
+          "partial"
+        ],
+        "properties": {
+          "capture_generation": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "id": {
+            "type": "string"
+          },
+          "partial": {
+            "type": "boolean"
+          },
+          "revision": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "session_id": {
+            "type": "string"
+          },
+          "started_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "status": {
+            "type": "string"
+          },
+          "stopped_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "warning": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
       "RedeemInviteLinkRequest": {
         "type": "object",
         "required": [
@@ -6892,6 +7129,9 @@
               }
             ]
           },
+          "auto_record": {
+            "type": "boolean"
+          },
           "created_at": {
             "type": "string",
             "format": "date-time"
@@ -7140,6 +7380,12 @@
       "UpdateSessionDetailsRequest": {
         "type": "object",
         "properties": {
+          "auto_record": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
           "scheduled_duration_minutes": {
             "type": [
               "integer",

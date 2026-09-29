@@ -38,6 +38,22 @@ pub(crate) async fn end(
         },
     )
     .await?;
+    if let Some(recordings) = &state.recordings {
+        let wait = async {
+            while recordings.capture_pending(session.id).await.unwrap_or(true) {
+                tokio::time::sleep(std::time::Duration::from_millis(250)).await;
+            }
+        };
+        if tokio::time::timeout(std::time::Duration::from_secs(30), wait)
+            .await
+            .is_err()
+        {
+            if let Err(error) = recordings.expire_capture(session.id).await {
+                tracing::warn!(%error, session_id = %session.id, "recording timeout state will reconcile after database recovery");
+            }
+            tracing::warn!(session_id = %session.id, "recording seal deadline reached before media cleanup");
+        }
+    }
     state
         .realtime
         .speakers

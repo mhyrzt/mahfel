@@ -9,6 +9,7 @@ mod coordination;
 mod database;
 mod http;
 mod media_registry;
+pub(crate) mod recordings;
 mod runtime;
 mod telemetry;
 

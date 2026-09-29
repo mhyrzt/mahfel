@@ -73,8 +73,8 @@ pub(super) async fn app(
     let collaboration: Arc<dyn mahfel_application::ports::CollaborationStore> =
         Arc::new(stores.collaboration.clone());
     let files: Arc<dyn mahfel_application::ports::FileStore> = Arc::new(stores.files.clone());
-    let storage: Arc<dyn FileStorage> =
-        Arc::new(S3FileStorage::new(S3Settings::from(&settings.storage)));
+    let recording_storage = S3FileStorage::new(S3Settings::from(&settings.storage));
+    let storage: Arc<dyn FileStorage> = Arc::new(recording_storage.clone());
     storage
         .check_bucket()
         .await
@@ -126,6 +126,12 @@ pub(super) async fn app(
         PostgresSessionLifecycle::new(lifecycle_pool),
     )
     .with_auth_tickets(coordination.store.clone());
+    super::recordings::spawn(
+        stores.recordings.clone(),
+        recording_storage,
+        realtime.clone(),
+        shutdown.clone(),
+    );
     realtime.speakers.spawn_placed(
         placement,
         realtime.registry.clone(),
@@ -147,6 +153,7 @@ pub(super) async fn app(
         rooms,
         users,
         chat,
+        recordings: Some(Arc::new(stores.recordings.clone())),
         collaboration: Some(collaboration),
         files,
         storage,

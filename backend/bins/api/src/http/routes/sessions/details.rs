@@ -37,6 +37,7 @@ pub(crate) async fn update(
         state.rooms.as_ref(),
         UpdateSessionDetails {
             principal,
+            auto_record: body.auto_record,
             session_id: SessionId::from_uuid(session_id),
             title: body.title,
             scheduled_start_at: body.scheduled_start_at,

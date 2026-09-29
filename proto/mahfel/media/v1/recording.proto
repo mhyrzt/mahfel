@@ -1,0 +1,19 @@
+syntax = "proto3";
+package mahfel.media.v1;
+
+message ReconcileRecordingRequest {
+  string recording_id = 1;
+  string room_id = 2;
+  uint32 generation = 3;
+  uint64 revision = 4;
+  // recording, paused, stopping
+  string desired_state = 5;
+}
+message ReconcileRecordingResponse {
+  string boot_id = 1;
+  uint64 unix_origin_ns = 2;
+  bool capturing = 3;
+  bool sealed = 4;
+  string warning = 5;
+  string receipt_prefix = 6;
+}

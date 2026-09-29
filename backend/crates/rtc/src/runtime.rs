@@ -288,6 +288,35 @@ impl MediaRuntime {
         super::producer::pause_producer(&self.producers, &self.speakers, room_id, producer_id).await
     }
 
+    pub async fn recording_tap(
+        &self,
+        room: RoomId,
+        producer: &str,
+        directory: &std::path::Path,
+        clock: &crate::recording::CaptureClock,
+    ) -> Result<crate::recording::RecordingTap, RtcError> {
+        let router = self
+            .rooms
+            .read()
+            .await
+            .get(&room)
+            .ok_or(RtcError::RoomNotFound { room_id: room })?
+            .router
+            .clone();
+        let (actor, source) = {
+            let producers = self.producers.read().await;
+            let entry = producers
+                .get(producer)
+                .filter(|entry| entry.room_id == room)
+                .ok_or_else(|| RtcError::ProducerNotFound {
+                    producer_id: producer.to_owned(),
+                })?;
+            (entry.participant_id, entry.source)
+        };
+        crate::recording::RecordingTap::create(&router, producer, actor, source, directory, clock)
+            .await
+    }
+
     pub async fn list_producers(&self, room_id: RoomId) -> Vec<super::producer::PublishedProducer> {
         super::producer::list_producers(&self.producers, room_id).await
     }

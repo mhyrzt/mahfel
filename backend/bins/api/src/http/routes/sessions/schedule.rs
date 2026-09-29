@@ -37,6 +37,7 @@ pub(crate) async fn schedule(
         state.rooms.as_ref(),
         ScheduleSession {
             principal,
+            auto_record: body.auto_record.unwrap_or(true),
             room_id: RoomId::from_uuid(room_id),
             title: body.title,
             scheduled_start_at: body.scheduled_start_at,

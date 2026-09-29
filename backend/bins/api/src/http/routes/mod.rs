@@ -8,6 +8,7 @@ pub(crate) mod identity;
 pub(crate) mod invite;
 pub(crate) mod openapi;
 pub(crate) mod participation;
+pub(crate) mod recordings;
 pub(crate) mod rfc3339;
 pub(crate) mod rooms;
 pub(crate) mod sessions;
@@ -40,6 +41,7 @@ pub(crate) fn router(state: AppState) -> Router {
         .merge(admin::route())
         .merge(rooms::route())
         .merge(sessions::route())
+        .merge(recordings::route())
         .merge(participation::route())
         .merge(invite::route())
         .merge(ws::route())

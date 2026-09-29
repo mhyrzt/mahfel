@@ -3,12 +3,14 @@ syntax = "proto3";
 package mahfel.media.v1;
 
 import "mahfel/media/v1/node.proto";
+import "mahfel/media/v1/recording.proto";
 import "mahfel/media/v1/room.proto";
 import "mahfel/media/v1/speaker.proto";
 import "mahfel/media/v1/track.proto";
 import "mahfel/media/v1/transport.proto";
 
 service MediaControlService {
+  rpc ReconcileRecording(ReconcileRecordingRequest) returns (ReconcileRecordingResponse);
   rpc GetNodeInfo(GetNodeInfoRequest) returns (GetNodeInfoResponse);
   rpc GetNodeStats(GetNodeStatsRequest) returns (GetNodeStatsResponse);
   // Ephemeral room snapshots; each subscriber receives current state first.

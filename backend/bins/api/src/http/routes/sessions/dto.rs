@@ -56,6 +56,7 @@ impl From<SessionVisibility> for SessionVisibilityDto {
 
 #[derive(Debug, Deserialize, ToSchema)]
 pub(crate) struct CreateSessionRequest {
+    pub(crate) auto_record: Option<bool>,
     /// Optional custom title. Otherwise the room's current title is displayed.
     #[schema(min_length = 1, max_length = 300)]
     pub(crate) title: Option<String>,
@@ -86,6 +87,7 @@ where
 
 #[derive(Debug, Deserialize, ToSchema)]
 pub(crate) struct UpdateSessionDetailsRequest {
+    pub(crate) auto_record: Option<bool>,
     /// Omit to keep, null to clear, or provide a custom title.
     #[serde(default, deserialize_with = "nullable_patch")]
     #[schema(min_length = 1, max_length = 300)]
@@ -104,6 +106,8 @@ pub(crate) struct SessionResponse {
     pub(crate) id: String,
     pub(crate) room_id: String,
     pub(crate) status: SessionStatusDto,
+    #[schema(required = false)]
+    pub(crate) auto_record: bool,
     /// Effective display title, using the current room title when no custom title is set.
     pub(crate) title: String,
     pub(crate) title_overridden: bool,
@@ -149,6 +153,7 @@ impl SessionResponse {
             id: session.id.to_string(),
             room_id: session.room_id.to_string(),
             status: session.status.into(),
+            auto_record: session.auto_record,
             title: session
                 .title
                 .as_ref()

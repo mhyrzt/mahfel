@@ -2,6 +2,7 @@ mod codecs;
 mod consumer;
 mod error;
 mod producer;
+pub mod recording;
 mod room;
 mod runtime;
 mod speaker;

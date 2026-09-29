@@ -28,15 +28,36 @@ pub(crate) async fn get_capabilities(
     ValidatedPath(session_id): ValidatedPath<Uuid>,
 ) -> Result<Json<SessionCapabilitiesResponse>, ApiError> {
     let session_id = SessionId::from_uuid(session_id);
-    let session = get_session_for_caller(
-        state.sessions.as_ref(),
-        state.rooms.as_ref(),
-        GetSessionForCaller {
-            actor: principal.actor_id,
-            session_id,
-        },
-    )
-    .await?;
+    let admitted = match &state.recordings {
+        Some(recordings) => recordings
+            .can_access(session_id, principal.actor_id)
+            .await
+            .map_err(|_| ApiError::internal("session access lookup failed"))?,
+        None => false,
+    };
+    let session = if principal
+        .roles
+        .iter()
+        .any(|role| role.eq_ignore_ascii_case("admin"))
+        || admitted
+    {
+        state
+            .sessions
+            .get(session_id)
+            .await
+            .map_err(|_| ApiError::internal("session lookup failed"))?
+            .ok_or_else(|| ApiError::not_found("session not found"))?
+    } else {
+        get_session_for_caller(
+            state.sessions.as_ref(),
+            state.rooms.as_ref(),
+            GetSessionForCaller {
+                actor: principal.actor_id,
+                session_id,
+            },
+        )
+        .await?
+    };
     let capabilities =
         auth::capabilities_in_room(state.rooms.as_ref(), &principal, session.room_id).await?;
     Ok(Json(SessionCapabilitiesResponse::from_set(&capabilities)))

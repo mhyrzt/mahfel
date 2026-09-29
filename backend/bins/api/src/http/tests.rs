@@ -1667,6 +1667,7 @@ fn state_with(
         files: Arc::new(FakeFileStore),
         storage: Arc::new(FakeFileStorage),
         chat: Arc::new(FakeChatStore),
+        recordings: None,
         collaboration: None,
         service: "mahfel-api-test",
         version: "0.1.0",
@@ -1748,6 +1749,7 @@ fn authenticated_room_app(principal: Principal, store: FakeRoomStore) -> Router 
         files: Arc::new(FakeFileStore),
         storage: Arc::new(FakeFileStorage),
         chat: Arc::new(FakeChatStore),
+        recordings: None,
         collaboration: None,
         service: "mahfel-api-test",
         version: "0.1.0",
@@ -2748,6 +2750,7 @@ fn session_app(
         files: Arc::new(FakeFileStore),
         storage: Arc::new(FakeFileStorage),
         chat: Arc::new(FakeChatStore),
+        recordings: None,
         collaboration: None,
         service: "mahfel-api-test",
         version: "0.1.0",
@@ -3024,12 +3027,22 @@ fn policy_session_app(
     rooms: FakeRoomStore,
     sessions: FakeSessionStore,
 ) -> Router {
+    policy_session_app_with_recordings(principal, rooms, sessions, None)
+}
+
+fn policy_session_app_with_recordings(
+    principal: Option<Principal>,
+    rooms: FakeRoomStore,
+    sessions: FakeSessionStore,
+    recordings: Option<Arc<dyn mahfel_application::ports::RecordingStore>>,
+) -> Router {
     let realtime = ws_state(principal.clone());
     let (service_auth, service_principals) = service_seams(FakeServicePrincipalStore::default());
     api_router(AppState {
         files: Arc::new(FakeFileStore),
         storage: Arc::new(FakeFileStorage),
         chat: Arc::new(FakeChatStore),
+        recordings,
         collaboration: None,
         service: "mahfel-api-test",
         version: "0.1.0",
@@ -3060,6 +3073,72 @@ fn capabilities_of(json: &serde_json::Value) -> Vec<String> {
         .iter()
         .map(|value| value.as_str().expect("capability name").to_owned())
         .collect()
+}
+
+#[tokio::test]
+async fn admitted_participants_receive_recording_capabilities_without_session_management() {
+    struct Access(SessionId, ActorId);
+    impl mahfel_application::ports::RecordingStore for Access {
+        fn can_access(
+            &self,
+            session: SessionId,
+            actor: ActorId,
+        ) -> BoxFuture<'_, Result<bool, StoreError>> {
+            Box::pin(async move { Ok(session == self.0 && actor == self.1) })
+        }
+        fn list(
+            &self,
+            _session: SessionId,
+        ) -> BoxFuture<'_, Result<Vec<mahfel_domain::Recording>, StoreError>> {
+            Box::pin(async { Ok(Vec::new()) })
+        }
+        fn command(
+            &self,
+            _session: SessionId,
+            _actor: ActorId,
+            _id: Uuid,
+            _action: mahfel_domain::RecordingAction,
+        ) -> BoxFuture<'_, Result<mahfel_domain::Recording, StoreError>> {
+            Box::pin(async {
+                Err(StoreError::Unexpected(
+                    "not used by capability lookup".into(),
+                ))
+            })
+        }
+    }
+    for moderator in [false, true] {
+        let rooms = FakeRoomStore::default();
+        let room = rooms.seed_room("Algebra", principal().actor_id, RoomVisibility::InviteOnly);
+        let sessions = FakeSessionStore::default();
+        let session = Session::schedule(room.id, None, OffsetDateTime::now_utc());
+        sessions.seed(session.clone());
+        let mut caller = other_principal();
+        caller.roles = if moderator {
+            vec!["moderator".into()]
+        } else {
+            Vec::new()
+        };
+        let app = policy_session_app_with_recordings(
+            Some(caller.clone()),
+            rooms,
+            sessions,
+            Some(Arc::new(Access(session.id, caller.actor_id))),
+        );
+        let response = send_json(
+            &app,
+            Method::GET,
+            &format!("/v1/sessions/{}/capabilities", session.id),
+            "",
+        )
+        .await;
+        assert_eq!(response.status(), StatusCode::OK);
+        let capabilities = capabilities_of(&response_json(response).await);
+        assert_eq!(
+            capabilities.contains(&"manage_recording".to_owned()),
+            moderator
+        );
+        assert!(!capabilities.contains(&"manage_session".to_owned()));
+    }
 }
 
 #[tokio::test]
@@ -3204,6 +3283,7 @@ async fn serve_ws_with_stores(
         files: Arc::new(FakeFileStore),
         storage: Arc::new(FakeFileStorage),
         chat: Arc::new(FakeChatStore),
+        recordings: None,
         collaboration: None,
         service: "mahfel-api-test",
         version: "0.1.0",
@@ -3430,6 +3510,7 @@ async fn serve_ws_with_verifier(verifier: TokenVerifier, config: WsConfig) -> Ws
         files: Arc::new(FakeFileStore),
         storage: Arc::new(FakeFileStorage),
         chat: Arc::new(FakeChatStore),
+        recordings: None,
         collaboration: None,
         service: "mahfel-api-test",
         version: "0.1.0",
@@ -3882,6 +3963,7 @@ fn service_app(
         files: Arc::new(FakeFileStore),
         storage: Arc::new(FakeFileStorage),
         chat: Arc::new(FakeChatStore),
+        recordings: None,
         collaboration: None,
         service: "mahfel-api-test",
         version: "0.1.0",
@@ -4150,6 +4232,7 @@ async fn serve_ws_with(
         files: Arc::new(FakeFileStore),
         storage: Arc::new(FakeFileStorage),
         chat: Arc::new(FakeChatStore),
+        recordings: None,
         collaboration: None,
         service: "mahfel-api-test",
         version: "0.1.0",
@@ -4605,6 +4688,7 @@ fn participation_app(
         files: Arc::new(FakeFileStore),
         storage: Arc::new(FakeFileStorage),
         chat: Arc::new(FakeChatStore),
+        recordings: None,
         collaboration: None,
         service: "mahfel-api-test",
         version: "0.1.0",
@@ -4868,6 +4952,7 @@ fn invite_app(
         files: Arc::new(FakeFileStore),
         storage: Arc::new(FakeFileStorage),
         chat: Arc::new(FakeChatStore),
+        recordings: None,
         collaboration: None,
         service: "mahfel-api-test",
         version: "0.1.0",
@@ -5265,6 +5350,7 @@ fn admission_app(
         files: Arc::new(FakeFileStore),
         storage: Arc::new(FakeFileStorage),
         chat: Arc::new(FakeChatStore),
+        recordings: None,
         collaboration: None,
         service: "mahfel-api-test",
         version: "0.1.0",
@@ -5302,6 +5388,7 @@ fn redeem_app(
         files: Arc::new(FakeFileStore),
         storage: Arc::new(FakeFileStorage),
         chat: Arc::new(FakeChatStore),
+        recordings: None,
         collaboration: None,
         service: "mahfel-api-test",
         version: "0.1.0",

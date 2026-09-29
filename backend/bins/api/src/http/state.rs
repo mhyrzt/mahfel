@@ -34,6 +34,7 @@ pub struct AppState {
     pub rooms: Arc<dyn RoomStore>,
     pub users: Arc<dyn UserStore>,
     pub chat: Arc<dyn ChatStore>,
+    pub recordings: Option<Arc<dyn mahfel_application::ports::RecordingStore>>,
     pub collaboration: Option<Arc<dyn CollaborationStore>>,
     pub files: Arc<dyn FileStore>,
     pub storage: Arc<dyn FileStorage>,

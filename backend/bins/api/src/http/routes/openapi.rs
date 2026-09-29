@@ -70,6 +70,8 @@ Protected routes require an Authorization: Bearer token. User requests use Keycl
         (name = "files", description = "Context-authorized file metadata and direct S3 transfers")
     ),
     paths(
+        super::recordings::list,
+        super::recordings::command,
         // System and health endpoints
         super::status::status,
         super::health::health,
@@ -157,6 +159,9 @@ Protected routes require an Authorization: Bearer token. User requests use Keycl
         crate::http::turn::turn_credentials,
     ),
     components(schemas(
+        super::recordings::RecordingResponse,
+        super::recordings::RecordingCommandRequest,
+        super::recordings::RecordingActionDto,
         crate::http::error::ErrorBody,
         crate::http::error::ErrorDetail,
         super::status::StatusResponse,
@@ -281,6 +286,8 @@ pub(crate) const REST_PATH_TEMPLATES: &[&str] = &[
     "/v1/rooms/{room_id}/sessions",
     "/v1/sessions/{session_id}",
     "/v1/sessions/{session_id}/capabilities",
+    "/v1/sessions/{session_id}/recordings",
+    "/v1/sessions/{session_id}/recordings/commands",
     "/v1/sessions/{session_id}/roster",
     "/v1/sessions/{session_id}/start",
     "/v1/sessions/{session_id}/end",

@@ -1,5 +1,6 @@
 mod handlers;
 mod metrics;
+mod recording;
 mod registry;
 mod service;
 mod validation;
@@ -51,7 +52,16 @@ async fn main() -> Result<()> {
         &health.registry(),
     )?;
     metrics.set_all(&media).await;
+    let recordings = recording::Recordings::new(
+        Arc::clone(&media),
+        Arc::new(mahfel_storage::S3FileStorage::new(
+            mahfel_storage::S3Settings::from(&settings.storage),
+        )),
+        settings.recording.clone(),
+        &health.registry(),
+    )?;
     let service = MediaControlServiceImpl {
+        recordings: recordings.clone(),
         node_id: node_id.clone(),
         worker_count: validation::saturating_u32(media.active_workers()),
         rtc_ports: media.ports().iter().copied().map(u32::from).collect(),
@@ -65,6 +75,7 @@ async fn main() -> Result<()> {
     health.set_initialized(true).await;
 
     let (shutdown_tx, shutdown_rx) = watch::channel(false);
+    recordings.spawn_uploader(shutdown_rx.clone());
     let supervision = metrics::spawn_supervision(
         health.clone(),
         Arc::clone(&media),
@@ -93,6 +104,7 @@ async fn main() -> Result<()> {
     tracing::info!(%grpc_address, %operations_address, %node_id, ports=?media.ports(), "media service ready");
     shutdown_signal().await;
     publisher.publish(true).await;
+    recordings.drain().await;
     health.set_initialized(false).await;
     let _ = shutdown_tx.send(true);
     operations_task

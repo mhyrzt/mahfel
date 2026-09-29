@@ -5,6 +5,8 @@ use thiserror::Error;
 #[allow(dead_code)]
 #[derive(Debug, Error)]
 pub enum RtcError {
+    #[error("recording capture failed: {0}")]
+    Recording(String),
     #[error("worker count must be greater than zero")]
     NoWorkers,
     #[error("RTC port range {minimum}-{maximum} cannot provide {workers} worker ports")]

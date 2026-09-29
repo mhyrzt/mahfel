@@ -14,6 +14,7 @@ mod speaker;
 
 #[derive(Clone)]
 pub struct MediaControlServiceImpl {
+    pub recordings: crate::recording::Recordings,
     pub node_id: NodeId,
     pub worker_count: u32,
     pub rtc_ports: Vec<u32>,
@@ -26,6 +27,15 @@ impl mahfel_rtc_protocol::media::media_control_service_server::MediaControlServi
     for MediaControlServiceImpl
 {
     type WatchActiveSpeakersStream = speaker::SpeakerStream;
+    async fn reconcile_recording(
+        &self,
+        request: Request<mahfel_rtc_protocol::media::ReconcileRecordingRequest>,
+    ) -> Result<Response<mahfel_rtc_protocol::media::ReconcileRecordingResponse>, Status> {
+        self.recordings
+            .reconcile(request.into_inner())
+            .await
+            .map(Response::new)
+    }
 
     async fn watch_active_speakers(
         &self,
@@ -71,6 +81,7 @@ impl mahfel_rtc_protocol::media::media_control_service_server::MediaControlServi
         &self,
         request: Request<mahfel_rtc_protocol::media::DeleteRoomRequest>,
     ) -> Result<Response<mahfel_rtc_protocol::media::DeleteRoomResponse>, Status> {
+        self.recordings.seal_room(&request.get_ref().room_id).await;
         crate::handlers::room::delete_room(&self.media, request).await
     }
 
@@ -78,6 +89,7 @@ impl mahfel_rtc_protocol::media::media_control_service_server::MediaControlServi
         &self,
         request: Request<mahfel_rtc_protocol::media::ClearRoomMediaRequest>,
     ) -> Result<Response<mahfel_rtc_protocol::media::ClearRoomMediaResponse>, Status> {
+        self.recordings.seal_room(&request.get_ref().room_id).await;
         crate::handlers::room::clear_room_media(&self.media, request).await
     }
 

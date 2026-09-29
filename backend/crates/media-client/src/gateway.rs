@@ -26,6 +26,22 @@ impl GrpcMediaGateway {
         self.client
     }
 
+    pub async fn reconcile_recording(
+        &self,
+        request: mahfel_rtc_protocol::media::ReconcileRecordingRequest,
+    ) -> Result<mahfel_rtc_protocol::media::ReconcileRecordingResponse, tonic::Status> {
+        let mut client = self.client.clone();
+        let mut request = tonic::Request::new(request);
+        request.set_timeout(std::time::Duration::from_secs(5));
+        tokio::time::timeout(
+            std::time::Duration::from_secs(5),
+            client.reconcile_recording(request),
+        )
+        .await
+        .map_err(|_| tonic::Status::deadline_exceeded("recording control deadline"))?
+        .map(tonic::Response::into_inner)
+    }
+
     pub async fn watch_active_speakers(
         &self,
     ) -> Result<tonic::Streaming<WatchActiveSpeakersResponse>, tonic::Status> {
