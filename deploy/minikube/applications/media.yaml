@@ -11,6 +11,7 @@ spec:
     metadata:
       labels: {app: mahfel-media}
     spec:
+      securityContext: {fsGroup: 10001}
       containers:
         - name: media
           image: mahfel-media:local
@@ -26,6 +27,10 @@ spec:
             - {name: MAHFEL_MEDIA__GRPC_ADVERTISE_URL, value: 'http://$(POD_IP):50051'}
             - name: MAHFEL_MEDIA__REGISTRY_TOKEN
               valueFrom: {secretKeyRef: {name: local-credentials, key: media-registry-token}}
+            - name: MAHFEL_STORAGE__SECRET_KEY
+              valueFrom: {secretKeyRef: {name: local-credentials, key: rustfs-secret-key}}
+          volumeMounts:
+            - {name: recording-spool, mountPath: /tmp/mahfel-recordings}
           ports:
             - {containerPort: 50051, name: grpc}
             - {containerPort: 9102, name: operations}
@@ -43,6 +48,9 @@ spec:
             periodSeconds: 5
           readinessProbe:
             httpGet: {path: /health/ready, port: 9102}
+      volumes:
+        - name: recording-spool
+          emptyDir: {sizeLimit: 2Gi}
 ---
 apiVersion: v1
 kind: Service

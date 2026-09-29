@@ -3,7 +3,8 @@ ENV CARGO_HTTP_TIMEOUT=600 \
     CARGO_HTTP_LOW_SPEED_LIMIT=1 \
     CARGO_NET_RETRY=10
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    ca-certificates clang cmake g++ make pkg-config python3 && \
+    ca-certificates clang cmake g++ make pkg-config python3 \
+    libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev && \
     rm -rf /var/lib/apt/lists/*
 RUN apt-get update && apt-get install -y --no-install-recommends python3-pip && \
     rm -rf /var/lib/apt/lists/*
@@ -56,6 +57,9 @@ RUN --mount=type=cache,id=mahfel-cargo-registry,target=/usr/local/cargo/registry
 FROM chef AS ci-integration
 ARG CARGO_NEXTEST_VERSION=0.9.146
 RUN cargo install cargo-nextest --version "$CARGO_NEXTEST_VERSION" --locked
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gstreamer1.0-plugins-base gstreamer1.0-plugins-good gstreamer1.0-plugins-bad \
+    gstreamer1.0-plugins-ugly gstreamer1.0-libav && rm -rf /var/lib/apt/lists/*
 COPY backend/ /source/backend/
 COPY proto/ /source/proto/
 COPY deploy/keycloak/ /source/deploy/keycloak/
@@ -82,10 +86,12 @@ ENTRYPOINT ["/usr/local/bin/mahfel-api"]
 
 FROM docker.arvancloud.ir/debian:bookworm-slim AS media
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    ca-certificates curl libgcc-s1 libstdc++6 && \
+    ca-certificates curl libgcc-s1 libstdc++6 \
+    gstreamer1.0-plugins-base gstreamer1.0-plugins-good gstreamer1.0-plugins-bad && \
     rm -rf /var/lib/apt/lists/* && \
     groupadd --system --gid 10001 mahfel && \
     useradd --system --uid 10001 --gid mahfel --home-dir /nonexistent --shell /usr/sbin/nologin mahfel
+RUN mkdir -p /tmp/mahfel-recordings && chown mahfel:mahfel /tmp/mahfel-recordings
 WORKDIR /app
 COPY --from=media-builder /tmp/mahfel-media /usr/local/bin/mahfel-media
 COPY --chown=mahfel:mahfel backend/config/default.toml /app/config/default.toml
@@ -98,7 +104,9 @@ HEALTHCHECK --interval=10s --timeout=3s --start-period=20s --retries=5 \
 ENTRYPOINT ["/usr/local/bin/mahfel-media"]
 
 FROM docker.arvancloud.ir/debian:bookworm-slim AS worker
-RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates curl && \
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates curl gstreamer1.0-plugins-base gstreamer1.0-plugins-good \
+    gstreamer1.0-plugins-bad gstreamer1.0-libav && \
     rm -rf /var/lib/apt/lists/* && \
     groupadd --system --gid 10001 mahfel && \
     useradd --system --uid 10001 --gid mahfel --home-dir /nonexistent --shell /usr/sbin/nologin mahfel

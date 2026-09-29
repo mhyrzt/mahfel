@@ -120,6 +120,10 @@ services:
       MAHFEL_MEDIA__RTC_PORT_MAX: ${MAHFEL_MEDIA_RTC_PORT_MAX:-40003}
       MAHFEL_MEDIA__WORKER_COUNT: ${MAHFEL_MEDIA_WORKER_COUNT:-4}
       MAHFEL_TELEMETRY__LOG_FILTER: ${MAHFEL_LOG_FILTER:-info,mahfel=debug}
+      MAHFEL_STORAGE__ACCESS_KEY: ${MAHFEL_S3_ACCESS_KEY:-mahfel}
+      MAHFEL_STORAGE__SECRET_KEY: ${MAHFEL_S3_SECRET_KEY:-mahfel-local-only-secret}
+      MAHFEL_STORAGE__BUCKET: ${MAHFEL_S3_BUCKET:-mahfel-local}
+      MAHFEL_STORAGE__REGION: ${MAHFEL_S3_REGION:-us-east-1}
     expose:
       - "50051"
     ports:
@@ -127,6 +131,8 @@ services:
       - "127.0.0.1:9102:9102"
       - "${MAHFEL_MEDIA_RTC_PORT_MIN:-40000}-${MAHFEL_MEDIA_RTC_PORT_MAX:-40003}:${MAHFEL_MEDIA_RTC_PORT_MIN:-40000}-${MAHFEL_MEDIA_RTC_PORT_MAX:-40003}/udp"
       - "${MAHFEL_MEDIA_RTC_PORT_MIN:-40000}-${MAHFEL_MEDIA_RTC_PORT_MAX:-40003}:${MAHFEL_MEDIA_RTC_PORT_MIN:-40000}-${MAHFEL_MEDIA_RTC_PORT_MAX:-40003}/tcp"
+    volumes:
+      - recording-spool:/tmp/mahfel-recordings
     depends_on:
       mahfel-api:
         condition: service_healthy
@@ -144,6 +150,10 @@ services:
     environment:
       MAHFEL_WORKER__AMQP_URL: ${MAHFEL_AMQP_URL:-amqp://mahfel:mahfel-local-only@rabbitmq:5672/%2f}
       MAHFEL_TELEMETRY__LOG_FILTER: ${MAHFEL_LOG_FILTER:-info,mahfel=debug}
+      MAHFEL_STORAGE__ACCESS_KEY: ${MAHFEL_S3_ACCESS_KEY:-mahfel}
+      MAHFEL_STORAGE__SECRET_KEY: ${MAHFEL_S3_SECRET_KEY:-mahfel-local-only-secret}
+      MAHFEL_STORAGE__BUCKET: ${MAHFEL_S3_BUCKET:-mahfel-local}
+      MAHFEL_STORAGE__REGION: ${MAHFEL_S3_REGION:-us-east-1}
     ports:
       - "127.0.0.1:9103:9103"
     depends_on:
@@ -396,4 +406,5 @@ volumes:
   postgres-data:
   rabbitmq-data:
   rustfs-data:
+  recording-spool:
   grafana-data:

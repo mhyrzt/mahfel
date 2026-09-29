@@ -191,8 +191,8 @@ up() {
   wait_for_rollout caddy 15m
   wait_for_rollout rabbitmq 5m
   kubectl -n "${namespace}" exec deployment/rabbitmq -- rabbitmqctl set_policy \
-    mahfel-job-dlx '^mahfel\.jobs\.files\.cleanup\.v1$' \
-    '{"dead-letter-strategy":"at-least-once","overflow":"reject-publish","dead-letter-exchange":"mahfel.jobs.dead.v1","dead-letter-routing-key":"files.cleanup_deleted_attachment.v1","max-length-bytes":104857600}' \
+    mahfel-job-dlx '^mahfel\.jobs\.(files\.cleanup|recordings\.finalize)\.v1$' \
+    '{"dead-letter-strategy":"at-least-once","overflow":"reject-publish","dead-letter-exchange":"mahfel.jobs.dead.v1","max-length-bytes":104857600}' \
     --apply-to quorum_queues >/dev/null
   step 'Preparing Caddy local CA for application pods'
   local caddy_pod
