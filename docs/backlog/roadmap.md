@@ -173,15 +173,20 @@ safely, dead-letter poison input, and remain correct under duplicate delivery.
 
 | ID and title | Problem description | Implementation scope | Dependencies | Done criteria |
 |---|---|---|---|---|
-| M9-01 Recording architecture spike | SFU recording format/topology determines reliability and cost. | Evaluate mediasoup plain transports/taps, per-track versus composite, RTP capture, ffmpeg/GStreamer, node-local buffering and failure model. | M3, M6, M8 | ADR selects strategy with measured prototype, resource profile, restart limitations and alternatives. |
-| M9-02 Consent and authorization | Recording can violate privacy unless state and policy are explicit. | Teacher capability, participant notice/consent policy, jurisdiction/config hooks, immutable audit events. | M2-07, M4 | Unauthorized start fails; every participant sees state; start/stop/consent is audited. |
-| M9-03 Recording lifecycle | Control, media, and worker need one durable state machine. | Requested/starting/recording/stopping/processing/ready/failed states, idempotent commands and reconciliation. | M9-01, M9-02, M8 | Duplicate start/stop is safe; state recovers/reconciles after API restart. |
+| M9-01 Recording architecture spike | SFU recording format/topology determines reliability and cost. | Measure mediasoup plain-transport taps and GStreamer original-track fragments, timing, resource use, bounded buffering and restart loss; record alternatives in an ADR. | M3, M6, M8 | ADR selects strategy with measured prototype, resource profile, restart limitations and alternatives. |
+| M9-02 Recording notice and authorization | Recording requires explicit state and authoritative permissions. | Recording-specific manager/admin/moderator capability with session access, participant notices, default-on scheduled preference and immutable control audits. No consent gate or teacher-specific role. | M2-07, M4 | Unauthorized commands fail; every participant sees current state and failures; Start/Pause/Resume/Stop is audited. |
+| M9-03 Recording lifecycle | Control, media, and worker need one durable state machine. | Starting/recording/paused/stopping/finalizing/ready/failed states, idempotent commands and reconciliation. | M9-01, M9-02, M8 | Duplicate start/stop is safe; state recovers/reconciles after API restart. |
 | M9-04 Capture and upload | Media fragments must reach durable storage without relying on container disk. | Media tap, bounded spool, segment naming/checksums, multipart/direct S3 upload, backpressure and failure metrics. | M9-01, M9-03, M6-02 | Captured segments appear in S3; storage slowdown is bounded and produces explicit failure. |
-| M9-05 Finalization worker | Raw streams need playable synchronized artifacts. | Versioned finalize job, mux/container choice, A/V timestamps, retries/idempotency, thumbnail/metadata and cleanup. | M9-04, M8 | Finalization retry is safe; output plays with synchronized tracks and verified checksum. |
+| M9-05 Finalization worker | Raw streams need playable synchronized artifacts. | Versioned finalize job verifies original fragments and publishes a synchronized replay manifest with collaboration/chat snapshots, events and archived assets; retries, fencing and temporary cleanup. No video export. | M9-04, M8 | Finalization retry is safe; manifest timing, original fragment readability and checksums are verified; partial coverage is explicit. |
 | M9-06 Playback and retention | Finished recordings need authorized access and lifecycle management. | Recording API/UI, presigned playback, duration/status, retention/delete policy and audit. | M9-05, M6-04 | Authorized playback works; unauthorized URL cannot be obtained; retention deletion is tested. |
 
-**Milestone done:** a teacher starts/stops with visible consent state; documented restart limitations
-hold; finalized playable artifact lands in S3 and is accessed only through Mahfel permissions.
+**Milestone done:** authorized controls and recording notices work; documented restart limitations
+hold; the original-track replay bundle lands in private S3 and playback follows Mahfel permissions.
+
+M9-01 through M9-05 capture original media and workspace/session-chat history. Recreating video,
+FFmpeg processing, transcoding, composition and MP4/video export are excluded. M9-06 playback and
+retention remain separate. The accepted recording strategy and boundaries are in
+[ADR 0027](../adr/0027-original-track-recording.md).
 
 ## M10 — Transcription
 

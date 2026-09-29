@@ -15,6 +15,12 @@ sudo dnf install gcc-c++ clang cmake make ninja-build pkgconf-pkg-config \
   libstdc++-static
 ```
 
+### GStreamer recording toolchain
+
+Native recording capture also requires GStreamer 1.22 or later and its development libraries.
+Install the Fedora dependencies and fixture plugins described in the
+[recording spike guide](recording-spike.md). Container images install their own GStreamer libraries.
+
 ### Bun
 
 Bun is Mahfel's frontend package manager, script runner, and local Next.js runtime. Follow the

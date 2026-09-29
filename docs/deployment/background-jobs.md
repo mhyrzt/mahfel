@@ -12,14 +12,19 @@ The JSON envelope contains `job_id`, `job_type`, `version`, `created_at`, option
 `traceparent` and `tracestate` are also carried as AMQP headers. Version 1 uses the direct
 exchange `mahfel.jobs.v1`. The first routing key is
 `files.cleanup_deleted_attachment.v1`, bound to `mahfel.jobs.files.cleanup.v1`.
+`recordings.finalize.v1` is bound to `mahfel.jobs.recordings.finalize.v1`; recording payloads
+contain `recording_id` and the sealed `capture_generation`. Both are quorum queues with separate
+DLQs and share the worker's bounded concurrency.
 Payloads contain identifiers, not secrets or artifact bytes. Consumers accept additive fields
 within a version; incompatible changes need a new version and a period of dual reading.
 
 The worker acknowledges only after a durable effect or scheduled retry is recorded. Duplicate
 deliveries are expected. PostgreSQL claims use a two-minute lease renewed every 30 seconds, and
 the handler must be repeatable. File cleanup is repeatable because deleting an absent S3 object
-or metadata row succeeds. Later handlers that change PostgreSQL data must commit their effect
-and completion marker together. External providers need their own idempotency key.
+or metadata row succeeds. Recording finalization verifies original fragments and archived assets, then atomically accepts a
+content-addressed replay manifest under the current job claim and sealed capture generation.
+A duplicate retry reuses the accepted result. Dead finalization jobs mark recordings failed;
+operator replay restores finalizing state for the same sealed generation. External providers need their own idempotency key.
 
 ## Retry and dead letters
 
@@ -34,12 +39,13 @@ In local Minikube, `just minikube` applies the broker policy after RabbitMQ star
 deployments must apply the equivalent quorum-queue policy before starting workers:
 
 ```bash
-rabbitmqctl set_policy mahfel-job-dlx '^mahfel\.jobs\.files\.cleanup\.v1$' \
-  '{"dead-letter-strategy":"at-least-once","overflow":"reject-publish","dead-letter-exchange":"mahfel.jobs.dead.v1","dead-letter-routing-key":"files.cleanup_deleted_attachment.v1","max-length-bytes":104857600}' \
+rabbitmqctl set_policy mahfel-job-dlx '^mahfel\.jobs\.(files\.cleanup|recordings\.finalize)\.v1$' \
+  '{"dead-letter-strategy":"at-least-once","overflow":"reject-publish","dead-letter-exchange":"mahfel.jobs.dead.v1","max-length-bytes":104857600}' \
   --apply-to quorum_queues
 ```
 
-The dead-letter queue is `mahfel.jobs.files.cleanup.v1.dead`. Inspect it in the private RabbitMQ
+The dead-letter queues are `mahfel.jobs.files.cleanup.v1.dead` and
+`mahfel.jobs.recordings.finalize.v1.dead`. Inspect it in the private RabbitMQ
 management UI, and inspect the authoritative failure history with:
 
 ```bash

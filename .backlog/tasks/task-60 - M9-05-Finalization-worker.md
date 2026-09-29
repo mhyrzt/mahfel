@@ -1,10 +1,11 @@
 ---
 id: TASK-60
 title: M9-05 Finalization worker
-status: To Do
-assignee: []
+status: Done
+assignee:
+  - '@codex'
 created_date: '2026-09-08 00:32'
-updated_date: '2026-09-24 02:16'
+updated_date: '2026-09-28 14:48'
 labels: []
 milestone: m-9
 dependencies: []
@@ -17,24 +18,32 @@ ordinal: 68000
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
-Problem: Raw streams need playable synchronized artifacts.
-
-Implementation scope: Versioned finalize job, mux/container choice, A/V timestamps, retries/idempotency, thumbnail/metadata and cleanup.
-
-Dependencies: M9-04, M8
+Finalize sealed original-codec fragments and collaboration replay artifacts through the M8 outbox, claims, retries and DLQ. Verify checksums/container readability and atomically accept a deterministic versioned replay manifest with complete or partial coverage. FFmpeg, reconstruction, transcoding, composition, MP4/video export, playback UI and retention are excluded.
 <!-- SECTION:DESCRIPTION:END -->
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Finalization retry is safe; output plays with synchronized tracks and verified checksum.
+- [x] #1 Finalization retry is safe; original segments decode, checksums and synchronized track clocks are verified, and a fenced replay manifest preserves intervals, gaps, events, snapshots and archived assets.
 <!-- AC:END -->
+
+## Implementation Plan
+
+<!-- SECTION:PLAN:BEGIN -->
+Finalize sealed recording generations via recordings.finalize.v1 and existing M8 outbox/retry/claims/DLQ machinery. Verify original segment checksums/readability, preserve track timing and gaps, assemble versioned replay manifest/events/snapshots/assets, publish ready complete/partial atomically and safely under retries. No FFmpeg, video reconstruction, transcoding, composition or MP4/video exports. Leave playback and retention to TASK-61.
+<!-- SECTION:PLAN:END -->
 
 ## Implementation Notes
 
 <!-- SECTION:NOTES:BEGIN -->
-Design note: Finalization must retain the event timeline, snapshots, and presentation references with synchronized A/V timestamps. Interactive replay reconstructs the shared document, canvas, viewport, and slide state; optional video export is a separate rendering step.
+Completed recordings.finalize.v1 through the existing M8 outbox, quorum queue/DLQ, renewable claims, bounded retries and operator replay. Finalization imports durable receipts, verifies SHA-256/size/container decoding and archived assets, and writes deterministic content-addressed replay pages/manifest. Tracks, source clocks, session-relative event/interval bounds, pause/media gaps, uncertain coverage, snapshots, event histories and asset metadata are retained. Acceptance is atomic under the current lease/claim and sealed capture generation. Corrupt fragments produce partial ready output when usable data remains; empty unusable recordings fail. Duplicate attempts reuse accepted results; dead-job replay restores finalizing for the same sealed generation.
 
-Design clarification: Any downloadable video uses a recording-specific composition, independent of the live frontend layout. Finalization maps canonical audio/video and collaboration state into that composition; it does not need to reproduce live UI components.
+Validation: real PostgreSQL/RustFS/RabbitMQ test proves storage-failure retry, corrupt-fragment partial coverage, original-byte preservation, archive-copy verification/pin release, duplicate finalization and empty-recording failure. PostgreSQL tests prove stale claim rejection and operator replay. Native Opus/VP8/H264 readability and clock fixtures, strict workspace clippy/build, SQL, protobuf and docs pass.
 
-Replay synchronization clarification: Finalized recordings remain independently playable media segments plus the ordered collaboration timeline on one recording clock. Seeking moves audio/video playback to the target time and restores the shared workspace from a snapshot plus later events; finalization does not need to flatten the workspace into a movie.
+Earlier composition/export notes are superseded: FFmpeg, video reconstruction, transcoding, composition and MP4/video export are excluded. Playback, retention and orphan manifest cleanup remain TASK-61. No images were built or deployment/browser recording session tested.
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Finalized sealed original-track replay bundles with checksum/decode verification, explicit partial/unusable outcomes and claim-fenced manifests. Real infrastructure tests cover retry, corruption, archived assets, duplicates and replay; video export and M9-06 remain outside scope.
+<!-- SECTION:FINAL_SUMMARY:END -->

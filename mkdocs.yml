@@ -28,12 +28,14 @@ nav:
       - Repository structure: development/repository-structure.md
       - Conventions: development/conventions.md
       - Testing: development/testing.md
+      - Recording spike: development/recording-spike.md
       - Continuous integration: development/ci.md
   - Deployment:
       - Local: deployment/local.md
       - Minikube: deployment/minikube.md
       - Darkube: deployment/darkube.md
       - Background jobs: deployment/background-jobs.md
+      - Recordings: deployment/recordings.md
   - Architecture:
       - Overview: architecture/overview.md
       - Components: architecture/components.md
@@ -72,4 +74,5 @@ nav:
       - 0024 WebSocket AsyncAPI generation: adr/0024-generate-websocket-asyncapi.md
       - 0025 Single-use WebSocket tickets: adr/0025-single-use-websocket-auth-tickets.md
       - 0026 Vidstack media player: adr/0026-vidstack-media-player.md
+      - 0027 Original track recording: adr/0027-original-track-recording.md
   - Backlog: backlog/roadmap.md
