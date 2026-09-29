@@ -37,6 +37,7 @@ interface SessionToolbarProps extends Partial<SessionToolbarCapabilities> {
   onToggleCamera?: () => void;
   onToggleScreenShare?: () => void;
   endAction?: ReactNode;
+  recordingControl?: ReactNode;
 }
 
 export function SessionToolbar({
@@ -55,6 +56,7 @@ export function SessionToolbar({
   onToggleCamera,
   onToggleScreenShare,
   endAction,
+  recordingControl,
 }: Readonly<SessionToolbarProps>) {
   const text = messagesFor(locale).sessions;
   const collaboration = messagesFor(locale).collaboration;
@@ -85,7 +87,16 @@ export function SessionToolbar({
 
   return (
     <TooltipProvider>
-      <div className="flex w-fit max-w-[calc(100vw-2rem)] items-center gap-1 overflow-x-auto rounded-2xl border border-slate-800 bg-slate-950 p-1.5 shadow-[0_12px_32px_-12px_rgba(15,23,42,0.65)]">
+      <div
+        data-session-toolbar
+        className="flex w-fit max-w-[calc(100vw-2rem)] items-center gap-1 overflow-x-auto rounded-2xl border border-slate-800 bg-slate-950 p-1.5 shadow-[0_12px_32px_-12px_rgba(15,23,42,0.65)]"
+      >
+        {recordingControl ? (
+          <>
+            {recordingControl}
+            <div className="mx-1 h-6 w-px shrink-0 bg-slate-800" />
+          </>
+        ) : null}
         {controls.map(({ label, icon: Icon, pressed, onClick }) => (
           <Tooltip key={label}>
             <TooltipTrigger asChild>

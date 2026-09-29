@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useId, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { Settings2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -41,6 +42,8 @@ export function SessionSettingsDialog({
   const [title, setTitle] = useState(session.title_overridden ? session.title : "");
   const [start, setStart] = useState("");
   const [duration, setDuration] = useState(session.scheduled_duration_minutes?.toString() ?? "");
+  const autoRecordId = useId();
+  const [autoRecord, setAutoRecord] = useState(session.auto_record ?? true);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState(false);
 
@@ -54,6 +57,7 @@ export function SessionSettingsDialog({
     setError(false);
     try {
       await browserApiClient.patch(`/v1/sessions/${encodeURIComponent(session.id)}`, {
+        ...(session.status === "scheduled" ? { auto_record: autoRecord } : {}),
         title: title.trim() || null,
         scheduled_start_at: start ? new Date(start).toISOString() : null,
         scheduled_duration_minutes: duration ? Number(duration) : null,
@@ -90,8 +94,10 @@ export function SessionSettingsDialog({
       <DialogContent
         className="max-h-[85dvh] overflow-y-auto"
         data-testid={`session-settings-dialog-${session.id}`}
+        dir={locale === "fa" ? "rtl" : "ltr"}
+        lang={locale}
       >
-        <DialogHeader>
+        <DialogHeader className="sm:text-start">
           <DialogTitle>{text.sessionSettings}</DialogTitle>
           <DialogDescription>{session.title}</DialogDescription>
         </DialogHeader>
@@ -118,6 +124,16 @@ export function SessionSettingsDialog({
               value={duration}
             />
           </label>
+          {session.status === "scheduled" ? (
+            <div className="flex items-center gap-2 text-sm">
+              <Checkbox
+                id={autoRecordId}
+                checked={autoRecord}
+                onCheckedChange={(checked) => setAutoRecord(checked === true)}
+              />
+              <label htmlFor={autoRecordId}>{text.autoRecord}</label>
+            </div>
+          ) : null}
           {error ? (
             <p className="text-sm text-destructive" role="alert">
               {text.sessionSettingsFailed}

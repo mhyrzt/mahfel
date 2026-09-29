@@ -36,6 +36,7 @@ interface SessionScreenProps {
   files?: ReactNode;
   invites?: ReactNode;
   endAction?: ReactNode;
+  recordingControl?: ReactNode;
   title: string;
   state: SessionState;
   admissionRequests?: AdmissionRequest[];
@@ -63,6 +64,7 @@ export function SessionScreen({
   files,
   invites,
   endAction,
+  recordingControl,
   title,
   state,
   admissionRequests = [],
@@ -236,6 +238,7 @@ export function SessionScreen({
           onParticipantAction={onParticipantAction}
           onLeave={onLeave}
           endAction={endAction}
+          recordingControl={isLive ? recordingControl : undefined}
         />
       </div>
     </SessionSidebar>

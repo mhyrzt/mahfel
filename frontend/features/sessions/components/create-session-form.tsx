@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useId, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { roomCopy } from "@/features/rooms/room-copy";
 import { browserApiClient } from "@/lib/api/browser";
@@ -33,6 +34,8 @@ export function CreateSessionForm({
   const [title, setTitle] = useState("");
   const [start, setStart] = useState("");
   const [duration, setDuration] = useState("");
+  const autoRecordId = useId();
+  const [autoRecord, setAutoRecord] = useState(true);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [canManage, setCanManage] = useState(initialCanManage ?? false);
@@ -74,6 +77,7 @@ export function CreateSessionForm({
       const { data } = await browserApiClient.post<Session>(
         `/v1/rooms/${encodeURIComponent(roomId)}/sessions`,
         {
+          auto_record: autoRecord,
           title: title.trim() || null,
           scheduled_start_at: start ? new Date(start).toISOString() : null,
           scheduled_duration_minutes: duration ? Number(duration) : null,
@@ -155,6 +159,14 @@ export function CreateSessionForm({
           onChange={(event) => setDuration(event.target.value)}
           value={duration}
         />
+      </div>
+      <div className="flex items-center gap-2 text-sm">
+        <Checkbox
+          id={autoRecordId}
+          checked={autoRecord}
+          onCheckedChange={(checked) => setAutoRecord(checked === true)}
+        />
+        <label htmlFor={autoRecordId}>{text.autoRecord}</label>
       </div>
       {error ? (
         <p className="text-sm text-destructive" role="alert">

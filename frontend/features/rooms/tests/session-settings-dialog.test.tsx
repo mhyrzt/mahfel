@@ -53,3 +53,13 @@ test("only users with room session management see a card settings button", () =>
     screen.getByRole("button", { name: "Session settings: Weekly review" }),
   ).toBeInTheDocument();
 });
+
+test("recording preference is editable only on a scheduled session", async () => {
+  const { rerender } = render(<SessionSettingsDialog session={session} locale="en" />);
+  fireEvent.click(screen.getByRole("button", { name: "Session settings: Weekly review" }));
+  expect(
+    screen.getByRole("checkbox", { name: "Record automatically when the session starts" }),
+  ).toBeChecked();
+  rerender(<SessionSettingsDialog session={{ ...session, status: "ended" }} locale="en" />);
+  expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
+});

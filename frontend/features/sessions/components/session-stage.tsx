@@ -41,6 +41,7 @@ interface SessionStageProps {
   onParticipantAction?: (action: ParticipantAction, participant: Participant) => void;
   onLeave?: () => void;
   endAction?: ReactNode;
+  recordingControl?: ReactNode;
 }
 
 export function SessionStage({
@@ -67,6 +68,7 @@ export function SessionStage({
   onParticipantAction,
   onLeave,
   endAction,
+  recordingControl,
 }: Readonly<SessionStageProps>) {
   const text = messagesFor(locale).sessions;
   const participantCount = Math.max(participants.length, 1);
@@ -166,6 +168,7 @@ export function SessionStage({
           locale={locale}
           onLeave={onLeave}
           endAction={endAction}
+          recordingControl={recordingControl}
           cameraEnabled={cameraEnabled}
           microphoneEnabled={microphoneEnabled}
           screenShareEnabled={screenShareEnabled}

@@ -4,6 +4,8 @@ import { FileList } from "@/features/files/components/file-list";
 import { InviteLinkList } from "@/features/invites/components/invite-link-list";
 import { ConversationSidebar } from "@/features/chat/components/conversation-sidebar";
 import { ConversationPreview } from "@/features/chat/stories/conversation-preview";
+import { RecordingControlsView } from "@/features/recordings/recording-controls-view";
+import { fn } from "storybook/test";
 
 import { initialSessionState, sessionReducer } from "../session-state";
 import { SessionScreen } from "../components/session-screen";
@@ -188,6 +190,89 @@ export const PersianLive: Story = {
   decorators: [
     (Story) => (
       <div dir="rtl" lang="fa">
+        <Story />
+      </div>
+    ),
+  ],
+};
+
+export const LiveRecording: Story = {
+  args: {
+    recordingControl: (
+      <RecordingControlsView
+        locale="en"
+        recording={{ status: "recording", partial: false, warning: null }}
+        verified
+        canControl
+        onCommand={fn()}
+      />
+    ),
+  },
+};
+
+export const LiveRecordingMember: Story = {
+  args: {
+    recordingControl: (
+      <RecordingControlsView
+        locale="en"
+        recording={{ status: "recording", partial: false, warning: null }}
+        verified
+        canControl={false}
+        onCommand={fn()}
+      />
+    ),
+  },
+};
+
+export const LiveRecordingPaused: Story = {
+  args: {
+    recordingControl: (
+      <RecordingControlsView
+        locale="en"
+        recording={{ status: "paused", partial: false, warning: null }}
+        verified
+        canControl
+        onCommand={fn()}
+      />
+    ),
+  },
+};
+
+export const LiveRecordingFailure: Story = {
+  args: {
+    recordingControl: (
+      <RecordingControlsView
+        locale="en"
+        recording={{ status: "recording", partial: true, warning: "upload_unavailable" }}
+        verified
+        canControl
+        onCommand={fn()}
+      />
+    ),
+  },
+};
+
+export const PersianLiveRecording: Story = {
+  ...PersianLive,
+  args: {
+    locale: "fa",
+    recordingControl: (
+      <RecordingControlsView
+        locale="fa"
+        recording={{ status: "recording", partial: false, warning: null }}
+        verified
+        canControl
+        onCommand={fn()}
+      />
+    ),
+  },
+};
+
+export const NarrowLiveRecording: Story = {
+  ...LiveRecording,
+  decorators: [
+    (Story) => (
+      <div className="h-dvh w-full max-w-sm">
         <Story />
       </div>
     ),

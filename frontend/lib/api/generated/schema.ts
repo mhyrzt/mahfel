@@ -1056,6 +1056,38 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/sessions/{session_id}/recordings": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get: operations["listSessionRecordings"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/sessions/{session_id}/recordings/commands": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post: operations["controlSessionRecording"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/v1/sessions/{session_id}/roster": {
     parameters: {
       query?: never;
@@ -1269,6 +1301,7 @@ export interface components {
       expiry_days?: number | null;
     };
     CreateSessionRequest: {
+      auto_record?: boolean | null;
       /**
        * Format: int32
        * @description Optional advisory length in minutes, from 1 through 10080.
@@ -1614,6 +1647,28 @@ export interface components {
       /** Format: int64 */
       sequence: number;
     };
+    /** @enum {string} */
+    RecordingActionDto: "start" | "pause" | "resume" | "stop";
+    RecordingCommandRequest: {
+      action: components["schemas"]["RecordingActionDto"];
+      /** Format: uuid */
+      command_id: string;
+    };
+    RecordingResponse: {
+      /** Format: int32 */
+      capture_generation: number;
+      id: string;
+      partial: boolean;
+      /** Format: int64 */
+      revision: number;
+      session_id: string;
+      /** Format: date-time */
+      started_at: string;
+      status: string;
+      /** Format: date-time */
+      stopped_at?: string | null;
+      warning?: string | null;
+    };
     RedeemInviteLinkRequest: {
       /** @description The code as typed or pasted. Case and separators are ignored. */
       code: string;
@@ -1708,6 +1763,7 @@ export interface components {
     };
     SessionResponse: {
       admission?: null | components["schemas"]["AdmissionPolicyDto"];
+      auto_record?: boolean;
       /** Format: date-time */
       created_at: string;
       /** Format: date-time */
@@ -1779,6 +1835,7 @@ export interface components {
       visibility?: null | components["schemas"]["RoomVisibilityDto"];
     };
     UpdateSessionDetailsRequest: {
+      auto_record?: boolean | null;
       /**
        * Format: int32
        * @description Omit to keep, null to clear, or provide 1 through 10080 minutes.
@@ -5431,6 +5488,116 @@ export interface operations {
       };
       /** @description Session does not exist or the caller cannot see its room */
       404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
+      };
+    };
+  };
+  listSessionRecordings: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        session_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["RecordingResponse"][];
+        };
+      };
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
+      };
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
+      };
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
+      };
+    };
+  };
+  controlSessionRecording: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        session_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["RecordingCommandRequest"];
+      };
+    };
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["RecordingResponse"];
+        };
+      };
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
+      };
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
+      };
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
+      };
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
+      };
+      503: {
         headers: {
           [name: string]: unknown;
         };

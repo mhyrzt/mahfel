@@ -41,6 +41,7 @@ test("creates an ad-hoc session with inherited title", async () => {
 
   await waitFor(() => expect(push).toHaveBeenCalledWith("/session/session-1"));
   expect(post).toHaveBeenCalledWith("/v1/rooms/room-1/sessions", {
+    auto_record: true,
     title: null,
     scheduled_start_at: null,
     scheduled_duration_minutes: null,

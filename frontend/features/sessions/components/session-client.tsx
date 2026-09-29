@@ -13,6 +13,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { RecordingControls } from "@/features/recordings/recording-controls";
 import { roomCopy } from "@/features/rooms/room-copy";
 import { ContextFileLibrary } from "@/features/files/components/context-file-library";
 import { ConversationSidebar } from "@/features/chat/components/conversation-sidebar";
@@ -453,6 +454,7 @@ export function SessionClient({
   return (
     <div className="h-full min-h-0">
       <SessionScreen
+        recordingControl={<RecordingControls sessionId={sessionId} locale={locale} />}
         actorId={actorId}
         sessionId={sessionId}
         roomId={roomId}
