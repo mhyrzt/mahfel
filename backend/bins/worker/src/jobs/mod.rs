@@ -2,6 +2,7 @@ mod consumer;
 mod handler;
 mod metrics;
 mod processor;
+mod recording_verifier;
 mod relay;
 mod runtime;
 

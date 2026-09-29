@@ -42,7 +42,7 @@ pub(super) async fn process_delivery(
             return Ok(());
         }
     };
-    let task = handle(&job, &files, &storage);
+    let task = handle(&job, &store, token, &files, &storage);
     tokio::pin!(task);
     let mut renew = tokio::time::interval(CLAIM_RENEW);
     renew.tick().await;

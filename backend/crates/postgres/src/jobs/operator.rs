@@ -71,6 +71,10 @@ impl JobStore {
         .bind(generation)
         .execute(&mut *tx)
         .await?;
+        sqlx::query("UPDATE mahfel.recordings recording SET status = 'finalizing', warning = NULL FROM mahfel.background_jobs job \
+            WHERE job.id = $1 AND job.job_type = 'recordings.finalize' AND job.payload ->> 'recording_id' = recording.id::TEXT \
+            AND (job.payload ->> 'capture_generation')::INTEGER = recording.capture_generation AND recording.status = 'failed' AND recording.manifest_key IS NULL")
+            .bind(id).execute(&mut *tx).await?;
         tx.commit().await?;
         Ok(true)
     }

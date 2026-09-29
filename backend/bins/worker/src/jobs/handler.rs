@@ -8,10 +8,25 @@ use mahfel_storage::S3FileStorage;
 
 pub(super) async fn handle(
     job: &JobEnvelope,
+    jobs: &mahfel_postgres::JobStore,
+    token: uuid::Uuid,
     files: &PostgresFileStore,
     storage: &S3FileStorage,
 ) -> Result<(), JobFailure> {
-    if job.version != JOB_SCHEMA_VERSION || job.job_type != FILE_CLEANUP_KIND {
+    if job.version != JOB_SCHEMA_VERSION {
+        return Err(JobFailure::Permanent("unsupported_job_contract"));
+    }
+    if job.job_type == mahfel_application::jobs::RECORDING_FINALIZE_KIND {
+        return mahfel_application::recordings::finalize_recording(
+            &jobs.recordings(),
+            storage,
+            &super::recording_verifier::GstreamerVerifier,
+            job,
+            token,
+        )
+        .await;
+    }
+    if job.job_type != FILE_CLEANUP_KIND {
         return Err(JobFailure::Permanent("unsupported_job_contract"));
     }
     let payload: FileCleanupPayload = serde_json::from_value(job.payload.clone())

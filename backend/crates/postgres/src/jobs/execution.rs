@@ -3,6 +3,9 @@ use mahfel_application::jobs::{JobEnvelope, MAX_ATTEMPTS, retry_delay_seconds};
 use uuid::Uuid;
 
 impl JobStore {
+    pub fn recordings(&self) -> crate::PostgresRecordingStore {
+        crate::PostgresRecordingStore::new(self.pool.clone())
+    }
     pub async fn claim(&self, envelope: &JobEnvelope) -> Result<JobClaim, sqlx::Error> {
         let token = Uuid::new_v4();
         let updated = sqlx::query_scalar::<_, Uuid>(
@@ -139,6 +142,15 @@ impl JobStore {
             .bind(i32::try_from(job.generation).unwrap_or(i32::MAX))
             .execute(&mut *tx)
             .await?;
+        }
+        if status == "dead"
+            && job.job_type == mahfel_application::jobs::RECORDING_FINALIZE_KIND
+            && let Some(id) = job.payload["recording_id"]
+                .as_str()
+                .and_then(|id| Uuid::parse_str(id).ok())
+        {
+            sqlx::query("UPDATE mahfel.recordings SET status = 'failed', warning = 'finalization_failed' WHERE id = $1 AND status = 'finalizing'")
+                    .bind(id).execute(&mut *tx).await?;
         }
         tx.commit().await?;
         Ok(true)

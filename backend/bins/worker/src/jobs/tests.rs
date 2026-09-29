@@ -184,6 +184,176 @@ async fn chat_deletion_drains_outbox_and_cleans_object() -> Result<(), Box<dyn E
     .bind(file.id.to_string())
     .fetch_one(&database)
     .await?;
+    // Capture receipts remain durable while RabbitMQ is unavailable.
+    use mahfel_application::ports::{RecordingStorage, RecordingStore, SessionStore};
+    let sessions = mahfel_postgres::PostgresSessionStore::new(database.clone());
+    let recordings = mahfel_postgres::PostgresRecordingStore::new(database.clone());
+    let mut session = mahfel_domain::Session::schedule(room.id, None, OffsetDateTime::now_utc());
+    sessions.insert(&session).await?;
+    session.start(OffsetDateTime::now_utc())?;
+    sessions.save(&session).await?;
+    let recording = recordings.list(session.id).await?.remove(0);
+    let boot = Uuid::new_v4();
+    let origin = u64::try_from(OffsetDateTime::now_utc().unix_timestamp_nanos())?;
+    let intent = recordings
+        .capture_intents(Some(session.id))
+        .await?
+        .remove(0);
+    recordings
+        .capture_report(
+            &intent,
+            &mahfel_postgres::CaptureObservation {
+                boot,
+                origin,
+                capturing: true,
+                sealed: false,
+                warning: None,
+            },
+        )
+        .await?;
+    let fixture = encoded_audio_fixture()?;
+    let original = std::fs::read(&fixture)?;
+    use sha2::{Digest, Sha256};
+    let key = format!(
+        "recordings/{}/capture/1/{boot}/tracks/audio/000000.webm",
+        recording.id
+    );
+    let recording_storage = S3FileStorage::new(s3_settings.clone());
+    recording_storage.put_fragment(&key, &fixture).await?;
+    std::fs::remove_file(fixture)?;
+    let receipt = mahfel_application::recording_artifacts::FragmentReceipt {
+        recording_id: recording.id.as_uuid(),
+        generation: 1,
+        boot_id: boot,
+        producer_id: Uuid::new_v4().to_string(),
+        actor_id: user.id.as_uuid(),
+        source: "microphone".into(),
+        codec: "audio/opus".into(),
+        container: "webm".into(),
+        unix_origin_ns: origin,
+        start_ns: 0,
+        end_ns: 1_200_000_000,
+        object_key: key.clone(),
+        sha256: format!("{:x}", Sha256::digest(&original)),
+        bytes: original.len() as u64,
+    };
+    recording_storage
+        .put(
+            &format!(
+                "recordings/{}/capture/1/{boot}/receipts/000000.json",
+                recording.id
+            ),
+            serde_json::to_vec(&receipt)?,
+        )
+        .await?;
+    // One corrupt track yields a usable partial bundle with an explicit loss.
+    let corrupt_key = format!(
+        "recordings/{}/capture/1/{boot}/tracks/corrupt/000000.webm",
+        recording.id
+    );
+    let corrupt_bytes = b"corrupt-container".to_vec();
+    recording_storage
+        .put(&corrupt_key, corrupt_bytes.clone())
+        .await?;
+    let corrupt_receipt = mahfel_application::recording_artifacts::FragmentReceipt {
+        producer_id: Uuid::new_v4().to_string(),
+        object_key: corrupt_key,
+        sha256: format!("{:x}", Sha256::digest(&corrupt_bytes)),
+        bytes: corrupt_bytes.len() as u64,
+        ..receipt.clone()
+    };
+    recording_storage
+        .put(
+            &format!(
+                "recordings/{}/capture/1/{boot}/receipts/corrupt.json",
+                recording.id
+            ),
+            serde_json::to_vec(&corrupt_receipt)?,
+        )
+        .await?;
+    // A referenced file must survive source deletion after its private archive is accepted.
+    let asset_id = Uuid::new_v4();
+    let asset_key = format!("files/{asset_id}");
+    let asset_bytes = b"archived-original".to_vec();
+    recording_storage
+        .put(&asset_key, asset_bytes.clone())
+        .await?;
+    use base64::Engine;
+    let asset_checksum =
+        base64::engine::general_purpose::STANDARD.encode(Sha256::digest(&asset_bytes));
+    sqlx::query("INSERT INTO mahfel.files (id,object_key,owner_actor_id,session_id,status,file_name,declared_mime,verified_mime,size_bytes,checksum_sha_256,created_at,updated_at) VALUES ($1,$2,$3,$4,'ready','fixture.pdf','application/pdf','application/pdf',$5,$6,clock_timestamp(),clock_timestamp())")
+        .bind(asset_id).bind(&asset_key).bind(user.id.as_uuid()).bind(session.id.as_uuid()).bind(asset_bytes.len() as i64).bind(&asset_checksum).execute(&database).await?;
+    let document = Uuid::new_v4();
+    sqlx::query("INSERT INTO mahfel.collaboration_documents (id,session_id,kind,schema_version) VALUES ($1,$2,'notes',1)")
+        .bind(document).bind(session.id.as_uuid()).execute(&database).await?;
+    sqlx::query(
+        "INSERT INTO mahfel.collaboration_document_assets (document_id,file_id) VALUES ($1,$2)",
+    )
+    .bind(document)
+    .bind(asset_id)
+    .execute(&database)
+    .await?;
+    assert!(
+        files
+            .recording_pinned(mahfel_domain::FileId::from_uuid(asset_id))
+            .await?
+    );
+    session.end(OffsetDateTime::now_utc())?;
+    sessions.save(&session).await?;
+    let intent = recordings
+        .capture_intents(Some(session.id))
+        .await?
+        .remove(0);
+    recordings
+        .capture_report(
+            &intent,
+            &mahfel_postgres::CaptureObservation {
+                boot,
+                origin,
+                capturing: false,
+                sealed: true,
+                warning: None,
+            },
+        )
+        .await?;
+    assert!(recordings.finalize_sealed(recording.id.as_uuid()).await?);
+    let recording_job_id: Uuid = sqlx::query_scalar(
+        "SELECT id FROM mahfel.background_jobs WHERE job_type = 'recordings.finalize'",
+    )
+    .fetch_one(&database)
+    .await?;
+    let retry_store = JobStore::new(database.clone());
+    let queued = retry_store
+        .inspect(recording_job_id)
+        .await?
+        .expect("recording job")
+        .envelope;
+    let mahfel_postgres::JobClaim::Claimed(retry_token) = retry_store.claim(&queued).await? else {
+        panic!("recording claim")
+    };
+    let unavailable_storage = S3FileStorage::new(S3Settings {
+        internal_endpoint: "http://127.0.0.1:1".into(),
+        ..s3_settings.clone()
+    });
+    let failed = mahfel_application::recordings::finalize_recording(
+        &recordings,
+        &unavailable_storage,
+        &super::recording_verifier::GstreamerVerifier,
+        &queued,
+        retry_token,
+    )
+    .await;
+    assert!(matches!(
+        failed,
+        Err(mahfel_application::jobs::JobFailure::Retryable(_))
+    ));
+    assert!(
+        retry_store
+            .fail(&queued, retry_token, "storage_fixture_outage", false)
+            .await?
+    );
+    sqlx::query("UPDATE mahfel.job_outbox SET available_at = clock_timestamp() WHERE job_id = $1 AND attempt = 2")
+        .bind(recording_job_id).execute(&database).await?;
     // RabbitMQ starts after the database commit: the outbox must bridge the outage.
     let broker = GenericImage::new("rabbitmq", "4.2-management-alpine")
         .with_exposed_port(5672.tcp())
@@ -239,8 +409,164 @@ async fn chat_deletion_drains_outbox_and_cleans_object() -> Result<(), Box<dyn E
         "S3 object removed"
     );
     assert_eq!(store.history(job_id).await?.len(), 1);
+    tokio::time::timeout(Duration::from_secs(30), async {
+        loop {
+            if store
+                .inspect(recording_job_id)
+                .await
+                .expect("inspect recording job")
+                .expect("recording job")
+                .status
+                == "succeeded"
+            {
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(100)).await;
+        }
+    })
+    .await
+    .context("wait for recording finalization")?;
+    let accepted = recordings.list(session.id).await?.remove(0);
+    assert_eq!(accepted.status, mahfel_domain::RecordingStatus::Ready);
+    let manifest_key = accepted.manifest_key.expect("accepted manifest");
+    let manifest: serde_json::Value =
+        serde_json::from_slice(&recording_storage.read(&manifest_key, 1024 * 1024).await?)?;
+    assert_eq!(manifest["version"], 1);
+    assert_eq!(manifest["tracks"].as_object().expect("tracks").len(), 1);
+    assert!(manifest["partial"].as_bool().expect("partial coverage"));
+    assert_eq!(manifest["losses"].as_array().expect("losses").len(), 1);
+    assert_eq!(
+        recording_storage.read(&key, 32 * 1024 * 1024).await?,
+        original,
+        "original encoded bytes preserved"
+    );
+    assert!(
+        !files
+            .recording_pinned(mahfel_domain::FileId::from_uuid(asset_id))
+            .await?
+    );
+    s3.delete_object()
+        .bucket(&bucket)
+        .key(&asset_key)
+        .send()
+        .await?;
+    assert_eq!(
+        recording_storage
+            .read(
+                &format!("recordings/{}/assets/{asset_id}", recording.id),
+                1024
+            )
+            .await?,
+        asset_bytes
+    );
+    assert_eq!(
+        store.history(recording_job_id).await?.len(),
+        2,
+        "durable retry followed by success"
+    );
+    // A duplicate finalization attempt accepts the existing durable result without rewriting it.
+    let envelope = store
+        .inspect(recording_job_id)
+        .await?
+        .expect("job")
+        .envelope;
+    mahfel_application::recordings::finalize_recording(
+        &recordings,
+        &recording_storage,
+        &super::recording_verifier::GstreamerVerifier,
+        &envelope,
+        Uuid::new_v4(),
+    )
+    .await
+    .map_err(|error| format!("duplicate finalization: {error:?}"))?;
+    assert_eq!(
+        recordings.list(session.id).await?[0]
+            .manifest_key
+            .as_deref(),
+        Some(manifest_key.as_str())
+    );
     let _ = shutdown_tx.send(true);
     tokio::time::timeout(Duration::from_secs(35), worker).await??;
+    let mut empty_session =
+        mahfel_domain::Session::schedule(room.id, None, OffsetDateTime::now_utc());
+    sessions.insert(&empty_session).await?;
+    empty_session.start(OffsetDateTime::now_utc())?;
+    sessions.save(&empty_session).await?;
+    let empty_recording = recordings.list(empty_session.id).await?.remove(0);
+    empty_session.end(OffsetDateTime::now_utc())?;
+    sessions.save(&empty_session).await?;
+    let empty_intent = recordings
+        .capture_intents(Some(empty_session.id))
+        .await?
+        .remove(0);
+    recordings
+        .capture_report(
+            &empty_intent,
+            &mahfel_postgres::CaptureObservation {
+                boot: Uuid::new_v4(),
+                origin: 1000,
+                capturing: false,
+                sealed: true,
+                warning: None,
+            },
+        )
+        .await?;
+    recordings
+        .finalize_sealed(empty_recording.id.as_uuid())
+        .await?;
+    let empty_job_id: Uuid = sqlx::query_scalar(
+        "SELECT id FROM mahfel.background_jobs WHERE payload ->> 'recording_id' = $1",
+    )
+    .bind(empty_recording.id.to_string())
+    .fetch_one(&database)
+    .await?;
+    let empty_job = store
+        .inspect(empty_job_id)
+        .await?
+        .expect("empty recording job")
+        .envelope;
+    let mahfel_postgres::JobClaim::Claimed(empty_token) = store.claim(&empty_job).await? else {
+        return Err("empty recording claim missing".into());
+    };
+    mahfel_application::recordings::finalize_recording(
+        &recordings,
+        &recording_storage,
+        &super::recording_verifier::GstreamerVerifier,
+        &empty_job,
+        empty_token,
+    )
+    .await
+    .map_err(|error| format!("empty finalization: {error:?}"))?;
+    let empty_result = recordings.list(empty_session.id).await?.remove(0);
+    assert_eq!(empty_result.status, mahfel_domain::RecordingStatus::Failed);
+    assert_eq!(empty_result.warning.as_deref(), Some("unusable_recording"));
+    assert!(empty_result.manifest_key.is_none());
+    assert!(store.succeed(&empty_job, empty_token).await?);
     database.close().await;
     Ok(())
+}
+
+fn encoded_audio_fixture() -> Result<std::path::PathBuf, Box<dyn Error>> {
+    use gstreamer::{self as gst, prelude::*};
+    gst::init()?;
+    let path = std::env::temp_dir().join(format!("mahfel-original-{}.webm", Uuid::new_v4()));
+    let pipeline = gst::parse::launch(
+        "audiotestsrc num-buffers=50 ! audioconvert ! opusenc ! webmmux ! filesink name=output",
+    )?
+    .downcast::<gst::Pipeline>()
+    .map_err(|_| "fixture pipeline type")?;
+    pipeline
+        .by_name("output")
+        .ok_or("fixture output")?
+        .set_property("location", path.to_str().ok_or("fixture path")?);
+    pipeline.set_state(gst::State::Playing)?;
+    let result = pipeline.bus().ok_or("fixture bus")?.timed_pop_filtered(
+        gst::ClockTime::from_seconds(10),
+        &[gst::MessageType::Eos, gst::MessageType::Error],
+    );
+    pipeline.set_state(gst::State::Null)?;
+    if !result.is_some_and(|message| message.type_() == gst::MessageType::Eos) {
+        return Err("fixture encoding failed".into());
+    }
+    Ok(path)
 }
