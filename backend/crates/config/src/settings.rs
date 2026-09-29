@@ -14,6 +14,8 @@ pub struct Settings {
     pub database: DatabaseSettings,
     pub storage: StorageSettings,
     pub media: MediaSettings,
+    #[serde(default)]
+    pub recording: crate::RecordingSettings,
     pub redis: RedisSettings,
     pub worker: WorkerSettings,
     pub telemetry: TelemetrySettings,

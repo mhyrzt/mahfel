@@ -9,6 +9,7 @@ use time::OffsetDateTime;
 pub struct ScheduleSession {
     pub principal: Principal,
     pub room_id: RoomId,
+    pub auto_record: bool,
     pub title: Option<String>,
     pub scheduled_start_at: Option<OffsetDateTime>,
     pub scheduled_duration_minutes: Option<u32>,
@@ -30,6 +31,7 @@ where
     require_manage_session(rooms, command.room_id, &command.principal).await?;
     let now = OffsetDateTime::now_utc();
     let mut session = Session::schedule(command.room_id, command.scheduled_start_at, now);
+    session.set_auto_record(command.auto_record)?;
     session.set_details(
         command.title.map(SessionTitle::new).transpose()?,
         command.scheduled_start_at,

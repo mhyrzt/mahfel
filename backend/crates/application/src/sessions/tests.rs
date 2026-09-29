@@ -1080,6 +1080,7 @@ async fn non_manager_is_denied_and_non_member_is_hidden() {
         &sessions,
         &rooms,
         ScheduleSession {
+            auto_record: true,
             principal: principal(member),
             room_id: room.id,
             title: None,
@@ -1097,6 +1098,7 @@ async fn non_manager_is_denied_and_non_member_is_hidden() {
         &sessions,
         &rooms,
         ScheduleSession {
+            auto_record: true,
             principal: principal(stranger),
             room_id: room.id,
             title: None,
@@ -1124,6 +1126,7 @@ async fn session_details_are_validated_and_editable_in_every_state() {
         &sessions,
         &rooms,
         ScheduleSession {
+            auto_record: true,
             principal: principal(owner),
             room_id: room.id,
             title: Some("  ".to_owned()),
@@ -1157,6 +1160,7 @@ async fn session_details_are_validated_and_editable_in_every_state() {
             &sessions,
             &rooms,
             UpdateSessionDetails {
+                auto_record: None,
                 principal: principal(member),
                 session_id: session.id,
                 title: Some(Some("Denied".to_owned())),
@@ -1171,6 +1175,7 @@ async fn session_details_are_validated_and_editable_in_every_state() {
             &sessions,
             &rooms,
             UpdateSessionDetails {
+                auto_record: None,
                 principal: principal(owner),
                 session_id: session.id,
                 title: Some(Some("  Custom  ".to_owned())),
@@ -1194,6 +1199,7 @@ async fn session_details_are_validated_and_editable_in_every_state() {
             &sessions,
             &rooms,
             UpdateSessionDetails {
+                auto_record: None,
                 principal: principal(owner),
                 session_id: session.id,
                 title: Some(None),
@@ -1221,6 +1227,7 @@ async fn capable_admin_can_start_before_the_planned_time() {
         &sessions,
         &rooms,
         ScheduleSession {
+            auto_record: true,
             principal: admin.clone(),
             room_id: room.id,
             title: None,
@@ -1319,6 +1326,7 @@ async fn manager_can_schedule_start_end_and_cancel() {
         &sessions,
         &rooms,
         ScheduleSession {
+            auto_record: true,
             principal: principal(owner),
             room_id: room.id,
             title: None,

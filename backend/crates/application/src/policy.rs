@@ -87,7 +87,7 @@ impl ServerCapabilityResolver {
             ],
             // Managing a room includes managing its sessions.
             RoleCapability::Manage | RoleCapability::ManageSession => {
-                vec![Capability::ManageSession]
+                vec![Capability::ManageSession, Capability::ManageRecording]
             }
         }
     }
@@ -102,6 +102,7 @@ impl ServerCapabilityResolver {
             Capability::RemoveParticipant,
             Capability::AdmitParticipant,
             Capability::ManageSession,
+            Capability::ManageRecording,
         ]
     }
 }
@@ -117,6 +118,7 @@ impl crate::ports::CapabilityResolver for ServerCapabilityResolver {
                 Capability::MuteOthers,
                 Capability::RemoveParticipant,
                 Capability::AdmitParticipant,
+                Capability::ManageRecording,
             ]);
         }
 
@@ -276,6 +278,7 @@ mod tests {
             Capability::RemoveParticipant,
             Capability::AdmitParticipant,
             Capability::ManageSession,
+            Capability::ManageRecording,
         ] {
             assert!(granted.has(capability), "manager must hold {capability:?}");
         }

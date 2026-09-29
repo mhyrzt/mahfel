@@ -94,3 +94,9 @@ static_secret = "mahfel-local-only-turn-secret"
 realm = "mahfel.local"
 uris = ["turn:127.0.0.1:3478?transport=udp", "turn:127.0.0.1:3478?transport=tcp", "turns:127.0.0.1:5349?transport=tcp"]
 ttl_seconds = 300
+
+[recording]
+spool_directory = "/tmp/mahfel-recordings"
+recording_spool_bytes = 268435456
+node_spool_bytes = 1073741824
+upload_concurrency = 4

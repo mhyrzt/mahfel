@@ -5,6 +5,7 @@ use serde_json::Value;
 use time::OffsetDateTime;
 use uuid::Uuid;
 
+pub const RECORDING_FINALIZE_KIND: &str = "recordings.finalize";
 pub const FILE_CLEANUP_KIND: &str = "files.cleanup_deleted_attachment";
 pub const JOB_SCHEMA_VERSION: u16 = 1;
 pub const MAX_ATTEMPTS: u16 = 10;
@@ -28,6 +29,19 @@ pub struct JobEnvelope {
 }
 
 impl JobEnvelope {
+    #[must_use]
+    pub fn recording_finalize(
+        recording_id: Uuid,
+        capture_generation: i32,
+        now: OffsetDateTime,
+    ) -> Self {
+        let mut job = Self::file_cleanup(recording_id, now);
+        job.job_type = RECORDING_FINALIZE_KIND.into();
+        job.idempotency_key = format!("recording.finalize:{recording_id}:{capture_generation}");
+        job.payload = serde_json::json!({"recording_id": recording_id, "capture_generation": capture_generation});
+        job
+    }
+
     #[must_use]
     pub fn file_cleanup(file_id: Uuid, now: OffsetDateTime) -> Self {
         Self {

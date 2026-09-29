@@ -44,6 +44,9 @@ pub async fn cleanup_file<F: FileStore + ?Sized, S: FileStorage + ?Sized>(
     if file.status != FileStatus::Deleting {
         return Err(crate::files::FileOperationError::NotReady);
     }
+    if files.recording_pinned(id).await? {
+        return Err(crate::files::FileOperationError::ArchivePending);
+    }
     storage.delete(&file.object_key).await?;
     storage.delete(&format!("uploads/{}", file.id)).await?;
     storage.delete(&format!("files/{}", file.id)).await?;

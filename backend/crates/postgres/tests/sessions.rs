@@ -226,6 +226,7 @@ async fn verify_sessions(pool: &PgPool) -> Result<(), Box<dyn Error>> {
         .save_details(
             &stale_details,
             SessionDetailsFields {
+                auto_record: false,
                 title: true,
                 scheduled_start_at: true,
                 scheduled_duration_minutes: true,
@@ -246,6 +247,7 @@ async fn verify_sessions(pool: &PgPool) -> Result<(), Box<dyn Error>> {
         .save_details(
             &title_edit,
             SessionDetailsFields {
+                auto_record: false,
                 title: true,
                 ..SessionDetailsFields::default()
             },

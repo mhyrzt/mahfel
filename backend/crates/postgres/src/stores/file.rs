@@ -231,6 +231,12 @@ impl FileStore for PostgresFileStore {
         })
     }
 
+    fn recording_pinned(&self, id: FileId) -> BoxFuture<'_, Result<bool, StoreError>> {
+        Box::pin(async move {
+            sqlx::query_scalar("SELECT EXISTS (SELECT 1 FROM mahfel.recording_assets WHERE file_id = $1 AND copy_status = 'pending')")
+                .bind(id.as_uuid()).fetch_one(&self.pool).await.map_err(sqlx_store_error)
+        })
+    }
     fn remove(&self, id: FileId) -> BoxFuture<'_, Result<(), StoreError>> {
         Box::pin(async move {
             sqlx::query("DELETE FROM mahfel.files WHERE id = $1 AND status = 'deleting'")
@@ -282,6 +288,8 @@ impl FileStore for PostgresFileStore {
     ) -> BoxFuture<'a, Result<bool, StoreError>> {
         Box::pin(async move {
             let mut tx = self.pool.begin().await.map_err(sqlx_store_error)?;
+            sqlx::query("SELECT session.id FROM mahfel.sessions session JOIN mahfel.chat_messages message ON message.session_id = session.id JOIN mahfel.files file ON file.chat_message_id = message.id WHERE file.id = $1 FOR UPDATE OF session")
+                .bind(id.as_uuid()).execute(&mut *tx).await.map_err(sqlx_store_error)?;
             let context: Option<(Option<Uuid>, Uuid)> = sqlx::query_as(
                 "SELECT chat_message_id, owner_actor_id FROM mahfel.files \
                  WHERE id = $1 AND status = 'quarantined'",

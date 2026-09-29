@@ -17,6 +17,7 @@ mod invite;
 mod media;
 mod participant;
 mod participation;
+mod recording;
 mod room;
 mod session;
 mod status;
@@ -54,6 +55,9 @@ pub use participant::{MuteKind, Participant, ParticipantError, ParticipantId, Pa
 pub use participation::{
     CorrectionReason, IntervalError, IntervalId, ParticipationInterval, intervals_overlap,
     total_connected_seconds,
+};
+pub use recording::{
+    Recording, RecordingAction, RecordingId, RecordingStatus, RecordingTransitionError,
 };
 pub use room::{
     MembershipError, RoleCapability, Room, RoomError, RoomId, RoomMember, RoomRole, RoomStatus,

@@ -16,6 +16,9 @@ pub mod media_placement;
 pub mod membership;
 pub mod participant_store;
 pub mod participation_store;
+pub mod recording_finalization;
+pub mod recording_storage;
+pub mod recording_store;
 pub mod room_store;
 pub mod service_principal_store;
 pub mod session_store;
@@ -47,6 +50,11 @@ pub use media_placement::{MediaPlacement, MediaPlacementLease, MediaPlacementSto
 pub use membership::{Membership, MembershipStore};
 pub use participant_store::ParticipantStore;
 pub use participation_store::{ParticipantDuration, ParticipationStore};
+pub use recording_finalization::{
+    ManifestAcceptance, RecordingFinalizationStore, RecordingVerifier,
+};
+pub use recording_storage::{ObjectPage, RecordingStorage};
+pub use recording_store::RecordingStore;
 pub use room_store::RoomStore;
 pub use service_principal_store::ServicePrincipalStore;
 pub use session_store::{SessionDetailsFields, SessionStore};

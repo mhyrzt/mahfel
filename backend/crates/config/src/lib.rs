@@ -29,3 +29,6 @@ pub use storage::StorageSettings;
 pub use telemetry::TelemetrySettings;
 pub use turn::TurnSettings;
 pub use worker::WorkerSettings;
+
+mod recording;
+pub use recording::RecordingSettings;

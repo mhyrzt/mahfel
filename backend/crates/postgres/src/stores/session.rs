@@ -56,6 +56,7 @@ struct SessionRow {
     id: Uuid,
     room_id: Uuid,
     status: String,
+    auto_record: bool,
     visibility: Option<String>,
     admission: Option<String>,
     title: Option<String>,
@@ -71,7 +72,7 @@ impl SessionStore for PostgresSessionStore {
     fn get(&self, id: SessionId) -> BoxFuture<'_, Result<Option<Session>, StoreError>> {
         Box::pin(async move {
             let row = sqlx::query_as::<_, SessionRow>(
-                "SELECT id, room_id, status, visibility, admission, title, scheduled_start_at, \
+                "SELECT id, room_id, status, auto_record, visibility, admission, title, scheduled_start_at, \
                         scheduled_duration_minutes, \
                         started_at, ended_at, created_at, updated_at \
                  FROM mahfel.sessions WHERE id = $1",
@@ -91,8 +92,8 @@ impl SessionStore for PostgresSessionStore {
             sqlx::query(
                 "INSERT INTO mahfel.sessions \
                  (id, room_id, status, visibility, admission, title, scheduled_start_at, \
-                  scheduled_duration_minutes, started_at, ended_at, created_at, updated_at) \
-                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $11)",
+                  scheduled_duration_minutes, started_at, ended_at, created_at, updated_at, auto_record) \
+                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $11, $12)",
             )
             .bind(session.id.as_uuid())
             .bind(session.room_id.as_uuid())
@@ -109,6 +110,7 @@ impl SessionStore for PostgresSessionStore {
             .bind(session.started_at)
             .bind(session.ended_at)
             .bind(session.created_at)
+            .bind(session.auto_record)
             .execute(&self.pool)
             .await
             .map_err(sqlx_store_error)?;
@@ -162,9 +164,10 @@ impl SessionStore for PostgresSessionStore {
                      scheduled_start_at = CASE WHEN $4 THEN $5 ELSE scheduled_start_at END, \
                      scheduled_duration_minutes = \
                          CASE WHEN $6 THEN $7 ELSE scheduled_duration_minutes END, \
+                     auto_record = CASE WHEN $9 THEN $10 ELSE auto_record END, \
                      updated_at = GREATEST(updated_at, $8) \
-                 WHERE id = $1 \
-                 RETURNING id, room_id, status, visibility, admission, title, \
+                 WHERE id = $1 AND (NOT $9 OR status = 'scheduled') \
+                 RETURNING id, room_id, status, auto_record, visibility, admission, title, \
                            scheduled_start_at, scheduled_duration_minutes, started_at, \
                            ended_at, created_at, updated_at",
             )
@@ -180,10 +183,18 @@ impl SessionStore for PostgresSessionStore {
                     .map(|value| value.get() as i32),
             )
             .bind(session.updated_at)
+            .bind(fields.auto_record)
+            .bind(session.auto_record)
             .fetch_optional(&self.pool)
             .await
             .map_err(sqlx_store_error)?
-            .ok_or_else(|| StoreError::NotFound(session.id.to_string()))?;
+            .ok_or_else(|| {
+                if fields.auto_record {
+                    StoreError::Conflict("recording preference locked".into())
+                } else {
+                    StoreError::NotFound(session.id.to_string())
+                }
+            })?;
             Session::try_from(row).map_err(store_error)
         })
     }
@@ -191,7 +202,7 @@ impl SessionStore for PostgresSessionStore {
     fn list_for_room(&self, room_id: RoomId) -> BoxFuture<'_, Result<Vec<Session>, StoreError>> {
         Box::pin(async move {
             let rows = sqlx::query_as::<_, SessionRow>(
-                "SELECT id, room_id, status, visibility, admission, title, scheduled_start_at, \
+                "SELECT id, room_id, status, auto_record, visibility, admission, title, scheduled_start_at, \
                         scheduled_duration_minutes, \
                         started_at, ended_at, created_at, updated_at \
                  FROM mahfel.sessions WHERE room_id = $1 \
@@ -217,6 +228,7 @@ impl TryFrom<SessionRow> for Session {
             id: SessionId::from_uuid(row.id),
             room_id: RoomId::from_uuid(row.room_id),
             status: row.status.as_str().try_into()?,
+            auto_record: row.auto_record,
             visibility: row
                 .visibility
                 .as_deref()

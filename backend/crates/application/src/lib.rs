@@ -17,9 +17,12 @@ pub mod participation;
 pub mod placement;
 pub mod policy;
 pub mod ports;
+pub mod recordings;
 pub mod rooms;
 pub mod service_principals;
 pub mod sessions;
 pub mod users;
 
 pub use error::{ApplicationError, ErrorKind};
+
+pub use recordings::artifacts as recording_artifacts;

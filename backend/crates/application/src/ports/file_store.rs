@@ -41,6 +41,9 @@ pub trait FileStore: Send + Sync {
         before: OffsetDateTime,
         limit: u32,
     ) -> BoxFuture<'_, Result<Vec<FileObject>, StoreError>>;
+    fn recording_pinned(&self, _id: FileId) -> BoxFuture<'_, Result<bool, StoreError>> {
+        Box::pin(async { Ok(false) })
+    }
     fn remove(&self, id: FileId) -> BoxFuture<'_, Result<(), StoreError>>;
     /// Detach a file from every live presentation selection so it can be
     /// deleted. Returns `true` when the file is still embedded in a

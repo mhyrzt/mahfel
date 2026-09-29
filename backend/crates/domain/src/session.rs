@@ -74,6 +74,8 @@ pub enum SessionError {
     /// A session override may only tighten access, never loosen it.
     #[error("a session override cannot loosen the room's access settings")]
     CannotLoosen,
+    #[error("recording preference can only change while scheduled")]
+    RecordingPreferenceLocked,
 }
 
 /// A live occurrence of a [`Room`](crate::Room).
@@ -85,6 +87,8 @@ pub struct Session {
     pub id: SessionId,
     pub room_id: RoomId,
     pub status: SessionStatus,
+    #[serde(default = "recording_default")]
+    pub auto_record: bool,
     /// Session-level override of the room's visibility. `None` inherits.
     pub visibility: Option<SessionVisibility>,
     /// Session-level override of the room's admission policy. `None` inherits.
@@ -98,7 +102,18 @@ pub struct Session {
     pub updated_at: OffsetDateTime,
 }
 
+fn recording_default() -> bool {
+    true
+}
+
 impl Session {
+    pub fn set_auto_record(&mut self, enabled: bool) -> Result<(), SessionError> {
+        if self.status != SessionStatus::Scheduled {
+            return Err(SessionError::RecordingPreferenceLocked);
+        }
+        self.auto_record = enabled;
+        Ok(())
+    }
     #[must_use]
     pub fn schedule(
         room_id: RoomId,
@@ -109,6 +124,7 @@ impl Session {
             id: SessionId::new(),
             room_id,
             status: SessionStatus::Scheduled,
+            auto_record: true,
             visibility: None,
             admission: None,
             title: None,
@@ -245,6 +261,22 @@ mod tests {
             SessionStatus::Live
         );
         assert!(SessionStatus::try_from("unknown").is_err());
+    }
+
+    #[test]
+    fn recording_defaults_on_and_locks_after_scheduling() {
+        let now = OffsetDateTime::now_utc();
+        let mut session = Session::schedule(RoomId::new(), None, now);
+        assert!(session.auto_record);
+        session.set_auto_record(false).expect("scheduled edit");
+        session.start(now).expect("start");
+        assert_eq!(
+            session.set_auto_record(true),
+            Err(SessionError::RecordingPreferenceLocked)
+        );
+        assert!(!session.auto_record);
+        session.end(now).expect("end");
+        assert!(session.set_auto_record(true).is_err());
     }
 
     #[test]

@@ -10,6 +10,7 @@ mod jobs;
 mod metrics;
 mod migrations;
 mod pool;
+mod recording;
 mod session_lifecycle;
 mod settings;
 mod stores;
@@ -20,6 +21,9 @@ pub use jobs::{JobAttempt, JobClaim, JobRecord, JobStore, LeasedOutbox, insert_j
 pub use metrics::PoolMetrics;
 pub use migrations::migrate;
 pub use pool::{connect, ping};
+pub use recording::{
+    CaptureIntent, CaptureObservation, PostgresRecordingStore, RecordingAssetCopy,
+};
 pub use session_lifecycle::{PostgresSessionLifecycle, SessionLifecycleGuard};
 pub use settings::{ConnectionSettings, PoolSettings};
 pub use stores::{

@@ -10,6 +10,8 @@ pub enum FileOperationError {
     Forbidden,
     #[error("file is not ready")]
     NotReady,
+    #[error("file is pinned by a pending recording archive")]
+    ArchivePending,
     #[error("file is embedded in a collaboration document and cannot be deleted")]
     InUse,
     #[error("file contents failed verification")]
@@ -31,9 +33,10 @@ impl ApplicationError for FileOperationError {
             | Self::Store(StoreError::MissingReference(_))
             | Self::Storage(FileStorageError::NotFound) => ErrorKind::NotFound,
             Self::Forbidden => ErrorKind::Forbidden,
-            Self::NotReady | Self::InUse | Self::Store(StoreError::Conflict(_)) => {
-                ErrorKind::Conflict
-            }
+            Self::NotReady
+            | Self::ArchivePending
+            | Self::InUse
+            | Self::Store(StoreError::Conflict(_)) => ErrorKind::Conflict,
             Self::Rejected | Self::Invalid(_) | Self::Storage(FileStorageError::TooLarge) => {
                 ErrorKind::Unprocessable
             }

@@ -8,6 +8,7 @@ use time::OffsetDateTime;
 pub struct UpdateSessionDetails {
     pub principal: Principal,
     pub session_id: SessionId,
+    pub auto_record: Option<bool>,
     /// Outer `None` leaves the field unchanged; inner `None` clears it.
     pub title: Option<Option<String>>,
     pub scheduled_start_at: Option<Option<OffsetDateTime>>,
@@ -31,11 +32,15 @@ where
     require_manage_session(rooms, session.room_id, &command.principal).await?;
 
     let fields = SessionDetailsFields {
+        auto_record: command.auto_record.is_some(),
         title: command.title.is_some(),
         scheduled_start_at: command.scheduled_start_at.is_some(),
         scheduled_duration_minutes: command.scheduled_duration_minutes.is_some(),
     };
 
+    if let Some(enabled) = command.auto_record {
+        session.set_auto_record(enabled)?;
+    }
     let title = command
         .title
         .map(|value| value.map(SessionTitle::new).transpose())
@@ -50,7 +55,18 @@ where
         .scheduled_start_at
         .unwrap_or(session.scheduled_start_at);
     session.set_details(title, start, duration, OffsetDateTime::now_utc());
-    let session = sessions.save_details(&session, fields).await?;
+    let session = sessions
+        .save_details(&session, fields)
+        .await
+        .map_err(|error| {
+            if fields.auto_record && matches!(error, crate::ports::StoreError::Conflict(_)) {
+                SessionOperationError::Domain(
+                    mahfel_domain::SessionError::RecordingPreferenceLocked,
+                )
+            } else {
+                SessionOperationError::Store(error)
+            }
+        })?;
     tracing::info!(
         target: "audit",
         action = "session.details.update",

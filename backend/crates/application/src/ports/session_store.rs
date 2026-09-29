@@ -5,6 +5,7 @@ use mahfel_domain::{RoomId, Session, SessionId};
 /// field; an absent field must not overwrite a concurrent edit to that field.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct SessionDetailsFields {
+    pub auto_record: bool,
     pub title: bool,
     pub scheduled_start_at: bool,
     pub scheduled_duration_minutes: bool,

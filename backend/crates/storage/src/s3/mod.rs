@@ -5,3 +5,5 @@ mod presigned;
 mod storage;
 
 pub use storage::S3FileStorage;
+
+mod recording;

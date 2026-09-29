@@ -65,6 +65,7 @@ pub enum Capability {
     AdmitParticipant,
     /// Start, end, cancel, or schedule a session, and change its settings.
     ManageSession,
+    ManageRecording,
 }
 
 impl Capability {
@@ -84,6 +85,7 @@ impl Capability {
                 | Self::RemoveParticipant
                 | Self::AdmitParticipant
                 | Self::ManageSession
+                | Self::ManageRecording
         )
     }
 
@@ -101,6 +103,7 @@ impl Capability {
             Self::RemoveParticipant => "remove_participant",
             Self::AdmitParticipant => "admit_participant",
             Self::ManageSession => "manage_session",
+            Self::ManageRecording => "manage_recording",
         }
     }
 }
@@ -226,7 +229,7 @@ mod tests {
     use mahfel_domain::{ActorId, ActorKind};
     use uuid::Uuid;
 
-    const ROOM_SCOPED: [Capability; 7] = [
+    const ROOM_SCOPED: [Capability; 8] = [
         Capability::Join,
         Capability::PublishMedia,
         Capability::ShareScreen,
@@ -234,9 +237,10 @@ mod tests {
         Capability::RemoveParticipant,
         Capability::AdmitParticipant,
         Capability::ManageSession,
+        Capability::ManageRecording,
     ];
 
-    const ALL: [Capability; 10] = [
+    const ALL: [Capability; 11] = [
         Capability::ManageSystem,
         Capability::CreateRoom,
         Capability::ViewOwnIdentity,
@@ -247,6 +251,7 @@ mod tests {
         Capability::RemoveParticipant,
         Capability::AdmitParticipant,
         Capability::ManageSession,
+        Capability::ManageRecording,
     ];
 
     fn principal_with_roles(roles: &[&str]) -> Principal {
@@ -336,6 +341,7 @@ mod tests {
             Capability::RemoveParticipant,
             Capability::AdmitParticipant,
             Capability::ManageSession,
+            Capability::ManageRecording,
             Capability::ManageSystem,
         ] {
             assert!(
@@ -352,6 +358,7 @@ mod tests {
         assert!(has(&moderator, None, Capability::RemoveParticipant));
         assert!(has(&moderator, None, Capability::AdmitParticipant));
         assert!(!has(&moderator, None, Capability::ManageSession));
+        assert!(has(&moderator, None, Capability::ManageRecording));
         assert!(!has(&moderator, None, Capability::ManageSystem));
     }
 
