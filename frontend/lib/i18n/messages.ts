@@ -2,6 +2,38 @@ import type { Locale } from "./config";
 
 export interface Messages {
   language: Record<Locale, string>;
+  recordingExports: {
+    title: string;
+    empty: string;
+    loading: string;
+    unavailable: string;
+    download: string;
+    retry: string;
+    queued: string;
+    rendering: string;
+    ready: string;
+    failed: string;
+    preparing: string;
+    partial: string;
+    permission: string;
+    retryFailed: string;
+    play: string;
+    remove: string;
+    removeTitle: string;
+    removeDescription: string;
+    removeCancel: string;
+    removeFailed: string;
+  };
+  recordingPlayback: {
+    open: string;
+    title: string;
+    loading: string;
+    unavailable: string;
+    play: string;
+    pause: string;
+    seek: string;
+    position: string;
+  };
   appearance: {
     label: string;
     light: string;
@@ -165,6 +197,39 @@ export interface Messages {
 const messages: Record<Locale, Messages> = {
   en: {
     language: { en: "English", fa: "Persian" },
+    recordingExports: {
+      title: "Recordings",
+      empty: "No recordings yet.",
+      loading: "Loading recordings…",
+      unavailable: "Recordings could not be loaded. Try again.",
+      download: "Download MP4",
+      retry: "Retry export",
+      queued: "Video export queued",
+      rendering: "Creating video",
+      ready: "MP4 ready",
+      failed: "Video export failed",
+      preparing: "Preparing original recording",
+      partial: "Some parts of this recording are missing.",
+      permission: "Recording downloads are available to room members.",
+      retryFailed: "The export could not be retried. Try again.",
+      play: "Play recording",
+      remove: "Delete recording",
+      removeTitle: "Delete this recording?",
+      removeDescription:
+        "The original replay bundle and any generated video are permanently removed. This cannot be undone.",
+      removeCancel: "Keep recording",
+      removeFailed: "The recording could not be deleted. Try again.",
+    },
+    recordingPlayback: {
+      open: "Play recording",
+      title: "Recording playback",
+      loading: "Loading recording…",
+      unavailable: "This recording could not be opened. Try again.",
+      play: "Play",
+      pause: "Pause",
+      seek: "Playback position",
+      position: "Playback time",
+    },
     appearance: { label: "Appearance", light: "Light", dark: "Dark", system: "System" },
     account: {
       title: "Account",
@@ -323,6 +388,39 @@ const messages: Record<Locale, Messages> = {
   },
   fa: {
     language: { en: "English", fa: "پارسی" },
+    recordingExports: {
+      title: "ضبط‌ها",
+      empty: "هنوز ضبطی وجود ندارد.",
+      loading: "در حال بارگذاری ضبط‌ها…",
+      unavailable: "بارگذاری ضبط‌ها ممکن نشد. دوباره تلاش کنید.",
+      download: "دریافت MP4",
+      retry: "تلاش دوباره برای خروجی",
+      queued: "خروجی ویدیو در صف است",
+      rendering: "در حال ساخت ویدیو",
+      ready: "ویدیو آماده است",
+      failed: "ساخت ویدیو ناموفق بود",
+      preparing: "در حال آماده‌سازی ضبط اصلی",
+      partial: "بخش‌هایی از این ضبط موجود نیست.",
+      permission: "دریافت ضبط برای اعضای اتاق در دسترس است.",
+      retryFailed: "شروع دوباره ساخت ویدیو ممکن نشد. دوباره تلاش کنید.",
+      play: "پخش ضبط",
+      remove: "حذف ضبط",
+      removeTitle: "این ضبط حذف شود؟",
+      removeDescription:
+        "بستهٔ بازپخش اصلی و هر ویدیوی ساخته‌شده برای همیشه حذف می‌شوند. این کار بازگشت‌پذیر نیست.",
+      removeCancel: "نگه‌داشتن ضبط",
+      removeFailed: "حذف ضبط ممکن نشد. دوباره تلاش کنید.",
+    },
+    recordingPlayback: {
+      open: "پخش ضبط",
+      title: "پخش ضبط",
+      loading: "در حال بارگذاری ضبط…",
+      unavailable: "باز کردن این ضبط ممکن نشد. دوباره تلاش کنید.",
+      play: "پخش",
+      pause: "مکث",
+      seek: "موقعیت پخش",
+      position: "زمان پخش",
+    },
     appearance: { label: "پوسته", light: "روشن", dark: "تیره", system: "سیستم" },
     account: {
       title: "حساب کاربری",

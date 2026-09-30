@@ -3,3 +3,6 @@ coverage/
 node_modules/
 bun.lock
 storybook-static/
+
+recording-renderer-dist/
+public/recording-renderer/

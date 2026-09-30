@@ -4,21 +4,22 @@
   "private": true,
   "packageManager": "bun@1.4.2",
   "scripts": {
-    "dev": "next dev --hostname 0.0.0.0",
-    "build": "next build",
+    "dev": "bun run recording-renderer:build && next dev --hostname 0.0.0.0",
+    "build": "bun run recording-renderer:build && next build",
     "format": "prettier --check .",
     "format:write": "prettier --write .",
     "start": "next start --hostname 0.0.0.0",
     "lint": "eslint . --max-warnings=0",
-    "storybook": "storybook dev -p 6006",
-    "storybook:build": "storybook build",
+    "storybook": "bun run recording-renderer:build && storybook dev -p 6006",
+    "storybook:build": "bun run recording-renderer:build && storybook build",
     "generate:api": "bun run generate:rest && bun run generate:ws",
     "generate:rest": "openapi-typescript ../specs/openapi.json --output lib/api/generated/schema.ts && prettier --write lib/api/generated/schema.ts",
     "generate:ws": "bun scripts/generate-websocket-types.ts && prettier --write lib/websocket/generated/messages.ts",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "playwright test --config=playwright/playwright.config.ts",
-    "typecheck": "next typegen && tsc --noEmit"
+    "typecheck": "next typegen && tsc --noEmit",
+    "recording-renderer:build": "bun scripts/recording-renderer/build.ts"
   },
   "dependencies": {
     "@excalidraw/excalidraw": "^0.18.1",
@@ -55,7 +56,8 @@
     "react-dom": "19.2.0",
     "tailwind-merge": "^3.3.1",
     "y-protocols": "^1.0.7",
-    "yjs": "^13.6.33"
+    "yjs": "^13.6.33",
+    "playwright-core": "1.63.0"
   },
   "devDependencies": {
     "@playwright/test": "^1.63.0",

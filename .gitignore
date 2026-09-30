@@ -17,3 +17,6 @@ frontend/*.tsbuildinfo
 .DS_Store
 .playwright-mcp/
 .next/
+
+frontend/recording-renderer-dist/
+frontend/public/recording-renderer/

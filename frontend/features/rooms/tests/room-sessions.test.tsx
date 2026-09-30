@@ -46,16 +46,16 @@ beforeEach(() => {
   get.mockResolvedValue({ data: null });
 });
 
-test("shows scheduling, live state, and unavailable playback", () => {
+test("shows scheduling, live state, and recordings menu", () => {
   render(<RoomSessions locale="en" sessions={[session]} />);
   const row = screen.getByTestId("room-session-session-1");
   expect(within(row).getByText("Ongoing")).toBeInTheDocument();
   expect(within(row).getByText("Weekly review")).toHaveAttribute("href", "/session/session-1");
   expect(within(row).getByText("60 min")).toBeInTheDocument();
   const playback = within(row).getByRole("button", {
-    name: "Playback is not available yet.",
+    name: "Recordings",
   });
-  expect(playback).toBeDisabled();
+  expect(playback).toBeEnabled();
   expect(playback.querySelector(".lucide-film")).toBeInTheDocument();
   expect(within(row).queryByRole("link", { name: "Join session" })).not.toBeInTheDocument();
   expect(within(row).getByTestId("session-schedule").querySelector("time")).toHaveAttribute(
@@ -87,10 +87,10 @@ test("renders an unscheduled session using its RFC 3339 creation time", () => {
   expect(screen.queryByText("Created")).not.toBeInTheDocument();
 });
 
-test("uses Persian status and playback copy", () => {
+test("uses Persian status and recordings copy", () => {
   render(<RoomSessions locale="fa" sessions={[session]} />);
   expect(screen.getByText("در حال برگزاری")).toBeInTheDocument();
-  expect(screen.getByRole("button", { name: "بازپخش هنوز در دسترس نیست." })).toBeDisabled();
+  expect(screen.getByRole("button", { name: "ضبط‌ها" })).toBeEnabled();
 });
 
 test("expands session files and separates presented files from other attachments", async () => {

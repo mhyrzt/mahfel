@@ -1,10 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { CalendarDays, Clock3, Film, Radio } from "lucide-react";
+import { CalendarDays, Clock3, Radio } from "lucide-react";
 
-import { Button } from "@/components/ui/button";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { RecordingList } from "@/features/recordings/recording-list";
 import type { components } from "@/lib/api/generated/schema";
 import type { Locale } from "@/lib/i18n/config";
 import { cn } from "@/lib/utils";
@@ -122,28 +121,16 @@ export function RoomSessions({
                       {session.title}
                     </Link>
                   </div>
-                  <TooltipProvider>
-                    <div className="col-span-2 flex shrink-0 items-center justify-end gap-2 sm:col-span-1 sm:ms-auto">
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <span tabIndex={0}>
-                            <Button
-                              aria-label={text.playbackUnavailable}
-                              disabled
-                              size="icon"
-                              variant="outline"
-                            >
-                              <Film aria-hidden="true" className="size-4" />
-                            </Button>
-                          </span>
-                        </TooltipTrigger>
-                        <TooltipContent>{text.playbackUnavailable}</TooltipContent>
-                      </Tooltip>
-                      {canManageSession ? (
-                        <SessionSettingsDialog session={session} locale={locale} />
-                      ) : null}
-                    </div>
-                  </TooltipProvider>
+                  <div className="col-span-2 flex shrink-0 items-center justify-end gap-2 sm:col-span-1 sm:ms-auto">
+                    <RecordingList
+                      sessionId={session.id}
+                      locale={locale}
+                      canManage={canManageSession}
+                    />
+                    {canManageSession ? (
+                      <SessionSettingsDialog session={session} locale={locale} />
+                    ) : null}
+                  </div>
                 </div>
                 <SessionFiles
                   locale={locale}

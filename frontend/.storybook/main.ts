@@ -5,7 +5,7 @@ const config: StorybookConfig = {
     "../components/**/*.stories.@(js|jsx|mjs|ts|tsx)",
     "../features/**/*.stories.@(js|jsx|mjs|ts|tsx)",
   ],
-  staticDirs: ["../public"],
+  staticDirs: ["../public", { from: "../recording-renderer-dist", to: "/recording-renderer" }],
   addons: ["@storybook/addon-a11y"],
   framework: {
     name: "@storybook/nextjs",

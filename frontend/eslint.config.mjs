@@ -103,6 +103,8 @@ export default defineConfig([
     "out/**",
     "build/**",
     "storybook-static/**",
+    "recording-renderer-dist/**",
+    "public/recording-renderer/**",
     "lib/api/generated/**",
     "lib/websocket/generated/**",
     "next-env.d.ts",

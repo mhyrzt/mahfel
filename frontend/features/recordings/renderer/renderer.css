@@ -1,0 +1,111 @@
+.recording-scene * {
+  box-sizing: border-box;
+}
+.recording-scene {
+  margin: 0;
+  padding: 0;
+  background: transparent;
+  overflow: hidden;
+  font-family: RecordingVazirmatn, Arial, sans-serif;
+}
+.recording-scene #workspace {
+  position: absolute;
+  inset: 0 auto auto 0;
+  color: #181725;
+  overflow: hidden;
+}
+.recording-scene #workspace > div {
+  padding: 36px 56px;
+  height: 100%;
+  overflow: hidden;
+  font-size: clamp(12px, 2vw, 30px);
+  line-height: 1.65;
+  unicode-bidi: plaintext;
+}
+.recording-scene #workspace canvas {
+  display: block;
+}
+.recording-scene p {
+  margin: 0 0 16px;
+}
+.recording-scene h1,
+.recording-scene h2,
+.recording-scene h3 {
+  margin: 12px 0 20px;
+}
+.recording-scene li {
+  margin-bottom: 8px;
+}
+.recording-scene a {
+  color: #6952e8;
+}
+.recording-scene #toasts {
+  position: absolute;
+  inset-inline-start: 24px;
+  width: min(460px, 35%);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.recording-scene #toasts article {
+  background: #181824ef;
+  color: #f4f3f8;
+  border: 1px solid #30303f;
+  border-radius: 14px;
+  padding: 16px 20px;
+  font-size: clamp(12px, 1.4vw, 22px);
+  line-height: 1.5;
+  overflow: hidden;
+}
+.recording-scene #toasts strong {
+  display: block;
+  font-size: clamp(10px, 1.2vw, 19px);
+  color: #a5a3b0;
+  margin-bottom: 6px;
+}
+.recording-scene #toasts p {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  margin: 0;
+}
+.camera-label {
+  background: #101018dc;
+  color: #f4f3f8;
+  border-radius: 6px;
+  padding: 3px 8px;
+  font-size: 18px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.recording-scene #slate {
+  position: absolute;
+  inset: 0;
+  background: #101018;
+  color: #f4f3f8;
+  place-items: center;
+  font-size: 40px;
+}
+
+.recording-scene .coverage-warning {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  padding: 6px 12px;
+  color: #fff;
+  background: #272734;
+  border-radius: 6px;
+  font-size: 14px;
+}
+
+.recording-scene .native-media-preview {
+  display: grid;
+  place-items: center;
+  background: #272734;
+  color: #bdbdc8;
+  border: 1px solid #3a3a48;
+  font-size: 16px;
+}
