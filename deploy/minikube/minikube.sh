@@ -236,6 +236,9 @@ up() {
   kubectl -n "${namespace}" delete job mahfel-seed --ignore-not-found >/dev/null
   kubectl -n "${namespace}" apply -f "${apps_dir}/seed.yaml" >/dev/null
   wait_for_job mahfel-seed 5m
+  step 'Installing Chromium sandbox seccomp profile'
+  minikube cp "${repo_dir}/deploy/worker/chromium-seccomp.json" /tmp/mahfel-chromium-seccomp.json
+  minikube ssh -- 'sudo install -D -m 0644 /tmp/mahfel-chromium-seccomp.json /var/lib/kubelet/seccomp/mahfel/chromium.json && rm /tmp/mahfel-chromium-seccomp.json' >/dev/null
   step 'Applying application deployments'
   for manifest in api web media; do
     sed \

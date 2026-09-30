@@ -1,5 +1,6 @@
 use anyhow::{Context, Result};
 use mahfel_application::files::cleanup_expired;
+use mahfel_application::ports::{FileStorage, RecordingStorage};
 use mahfel_config::Settings;
 use mahfel_postgres::{ConnectionSettings, JobStore, PoolSettings, PostgresFileStore};
 use mahfel_storage::{S3FileStorage, S3Settings};
@@ -10,18 +11,39 @@ use std::{net::SocketAddr, time::Duration};
 use tokio::{net::TcpListener, sync::watch};
 
 mod jobs;
+mod recording_export;
 
 const SERVICE: &str = "mahfel-worker";
 const CLEANUP_INTERVAL: Duration = Duration::from_secs(300);
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    if std::env::args().nth(1).as_deref() == Some("render-export") {
+        let directory = std::env::args()
+            .nth(2)
+            .context("expected export workspace")?;
+        let renderer = std::env::args()
+            .nth(3)
+            .context("expected renderer directory")?;
+        return recording_export::render_local(
+            std::path::Path::new(&directory),
+            std::path::Path::new(&renderer),
+        )
+        .await;
+    }
     let settings = Settings::load().context("load configuration")?;
     anyhow::ensure!(
-        settings.worker.concurrency > 0
+        settings.worker.exports.concurrency > 0
+            && settings.worker.exports.concurrency <= usize::from(u16::MAX)
+            && settings.worker.exports.max_active_audio_tracks > 0
+            && settings.worker.exports.output_bytes > 0
+            && settings.worker.exports.scratch_bytes
+                > settings.worker.exports.output_bytes.saturating_mul(2)
+            && settings.worker.exports.timeout_seconds > 0
+            && settings.worker.concurrency > 0
             && settings.worker.prefetch > 0
             && settings.worker.drain_timeout_seconds > 0,
-        "worker concurrency, prefetch, and drain timeout must be positive"
+        "worker concurrency, prefetch, timeout and export resource limits must be valid"
     );
     init_tracing(&settings.telemetry.log_filter).context("initialize tracing")?;
     if let Some(command) = std::env::args().nth(1) {
@@ -159,6 +181,8 @@ async fn services_loop(
     let cleanup_task = tokio::spawn(file_cleanup_loop(
         files.clone(),
         storage.clone(),
+        mahfel_postgres::PostgresRecordingStore::new(database.clone()),
+        settings.worker.exports.scratch_directory.clone(),
         shutdown.clone(),
     ));
     let jobs_task = tokio::spawn(jobs::run(
@@ -177,19 +201,64 @@ async fn services_loop(
     database.close().await;
 }
 
+async fn delete_prefix(storage: &S3FileStorage, prefix: &str) -> Result<bool> {
+    let mut continuation = None;
+    let mut complete = true;
+    loop {
+        let page = RecordingStorage::page(storage, prefix, continuation)
+            .await
+            .context("list recording objects")?;
+        for key in page.keys {
+            if FileStorage::delete(storage, &key).await.is_err() {
+                complete = false;
+            }
+        }
+        continuation = page.continuation;
+        if continuation.is_none() {
+            break;
+        }
+    }
+    Ok(complete)
+}
+
 async fn file_cleanup_loop(
     files: PostgresFileStore,
     storage: S3FileStorage,
+    recordings: mahfel_postgres::PostgresRecordingStore,
+    scratch: std::path::PathBuf,
     mut shutdown: watch::Receiver<bool>,
 ) {
     let mut interval = tokio::time::interval(CLEANUP_INTERVAL);
     loop {
         tokio::select! {
             _ = interval.tick() => {
+                if let Err(error) = recording_export::cleanup_scratch(&scratch, &recordings).await {
+                    tracing::warn!(%error, "export scratch cleanup unavailable");
+                }
+                match recordings.export_orphans().await {
+                    Ok(attempts) => for (token, key) in attempts {
+                        if mahfel_application::ports::FileStorage::delete(&storage, &key).await.is_ok() { let _ = recordings.finish_export_cleanup(token).await; }
+                    },
+                    Err(error) => tracing::warn!(%error, "export orphan cleanup unavailable"),
+                }
                 match cleanup_expired(&files, &storage).await {
                     Ok(count) if count > 0 => tracing::info!(count, "expired file uploads removed"),
                     Ok(_) => {},
                     Err(error) => tracing::warn!(%error, "file cleanup failed"),
+                }
+                match recordings.deleted_recordings().await {
+                    Ok(deleted) => for recording in deleted {
+                        let prefix = format!("recordings/{recording}/");
+                        match delete_prefix(&storage, &prefix).await {
+                            Ok(true) => match recordings.finish_recording_cleanup(recording).await {
+                                Ok(()) => tracing::info!(%recording, "deleted recording artifacts removed"),
+                                Err(error) => tracing::warn!(%error, %recording, "recording cleanup finalize failed"),
+                            },
+                            Ok(false) => tracing::warn!(%recording, "recording storage cleanup incomplete; retrying"),
+                            Err(error) => tracing::warn!(%error, %recording, "recording storage cleanup unavailable"),
+                        }
+                    },
+                    Err(error) => tracing::warn!(%error, "deleted recording cleanup unavailable"),
                 }
             }
             changed = shutdown.changed() => {

@@ -10,6 +10,13 @@ spec:
     metadata:
       labels: {app: mahfel-worker}
     spec:
+      securityContext:
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+        seccompProfile:
+          type: Localhost
+          localhostProfile: mahfel/chromium.json
       containers:
         - name: worker
           image: mahfel-worker:local
@@ -22,6 +29,12 @@ spec:
               valueFrom: {secretKeyRef: {name: local-credentials, key: rustfs-secret-key}}
             - name: MAHFEL_WORKER__AMQP_URL
               valueFrom: {secretKeyRef: {name: local-credentials, key: rabbitmq-url}}
+          resources:
+            requests: {cpu: "500m", memory: "512Mi", ephemeral-storage: "1Gi"}
+            limits: {cpu: "2", memory: "2Gi", ephemeral-storage: "24Gi"}
+          volumeMounts:
+            - {name: export-scratch, mountPath: /tmp/mahfel-exports}
+            - {name: browser-shm, mountPath: /dev/shm}
           ports: [{containerPort: 9103}]
           startupProbe:
             httpGet: {path: /health/live, port: 9103}
@@ -29,6 +42,11 @@ spec:
             periodSeconds: 5
           readinessProbe:
             httpGet: {path: /health/ready, port: 9103}
+      volumes:
+        - name: export-scratch
+          emptyDir: {sizeLimit: "20Gi"}
+        - name: browser-shm
+          emptyDir: {medium: Memory, sizeLimit: "256Mi"}
 ---
 apiVersion: v1
 kind: Service

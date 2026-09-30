@@ -7,6 +7,7 @@ use crate::http::{
 use axum::{
     Json, Router,
     extract::State,
+    http::StatusCode,
     routing::{get, post},
 };
 use mahfel_application::{
@@ -80,6 +81,22 @@ impl From<Recording> for RecordingResponse {
 
 pub(crate) fn route() -> Router<AppState> {
     Router::new()
+        .route(
+            "/sessions/{session_id}/recordings/{recording_id}/export",
+            get(export_status).post(export_retry),
+        )
+        .route(
+            "/sessions/{session_id}/recordings/{recording_id}/export/download",
+            get(export_download),
+        )
+        .route(
+            "/sessions/{session_id}/recordings/{recording_id}/playback",
+            get(playback),
+        )
+        .route(
+            "/sessions/{session_id}/recordings/{recording_id}",
+            axum::routing::delete(remove),
+        )
         .route("/sessions/{session_id}/recordings", get(list))
         .route("/sessions/{session_id}/recordings/commands", post(command))
 }
@@ -122,4 +139,193 @@ pub(crate) async fn command(
     )
     .await?;
     Ok(Json(recording.into()))
+}
+
+#[derive(Serialize, ToSchema)]
+pub(crate) struct RecordingExportResponse {
+    pub id: Uuid,
+    pub recording_id: Uuid,
+    pub status: String,
+    pub progress: u16,
+    pub duration_ms: Option<i64>,
+    pub size_bytes: Option<i64>,
+    pub failure_code: Option<String>,
+    pub partial: bool,
+}
+impl From<mahfel_domain::RecordingExport> for RecordingExportResponse {
+    fn from(export: mahfel_domain::RecordingExport) -> Self {
+        use mahfel_domain::RecordingExportStatus;
+        Self {
+            id: export.id,
+            recording_id: export.recording_id,
+            status: match export.status {
+                RecordingExportStatus::Queued => "queued",
+                RecordingExportStatus::Rendering => "rendering",
+                RecordingExportStatus::Ready => "ready",
+                RecordingExportStatus::Failed => "failed",
+            }
+            .into(),
+            progress: export.progress,
+            duration_ms: export.duration_ms,
+            size_bytes: export.size_bytes,
+            failure_code: export.failure_code,
+            partial: export.partial,
+        }
+    }
+}
+#[derive(Serialize, ToSchema)]
+pub(crate) struct RecordingDownloadResponse {
+    pub url: String,
+}
+
+#[utoipa::path(get, operation_id = "getRecordingExport", path = "/v1/sessions/{session_id}/recordings/{recording_id}/export", tag = "recordings", params(("session_id" = Uuid, Path), ("recording_id" = Uuid, Path)), responses((status = 200, body = RecordingExportResponse), (status = 401), (status = 404), (status = 503)))]
+pub(crate) async fn export_status(
+    State(state): State<AppState>,
+    Authenticated(principal): Authenticated,
+    ValidatedPath((session, recording)): ValidatedPath<(Uuid, Uuid)>,
+) -> Result<Json<RecordingExportResponse>, ApiError> {
+    let store = state.recording_exports.as_deref().ok_or_else(|| {
+        ApiError::from_application(
+            ErrorKind::Unavailable,
+            "recording export unavailable".into(),
+        )
+    })?;
+    Ok(Json(
+        mahfel_application::recordings::get_export(
+            store,
+            SessionId::from_uuid(session),
+            recording,
+            &principal,
+        )
+        .await?
+        .into(),
+    ))
+}
+
+#[utoipa::path(post, operation_id = "retryRecordingExport", path = "/v1/sessions/{session_id}/recordings/{recording_id}/export", tag = "recordings", params(("session_id" = Uuid, Path), ("recording_id" = Uuid, Path)), responses((status = 200, body = RecordingExportResponse), (status = 401), (status = 403), (status = 404), (status = 409), (status = 503)))]
+pub(crate) async fn export_retry(
+    State(state): State<AppState>,
+    Authenticated(principal): Authenticated,
+    ValidatedPath((session, recording)): ValidatedPath<(Uuid, Uuid)>,
+) -> Result<Json<RecordingExportResponse>, ApiError> {
+    let store = state.recording_exports.as_deref().ok_or_else(|| {
+        ApiError::from_application(
+            ErrorKind::Unavailable,
+            "recording export unavailable".into(),
+        )
+    })?;
+    Ok(Json(
+        mahfel_application::recordings::retry_export(
+            store,
+            state.rooms.as_ref(),
+            state.sessions.as_ref(),
+            SessionId::from_uuid(session),
+            recording,
+            &principal,
+        )
+        .await?
+        .into(),
+    ))
+}
+
+#[utoipa::path(get, operation_id = "downloadRecordingExport", path = "/v1/sessions/{session_id}/recordings/{recording_id}/export/download", tag = "recordings", params(("session_id" = Uuid, Path), ("recording_id" = Uuid, Path)), responses((status = 200, body = RecordingDownloadResponse), (status = 401), (status = 404), (status = 409), (status = 503)))]
+pub(crate) async fn export_download(
+    State(state): State<AppState>,
+    Authenticated(principal): Authenticated,
+    ValidatedPath((session, recording)): ValidatedPath<(Uuid, Uuid)>,
+) -> Result<Json<RecordingDownloadResponse>, ApiError> {
+    let store = state.recording_exports.as_deref().ok_or_else(|| {
+        ApiError::from_application(
+            ErrorKind::Unavailable,
+            "recording export unavailable".into(),
+        )
+    })?;
+    let export = mahfel_application::recordings::get_export(
+        store,
+        SessionId::from_uuid(session),
+        recording,
+        &principal,
+    )
+    .await?;
+    if export.status != mahfel_domain::RecordingExportStatus::Ready {
+        return Err(ApiError::from_application(
+            ErrorKind::Conflict,
+            "recording export is not ready".into(),
+        ));
+    }
+    let key = export.object_key.ok_or_else(|| {
+        ApiError::from_application(ErrorKind::Internal, "missing export artifact".into())
+    })?;
+    let signed = state
+        .storage
+        .presign_download(
+            &key,
+            &format!("recording-{recording}.mp4"),
+            std::time::Duration::from_secs(300),
+        )
+        .await
+        .map_err(|_| {
+            ApiError::from_application(
+                ErrorKind::Unavailable,
+                "recording storage unavailable".into(),
+            )
+        })?;
+    Ok(Json(RecordingDownloadResponse { url: signed.url }))
+}
+
+#[derive(Serialize, ToSchema)]
+pub(crate) struct RecordingPlaybackResponse {
+    pub manifest_key: String,
+    pub urls: std::collections::BTreeMap<String, String>,
+    pub assets: std::collections::BTreeMap<String, String>,
+    pub expires_in_seconds: u64,
+}
+
+const PLAYBACK_URL_TTL_SECONDS: u64 = 300;
+
+#[utoipa::path(get, operation_id = "getRecordingPlayback", path = "/v1/sessions/{session_id}/recordings/{recording_id}/playback", tag = "recordings", params(("session_id" = Uuid, Path), ("recording_id" = Uuid, Path)), responses((status = 200, body = RecordingPlaybackResponse), (status = 401), (status = 404), (status = 409), (status = 503)))]
+pub(crate) async fn playback(
+    State(state): State<AppState>,
+    Authenticated(principal): Authenticated,
+    ValidatedPath((session, recording)): ValidatedPath<(Uuid, Uuid)>,
+) -> Result<Json<RecordingPlaybackResponse>, ApiError> {
+    let store = state.recording_playback.as_deref().ok_or_else(|| {
+        ApiError::from_application(ErrorKind::Unavailable, "recording unavailable".into())
+    })?;
+    let descriptor = mahfel_application::recordings::playback_descriptor(
+        store,
+        state.storage.as_ref(),
+        SessionId::from_uuid(session),
+        recording,
+        &principal,
+        std::time::Duration::from_secs(PLAYBACK_URL_TTL_SECONDS),
+    )
+    .await?;
+    Ok(Json(RecordingPlaybackResponse {
+        manifest_key: descriptor.manifest_key,
+        urls: descriptor.urls,
+        assets: descriptor.assets,
+        expires_in_seconds: PLAYBACK_URL_TTL_SECONDS,
+    }))
+}
+
+#[utoipa::path(delete, operation_id = "deleteRecording", path = "/v1/sessions/{session_id}/recordings/{recording_id}", tag = "recordings", params(("session_id" = Uuid, Path), ("recording_id" = Uuid, Path)), responses((status = 204), (status = 401), (status = 403), (status = 404), (status = 409), (status = 503)))]
+pub(crate) async fn remove(
+    State(state): State<AppState>,
+    Authenticated(principal): Authenticated,
+    ValidatedPath((session, recording)): ValidatedPath<(Uuid, Uuid)>,
+) -> Result<StatusCode, ApiError> {
+    let store = state.recording_playback.as_deref().ok_or_else(|| {
+        ApiError::from_application(ErrorKind::Unavailable, "recording unavailable".into())
+    })?;
+    mahfel_application::recordings::delete_recording(
+        store,
+        state.rooms.as_ref(),
+        state.sessions.as_ref(),
+        SessionId::from_uuid(session),
+        recording,
+        &principal,
+    )
+    .await?;
+    Ok(StatusCode::NO_CONTENT)
 }

@@ -370,6 +370,7 @@ async fn chat_deletion_drains_outbox_and_cleans_object() -> Result<(), Box<dyn E
     let store = JobStore::new(database.clone());
     let worker = tokio::spawn(run(
         WorkerSettings {
+            exports: mahfel_config::RecordingExportSettings::default(),
             operations_bind: "127.0.0.1:0".into(),
             amqp_url: amqp_url.clone(),
             concurrency: 4,

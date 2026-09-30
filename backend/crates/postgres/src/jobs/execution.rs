@@ -152,6 +152,10 @@ impl JobStore {
             sqlx::query("UPDATE mahfel.recordings SET status = 'failed', warning = 'finalization_failed' WHERE id = $1 AND status = 'finalizing'")
                     .bind(id).execute(&mut *tx).await?;
         }
+        if job.job_type == mahfel_application::jobs::RECORDING_EXPORT_KIND {
+            sqlx::query("UPDATE mahfel.recording_exports SET status = CASE WHEN $2 = 'dead' THEN 'failed' WHEN $2 = 'queued' THEN 'queued' ELSE status END, failure_code = $3, updated_at = clock_timestamp() WHERE job_id = $1 AND status <> 'ready'")
+                .bind(job.job_id).bind(status).bind(failure.map(|(code, _)| code)).execute(&mut *tx).await?;
+        }
         tx.commit().await?;
         Ok(true)
     }

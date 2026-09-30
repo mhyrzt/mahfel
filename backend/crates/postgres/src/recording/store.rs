@@ -120,7 +120,7 @@ impl RecordingStore for PostgresRecordingStore {
                 return Err(StoreError::NotFound("session".into()));
             }
             let sql = format!(
-                "SELECT {COLUMNS} FROM mahfel.recordings WHERE session_id = $1 ORDER BY started_at DESC, id LIMIT 100"
+                "SELECT {COLUMNS} FROM mahfel.recordings WHERE session_id = $1 AND deleted_at IS NULL ORDER BY started_at DESC, id LIMIT 100"
             );
             sqlx::query_as::<_, RecordingRow>(sqlx::AssertSqlSafe(sql))
                 .bind(session.as_uuid())

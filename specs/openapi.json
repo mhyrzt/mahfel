@@ -5004,6 +5004,407 @@
         }
       }
     },
+    "/v1/sessions/{session_id}/recordings/{recording_id}": {
+      "delete": {
+        "tags": [
+          "recordings"
+        ],
+        "operationId": "deleteRecording",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "recording_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/sessions/{session_id}/recordings/{recording_id}/export": {
+      "get": {
+        "tags": [
+          "recordings"
+        ],
+        "operationId": "getRecordingExport",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "recording_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecordingExportResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "recordings"
+        ],
+        "operationId": "retryRecordingExport",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "recording_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecordingExportResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/sessions/{session_id}/recordings/{recording_id}/export/download": {
+      "get": {
+        "tags": [
+          "recordings"
+        ],
+        "operationId": "downloadRecordingExport",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "recording_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecordingDownloadResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/sessions/{session_id}/recordings/{recording_id}/playback": {
+      "get": {
+        "tags": [
+          "recordings"
+        ],
+        "operationId": "getRecordingPlayback",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "recording_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecordingPlaybackResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/sessions/{session_id}/roster": {
       "get": {
         "tags": [
@@ -6768,6 +7169,105 @@
           "command_id": {
             "type": "string",
             "format": "uuid"
+          }
+        }
+      },
+      "RecordingDownloadResponse": {
+        "type": "object",
+        "required": [
+          "url"
+        ],
+        "properties": {
+          "url": {
+            "type": "string"
+          }
+        }
+      },
+      "RecordingExportResponse": {
+        "type": "object",
+        "required": [
+          "id",
+          "recording_id",
+          "status",
+          "progress",
+          "partial"
+        ],
+        "properties": {
+          "duration_ms": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "failure_code": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "partial": {
+            "type": "boolean"
+          },
+          "progress": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "recording_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "size_bytes": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "status": {
+            "type": "string"
+          }
+        }
+      },
+      "RecordingPlaybackResponse": {
+        "type": "object",
+        "required": [
+          "manifest_key",
+          "urls",
+          "assets",
+          "expires_in_seconds"
+        ],
+        "properties": {
+          "assets": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "propertyNames": {
+              "type": "string"
+            }
+          },
+          "expires_in_seconds": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "manifest_key": {
+            "type": "string"
+          },
+          "urls": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "propertyNames": {
+              "type": "string"
+            }
           }
         }
       },

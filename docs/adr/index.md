@@ -5,3 +5,5 @@ silently rewritten. Minor clarity and link corrections are allowed without chang
 
 Records 0001–0027 establish Mahfel's bootstrap boundaries. Status is **Accepted** unless stated
 otherwise.
+
+- [ADR 0028: Recording MP4 exports](0028-recording-mp4-export.md)

@@ -100,3 +100,13 @@ spool_directory = "/tmp/mahfel-recordings"
 recording_spool_bytes = 268435456
 node_spool_bytes = 1073741824
 upload_concurrency = 4
+
+[worker.exports]
+renderer_directory = "../frontend/recording-renderer-dist"
+scratch_directory = "/tmp/mahfel-exports"
+scratch_bytes = 21474836480
+output_bytes = 8589934592
+concurrency = 1
+max_active_audio_tracks = 64
+timeout_seconds = 86400
+bun = "bun"

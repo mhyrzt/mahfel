@@ -5,6 +5,7 @@ use serde_json::Value;
 use time::OffsetDateTime;
 use uuid::Uuid;
 
+pub const RECORDING_EXPORT_KIND: &str = "recordings.export";
 pub const RECORDING_FINALIZE_KIND: &str = "recordings.finalize";
 pub const FILE_CLEANUP_KIND: &str = "files.cleanup_deleted_attachment";
 pub const JOB_SCHEMA_VERSION: u16 = 1;
@@ -29,6 +30,15 @@ pub struct JobEnvelope {
 }
 
 impl JobEnvelope {
+    #[must_use]
+    pub fn recording_export(source: &crate::ports::ExportSource, now: OffsetDateTime) -> Self {
+        let mut job = Self::file_cleanup(source.export_id, now);
+        job.job_type = RECORDING_EXPORT_KIND.into();
+        job.idempotency_key = format!("recording.export:{}:{}", source.export_id, source.revision);
+        job.payload = serde_json::json!(source);
+        job
+    }
+
     #[must_use]
     pub fn recording_finalize(
         recording_id: Uuid,

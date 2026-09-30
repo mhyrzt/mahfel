@@ -17,7 +17,7 @@ spec:
               aws --endpoint-url http://rustfs:9000 s3api create-bucket --bucket mahfel-local;
               do sleep 3; done
               aws --endpoint-url http://rustfs:9000 s3api put-bucket-cors --bucket mahfel-local --cors-configuration '{"CORSRules":[{"AllowedOrigins":["https://mahfel.localhost"],"AllowedMethods":["PUT","GET"],"AllowedHeaders":["*"],"ExposeHeaders":["ETag"],"MaxAgeSeconds":300}]}'
-              aws --endpoint-url http://rustfs:9000 s3api put-bucket-lifecycle-configuration --bucket mahfel-local --lifecycle-configuration '{"Rules":[{"ID":"expire-abandoned-uploads","Filter":{"Prefix":"uploads/"},"Status":"Enabled","Expiration":{"Days":1}}]}'
+              aws --endpoint-url http://rustfs:9000 s3api put-bucket-lifecycle-configuration --bucket mahfel-local --lifecycle-configuration '{"Rules":[{"ID":"expire-abandoned-uploads","Filter":{"Prefix":"uploads/"},"Status":"Enabled","Expiration":{"Days":1}},{"ID":"abort-incomplete-recording-exports","Filter":{"Prefix":"recordings/"},"Status":"Enabled","AbortIncompleteMultipartUpload":{"DaysAfterInitiation":1}}]}'
           env:
             - {name: AWS_ACCESS_KEY_ID, value: mahfel}
             - name: AWS_SECRET_ACCESS_KEY

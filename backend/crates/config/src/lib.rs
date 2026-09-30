@@ -32,3 +32,6 @@ pub use worker::WorkerSettings;
 
 mod recording;
 pub use recording::RecordingSettings;
+
+mod recording_export;
+pub use recording_export::RecordingExportSettings;

@@ -7,6 +7,24 @@ pub struct ObjectPage {
 }
 
 pub trait RecordingStorage: Send + Sync {
+    fn download<'a>(
+        &'a self,
+        key: &'a str,
+        path: &'a std::path::Path,
+        maximum: u64,
+    ) -> BoxFuture<'a, Result<u64, FileStorageError>> {
+        Box::pin(async move {
+            let _ = (key, path, maximum);
+            Err(FileStorageError::Unavailable)
+        })
+    }
+    fn upload_export<'a>(
+        &'a self,
+        key: &'a str,
+        path: &'a std::path::Path,
+    ) -> BoxFuture<'a, Result<(), FileStorageError>> {
+        self.put_fragment(key, path)
+    }
     fn put<'a>(
         &'a self,
         key: &'a str,

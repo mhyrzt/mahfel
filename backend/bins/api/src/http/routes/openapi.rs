@@ -72,6 +72,11 @@ Protected routes require an Authorization: Bearer token. User requests use Keycl
     paths(
         super::recordings::list,
         super::recordings::command,
+        super::recordings::export_status,
+        super::recordings::export_retry,
+        super::recordings::export_download,
+        super::recordings::playback,
+        super::recordings::remove,
         // System and health endpoints
         super::status::status,
         super::health::health,
@@ -160,6 +165,9 @@ Protected routes require an Authorization: Bearer token. User requests use Keycl
     ),
     components(schemas(
         super::recordings::RecordingResponse,
+        super::recordings::RecordingExportResponse,
+        super::recordings::RecordingDownloadResponse,
+        super::recordings::RecordingPlaybackResponse,
         super::recordings::RecordingCommandRequest,
         super::recordings::RecordingActionDto,
         crate::http::error::ErrorBody,

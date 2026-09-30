@@ -46,7 +46,14 @@ pub async fn finalize_recording<
     let mut losses = Vec::new();
     let mut intervals = Vec::new();
     let mut coverage = BTreeMap::<String, Vec<(u64, u64)>>::new();
-    for section in ["generations", "snapshots", "events", "assets", "fragments"] {
+    for section in [
+        "generations",
+        "snapshots",
+        "events",
+        "assets",
+        "fragments",
+        "actors",
+    ] {
         let mut offset = 0;
         let mut parts = Vec::new();
         loop {
@@ -174,7 +181,7 @@ pub async fn finalize_recording<
                         .as_object_mut()
                         .map(|object| object.remove("source_key"));
                 }
-            } else {
+            } else if section != "actors" {
                 usable = true;
             }
             let bytes = serde_json::to_vec(&page)

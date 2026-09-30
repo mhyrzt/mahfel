@@ -49,6 +49,9 @@ impl RecordingFinalizationStore for PostgresRecordingStore {
                 "events" => {
                     "SELECT to_jsonb(item) || jsonb_build_object('at_ns', (extract(epoch FROM item.occurred_at - session.started_at) * 1000000000)::NUMERIC(20,0)::TEXT) FROM mahfel.recording_events item JOIN mahfel.recordings recording ON recording.id = item.recording_id JOIN mahfel.sessions session ON session.id = recording.session_id WHERE item.recording_id = $1 ORDER BY occurred_at, event_kind, source_id LIMIT 100 OFFSET $2"
                 }
+                "actors" => {
+                    "SELECT jsonb_build_object('actor_id', a.id, 'display_name', COALESCE(u.display_name, p.display_name, 'Participant')) FROM mahfel.actors a LEFT JOIN mahfel.users u ON u.id = a.id LEFT JOIN mahfel.service_principals p ON p.id = a.id WHERE a.id IN (SELECT (payload->>'author_actor_id')::UUID FROM mahfel.recording_events WHERE recording_id = $1 AND event_kind = 'chat' UNION SELECT (receipt->>'actor_id')::UUID FROM mahfel.recording_fragments WHERE recording_id = $1) ORDER BY a.id LIMIT 100 OFFSET $2"
+                }
                 "assets" => {
                     "SELECT to_jsonb(item) FROM mahfel.recording_assets item WHERE recording_id = $1 ORDER BY file_id LIMIT 100 OFFSET $2"
                 }
@@ -94,6 +97,11 @@ impl RecordingFinalizationStore for PostgresRecordingStore {
             if result.rows_affected() == 1 {
                 sqlx::query("UPDATE mahfel.recording_assets SET copy_status = 'ready' WHERE recording_id = $1 AND copy_status = 'pending'")
                     .bind(recording).execute(&mut *tx).await.map_err(sqlx_store_error)?;
+            }
+            if result.rows_affected() == 1 && *usable {
+                super::export::enqueue_export(&mut tx, *recording, key)
+                    .await
+                    .map_err(sqlx_store_error)?;
             }
             tx.commit().await.map_err(sqlx_store_error)?;
             Ok(result.rows_affected() == 1)

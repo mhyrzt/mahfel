@@ -18,6 +18,7 @@ mod media;
 mod participant;
 mod participation;
 mod recording;
+mod recording_export;
 mod room;
 mod session;
 mod status;
@@ -72,3 +73,5 @@ pub use validation::{
     MAX_SUBJECT_LEN, MAX_USERNAME_LEN, RoomTitle, SessionDurationMinutes, SessionTitle, Subject,
     Username, ValidationError,
 };
+
+pub use recording_export::{RecordingExport, RecordingExportStatus};

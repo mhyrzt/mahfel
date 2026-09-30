@@ -13,3 +13,6 @@ site
 .trivycache
 ci-artifacts
 .docker-ci
+
+frontend/recording-renderer-dist
+frontend/storybook-static

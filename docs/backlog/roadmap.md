@@ -183,10 +183,12 @@ safely, dead-letter poison input, and remain correct under duplicate delivery.
 **Milestone done:** authorized controls and recording notices work; documented restart limitations
 hold; the original-track replay bundle lands in private S3 and playback follows Mahfel permissions.
 
-M9-01 through M9-05 capture original media and workspace/session-chat history. Recreating video,
-FFmpeg processing, transcoding, composition and MP4/video export are excluded. M9-06 playback and
-retention remain separate. The accepted recording strategy and boundaries are in
-[ADR 0027](../adr/0027-original-track-recording.md).
+M9-01 through M9-05 capture original media and workspace/session-chat history. M9-06 delivers
+authorized interactive playback from the original-track replay bundle and durable, audited retention
+deletion. Recreating video, FFmpeg processing, transcoding, composition and MP4/video export are
+outside the capture pipeline; a separately approved durable MP4 export capability is documented in
+[ADR 0028](../adr/0028-recording-mp4-export.md). The accepted recording strategy and boundaries are
+in [ADR 0027](../adr/0027-original-track-recording.md).
 
 ## M10 — Transcription
 

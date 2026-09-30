@@ -2,8 +2,8 @@ use aws_sdk_s3::{
     Client,
     config::{BehaviorVersion, Config, Credentials, Region},
     types::{
-        BucketLifecycleConfiguration, CorsConfiguration, CorsRule, ExpirationStatus,
-        LifecycleExpiration, LifecycleRule, LifecycleRuleFilter,
+        AbortIncompleteMultipartUpload, BucketLifecycleConfiguration, CorsConfiguration, CorsRule,
+        ExpirationStatus, LifecycleExpiration, LifecycleRule, LifecycleRuleFilter,
     },
 };
 use base64::Engine;
@@ -109,6 +109,18 @@ async fn exercise(settings: S3Settings) -> Result<(), Box<dyn Error>> {
                         .expiration(LifecycleExpiration::builder().days(1).build())
                         .build()?,
                 )
+                .rules(
+                    LifecycleRule::builder()
+                        .id("abort-incomplete-recording-exports")
+                        .filter(LifecycleRuleFilter::builder().prefix("recordings/").build())
+                        .status(ExpirationStatus::Enabled)
+                        .abort_incomplete_multipart_upload(
+                            AbortIncompleteMultipartUpload::builder()
+                                .days_after_initiation(1)
+                                .build(),
+                        )
+                        .build()?,
+                )
                 .build()?,
         )
         .send()
@@ -175,6 +187,39 @@ async fn exercise(settings: S3Settings) -> Result<(), Box<dyn Error>> {
     storage.delete(&key).await?;
     storage.delete(&final_key).await?;
     assert!(storage.read(&key, 50 * 1024 * 1024).await.is_err());
+    let export_key = format!("recordings/test/exports/{}.mp4", Uuid::new_v4());
+    let export_path = std::env::temp_dir().join(format!("mahfel-upload-{}.mp4", Uuid::new_v4()));
+    let export_bytes = vec![42_u8; 17 * 1024 * 1024];
+    tokio::fs::write(&export_path, &export_bytes).await?;
+    mahfel_application::ports::RecordingStorage::upload_export(&storage, &export_key, &export_path)
+        .await?;
+    assert_eq!(
+        storage.read(&export_key, 20 * 1024 * 1024).await?.bytes,
+        export_bytes
+    );
+    let destination = export_path.with_extension("download");
+    assert!(
+        mahfel_application::ports::RecordingStorage::download(
+            &storage,
+            &export_key,
+            &destination,
+            1024
+        )
+        .await
+        .is_err(),
+        "download limit enforced"
+    );
+    mahfel_application::ports::RecordingStorage::download(
+        &storage,
+        &export_key,
+        &destination,
+        20 * 1024 * 1024,
+    )
+    .await?;
+    assert_eq!(tokio::fs::read(&destination).await?, export_bytes);
+    tokio::fs::remove_file(export_path).await?;
+    tokio::fs::remove_file(destination).await?;
+    storage.delete(&export_key).await?;
     client.delete_bucket().bucket(bucket).send().await?;
     Ok(())
 }

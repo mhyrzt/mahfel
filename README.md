@@ -36,7 +36,7 @@ Legend: ✅ supported · ❌ not supported / not advertised · 🕒 on the Mahfe
 | File sharing | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Presentation (PDF / images) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Video playback in presentation | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Session recording | 🕒 | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Session recording | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Transcription / captions | 🕒 | ✅ | ❌ | ❌ | ✅ | ❌ |
 | Breakout rooms / groups | ❌ | ✅ | ✅ | ✅ | ✅ | ❌ |
 | Polls / quizzes | ❌ | ✅ | ✅ | ✅ | ✅ | ❌ |
@@ -58,6 +58,11 @@ Legend: ✅ supported · ❌ not supported / not advertised · 🕒 on the Mahfe
 | Farsi-first / RTL interface | ✅ | ❌ | ❌ | ❌ | ✅ | ✅ |
 | AI participant / assistant | 🕒 | ✅ | ❌ | ❌ | ❌ | ❌ |
 | AI voice interaction | 🕒 | ❌ | ❌ | ❌ | ❌ | ❌ |
+
+Recording includes original tracks, authorized interactive replay and automatic workspace MP4 exports.
+Managers can delete a recording and its artifacts; see
+[recording operations](docs/deployment/recordings.md) and
+[MP4 export operations](docs/development/recording-export.md).
 
 ## Quick start
 

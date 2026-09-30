@@ -435,6 +435,210 @@ async fn recording_commands_are_authorized_serialized_and_audited() -> Result<()
             .await?
     );
     assert!(jobs.succeed(&job, token).await?);
+    {
+        use mahfel_application::ports::{ExportArtifact, RecordingExportStore};
+        use mahfel_domain::RecordingExportStatus;
+        let exported =
+            RecordingExportStore::get(&stores.recordings, session.id, start.id.as_uuid())
+                .await?
+                .expect("automatic export");
+        assert_eq!(exported.status, RecordingExportStatus::Queued);
+        assert!(
+            stores
+                .recordings
+                .can_download(session.id, member.id)
+                .await?
+        );
+        assert!(
+            !stores
+                .recordings
+                .can_download(session.id, outsider.id)
+                .await?
+        );
+        let block_id = Uuid::new_v4();
+        sqlx::query("INSERT INTO mahfel.blocks (id,session_id,actor_id,blocked_by,blocked_at) VALUES ($1,$2,$3,$4,clock_timestamp())").bind(block_id).bind(session.id.as_uuid()).bind(member.id.as_uuid()).bind(manager.id.as_uuid()).execute(&pool).await?;
+        assert!(
+            !stores
+                .recordings
+                .can_download(session.id, member.id)
+                .await?,
+            "active blocks revoke download access"
+        );
+        sqlx::query(
+            "UPDATE mahfel.blocks SET lifted_at = clock_timestamp(), lifted_by = $2 WHERE id = $1",
+        )
+        .bind(block_id)
+        .bind(manager.id.as_uuid())
+        .execute(&pool)
+        .await?;
+        assert!(
+            stores
+                .recordings
+                .can_download(session.id, member.id)
+                .await?
+        );
+        sqlx::query("UPDATE mahfel.rooms SET visibility = 'public' WHERE id = $1")
+            .bind(room.id.as_uuid())
+            .execute(&pool)
+            .await?;
+        assert!(
+            !stores
+                .recordings
+                .can_download(session.id, outsider.id)
+                .await?,
+            "public visibility grants no recording download"
+        );
+        let export_job_id: Uuid =
+            sqlx::query_scalar("SELECT job_id FROM mahfel.recording_exports WHERE id = $1")
+                .bind(exported.id)
+                .fetch_one(&pool)
+                .await?;
+        let export_job = jobs
+            .inspect(export_job_id)
+            .await?
+            .expect("export outbox job")
+            .envelope;
+        let mahfel_postgres::JobClaim::Claimed(export_token) = jobs.claim(&export_job).await?
+        else {
+            panic!("export claim")
+        };
+        assert!(
+            stores
+                .recordings
+                .begin(&export_job, Uuid::new_v4())
+                .await?
+                .is_none()
+        );
+        let source = stores
+            .recordings
+            .begin(&export_job, export_token)
+            .await?
+            .expect("fenced export");
+        assert!(
+            !stores
+                .recordings
+                .export_progress(exported.id, Uuid::new_v4(), 75)
+                .await?
+        );
+        assert!(
+            stores
+                .recordings
+                .export_progress(exported.id, export_token, 75)
+                .await?
+        );
+        let artifact = ExportArtifact {
+            object_key: format!(
+                "recordings/{}/exports/{}/{}-{export_token}.mp4",
+                source.recording_id, source.export_id, source.revision
+            ),
+            duration_ms: 1000,
+            size_bytes: 100,
+            sha256: "a".repeat(64),
+        };
+        assert!(
+            !RecordingExportStore::accept(
+                &stores.recordings,
+                &export_job,
+                Uuid::new_v4(),
+                &artifact
+            )
+            .await?
+        );
+        assert!(
+            jobs.fail(&export_job, export_token, "fixture_export_failure", true)
+                .await?
+        );
+        assert_eq!(
+            stores.recordings.list(session.id).await?[0].status,
+            RecordingStatus::Ready,
+            "export failure preserves original recording"
+        );
+        assert_eq!(
+            RecordingExportStore::get(&stores.recordings, session.id, start.id.as_uuid())
+                .await?
+                .expect("failed export")
+                .status,
+            RecordingExportStatus::Failed
+        );
+        let retry = stores
+            .recordings
+            .retry(session.id, start.id.as_uuid())
+            .await?;
+        assert_eq!(retry.status, RecordingExportStatus::Queued);
+        assert_eq!(retry.id, exported.id);
+        assert!(
+            !RecordingExportStore::accept(&stores.recordings, &export_job, export_token, &artifact)
+                .await?
+        );
+        let next_job_id: Uuid =
+            sqlx::query_scalar("SELECT job_id FROM mahfel.recording_exports WHERE id = $1")
+                .bind(exported.id)
+                .fetch_one(&pool)
+                .await?;
+        assert_ne!(next_job_id, export_job_id);
+        stores
+            .recordings
+            .retry(session.id, start.id.as_uuid())
+            .await?;
+        let same_job_id: Uuid =
+            sqlx::query_scalar("SELECT job_id FROM mahfel.recording_exports WHERE id = $1")
+                .bind(exported.id)
+                .fetch_one(&pool)
+                .await?;
+        assert_eq!(next_job_id, same_job_id, "queued retries are idempotent");
+        let next_job = jobs
+            .inspect(next_job_id)
+            .await?
+            .expect("retry export job")
+            .envelope;
+        let mahfel_postgres::JobClaim::Claimed(next_token) = jobs.claim(&next_job).await? else {
+            panic!("retry claim")
+        };
+        let next_source = stores
+            .recordings
+            .begin(&next_job, next_token)
+            .await?
+            .expect("retry begin");
+        let next_artifact = ExportArtifact {
+            object_key: format!(
+                "recordings/{}/exports/{}/{}-{next_token}.mp4",
+                next_source.recording_id, next_source.export_id, next_source.revision
+            ),
+            ..artifact
+        };
+        assert!(
+            RecordingExportStore::accept(&stores.recordings, &next_job, next_token, &next_artifact)
+                .await?
+        );
+        assert!(jobs.succeed(&next_job, next_token).await?);
+        assert!(
+            !RecordingExportStore::accept(
+                &stores.recordings,
+                &next_job,
+                next_token,
+                &next_artifact
+            )
+            .await?
+        );
+        assert_eq!(
+            RecordingExportStore::get(&stores.recordings, session.id, start.id.as_uuid())
+                .await?
+                .expect("ready export")
+                .status,
+            RecordingExportStatus::Ready
+        );
+        sqlx::query("UPDATE mahfel.recording_export_attempts SET created_at = clock_timestamp() - INTERVAL '2 days'").execute(&pool).await?;
+        let orphaned = stores.recordings.export_orphans().await?;
+        assert!(orphaned.iter().any(|(token, _)| *token == export_token));
+        assert!(
+            !orphaned.iter().any(|(token, _)| *token == next_token),
+            "accepted object is protected from orphan cleanup"
+        );
+        stores
+            .recordings
+            .finish_export_cleanup(export_token)
+            .await?;
+    }
     let audit_count: i64 =
         sqlx::query_scalar("SELECT count(*) FROM mahfel.recording_audit WHERE recording_id = $1")
             .bind(start.id.as_uuid())
@@ -562,6 +766,63 @@ async fn recording_commands_are_authorized_serialized_and_audited() -> Result<()
             .await?
     );
     assert!(jobs.succeed(&replay, replay_token).await?);
+    {
+        use mahfel_application::ports::RecordingPlaybackStore;
+        let recording = automatic[0].id.as_uuid();
+        stores
+            .recordings
+            .delete(scheduled.id, recording, manager.id)
+            .await?;
+        assert!(
+            stores.recordings.list(scheduled.id).await?.is_empty(),
+            "deleted recordings disappear from the list"
+        );
+        assert!(
+            stores
+                .recordings
+                .manifest(scheduled.id, recording)
+                .await?
+                .is_none(),
+            "deleted recordings cannot be replayed"
+        );
+        let deleted = stores.recordings.deleted_recordings().await?;
+        assert!(
+            deleted.contains(&recording),
+            "deletion is queued for cleanup"
+        );
+        stores
+            .recordings
+            .finish_recording_cleanup(recording)
+            .await?;
+        let retained_fragments: i64 = sqlx::query_scalar(
+            "SELECT count(*) FROM mahfel.recording_fragments WHERE recording_id = $1",
+        )
+        .bind(recording)
+        .fetch_one(&pool)
+        .await?;
+        let retained_exports: i64 = sqlx::query_scalar(
+            "SELECT count(*) FROM mahfel.recording_exports WHERE recording_id = $1",
+        )
+        .bind(recording)
+        .fetch_one(&pool)
+        .await?;
+        assert_eq!(retained_fragments, 0, "cleanup removes bundle artifacts");
+        assert_eq!(retained_exports, 0, "cleanup removes export artifacts");
+        let cleaned: bool = sqlx::query_scalar(
+            "SELECT cleanup_checked_at IS NOT NULL FROM mahfel.recordings WHERE id = $1",
+        )
+        .bind(recording)
+        .fetch_one(&pool)
+        .await?;
+        assert!(cleaned, "cleanup completion is recorded");
+        let deletions: i64 = sqlx::query_scalar(
+            "SELECT count(*) FROM mahfel.recording_audit WHERE recording_id = $1 AND action_kind = 'delete'",
+        )
+        .bind(recording)
+        .fetch_one(&pool)
+        .await?;
+        assert_eq!(deletions, 1, "manual deletion is audited");
+    }
     pool.close().await;
     Ok(())
 }

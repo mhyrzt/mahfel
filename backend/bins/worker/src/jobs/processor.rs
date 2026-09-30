@@ -8,6 +8,7 @@ use super::{CLAIM_RENEW, JobMetrics, handler::handle, metrics::ActiveJob};
 
 pub(super) async fn process_delivery(
     delivery: JobDelivery,
+    exports: mahfel_config::RecordingExportSettings,
     store: JobStore,
     files: PostgresFileStore,
     storage: S3FileStorage,
@@ -42,7 +43,7 @@ pub(super) async fn process_delivery(
             return Ok(());
         }
     };
-    let task = handle(&job, &store, token, &files, &storage);
+    let task = handle(&job, &exports, &store, token, &files, &storage);
     tokio::pin!(task);
     let mut renew = tokio::time::interval(CLAIM_RENEW);
     renew.tick().await;

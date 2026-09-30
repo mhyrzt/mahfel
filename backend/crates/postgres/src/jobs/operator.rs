@@ -75,6 +75,7 @@ impl JobStore {
             WHERE job.id = $1 AND job.job_type = 'recordings.finalize' AND job.payload ->> 'recording_id' = recording.id::TEXT \
             AND (job.payload ->> 'capture_generation')::INTEGER = recording.capture_generation AND recording.status = 'failed' AND recording.manifest_key IS NULL")
             .bind(id).execute(&mut *tx).await?;
+        sqlx::query("UPDATE mahfel.recording_exports SET status = 'queued', progress = 0, failure_code = NULL, updated_at = clock_timestamp() WHERE job_id = $1 AND status = 'failed'").bind(id).execute(&mut *tx).await?;
         tx.commit().await?;
         Ok(true)
     }

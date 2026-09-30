@@ -147,6 +147,10 @@ services:
       network: host
       target: worker
     restart: unless-stopped
+    init: true
+    shm_size: 256mb
+    security_opt:
+      - seccomp:./deploy/worker/chromium-seccomp.json
     environment:
       MAHFEL_WORKER__AMQP_URL: ${MAHFEL_AMQP_URL:-amqp://mahfel:mahfel-local-only@rabbitmq:5672/%2f}
       MAHFEL_TELEMETRY__LOG_FILTER: ${MAHFEL_LOG_FILTER:-info,mahfel=debug}

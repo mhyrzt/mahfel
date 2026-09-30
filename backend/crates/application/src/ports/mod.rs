@@ -16,7 +16,9 @@ pub mod media_placement;
 pub mod membership;
 pub mod participant_store;
 pub mod participation_store;
+pub mod recording_export;
 pub mod recording_finalization;
+pub mod recording_playback;
 pub mod recording_storage;
 pub mod recording_store;
 pub mod room_store;
@@ -61,3 +63,7 @@ pub use session_store::{SessionDetailsFields, SessionStore};
 pub use store_error::StoreError;
 pub use user_attribute::{AttributeError, UserAttributeWriter};
 pub use user_store::UserStore;
+
+pub use recording_export::{ExportArtifact, ExportSource, RecordingExportStore, RecordingExporter};
+
+pub use recording_playback::RecordingPlaybackStore;

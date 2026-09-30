@@ -72,6 +72,30 @@ async fn run_connected(
         .context("declare job topology")?;
     let publisher = ConfirmedPublisher::new(&connection).await?;
     let consumer = JobConsumer::new(&connection, settings.prefetch).await?;
+    let export_consumer = JobConsumer::new_export(
+        &connection,
+        u16::try_from(settings.exports.concurrency).context("export prefetch")?,
+    )
+    .await?;
+    let mut export_settings = settings.clone();
+    export_settings.concurrency = settings.exports.concurrency;
+    let export_store = store.clone();
+    let export_files = files.clone();
+    let export_storage = storage.clone();
+    let export_metrics = metrics.clone();
+    let export_shutdown = shutdown.clone();
+    let mut export_intake = tokio::spawn(async move {
+        consume_loop(
+            export_consumer,
+            export_store,
+            export_files,
+            export_storage,
+            export_metrics,
+            export_shutdown,
+            export_settings,
+        )
+        .await
+    });
     health.set_check("rabbitmq", true).await;
     let relay_store = store.clone();
     let relay_metrics = metrics.clone();
@@ -103,8 +127,9 @@ async fn run_connected(
         Consumer(Result<()>),
     }
     let exit = tokio::select! {
-        result = &mut relay => Exit::Relay(result.context("relay task")?),
-        result = &mut intake => Exit::Consumer(result.context("consumer task")?),
+        result = &mut relay => Exit::Relay(result.unwrap_or_else(|error| Err(error.into()))),
+        result = &mut intake => Exit::Consumer(result.unwrap_or_else(|error| Err(error.into()))),
+        result = &mut export_intake => Exit::Consumer(result.unwrap_or_else(|error| Err(error.into()))),
         _ = shutdown.changed() => Exit::Shutdown,
     };
     let result = match exit {
@@ -112,17 +137,17 @@ async fn run_connected(
             relay.abort();
             let _ = relay.await;
             match tokio::time::timeout(drain_timeout + Duration::from_secs(2), &mut intake).await {
-                Ok(result) => result.context("consumer task")?,
+                Ok(result) => result.unwrap_or_else(|error| Err(error.into())),
                 Err(_) => {
                     intake.abort();
-                    let _ = intake.await;
+                    let _ = (&mut intake).await;
                     Ok(())
                 }
             }
         }
         Exit::Relay(result) => {
             intake.abort();
-            let _ = intake.await;
+            let _ = (&mut intake).await;
             result
         }
         Exit::Consumer(result) => {
@@ -131,6 +156,24 @@ async fn run_connected(
             result
         }
     };
+    if !intake.is_finished() {
+        intake.abort();
+        let _ = (&mut intake).await;
+    }
+    if !export_intake.is_finished() {
+        if *shutdown.borrow() {
+            if tokio::time::timeout(drain_timeout, &mut export_intake)
+                .await
+                .is_err()
+            {
+                export_intake.abort();
+                let _ = (&mut export_intake).await;
+            }
+        } else {
+            export_intake.abort();
+            let _ = (&mut export_intake).await;
+        }
+    }
     let _ = connection.close(200, "worker reconnect".into()).await;
     result
 }

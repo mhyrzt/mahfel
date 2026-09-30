@@ -15,6 +15,9 @@ mahfel-postgres = { path = "../../crates/postgres" }
 mahfel-storage = { path = "../../crates/storage" }
 mahfel-telemetry = { path = "../../crates/telemetry" }
 gstreamer.workspace = true
+sha2 = "0.10"
+base64 = "0.22"
+time.workspace = true
 prometheus.workspace = true
 serde_json.workspace = true
 sqlx.workspace = true
@@ -26,8 +29,6 @@ uuid.workspace = true
 workspace = true
 
 [dev-dependencies]
-sha2 = "0.10"
-base64 = "0.22"
 aws-sdk-s3 = "=1.145.0"
 testcontainers = "0.28.0"
 time.workspace = true

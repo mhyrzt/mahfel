@@ -36,6 +36,11 @@ pub async fn declare_topology(connection: &Connection) -> Result<(), MessagingEr
     for (queue, dead_queue, routing_key) in [
         (FILE_QUEUE, DEAD_QUEUE, FILE_ROUTING_KEY),
         (
+            crate::EXPORT_QUEUE,
+            crate::EXPORT_DEAD_QUEUE,
+            crate::EXPORT_ROUTING_KEY,
+        ),
+        (
             crate::RECORDING_QUEUE,
             crate::RECORDING_DEAD_QUEUE,
             crate::RECORDING_ROUTING_KEY,

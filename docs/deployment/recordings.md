@@ -1,8 +1,10 @@
 # Original-track session recordings
 
-M9-01 through M9-05 capture original media and a replay bundle. Playback and retention are M9-06.
-The capture pipeline does not reconstruct video, transcode, composite, generate MP4 or use FFmpeg.
-GStreamer decoders run only during finalization verification and test fixtures.
+M9-01 through M9-05 capture original media and a replay bundle; M9-06 adds authorized interactive
+playback and retention deletion. The capture pipeline does not reconstruct video, transcode,
+composite, generate MP4 or use FFmpeg. GStreamer decoders run only during finalization verification
+and test fixtures. Optional durable MP4 export is a separate capability in
+[ADR 0028](../adr/0028-recording-mp4-export.md).
 
 ## Controls and durable state
 
@@ -104,7 +106,30 @@ compressed. Original fragments remain replay assets; finalization never overwrit
 PostgreSQL accepts one manifest atomically only while the finalization claim/lease and sealed
 capture generation still match. A lost claim cannot accept stale output. Duplicate retries reuse an
 accepted result. Content-addressed temporary manifest attempts are not user-visible artifacts;
-retention/garbage collection is intentionally left to M9-06 and later work.
+retention removes them through the deferred cleanup described below.
+
+## Playback and retention
+
+`GET /v1/sessions/{id}/recordings/{recording_id}/playback` is authorized by the same
+`manage_recording`/membership rule as export download: current room members or administrators only,
+with active blocks enforced. Public room visibility alone grants nothing. The response is a replay
+descriptor: `manifest_key`, a map of short-lived presigned object URLs for the manifest and its
+content-addressed pages, and a `file_id`-to-URL map for archived presentation assets. The browser
+reconstructs `ReplayInput` from those pages and reuses the immutable replay engine; no fragment or
+MP4 bandwidth is proxied through the API. Unauthorized callers receive `404` with no URL.
+
+Managers with `manage_recording` and session access may delete a recording with
+`DELETE /v1/sessions/{id}/recordings/{recording_id}`. Deletion is durable and audited
+(`recording_audit.action_kind = 'delete'`): the recording is soft-deleted, marked `failed`, its
+revision advances so stale export acceptance is fenced, and pending archive pins are released.
+Deleted recordings disappear from listings and can no longer be replayed or downloaded.
+
+Retention cleanup runs on the worker's five-minute sweep. For each soft-deleted recording it deletes
+every object under `recordings/{recording}/` (manifest pages, fragments, archived assets and any
+generated export) and only then removes the corresponding `recording_fragments`, `recording_events`,
+`recording_snapshots`, `recording_assets`, `recording_exports` and `recording_export_attempts` rows
+and stamps `cleanup_checked_at`. An incomplete object deletion is retried on the next sweep rather
+than silently finalizing; immutable audit history is retained.
 
 ## Validation and monitoring
 
@@ -118,10 +143,12 @@ MAHFEL_TESTCONTAINERS=1 cargo test -p mahfel-worker --bin mahfel-worker
 ```
 
 The PostgreSQL integration covers policy, UUID deduplication, event exclusion, resume baselines,
-archive pins, boot/revision fencing and atomic manifest acceptance. Media tests cover sealing,
-stale commands and journal recovery after upload failure/restart. The worker integration runs
-PostgreSQL, RustFS and RabbitMQ with an original Opus fragment, storage retry, corruption/partial
-coverage, archive verification and duplicate finalization.
+archive pins, boot/revision fencing, atomic manifest acceptance and retention deletion (soft-delete,
+cleanup finalization, removed bundle/export rows, audit). `mahfel-application` unit tests prove an
+authorized member receives replay URLs while an unauthorized caller receives no URL. Media tests
+cover sealing, stale commands and journal recovery after upload failure/restart. The worker
+integration runs PostgreSQL, RustFS and RabbitMQ with an original Opus fragment, storage retry,
+corruption/partial coverage, archive verification and duplicate finalization.
 
 Frontend Storybook includes `Recordings/Toolbar Menu`, `Recordings/Scheduled Preference`
 and recording variants under `Sessions/Session Screen`. These use the production view with local

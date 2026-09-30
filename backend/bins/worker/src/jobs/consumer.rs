@@ -27,7 +27,7 @@ pub(super) async fn consume_loop(
             delivery = consumer.next(), if active.len() < settings.concurrency => {
                 let Some(delivery) = delivery else { return Err(anyhow!("consumer stream closed")) };
                 let delivery = delivery?;
-                active.spawn(process_delivery(delivery, store.clone(), files.clone(), storage.clone(), metrics.clone()));
+                active.spawn(process_delivery(delivery, settings.exports.clone(), store.clone(), files.clone(), storage.clone(), metrics.clone()));
             }
         }
     }

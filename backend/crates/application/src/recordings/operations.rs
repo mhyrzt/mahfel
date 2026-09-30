@@ -12,6 +12,8 @@ use uuid::Uuid;
 
 #[derive(Debug, Error)]
 pub enum RecordingOperationError {
+    #[error("recording storage unavailable")]
+    Unavailable,
     #[error("recording session not found")]
     NotFound,
     #[error("recording permission denied")]
@@ -38,6 +40,7 @@ impl ApplicationError for RecordingOperationError {
             Self::NotFound => ErrorKind::NotFound,
             Self::Forbidden => ErrorKind::Forbidden,
             Self::Conflict => ErrorKind::Conflict,
+            Self::Unavailable => ErrorKind::Unavailable,
             Self::Store(_) => ErrorKind::Internal,
         }
     }

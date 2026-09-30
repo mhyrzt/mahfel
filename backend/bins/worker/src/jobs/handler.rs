@@ -8,6 +8,7 @@ use mahfel_storage::S3FileStorage;
 
 pub(super) async fn handle(
     job: &JobEnvelope,
+    exports: &mahfel_config::RecordingExportSettings,
     jobs: &mahfel_postgres::JobStore,
     token: uuid::Uuid,
     files: &PostgresFileStore,
@@ -15,6 +16,19 @@ pub(super) async fn handle(
 ) -> Result<(), JobFailure> {
     if job.version != JOB_SCHEMA_VERSION {
         return Err(JobFailure::Permanent("unsupported_job_contract"));
+    }
+    if job.job_type == mahfel_application::jobs::RECORDING_EXPORT_KIND {
+        return mahfel_application::recordings::export_recording(
+            &jobs.recordings(),
+            &crate::recording_export::GstreamerExporter {
+                storage: storage.clone(),
+                store: jobs.recordings(),
+                settings: exports.clone(),
+            },
+            job,
+            token,
+        )
+        .await;
     }
     if job.job_type == mahfel_application::jobs::RECORDING_FINALIZE_KIND {
         return mahfel_application::recordings::finalize_recording(

@@ -29,6 +29,7 @@ nav:
       - Conventions: development/conventions.md
       - Testing: development/testing.md
       - Recording spike: development/recording-spike.md
+      - Recording MP4 exports: development/recording-export.md
       - Continuous integration: development/ci.md
   - Deployment:
       - Local: deployment/local.md
@@ -75,4 +76,5 @@ nav:
       - 0025 Single-use WebSocket tickets: adr/0025-single-use-websocket-auth-tickets.md
       - 0026 Vidstack media player: adr/0026-vidstack-media-player.md
       - 0027 Original track recording: adr/0027-original-track-recording.md
+      - 0028 Recording MP4 export: adr/0028-recording-mp4-export.md
   - Backlog: backlog/roadmap.md
