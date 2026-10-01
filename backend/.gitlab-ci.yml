@@ -91,6 +91,9 @@ backend-sql-lint:
 backend-unit-test:
   extends: .backend-base
   stage: test
+  before_script:
+    - !reference [.backend-base, before_script]
+    - apt-get install -y --no-install-recommends gstreamer1.0-plugins-base gstreamer1.0-plugins-good gstreamer1.0-plugins-bad
   variables:
     NO_PROXY: localhost,127.0.0.1
     no_proxy: localhost,127.0.0.1

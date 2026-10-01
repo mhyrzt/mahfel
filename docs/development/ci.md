@@ -30,6 +30,8 @@ publishing without waiting for application jobs. Pages also performs its own str
 
 Backend compile jobs install Python and `python3-pip` alongside the native toolchain because
 `mediasoup-sys` installs its Python build dependencies through `python3 -m pip`.
+The unit-test job also installs the media runtime's GStreamer base/good/bad plugins so
+recording readiness tests can check the required capture codecs.
 Rust compile jobs limit Cargo to two build processes and disable dev/test debug information to
 reduce memory use while compiling the AWS SDK and native media dependencies on the shared runner.
 

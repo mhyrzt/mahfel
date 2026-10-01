@@ -5,7 +5,7 @@ status: Done
 assignee:
   - '@codex'
 created_date: '2026-09-28 08:56'
-updated_date: '2026-10-01 11:34'
+updated_date: '2026-10-01 12:45'
 labels:
   - ci
   - backend
@@ -72,6 +72,8 @@ Final local frontend validation against committed HEAD source (reusing the insta
 2026-10-01 release pipeline repair: main 2113655, api 2113654 and media 2113652 backend-lint failed because .backend-base omitted GStreamer development packages. Added libgstreamer1.0-dev and libgstreamer-plugins-base1.0-dev plus an early pkg-config >=1.22 check for core/app/video, covering lint/unit/doctest jobs. Integration/image Docker paths already install these dependencies. Exact Rust 1.95.0 Bookworm CI image dependency installation and pkg-config checks pass (all three 1.22.0); assembled local YAML inheritance assertions and GitLab CI Lint main dry-run pass with no errors or warnings. Worker tag pipeline additionally timed out fetching Debian packages, and media format failed Rust toolchain metadata TLS download; these are distinct network failures. Existing v1.0.0 tags remain unchanged. New runner pipeline verification pending push.
 
 2026-10-01 follow-up: backend-lint 7321163 passed after GStreamer repair. Unit job 7321166 and doc job 7321167 failed during mediasoup-sys compilation before any assertions. Meson restored from lint runner directory /2 still referenced /2 while jobs executed in /0 and /1, causing FileNotFoundError for meson-info/tmp_dump.json. Removed backend/target/ from the shared cache and changed rust-build-1.95.0 to rust-tools-1.95.0 so legacy archives cannot reintroduce compiled targets. Cargo registry/git and installed binaries remain cached; Docker BuildKit is unchanged. Updated CI documentation. Local assembled YAML cache/inheritance checks and GitLab CI Lint main dry-run pass. New live test execution pending push.
+
+2026-10-01 follow-up unit runtime repair: pipeline 2114372 passed lint, doctests and integration. Unit job 7321578 ran all 394 tests: 393 passed; commands_are_fenced_and_sealed_generations_cannot_reactivate failed at recording prepare with recording codecs unavailable. Added GStreamer base/good/bad runtime plugins only to backend-unit-test, preserving shared setup via !reference. Exact Rust CI image with these packages resolves all 13 elements required by CapturePipeline::check_available. The exact failing test passes locally (1 passed), assembled CI inheritance checks and GitLab CI Lint dry-run pass without errors/warnings, strict docs and diff checks pass. No assertions or readiness checks changed. Live full unit rerun pending push.
 <!-- SECTION:NOTES:END -->
 
 ## Final Summary
