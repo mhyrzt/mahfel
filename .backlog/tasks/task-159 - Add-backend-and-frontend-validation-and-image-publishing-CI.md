@@ -5,7 +5,7 @@ status: Done
 assignee:
   - '@codex'
 created_date: '2026-09-28 08:56'
-updated_date: '2026-09-28 11:45'
+updated_date: '2026-10-01 10:56'
 labels:
   - ci
   - backend
@@ -68,6 +68,8 @@ Live pipeline 2103789: both prepare jobs, backend lint and independent Pages suc
 Node committed-source suite exposed one DOM-heavy pagination test exceeding the default five-second Vitest timeout. The same assertion passes with a 15-second budget under load (about 10.5 seconds of test execution). Added CI-only --testTimeout=15000; no test assertions or application code changed.
 
 Final local frontend validation against committed HEAD source (reusing the installed dependency tree): full Node suite ran all 125 tests; 124 passed and only pagination exceeded the old 5000ms budget. All eight tests in that file pass with --testTimeout=15000. No assertions were weakened. Node/Bun bootstrap container, focused YAML formatting, strict docs, configuration assertions and GitLab CI Lint pass. Backend mitigation remains unconfirmed until the next runner build; SIGKILL is not proof of a host OOM without host logs.
+
+2026-10-01 release pipeline repair: main 2113655, api 2113654 and media 2113652 backend-lint failed because .backend-base omitted GStreamer development packages. Added libgstreamer1.0-dev and libgstreamer-plugins-base1.0-dev plus an early pkg-config >=1.22 check for core/app/video, covering lint/unit/doctest jobs. Integration/image Docker paths already install these dependencies. Exact Rust 1.95.0 Bookworm CI image dependency installation and pkg-config checks pass (all three 1.22.0); assembled local YAML inheritance assertions and GitLab CI Lint main dry-run pass with no errors or warnings. Worker tag pipeline additionally timed out fetching Debian packages, and media format failed Rust toolchain metadata TLS download; these are distinct network failures. Existing v1.0.0 tags remain unchanged. New runner pipeline verification pending push.
 <!-- SECTION:NOTES:END -->
 
 ## Final Summary

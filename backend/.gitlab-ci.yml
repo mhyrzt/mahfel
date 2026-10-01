@@ -60,8 +60,9 @@ backend-prepare:
         - .cargo-ci/bin/
         - backend/target/
   before_script:
-    - apt-get update && apt-get install -y --no-install-recommends ca-certificates clang cmake g++ make pkg-config python3 python3-pip
+    - apt-get update && apt-get install -y --no-install-recommends ca-certificates clang cmake g++ make pkg-config python3 python3-pip libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev
     - python3 -m pip --version
+    - pkg-config --atleast-version=1.22 gstreamer-1.0 gstreamer-app-1.0 gstreamer-video-1.0
     - export PATH="$CARGO_HOME/bin:$PATH"
     - cd backend
 
