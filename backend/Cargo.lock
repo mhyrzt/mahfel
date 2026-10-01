@@ -3488,7 +3488,7 @@ checksum = "4050469837a6ff301cd14c1f8f24f88549e6d548f24f64e2148eb0f72cebc51f"
 
 [[package]]
 name = "mahfel-api"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "anyhow",
  "asyncapi-rust",
@@ -3536,7 +3536,7 @@ dependencies = [
 
 [[package]]
 name = "mahfel-application"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "base64 0.22.1",
  "lopdf",
@@ -3553,7 +3553,7 @@ dependencies = [
 
 [[package]]
 name = "mahfel-auth"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "axum",
  "base64 0.22.1",
@@ -3569,7 +3569,7 @@ dependencies = [
 
 [[package]]
 name = "mahfel-config"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "config",
  "serde",
@@ -3578,7 +3578,7 @@ dependencies = [
 
 [[package]]
 name = "mahfel-domain"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "base64 0.22.1",
  "serde",
@@ -3591,7 +3591,7 @@ dependencies = [
 
 [[package]]
 name = "mahfel-keycloak"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "mahfel-application",
  "reqwest 0.12.28",
@@ -3604,7 +3604,7 @@ dependencies = [
 
 [[package]]
 name = "mahfel-media"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "anyhow",
  "mahfel-application",
@@ -3627,7 +3627,7 @@ dependencies = [
 
 [[package]]
 name = "mahfel-media-client"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "mahfel-application",
  "mahfel-domain",
@@ -3639,7 +3639,7 @@ dependencies = [
 
 [[package]]
 name = "mahfel-messaging"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "futures-util",
  "lapin",
@@ -3654,7 +3654,7 @@ dependencies = [
 
 [[package]]
 name = "mahfel-postgres"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "mahfel-application",
  "mahfel-domain",
@@ -3671,7 +3671,7 @@ dependencies = [
 
 [[package]]
 name = "mahfel-redis"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "futures-util",
  "mahfel-application",
@@ -3688,7 +3688,7 @@ dependencies = [
 
 [[package]]
 name = "mahfel-rtc"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "gstreamer",
  "mahfel-domain",
@@ -3702,7 +3702,7 @@ dependencies = [
 
 [[package]]
 name = "mahfel-rtc-protocol"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "prost",
  "protoc-bin-vendored",
@@ -3713,7 +3713,7 @@ dependencies = [
 
 [[package]]
 name = "mahfel-storage"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "aws-sdk-s3",
  "base64 0.22.1",
@@ -3730,7 +3730,7 @@ dependencies = [
 
 [[package]]
 name = "mahfel-telemetry"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "axum",
  "prometheus",
@@ -3744,7 +3744,7 @@ dependencies = [
 
 [[package]]
 name = "mahfel-worker"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "anyhow",
  "aws-sdk-s3",
