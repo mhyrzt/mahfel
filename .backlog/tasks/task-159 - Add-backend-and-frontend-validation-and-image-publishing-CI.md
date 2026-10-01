@@ -5,7 +5,7 @@ status: Done
 assignee:
   - '@codex'
 created_date: '2026-09-28 08:56'
-updated_date: '2026-10-01 12:45'
+updated_date: '2026-10-01 14:27'
 labels:
   - ci
   - backend
@@ -74,6 +74,10 @@ Final local frontend validation against committed HEAD source (reusing the insta
 2026-10-01 follow-up: backend-lint 7321163 passed after GStreamer repair. Unit job 7321166 and doc job 7321167 failed during mediasoup-sys compilation before any assertions. Meson restored from lint runner directory /2 still referenced /2 while jobs executed in /0 and /1, causing FileNotFoundError for meson-info/tmp_dump.json. Removed backend/target/ from the shared cache and changed rust-build-1.95.0 to rust-tools-1.95.0 so legacy archives cannot reintroduce compiled targets. Cargo registry/git and installed binaries remain cached; Docker BuildKit is unchanged. Updated CI documentation. Local assembled YAML cache/inheritance checks and GitLab CI Lint main dry-run pass. New live test execution pending push.
 
 2026-10-01 follow-up unit runtime repair: pipeline 2114372 passed lint, doctests and integration. Unit job 7321578 ran all 394 tests: 393 passed; commands_are_fenced_and_sealed_generations_cannot_reactivate failed at recording prepare with recording codecs unavailable. Added GStreamer base/good/bad runtime plugins only to backend-unit-test, preserving shared setup via !reference. Exact Rust CI image with these packages resolves all 13 elements required by CapturePipeline::check_available. The exact failing test passes locally (1 passed), assembled CI inheritance checks and GitLab CI Lint dry-run pass without errors/warnings, strict docs and diff checks pass. No assertions or readiness checks changed. Live full unit rerun pending push.
+
+Security remediation investigation for pipeline 2114541: all backend tests and images pass. Trivy jobs 7322100/1/2 execute successfully and block on Debian 12 OS findings, not scanner failure. API 70 (66 High, 4 Critical), media 291 (275 High, 16 Critical), worker 375 (356 High, 19 Critical); all structured reports show no solution for the installed Bookworm packages. Plan: test supported Debian 13 runtime packages against the same blocking scanner, verify native binary compatibility and media/export requirements, remediate findings where patches exist, and retain explicit evidence for any remaining unpatched issues. Do not change severity thresholds or ignore unfixed findings globally.
+
+Prepared runtime remediation: API/media/worker production stages now use Debian 13 trixie-slim and apt-get upgrade before installing runtime packages. Rust build/toolchain stays pinned on Bookworm. Each final image checks ldd output and rejects unresolved shared libraries. Debian tracker confirms patched Trixie versions for representative GStreamer and util-linux findings; this is not proof all findings are resolved. Dockerfile build checks, strict docs and diff checks pass. Local runtime build/package download repeatedly stalls; current Trivy DB downloads from upstream and mirror timed out, so no fresh local scan or full runtime compatibility claim is made. Existing shared Trivy cache is August 25 and is not valid current security proof. Pushing the focused patch will use the remote build/scan gates for actual findings. Asked user whether to retain blocking all HIGH/CRITICAL versus reporting all but blocking only patchable findings; keep existing policy unless explicitly changed.
 <!-- SECTION:NOTES:END -->
 
 ## Final Summary

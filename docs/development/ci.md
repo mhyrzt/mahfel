@@ -28,6 +28,11 @@ publishing without waiting for application jobs. Pages also performs its own str
 | Shared protocol | Buf formatting and lint |
 | Images | Trivy HIGH/CRITICAL vulnerability checks for API, media, worker, and web |
 
+Backend production runtimes use Debian 13 (`trixie-slim`) and install available package updates
+during image construction. Rust compilation remains on the pinned Bookworm build image; each
+runtime build checks that its binary's shared libraries resolve in Debian 13. A successful build
+does not imply a clean security scan: unpatched HIGH/CRITICAL findings still block publication.
+
 Backend compile jobs install Python and `python3-pip` alongside the native toolchain because
 `mediasoup-sys` installs its Python build dependencies through `python3 -m pip`.
 The unit-test job also installs the media runtime's GStreamer base/good/bad plugins so
