@@ -14,6 +14,11 @@
   color: #181725;
   overflow: hidden;
 }
+.recording-scene .recording-media {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
 .recording-scene #workspace > div {
   padding: 36px 56px;
   height: 100%;

@@ -30,6 +30,8 @@ export function createWorkspaceRenderer(
   let notesGeneration: number | null = null;
   const workspace = document.createElement("div");
   workspace.id = "workspace";
+  const mediaRoot = document.createElement("div");
+  mediaRoot.className = "recording-media";
   const notesElement = document.createElement("div");
   const boardCanvas = document.createElement("canvas");
   const toasts = document.createElement("div");
@@ -41,7 +43,7 @@ export function createWorkspaceRenderer(
   const slate = document.createElement("div");
   slate.id = "slate";
   workspace.append(notesElement, boardCanvas);
-  root.append(workspace, toasts, labels, slate, warning);
+  root.append(workspace, mediaRoot, toasts, labels, slate, warning);
   const assetUrl = (id: string) => resolveAsset?.(id) ?? `/assets/${encodeURIComponent(id)}`;
   const asset = (id: string) => state.input.assets.find((item) => item.file_id === id);
   let lastWorkspaceKey = "";
@@ -318,6 +320,7 @@ export function createWorkspaceRenderer(
   }
 
   return {
+    mediaRoot,
     initialize,
     render,
     destroy() {

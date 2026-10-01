@@ -49,8 +49,8 @@ export function RecordingList({
                       signal,
                     })
                   ).data;
-                } catch (error) {
-                  throw error;
+                } catch {
+                  exported = null;
                 }
               }
               return { ...recording, export: exported };
@@ -131,6 +131,18 @@ export function RecordingList({
       setBusyId(null);
     }
   };
+  const retryPlayback = async (id: string) => {
+    setBusyId(id);
+    setActionFailed(false);
+    try {
+      await browserApiClient.post(`${path}/${encodeURIComponent(id)}/playback/retry`);
+      await refresh();
+    } catch {
+      setActionFailed(true);
+    } finally {
+      setBusyId(null);
+    }
+  };
   const text = messagesFor(locale).recordingExports;
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -153,6 +165,7 @@ export function RecordingList({
           busyId={busyId}
           onDownload={(id) => void action(id, true)}
           onRetry={(id) => void action(id, false)}
+          onRetryPlayback={(id) => void retryPlayback(id)}
           onPlay={setPlayingId}
           onRemove={setConfirmId}
         />

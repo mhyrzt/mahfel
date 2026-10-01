@@ -9,6 +9,8 @@ export interface Messages {
     unavailable: string;
     download: string;
     retry: string;
+    retryPlayback: string;
+    playbackFailed: string;
     queued: string;
     rendering: string;
     ready: string;
@@ -33,6 +35,7 @@ export interface Messages {
     pause: string;
     seek: string;
     position: string;
+    audio: string;
   };
   appearance: {
     label: string;
@@ -204,6 +207,8 @@ const messages: Record<Locale, Messages> = {
       unavailable: "Recordings could not be loaded. Try again.",
       download: "Download MP4",
       retry: "Retry export",
+      retryPlayback: "Retry replay preparation",
+      playbackFailed: "Replay preparation failed",
       queued: "Video export queued",
       rendering: "Creating video",
       ready: "MP4 ready",
@@ -229,6 +234,7 @@ const messages: Record<Locale, Messages> = {
       pause: "Pause",
       seek: "Playback position",
       position: "Playback time",
+      audio: "Audio tracks",
     },
     appearance: { label: "Appearance", light: "Light", dark: "Dark", system: "System" },
     account: {
@@ -395,6 +401,8 @@ const messages: Record<Locale, Messages> = {
       unavailable: "بارگذاری ضبط‌ها ممکن نشد. دوباره تلاش کنید.",
       download: "دریافت MP4",
       retry: "تلاش دوباره برای خروجی",
+      retryPlayback: "تلاش دوباره برای آماده‌سازی بازپخش",
+      playbackFailed: "آماده‌سازی بازپخش ناموفق بود",
       queued: "خروجی ویدیو در صف است",
       rendering: "در حال ساخت ویدیو",
       ready: "ویدیو آماده است",
@@ -420,6 +428,7 @@ const messages: Record<Locale, Messages> = {
       pause: "مکث",
       seek: "موقعیت پخش",
       position: "زمان پخش",
+      audio: "صداهای ضبط‌شده",
     },
     appearance: { label: "پوسته", light: "روشن", dark: "تیره", system: "سیستم" },
     account: {

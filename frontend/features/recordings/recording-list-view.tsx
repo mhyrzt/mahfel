@@ -14,6 +14,7 @@ export function RecordingListView({
   busyId = null,
   onDownload,
   onRetry,
+  onRetryPlayback,
   onPlay,
   onRemove,
 }: Readonly<{
@@ -26,6 +27,7 @@ export function RecordingListView({
   busyId?: string | null;
   onDownload?: (id: string) => void;
   onRetry?: (id: string) => void;
+  onRetryPlayback?: (id: string) => void;
   onPlay?: (id: string) => void;
   onRemove?: (id: string) => void;
 }>) {
@@ -49,13 +51,21 @@ export function RecordingListView({
         {items.map((item) => {
           const exportRecord = item.export;
           const status = exportRecord?.status ?? "preparing";
+          const processingFailed = item.warning === "playback_processing_failed";
           const labels: Record<string, string> = {
             queued: text.queued,
             rendering: text.rendering,
             ready: text.ready,
             failed: text.failed,
           };
-          const label = labels[status] ?? (item.status === "failed" ? text.failed : text.preparing);
+          let label = text.preparing;
+          if (processingFailed) {
+            label = text.playbackFailed;
+          } else if (item.status === "failed") {
+            label = text.failed;
+          } else if (item.status === "ready") {
+            label = labels[status] ?? text.preparing;
+          }
           return (
             <li key={item.id} className="space-y-3 rounded-xl border bg-card p-4">
               <div className="flex flex-wrap items-start justify-between gap-3">
@@ -71,7 +81,7 @@ export function RecordingListView({
                     {status === "rendering" ? ` · ${exportRecord?.progress ?? 0}%` : ""}
                   </p>
                 </div>
-                {status === "ready" ? (
+                {item.status === "ready" ? (
                   <div className="flex items-center gap-2">
                     <Button
                       size="sm"
@@ -82,18 +92,20 @@ export function RecordingListView({
                       <Play aria-hidden="true" className="size-4" />
                       {text.play}
                     </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      disabled={busyId === item.id}
-                      onClick={() => onDownload?.(item.id)}
-                    >
-                      <Download aria-hidden="true" className="size-4" />
-                      {text.download}
-                    </Button>
+                    {status === "ready" ? (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={busyId === item.id}
+                        onClick={() => onDownload?.(item.id)}
+                      >
+                        <Download aria-hidden="true" className="size-4" />
+                        {text.download}
+                      </Button>
+                    ) : null}
                   </div>
                 ) : null}
-                {status === "failed" && canManage ? (
+                {item.status === "ready" && status === "failed" && canManage ? (
                   <Button
                     size="sm"
                     variant="outline"
@@ -102,6 +114,17 @@ export function RecordingListView({
                   >
                     <RotateCcw aria-hidden="true" className="size-4" />
                     {text.retry}
+                  </Button>
+                ) : null}
+                {processingFailed && canManage ? (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={busyId === item.id}
+                    onClick={() => onRetryPlayback?.(item.id)}
+                  >
+                    <RotateCcw aria-hidden="true" className="size-4" />
+                    {text.retryPlayback}
                   </Button>
                 ) : null}
                 {canManage ? (

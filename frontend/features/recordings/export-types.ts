@@ -7,5 +7,6 @@ export interface RecordingListItem {
   started_at: string;
   status: string;
   partial: boolean;
+  warning?: string | null;
   export: RecordingExport | null;
 }

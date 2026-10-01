@@ -7,13 +7,20 @@ import { browserApiClient } from "@/lib/api/browser";
 import type { Locale } from "@/lib/i18n/config";
 import { messagesFor } from "@/lib/i18n/messages";
 import type { RecordingPlayback } from "./export-types";
+import { MediaPlayback, videoTracks, type MediaSegment } from "./media-playback";
 import { loadReplayInput } from "./replay/manifest";
-import type { ReplayInput, VideoTrack } from "./replay/types";
+import type { ReplayInput, SceneV1, VideoTrack } from "./replay/types";
 import "./renderer/renderer.css";
 
 interface WorkspaceRenderer {
+  mediaRoot: HTMLElement;
   initialize(input: ReplayInput): Promise<void>;
-  render(timestamp: string, tracks: VideoTrack[], width: number, height: number): Promise<unknown>;
+  render(
+    timestamp: string,
+    tracks: VideoTrack[],
+    width: number,
+    height: number,
+  ): Promise<{ scene: SceneV1 }>;
   destroy(): void;
 }
 
@@ -35,7 +42,9 @@ export function RecordingPlayer({
   const text = messagesFor(locale).recordingPlayback;
   const container = useRef<HTMLDivElement>(null);
   const renderer = useRef<WorkspaceRenderer | null>(null);
-  const input = useRef<ReplayInput | null>(null);
+  const media = useRef<MediaPlayback | null>(null);
+  const scene = useRef<SceneV1 | null>(null);
+  const segments = useRef<MediaSegment[]>([]);
   const offset = useRef(0);
   const startedAt = useRef(0);
   const busy = useRef(false);
@@ -44,6 +53,24 @@ export function RecordingPlayer({
   const [playing, setPlaying] = useState(false);
   const [position, setPosition] = useState(0);
   const [duration, setDuration] = useState(0);
+  const [audioTracks, setAudioTracks] = useState<MediaSegment[]>([]);
+  const [actorNames, setActorNames] = useState<Record<string, string>>({});
+  const [muted, setMuted] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    const root = container.current;
+    const viewport = root?.parentElement;
+    if (!root || !viewport) {
+      return undefined;
+    }
+    const resize = () => {
+      root.style.transform = `scale(${Math.min(1, viewport.clientWidth / 960)})`;
+    };
+    const observer = new ResizeObserver(resize);
+    observer.observe(viewport);
+    resize();
+    return () => observer.disconnect();
+  }, []);
 
   useEffect(() => {
     const path = `/v1/sessions/${encodeURIComponent(sessionId)}/recordings/${encodeURIComponent(recordingId)}/playback`;
@@ -73,8 +100,25 @@ export function RecordingPlayer({
         if (!active) {
           return;
         }
-        input.current = replay;
-        await instance.render("0", [], 960, 540);
+        setActorNames(replay.actors);
+        segments.current = data.media;
+        const controller = new MediaPlayback(
+          instance.mediaRoot,
+          data.media,
+          async (startMs) => {
+            const { data: window } = await browserApiClient.get<{ urls: Record<string, string> }>(
+              `${path}/media-window?start_ms=${startMs}`,
+              { signal: abort.signal },
+            );
+            return window.urls;
+          },
+          () => setFailed(true),
+        );
+        media.current = controller;
+        setAudioTracks(controller.audioTracks());
+        const frame = await instance.render("0", videoTracks(data.media, 0), 960, 540);
+        scene.current = frame.scene;
+        controller.update(0, false, frame.scene);
         setDuration(Number(BigInt(replay.duration_ns) / BigInt(1_000_000)));
         setFailed(false);
         setReady(true);
@@ -89,8 +133,11 @@ export function RecordingPlayer({
       active = false;
       abort.abort();
       instance?.destroy();
+      media.current?.destroy();
+      media.current = null;
+      scene.current = null;
+      segments.current = [];
       renderer.current = null;
-      input.current = null;
     };
   }, [sessionId, recordingId]);
 
@@ -108,7 +155,11 @@ export function RecordingPlayer({
         busy.current = true;
         const timestamp = (BigInt(Math.round(elapsed)) * BigInt(1_000_000)).toString();
         void instance
-          .render(timestamp, [], 960, 540)
+          .render(timestamp, videoTracks(segments.current, elapsed), 960, 540)
+          .then((frame) => {
+            scene.current = frame.scene;
+            media.current?.update(elapsed, true, frame.scene);
+          })
           .catch(() => setFailed(true))
           .finally(() => {
             busy.current = false;
@@ -116,6 +167,9 @@ export function RecordingPlayer({
       }
       if (elapsed >= total) {
         offset.current = total;
+        if (scene.current) {
+          media.current?.update(total, false, scene.current);
+        }
         setPlaying(false);
         return;
       }
@@ -129,6 +183,9 @@ export function RecordingPlayer({
     if (playing) {
       offset.current += performance.now() - startedAt.current;
       setPlaying(false);
+      if (scene.current) {
+        media.current?.update(offset.current, false, scene.current);
+      }
       return;
     }
     if (position >= duration) {
@@ -137,6 +194,9 @@ export function RecordingPlayer({
     }
     startedAt.current = performance.now();
     setPlaying(true);
+    if (scene.current) {
+      media.current?.update(offset.current, true, scene.current);
+    }
   };
 
   const seek = (milliseconds: number) => {
@@ -146,7 +206,13 @@ export function RecordingPlayer({
     const instance = renderer.current;
     if (instance) {
       const timestamp = (BigInt(Math.round(milliseconds)) * BigInt(1_000_000)).toString();
-      void instance.render(timestamp, [], 960, 540).catch(() => setFailed(true));
+      void instance
+        .render(timestamp, videoTracks(segments.current, milliseconds), 960, 540)
+        .then((frame) => {
+          scene.current = frame.scene;
+          media.current?.update(milliseconds, playing, frame.scene);
+        })
+        .catch(() => setFailed(true));
     }
   };
 
@@ -166,8 +232,34 @@ export function RecordingPlayer({
         className="relative w-[960px] max-w-full overflow-hidden rounded-xl bg-slate-950"
         style={{ aspectRatio: "16/9" }}
       >
-        <div ref={container} className="recording-scene relative" />
+        <div ref={container} className="recording-scene relative origin-top-left" />
       </div>
+      {audioTracks.length > 0 ? (
+        <fieldset className="flex flex-wrap gap-3 text-sm">
+          <legend className="mb-1 text-muted-foreground">{text.audio}</legend>
+          {audioTracks.map((track) => (
+            <label key={track.track_id} className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                checked={!muted.has(track.track_id)}
+                onChange={(event) => {
+                  media.current?.setMuted(track.track_id, !event.target.checked);
+                  setMuted((previous) => {
+                    const next = new Set(previous);
+                    if (event.target.checked) {
+                      next.delete(track.track_id);
+                    } else {
+                      next.add(track.track_id);
+                    }
+                    return next;
+                  });
+                }}
+              />
+              {actorNames[track.actor_id] ?? track.source}
+            </label>
+          ))}
+        </fieldset>
+      ) : null}
       <div className="flex items-center gap-3">
         <Button
           aria-label={playing ? text.pause : text.play}
