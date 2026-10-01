@@ -67,16 +67,13 @@ WORKDIR /source/backend
 RUN cargo nextest run --locked --workspace --all-features --tests --no-run
 CMD ["cargo", "nextest", "run", "--locked", "--profile", "ci", "--workspace", "--all-features", "--tests", "--no-capture"]
 
-FROM docker.arvancloud.ir/debian:trixie-slim AS api
-RUN apt-get update && apt-get upgrade -y && \
-    apt-get install -y --no-install-recommends ca-certificates curl && \
+FROM docker.arvancloud.ir/debian:bookworm-slim AS api
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates curl && \
     rm -rf /var/lib/apt/lists/* && \
     groupadd --system --gid 10001 mahfel && \
     useradd --system --uid 10001 --gid mahfel --home-dir /nonexistent --shell /usr/sbin/nologin mahfel
 WORKDIR /app
 COPY --from=api-builder /tmp/mahfel-api /usr/local/bin/mahfel-api
-RUN ldd /usr/local/bin/mahfel-api > /tmp/mahfel-libraries && \
-    ! grep -q 'not found' /tmp/mahfel-libraries && rm /tmp/mahfel-libraries
 COPY --chown=mahfel:mahfel backend/config/default.toml /app/config/default.toml
 COPY --chown=mahfel:mahfel backend/config/docker.toml /app/config/docker.toml
 COPY --chown=mahfel:mahfel backend/seeds/ /app/seeds/
@@ -87,8 +84,8 @@ HEALTHCHECK --interval=10s --timeout=3s --start-period=10s --retries=5 \
   CMD curl --fail --silent --show-error --max-time 2 http://127.0.0.1:9101/health/live >/dev/null || exit 1
 ENTRYPOINT ["/usr/local/bin/mahfel-api"]
 
-FROM docker.arvancloud.ir/debian:trixie-slim AS media
-RUN apt-get update && apt-get upgrade -y && apt-get install -y --no-install-recommends \
+FROM docker.arvancloud.ir/debian:bookworm-slim AS media
+RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates curl libgcc-s1 libstdc++6 \
     gstreamer1.0-plugins-base gstreamer1.0-plugins-good gstreamer1.0-plugins-bad && \
     rm -rf /var/lib/apt/lists/* && \
@@ -97,8 +94,6 @@ RUN apt-get update && apt-get upgrade -y && apt-get install -y --no-install-reco
 RUN mkdir -p /tmp/mahfel-recordings && chown mahfel:mahfel /tmp/mahfel-recordings
 WORKDIR /app
 COPY --from=media-builder /tmp/mahfel-media /usr/local/bin/mahfel-media
-RUN ldd /usr/local/bin/mahfel-media > /tmp/mahfel-libraries && \
-    ! grep -q 'not found' /tmp/mahfel-libraries && rm /tmp/mahfel-libraries
 COPY --chown=mahfel:mahfel backend/config/default.toml /app/config/default.toml
 COPY --chown=mahfel:mahfel backend/config/docker.toml /app/config/docker.toml
 ENV MAHFEL_CONFIG_DIR=/app/config
@@ -108,8 +103,8 @@ HEALTHCHECK --interval=10s --timeout=3s --start-period=20s --retries=5 \
   CMD curl --fail --silent --show-error --max-time 2 http://127.0.0.1:9102/health/live >/dev/null || exit 1
 ENTRYPOINT ["/usr/local/bin/mahfel-media"]
 
-FROM docker.arvancloud.ir/debian:trixie-slim AS worker-runtime
-RUN apt-get update && apt-get upgrade -y && apt-get install -y --no-install-recommends \
+FROM docker.arvancloud.ir/debian:bookworm-slim AS worker-runtime
+RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates curl gstreamer1.0-plugins-base gstreamer1.0-plugins-good \
     gstreamer1.0-plugins-bad gstreamer1.0-plugins-ugly gstreamer1.0-libav && \
     rm -rf /var/lib/apt/lists/* && \
@@ -120,8 +115,6 @@ WORKDIR /app
 
 FROM worker-runtime AS worker
 COPY --from=worker-builder /tmp/mahfel-worker /usr/local/bin/mahfel-worker
-RUN ldd /usr/local/bin/mahfel-worker > /tmp/mahfel-libraries && \
-    ! grep -q 'not found' /tmp/mahfel-libraries && rm /tmp/mahfel-libraries
 COPY --chown=mahfel:mahfel backend/config/default.toml /app/config/default.toml
 COPY --chown=mahfel:mahfel backend/config/docker.toml /app/config/docker.toml
 ENV MAHFEL_CONFIG_DIR=/app/config
