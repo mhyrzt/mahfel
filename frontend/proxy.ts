@@ -10,6 +10,9 @@ function isPublicPath(pathname: string): boolean {
 
 export async function proxy(request: NextRequest): Promise<NextResponse> {
   const { pathname, search } = request.nextUrl;
+  if (pathname === "/api/internal/recording-render") {
+    return NextResponse.next();
+  }
   const publicPath = isPublicPath(pathname);
   const token = await getToken({
     req: request,

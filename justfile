@@ -46,6 +46,11 @@ backend *args:
 frontend *args:
     just --justfile frontend/justfile {{args}}
 
+# Run cross-service browser tests from their independent package.
+[group('Validation')]
+e2e *args:
+    cd e2e && bun run test {{args}}
+
 # Forward arbitrary recipes and arguments to the protobuf Justfile.
 [group('Components')]
 proto *args:

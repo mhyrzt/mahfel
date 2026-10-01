@@ -1,6 +1,8 @@
 .git
 .backlog
 .env
+**/.env.local
+**/.env.*.local
 .venv
 site
 **/target
@@ -14,5 +16,5 @@ site
 ci-artifacts
 .docker-ci
 
-frontend/recording-renderer-dist
 frontend/storybook-static
+e2e/artifacts

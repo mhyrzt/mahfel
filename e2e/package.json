@@ -1,0 +1,13 @@
+{
+  "name": "mahfel-e2e",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "bun@1.4.2",
+  "scripts": {
+    "test": "playwright test --config=playwright.config.ts",
+    "test:list": "playwright test --config=playwright.config.ts --list"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.63.0"
+  }
+}

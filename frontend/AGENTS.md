@@ -51,7 +51,7 @@ frontend/
   hooks/                    # small shared React hooks
   lib/                      # technical boundaries shared across features
     api/ auth/ collaboration/ i18n/ rtc/ websocket/
-  playwright/               # browser end-to-end tests
+  scripts/                  # contract generation, asset preparation and export fixtures
 ```
 
 Only create a feature directory when a cohesive implementation actually exists.
@@ -170,6 +170,11 @@ the Keycloak access token and must not become a general proxy. The allowlist liv
 Do not proxy WebSocket, WebRTC media, or presigned S3 transfers through Next.js.
 
 Do not widen the BFF beyond the authenticated REST surface or forward arbitrary upstream paths.
+
+ADR 0030 separately permits the API-key authenticated `/api/internal/recording-render` endpoint on
+the existing web listener. It produces images from bounded drawing DTOs for worker exports and is
+not a proxy. Native rendering lives in `features/recordings/server-render`; route files own HTTP
+composition only. Browser E2E tooling lives outside this application, under `../e2e/`.
 
 Never expose access tokens, refresh tokens, or the NextAuth secret to browser JavaScript; the session
 is an httpOnly cookie.
@@ -495,8 +500,8 @@ Do not duplicate every feature integration test as a Storybook story.
 
 ### Browser E2E
 
-Playwright specs live in `playwright/tests` and target the local stack (`https://mahfel.localhost` by
-default).
+Playwright specs live in the repository-level `../e2e/tests` and target the local stack
+(`https://mahfel.localhost` by default).
 
 Do not fake WebSocket or WebRTC behavior when an E2E test's purpose is specifically to verify the
 real cross-service boundary.
@@ -563,3 +568,13 @@ Check that:
 - visual changes match `frontend/DESIGN.md` and RTL still works;
 - focused tests exist for meaningful behavior;
 - relevant frontend gates pass.
+
+<!-- BEGIN:nextjs-agent-rules -->
+
+# This is NOT the Next.js you know
+
+This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
+
+This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
+
+<!-- END:nextjs-agent-rules -->

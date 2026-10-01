@@ -18,6 +18,9 @@ spec:
           image: mahfel-web:local
           imagePullPolicy: Never
           env:
+            - {name: MAHFEL_RENDER_ASSET_ORIGINS, value: "http://rustfs:9000"}
+            - name: MAHFEL_RENDER_API_KEY
+              valueFrom: {secretKeyRef: {name: local-credentials, key: recording-render-key}}
             - {name: NEXTAUTH_URL, value: 'https://mahfel.localhost'}
             - name: NEXTAUTH_SECRET
               valueFrom: {secretKeyRef: {name: local-credentials, key: nextauth-secret}}

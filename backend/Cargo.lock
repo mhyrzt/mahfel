@@ -3724,6 +3724,7 @@ dependencies = [
  "testcontainers",
  "thiserror 2.0.20",
  "tokio",
+ "tracing",
  "uuid",
 ]
 
@@ -3757,6 +3758,7 @@ dependencies = [
  "mahfel-storage",
  "mahfel-telemetry",
  "prometheus",
+ "reqwest 0.12.28",
  "serde_json",
  "sha2 0.10.9",
  "sqlx",
@@ -3765,6 +3767,7 @@ dependencies = [
  "tokio",
  "tracing",
  "uuid",
+ "yrs",
 ]
 
 [[package]]

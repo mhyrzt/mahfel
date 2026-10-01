@@ -3,13 +3,8 @@ use super::{
     encoder::Encoder,
 };
 use anyhow::{Context, Result, ensure};
-use base64::Engine;
 use serde_json::{Value, json};
-use std::{collections::HashMap, path::Path, process::Stdio};
-use tokio::{
-    io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader},
-    process::Command,
-};
+use std::{collections::HashMap, path::Path};
 
 struct Fragment {
     id: String,
@@ -28,13 +23,13 @@ fn ns(value: &Value) -> Result<i128> {
         .context("timestamp integer")
 }
 
-pub(crate) async fn render_local(directory: &Path, renderer: &Path) -> Result<()> {
+pub(crate) async fn render_local(directory: &Path) -> Result<()> {
     gstreamer::init()?;
     let input: Value =
         serde_json::from_slice(&tokio::fs::read(directory.join("input.json")).await?)?;
     let media: Vec<Value> =
         serde_json::from_slice(&tokio::fs::read(directory.join("media.json")).await?)?;
-    let assets: Value =
+    let mut assets: Value =
         serde_json::from_slice(&tokio::fs::read(directory.join("assets.json")).await?)?;
     let settings: Value =
         serde_json::from_slice(&tokio::fs::read(directory.join("settings.json")).await?)?;
@@ -69,27 +64,17 @@ pub(crate) async fn render_local(directory: &Path, renderer: &Path) -> Result<()
             .and_modify(|start| *start = (*start).min(fragment.start))
             .or_insert(fragment.start);
     }
-    let mut browser = Command::new(settings["bun"].as_str().unwrap_or("bun"))
-        .arg(renderer.join("runner.ts"))
-        .arg(directory)
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::inherit())
-        .kill_on_drop(true)
-        .spawn()?;
-    let mut writer = browser.stdin.take().context("renderer stdin")?;
-    let mut reader = BufReader::new(browser.stdout.take().context("renderer stdout")?);
-    request(
-        &mut writer,
-        &mut reader,
-        &json!({ "action": "initialize", "input": input }),
-    )
-    .await?;
+    let mut renderer = super::render_client::RenderClient::new()?;
+    let mut replay = super::replay::Replay::new(input)?;
     let encoder = Encoder::new(&directory.join("export.mp4"), width, height)?;
     let mut decoders = HashMap::<usize, Decoder>::new();
     let mut presentation_video: Option<(String, Decoder, Option<Decoder>, u64)> = None;
     let frame_count = duration.div_ceil(1_000_000_000 / 30);
     for frame_index in 0..frame_count {
+        if frame_index % 30 == 0 {
+            assets =
+                serde_json::from_slice(&tokio::fs::read(directory.join("assets.json")).await?)?;
+        }
         let pts = frame_index * 1_000_000_000 / 30;
         if pts >= duration {
             break;
@@ -107,14 +92,27 @@ pub(crate) async fn render_local(directory: &Path, renderer: &Path) -> Result<()
         active.retain(|(_, fragment)| seen.insert(fragment.id.as_str()));
         decoders.retain(|index, _| active.iter().any(|(active, _)| active == index));
         let tracks = active.iter().filter(|(_, fragment)| !fragment.audio).map(|(_, fragment)| json!({ "id": fragment.id, "actorId": fragment.actor, "source": fragment.source, "started_ns": track_starts.get(fragment.id.as_str()).copied().unwrap_or(fragment.start).to_string() })).collect::<Vec<_>>();
-        let response = request(&mut writer, &mut reader, &json!({ "action": "render", "timestamp": pts.to_string(), "tracks": tracks, "width": width, "height": height })).await?;
-        let slate = !response["scene"]["slate"].is_null();
-        let png = base64::engine::general_purpose::STANDARD
-            .decode(response["png"].as_str().context("renderer frame")?)?;
-        ensure!(
-            png.len() <= 16 * 1024 * 1024,
-            "renderer frame resource limit"
-        );
+        replay.advance(i128::from(pts))?;
+        let scene = super::scene::describe(&replay, pts, &tracks, width, height);
+        let slate = replay.slate.is_some();
+        let surface_height = if slate { height } else { height * 5 / 6 };
+        let content = if scene["surface"].is_null() && !slate {
+            json!({"type":"slate","state":"empty","text":""})
+        } else {
+            super::surface::content(&replay, &assets, width, surface_height)?
+        };
+        let background = if slate {
+            json!("#101018")
+        } else if matches!(
+            content["type"].as_str(),
+            Some("notes" | "whiteboard" | "document_page" | "image")
+        ) {
+            json!("#fafafc")
+        } else {
+            serde_json::Value::Null
+        };
+        let png = renderer.render(json!({"version":1,"output":{"format":"png","width":width,"height":height,"content_height":surface_height,"background":background},"content":content,"annotations":super::surface::annotations(&replay,&scene,&tracks,width,height)})).await?;
+        let response = json!({"scene":scene,"presentationVideo":if scene["surface"].is_null(){Value::Null}else{super::surface::presentation_video(&replay,&assets,pts)?}});
         let mut videos = Vec::new();
         let audio_frames =
             usize::try_from(next_pts * 48000 / 1_000_000_000 - pts * 48000 / 1_000_000_000)?;
@@ -249,34 +247,6 @@ pub(crate) async fn render_local(directory: &Path, renderer: &Path) -> Result<()
         }
     }
     encoder.finish()?;
-    writer.write_all(b"{\"action\":\"dispose\"}\n").await?;
-    writer.shutdown().await?;
-    drop(writer);
-    tokio::time::timeout(std::time::Duration::from_secs(10), browser.wait()).await??;
     super::verification::verify(&directory.join("export.mp4"), duration)?;
     Ok(())
-}
-
-async fn request(
-    writer: &mut tokio::process::ChildStdin,
-    reader: &mut BufReader<tokio::process::ChildStdout>,
-    request: &Value,
-) -> Result<Value> {
-    let mut bytes = serde_json::to_vec(request)?;
-    bytes.push(b'\n');
-    writer.write_all(&bytes).await?;
-    writer.flush().await?;
-    let mut response = Vec::new();
-    let count = tokio::time::timeout(
-        std::time::Duration::from_secs(30),
-        (&mut *reader)
-            .take(32 * 1024 * 1024)
-            .read_until(b'\n', &mut response),
-    )
-    .await??;
-    ensure!(
-        count > 0 && response.last() == Some(&b'\n'),
-        "renderer response unavailable or too large"
-    );
-    serde_json::from_slice(&response).context("renderer response")
 }

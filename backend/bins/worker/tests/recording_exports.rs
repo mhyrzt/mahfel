@@ -1,4 +1,17 @@
-use std::{error::Error, path::PathBuf, process::Command};
+use std::{
+    error::Error,
+    io::{BufRead, BufReader},
+    path::PathBuf,
+    process::{Child, Command, Stdio},
+};
+
+struct AssetServer(Child);
+impl Drop for AssetServer {
+    fn drop(&mut self) {
+        let _ = self.0.kill();
+        let _ = self.0.wait();
+    }
+}
 
 struct Fixture(PathBuf);
 impl Drop for Fixture {
@@ -10,7 +23,9 @@ impl Drop for Fixture {
 #[test]
 fn renders_archived_workspace_and_native_media_to_verified_mp4() -> Result<(), Box<dyn Error>> {
     if std::env::var("MAHFEL_RECORDING_EXPORT_TEST").as_deref() != Ok("1") {
-        eprintln!("MAHFEL_RECORDING_EXPORT_TEST=1 requires Bun, Chromium and GStreamer plugins");
+        eprintln!(
+            "MAHFEL_RECORDING_EXPORT_TEST=1 requires the authenticated web renderer, fixture asset server and GStreamer plugins"
+        );
         return Ok(());
     }
     let frontend = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../frontend");
@@ -18,10 +33,24 @@ fn renders_archived_workspace_and_native_media_to_verified_mp4() -> Result<(), B
         Fixture(std::env::temp_dir().join(format!("mahfel-export-{}", uuid::Uuid::new_v4())));
     let generated = Command::new("bun")
         .current_dir(&frontend)
-        .arg("scripts/recording-renderer/fixture.ts")
+        .arg("scripts/recording-export-fixture.ts")
         .arg(&fixture.0)
         .status()?;
     assert!(generated.success(), "generate archived Yjs fixture");
+    let mut assets = AssetServer(
+        Command::new("bun")
+            .current_dir(&frontend)
+            .arg("scripts/recording-export-assets.ts")
+            .arg(&fixture.0)
+            .stdout(Stdio::piped())
+            .spawn()?,
+    );
+    let mut ready = String::new();
+    BufReader::new(assets.0.stdout.take().ok_or("fixture server output")?).read_line(&mut ready)?;
+    assert!(
+        ready.starts_with("http://127.0.0.1:"),
+        "fixture server ready"
+    );
     for (description, file) in [
         (
             "videotestsrc num-buffers=360 pattern=ball ! video/x-raw,width=320,height=240,framerate=30/1 ! vp8enc deadline=1 ! webmmux",
@@ -43,7 +72,6 @@ fn renders_archived_workspace_and_native_media_to_verified_mp4() -> Result<(), B
     let rendered = Command::new(env!("CARGO_BIN_EXE_mahfel-worker"))
         .arg("render-export")
         .arg(&fixture.0)
-        .arg(frontend.join("recording-renderer-dist"))
         .status()?;
     assert!(
         rendered.success(),

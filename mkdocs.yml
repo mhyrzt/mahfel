@@ -77,4 +77,6 @@ nav:
       - 0026 Vidstack media player: adr/0026-vidstack-media-player.md
       - 0027 Original track recording: adr/0027-original-track-recording.md
       - 0028 Recording MP4 export: adr/0028-recording-mp4-export.md
+      - 0029 Mandatory recording start: adr/0029-mandatory-recording-start.md
+      - 0030 Native recording image rendering: adr/0030-native-recording-image-rendering.md
   - Backlog: backlog/roadmap.md

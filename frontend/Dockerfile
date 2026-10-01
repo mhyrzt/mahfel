@@ -20,6 +20,7 @@ ENV NODE_ENV=production \
     HOSTNAME=0.0.0.0 \
     PORT=3000
 RUN addgroup -S mahfel && adduser -S -G mahfel -u 10001 mahfel
+RUN apk add --no-cache poppler-utils fontconfig
 COPY --from=builder --chown=mahfel:mahfel /app/public ./public
 COPY --from=builder --chown=mahfel:mahfel /app/.next/standalone ./
 COPY --from=builder --chown=mahfel:mahfel /app/.next/static ./.next/static

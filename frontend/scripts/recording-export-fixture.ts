@@ -1,9 +1,13 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
+import { createHash } from "node:crypto";
+import sharp from "sharp";
 import { createEditor, $getRoot, $createParagraphNode, $createTextNode } from "lexical";
 import { createYjsBinding, syncLexicalUpdateToYjs, type Provider } from "@lexical/yjs";
 import * as Y from "yjs";
-import { replayFixture } from "../../features/recordings/tests/replay-fixtures";
+import { $createHeadingNode, $createQuoteNode, HeadingNode, QuoteNode } from "@lexical/rich-text";
+import { $createListNode, $createListItemNode, ListNode, ListItemNode } from "@lexical/list";
+import { replayFixture } from "../features/recordings/tests/replay-fixtures";
 
 const directory = process.argv[2];
 if (!directory) {
@@ -13,6 +17,7 @@ await mkdir(directory, { recursive: true });
 const doc = new Y.Doc();
 const editor = createEditor({
   namespace: "fixture",
+  nodes: [HeadingNode, QuoteNode, ListNode, ListItemNode],
   onError: (error) => {
     throw error;
   },
@@ -54,7 +59,15 @@ const stop = editor.registerUpdateListener(
 editor.update(
   () => {
     $getRoot().append(
-      $createParagraphNode().append($createTextNode("Archived notes — یادداشت‌های جلسه")),
+      $createHeadingNode("h2").append($createTextNode("Archived notes")),
+      $createParagraphNode()
+        .setDirection("rtl")
+        .append($createTextNode("یادداشت‌های جلسه").toggleFormat("bold")),
+      $createQuoteNode().append($createTextNode("Recorded collaboration")),
+      $createListNode("number", 3).append(
+        $createListItemNode().append($createTextNode("First item")),
+        $createListItemNode().append($createTextNode("Second item")),
+      ),
     );
   },
   { discrete: true },
@@ -107,13 +120,12 @@ fixture.assets = [
   { file_id: "pdf", mime: "application/pdf", archive_key: "deck.pdf" },
   { file_id: "video", mime: "video/webm", archive_key: "camera.webm" },
 ];
-await writeFile(
-  join(directory, "image.png"),
-  Buffer.from(
-    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+j5wQAAAAASUVORK5CYII=",
-    "base64",
-  ),
-);
+const image = await sharp({
+  create: { width: 320, height: 180, channels: 4, background: "#6952e8" },
+})
+  .png()
+  .toBuffer();
+await writeFile(join(directory, "image.png"), image);
 const content = "BT /F1 24 Tf 30 100 Td (Archived PDF) Tj ET";
 const objects = [
   "<< /Type /Catalog /Pages 2 0 R >>",
@@ -136,6 +148,13 @@ pdf += offsets
   .join("");
 pdf += `trailer\n<< /Size ${offsets.length} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF`;
 await writeFile(join(directory, "deck.pdf"), pdf);
+const assetOrigin = process.env.MAHFEL_RECORDING_FIXTURE_ASSET_ORIGIN ?? "http://127.0.0.1:3011";
+function renderAsset(path: string, bytes: Buffer) {
+  return {
+    url: `${assetOrigin}/${path}`,
+    sha256: createHash("sha256").update(bytes).digest("hex"),
+  };
+}
 await writeFile(
   join(directory, "input.json"),
   JSON.stringify({ ...fixture, width: 1920, height: 1080 }),
@@ -166,12 +185,16 @@ await writeFile(
 await writeFile(
   join(directory, "assets.json"),
   JSON.stringify({
-    image: { path: "image.png", mime: "image/png" },
-    pdf: { path: "deck.pdf", mime: "application/pdf" },
+    image: { path: "image.png", mime: "image/png", render: renderAsset("image.png", image) },
+    pdf: {
+      path: "deck.pdf",
+      mime: "application/pdf",
+      render: renderAsset("deck.pdf", Buffer.from(pdf)),
+    },
     video: { path: "camera.webm", mime: "video/webm" },
   }),
 );
 await writeFile(
   join(directory, "settings.json"),
-  JSON.stringify({ bun: "bun", output_bytes: 100000000, max_active_audio_tracks: 64 }),
+  JSON.stringify({ output_bytes: 100000000, max_active_audio_tracks: 64 }),
 );

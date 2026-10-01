@@ -22,14 +22,15 @@ async fn main() -> Result<()> {
         let directory = std::env::args()
             .nth(2)
             .context("expected export workspace")?;
-        let renderer = std::env::args()
-            .nth(3)
-            .context("expected renderer directory")?;
-        return recording_export::render_local(
-            std::path::Path::new(&directory),
-            std::path::Path::new(&renderer),
-        )
-        .await;
+        let result = recording_export::render_local(std::path::Path::new(&directory)).await;
+        if result.as_ref().err().is_some_and(|error| {
+            error
+                .downcast_ref::<recording_export::RenderUnavailable>()
+                .is_some()
+        }) {
+            std::process::exit(75);
+        }
+        return result;
     }
     let settings = Settings::load().context("load configuration")?;
     anyhow::ensure!(

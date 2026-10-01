@@ -66,12 +66,14 @@ frontend-test:
   image: $FRONTEND_TEST_IMAGE
   stage: test
   before_script:
+    - apt-get update && apt-get install -y --no-install-recommends poppler-utils fontconfig
     - curl --fail --location --retry 3 https://github.com/oven-sh/bun/releases/download/bun-v1.4.2/bun-linux-x64.zip --output /tmp/bun.zip
     - unzip -q /tmp/bun.zip -d /tmp
     - install /tmp/bun-linux-x64/bun /usr/local/bin/bun
     - bun --version && node --version
     - cd frontend
     - bun install --frozen-lockfile
+    - bun run recording-assets:prepare
   script:
     - node node_modules/vitest/vitest.mjs run --maxWorkers=2 --testTimeout=15000 --reporter=default --reporter=junit --outputFile.junit=../ci-artifacts/frontend-junit.xml
   artifacts:

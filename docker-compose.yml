@@ -6,6 +6,9 @@ services:
     image: mahfel-web:local
     env_file:
       - ./frontend/.env.docker
+    environment:
+      MAHFEL_RENDER_API_KEY: ${MAHFEL_RENDER_API_KEY:-mahfel-local-only-render-key}
+      MAHFEL_RENDER_ASSET_ORIGINS: http://rustfs:9000
     build:
       context: .
       dockerfile: frontend/Dockerfile
@@ -148,10 +151,8 @@ services:
       target: worker
     restart: unless-stopped
     init: true
-    shm_size: 256mb
-    security_opt:
-      - seccomp:./deploy/worker/chromium-seccomp.json
     environment:
+      MAHFEL_WORKER__EXPORTS__RENDERER_API_KEY: ${MAHFEL_RENDER_API_KEY:-mahfel-local-only-render-key}
       MAHFEL_WORKER__AMQP_URL: ${MAHFEL_AMQP_URL:-amqp://mahfel:mahfel-local-only@rabbitmq:5672/%2f}
       MAHFEL_TELEMETRY__LOG_FILTER: ${MAHFEL_LOG_FILTER:-info,mahfel=debug}
       MAHFEL_STORAGE__ACCESS_KEY: ${MAHFEL_S3_ACCESS_KEY:-mahfel}

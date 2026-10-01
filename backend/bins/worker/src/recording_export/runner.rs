@@ -89,15 +89,23 @@ impl RecordingExporter for GstreamerExporter {
                             None => JobFailure::Permanent("export_input_invalid"),
                         }
                     })?;
-                let renderer = std::fs::canonicalize(&self.settings.renderer_directory)
-                    .map_err(|_| JobFailure::Permanent("export_renderer_missing"))?;
+                if self.settings.renderer_api_key.is_empty() {
+                    return Err(JobFailure::Retryable("export_renderer_unconfigured"));
+                }
                 let mut child = Command::new(
                     std::env::current_exe()
                         .map_err(|_| JobFailure::Permanent("export_worker_path"))?,
                 )
                 .arg("render-export")
                 .arg(&workspace.0)
-                .arg(&renderer)
+                .env(
+                    "MAHFEL_WORKER__EXPORTS__RENDERER_URL",
+                    &self.settings.renderer_url,
+                )
+                .env(
+                    "MAHFEL_WORKER__EXPORTS__RENDERER_API_KEY",
+                    &self.settings.renderer_api_key,
+                )
                 .process_group(0)
                 .kill_on_drop(true)
                 .stdout(Stdio::null())
@@ -113,15 +121,22 @@ impl RecordingExporter for GstreamerExporter {
                     self.settings.timeout_seconds,
                 ));
                 tokio::pin!(deadline);
+                let mut refreshed = tokio::time::Instant::now();
                 let mut poll = tokio::time::interval(std::time::Duration::from_secs(2));
                 loop {
                     tokio::select! {
                         result = child.wait() => {
-                            if !result.map_err(|_| JobFailure::Retryable("export_process_failed"))?.success() { return Err(JobFailure::Permanent("export_render_failed")); }
+                            let status = result.map_err(|_| JobFailure::Retryable("export_process_failed"))?;
+                            if status.code() == Some(75) { return Err(JobFailure::Retryable("export_renderer_unavailable")); }
+                            if !status.success() { return Err(JobFailure::Permanent("export_render_failed")); }
                             break;
                         }
                         _ = &mut deadline => return Err(JobFailure::Permanent("export_timeout")),
                         _ = poll.tick() => {
+                            if refreshed.elapsed() >= std::time::Duration::from_secs(240) {
+                                super::source::refresh_render_assets(&self.storage,&workspace.0).await.map_err(|_| JobFailure::Retryable("export_asset_urls_unavailable"))?;
+                                refreshed = tokio::time::Instant::now();
+                            }
                             let progress = tokio::fs::read_to_string(workspace.0.join("progress")).await.ok().and_then(|value| value.parse::<i32>().ok()).unwrap_or(0);
                             if !self.store.export_progress(source.export_id, token, progress).await.map_err(|_| JobFailure::Retryable("export_progress_unavailable"))? { return Err(JobFailure::Retryable("export_claim_lost")); }
                         }

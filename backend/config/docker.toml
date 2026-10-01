@@ -15,4 +15,4 @@ name = "mahfel"
 amqp_url = "amqp://mahfel:mahfel-local-only@rabbitmq:5672/%2f"
 
 [worker.exports]
-renderer_directory = "/app/recording-renderer"
+renderer_url = "http://mahfel-web:3000/api/internal/recording-render"

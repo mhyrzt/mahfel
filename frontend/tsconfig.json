@@ -29,5 +29,5 @@
     ".next/types/**/*.ts",
     ".next/dev/types/**/*.ts"
   ],
-  "exclude": ["node_modules", "recording-renderer-dist"]
+  "exclude": ["node_modules", "storybook-static"]
 }

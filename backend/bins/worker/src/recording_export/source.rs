@@ -32,7 +32,7 @@ fn sha(bytes: &[u8]) -> String {
 }
 
 pub(super) async fn prepare(
-    storage: &dyn RecordingStorage,
+    storage: &mahfel_storage::S3FileStorage,
     source: &ExportSource,
     settings: &RecordingExportSettings,
     directory: &Path,
@@ -164,7 +164,7 @@ pub(super) async fn prepare(
         );
         assets.insert(
             id.to_string(),
-            json!({ "path": relative, "mime": asset["mime"] }),
+            json!({ "path": relative, "mime": asset["mime"], "archive_key": asset["archive_key"], "sha256": sha(&bytes), "render": {"url":storage.presign_render_asset(key(&asset["archive_key"], &prefix)?).await?, "sha256":sha(&bytes)} }),
         );
     }
     let actors = sections
@@ -182,6 +182,24 @@ pub(super) async fn prepare(
     tokio::fs::write(directory.join("input.json"), serde_json::to_vec(&input)?).await?;
     tokio::fs::write(directory.join("media.json"), serde_json::to_vec(&media)?).await?;
     tokio::fs::write(directory.join("assets.json"), serde_json::to_vec(&assets)?).await?;
-    tokio::fs::write(directory.join("settings.json"), json!({ "output_bytes": settings.output_bytes, "max_active_audio_tracks": settings.max_active_audio_tracks, "bun": settings.bun }).to_string()).await?;
+    tokio::fs::write(directory.join("settings.json"), json!({ "output_bytes": settings.output_bytes, "max_active_audio_tracks": settings.max_active_audio_tracks }).to_string()).await?;
+    Ok(())
+}
+
+pub(super) async fn refresh_render_assets(
+    storage: &mahfel_storage::S3FileStorage,
+    directory: &Path,
+) -> Result<()> {
+    let mut assets: Value =
+        serde_json::from_slice(&tokio::fs::read(directory.join("assets.json")).await?)?;
+    for asset in assets.as_object_mut().context("asset map")?.values_mut() {
+        asset["render"]["url"] = json!(
+            storage
+                .presign_render_asset(asset["archive_key"].as_str().context("asset key")?)
+                .await?
+        );
+    }
+    tokio::fs::write(directory.join("assets.tmp"), serde_json::to_vec(&assets)?).await?;
+    tokio::fs::rename(directory.join("assets.tmp"), directory.join("assets.json")).await?;
     Ok(())
 }

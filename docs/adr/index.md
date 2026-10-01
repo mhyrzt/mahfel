@@ -7,3 +7,5 @@ Records 0001–0027 establish Mahfel's bootstrap boundaries. Status is **Accepte
 otherwise.
 
 - [ADR 0028: Recording MP4 exports](0028-recording-mp4-export.md)
+- [ADR 0029: Mandatory recording start](0029-mandatory-recording-start.md)
+- [ADR 0030: Native recording image rendering](0030-native-recording-image-rendering.md)

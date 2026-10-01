@@ -9,7 +9,8 @@ frontend/.next/
 frontend/out/
 frontend/storybook-static/
 frontend/coverage/
-frontend/playwright/artifacts/
+e2e/node_modules/
+e2e/artifacts/
 frontend/.env.local
 frontend/*.tsbuildinfo
 
@@ -18,5 +19,4 @@ frontend/*.tsbuildinfo
 .playwright-mcp/
 .next/
 
-frontend/recording-renderer-dist/
 frontend/public/recording-renderer/

@@ -11,10 +11,34 @@ export default defineConfig({
     },
   },
   test: {
-    environment: "jsdom",
     globals: true,
-    setupFiles: ["./vitest.setup.ts"],
-    include: ["**/*.{test,spec}.{ts,tsx}"],
     exclude: ["node_modules", ".next", ".storybook", "storybook-static"],
+    projects: [
+      {
+        extends: true,
+        test: {
+          name: "components",
+          environment: "jsdom",
+          setupFiles: ["./vitest.setup.ts"],
+          include: ["**/*.{test,spec}.{ts,tsx}"],
+          exclude: [
+            "node_modules",
+            ".next",
+            ".storybook",
+            "storybook-static",
+            "features/recordings/server-render/tests/**",
+          ],
+        },
+      },
+      {
+        extends: true,
+        test: {
+          name: "server",
+          environment: "node",
+          setupFiles: [],
+          include: ["features/recordings/server-render/tests/**/*.test.ts"],
+        },
+      },
+    ],
   },
 });

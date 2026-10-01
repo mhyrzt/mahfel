@@ -14,6 +14,20 @@ pub struct S3FileStorage {
 }
 
 impl S3FileStorage {
+    pub async fn presign_render_asset(&self, key: &str) -> Result<String, FileStorageError> {
+        let config = aws_sdk_s3::presigning::PresigningConfig::expires_in(
+            std::time::Duration::from_secs(300),
+        )
+        .map_err(|_| FileStorageError::Unavailable)?;
+        self.internal
+            .get_object()
+            .bucket(&self.bucket)
+            .key(key)
+            .presigned(config)
+            .await
+            .map(|signed| signed.uri().to_owned())
+            .map_err(|_| FileStorageError::Unavailable)
+    }
     #[must_use]
     pub fn new(settings: S3Settings) -> Self {
         let internal = super::client::build(&settings, &settings.internal_endpoint);

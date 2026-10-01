@@ -103,30 +103,14 @@ HEALTHCHECK --interval=10s --timeout=3s --start-period=20s --retries=5 \
   CMD curl --fail --silent --show-error --max-time 2 http://127.0.0.1:9102/health/live >/dev/null || exit 1
 ENTRYPOINT ["/usr/local/bin/mahfel-media"]
 
-FROM docker.arvancloud.ir/oven/bun:1.4.2 AS recording-renderer-builder
-WORKDIR /source/frontend
-COPY frontend/package.json frontend/bun.lock ./
-RUN bun install --frozen-lockfile
-COPY frontend/ ./
-RUN bun run recording-renderer:build
-ENV PLAYWRIGHT_BROWSERS_PATH=/app/browsers
-RUN bunx playwright-core install chromium
-
 FROM docker.arvancloud.ir/debian:bookworm-slim AS worker-runtime
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates curl gstreamer1.0-plugins-base gstreamer1.0-plugins-good \
-    gstreamer1.0-plugins-bad gstreamer1.0-plugins-ugly gstreamer1.0-libav \
-    libnss3 libatk1.0-0 libatk-bridge2.0-0 libx11-6 libxcomposite1 libxdamage1 \
-    libxrandr2 libgbm1 libasound2 libpango-1.0-0 libcairo2 libxkbcommon0 libatspi2.0-0 && \
+    gstreamer1.0-plugins-bad gstreamer1.0-plugins-ugly gstreamer1.0-libav && \
     rm -rf /var/lib/apt/lists/* && \
     groupadd --system --gid 10001 mahfel && \
     useradd --system --uid 10001 --gid mahfel --home-dir /nonexistent --shell /usr/sbin/nologin mahfel
-RUN mkdir -p /tmp/mahfel-exports /tmp/mahfel-browser && chown mahfel:mahfel /tmp/mahfel-exports /tmp/mahfel-browser
-COPY --from=recording-renderer-builder /usr/local/bin/bun /usr/local/bin/bun
-COPY --from=recording-renderer-builder /app/browsers /app/browsers
-COPY --from=recording-renderer-builder /source/frontend/recording-renderer-dist /app/recording-renderer
-COPY --from=recording-renderer-builder /source/frontend/node_modules/playwright-core /app/recording-renderer/node_modules/playwright-core
-ENV PLAYWRIGHT_BROWSERS_PATH=/app/browsers HOME=/tmp/mahfel-browser
+RUN mkdir -p /tmp/mahfel-exports && chown mahfel:mahfel /tmp/mahfel-exports
 WORKDIR /app
 
 FROM worker-runtime AS worker
