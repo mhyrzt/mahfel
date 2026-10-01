@@ -5,7 +5,7 @@ status: Done
 assignee:
   - '@codex'
 created_date: '2026-09-08 00:32'
-updated_date: '2026-09-30 07:27'
+updated_date: '2026-09-30 15:19'
 labels: []
 milestone: m-9
 dependencies: []
@@ -33,7 +33,7 @@ Dependencies: M9-05, M6-04
 ## Implementation Plan
 
 <!-- SECTION:PLAN:BEGIN -->
-Reuse immutable replay reconstruction for authorized seekable playback. Add member/admin replay descriptors with short-lived archived object URLs, manager-authorized durable deletion and audit, claim fencing, retryable storage cleanup and orphan bundle cleanup. Add playback/delete UI with English/Persian states and focused tests. Verify worker container sandbox and real native output, then run affected component gates and local end-to-end recording checks.
+1. Prepare time-aligned, browser-compatible per-source A/V segments from immutable original fragments in the existing worker. 2. Persist a versioned playback index with claim-fenced acceptance and backfill old recordings; expose public Ready only when full replay is verified. 3. Add authorized bounded segment-window URLs and a shared-clock browser player with separate track controls, gaps and URL refresh. 4. Validate real two-browser playback, authorization and retention.
 <!-- SECTION:PLAN:END -->
 
 ## Implementation Notes
@@ -50,10 +50,14 @@ Backend: replaced the unwired playback scaffolding with an application use case 
 Frontend: regenerated the REST contract, added features/recordings/recording-player.tsx (reuses the shared replay engine via a new asset-URL resolver, lazy-imported to keep excalidraw/pdfjs out of unrelated bundles), features/recordings/replay/manifest.ts (descriptor -> ReplayInput with precise RFC3339 nanosecond parsing), play/delete actions, EN/FA copy and a Manager story.
 
 Retention: worker five-minute sweep now deletes every object under recordings/{recording}/ before finalizing DB cleanup; finish_recording_cleanup removes bundle and export rows and the export attempts, and an incomplete object delete is retried rather than finalized.
+
+2026-09-30 completion audit: the browser RecordingPlayer renders workspace with an empty video-track list and has no audio playback; original captured A/V is therefore absent from interactive replay. The five-minute playback descriptor signs manifest pages and assets, not media fragments. Full synchronized A/V playback and an authenticated live flow remain unverified. The separate MP4 export task TASK-166 is still In Progress.
+
+2026-09-30 final completion: Implemented authorized bounded media-window URLs, shared-clock independent microphone/camera/screen playback, pause, mute, seek, gaps and URL refresh. Ready replay is independent of export status. Authenticated Chromium capture and Chromium/Firefox replay pass with notes reconstruction; outsider descriptor/window/export-download requests return 404. PostgreSQL and real worker integration verify retention deletion of originals, derived replay and exports. Firefox live publication remains separately tracked under TASK-20.
 <!-- SECTION:NOTES:END -->
 
 ## Final Summary
 
 <!-- SECTION:FINAL_SUMMARY:BEGIN -->
-Delivered M9-06 authorized interactive replay and retention. The API exposes a playback descriptor (GET .../recordings/{id}/playback) that authorizes current members or administrators, enforces active blocks, and returns five-minute presigned URLs for the immutable manifest, its content-addressed pages and archived presentation assets; unauthorized callers get 404 with no URL. Managers with session access delete recordings via DELETE .../recordings/{id} (soft-delete, status failed, revision fence, audit, pin release). The worker sweep deletes every object under the recording prefix, then finalizes DB cleanup of bundle and export rows with retry on partial failure. The browser reuses the shared replay engine through a new asset-URL resolver and a manifest loader; the recording list adds play/delete actions with EN/FA copy and a Manager story. Verified with mahfel-application playback unit tests, 150 mahfel-api tests, the PostgreSQL recordings integration (including retention deletion), 149 frontend tests, strict clippy, prettier/ESLint, Next.js production build, Storybook build and mkdocs strict.
+Complete synchronized A/V and collaboration replay, authorization and retention are implemented and verified in Chromium and Firefox playback.
 <!-- SECTION:FINAL_SUMMARY:END -->

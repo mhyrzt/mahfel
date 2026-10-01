@@ -4,7 +4,7 @@ title: M3-04 Producer lifecycle
 status: Done
 assignee: []
 created_date: '2026-09-08 00:31'
-updated_date: '2026-09-20 11:54'
+updated_date: '2026-09-30 13:19'
 labels: []
 milestone: m-3
 dependencies: []
@@ -41,4 +41,6 @@ Expanded: Producer registry HashMap<ProducerId,Producer> under transport/room (u
 
 <!-- SECTION:NOTES:BEGIN -->
 Extended proto ProduceRequest with kind + rtp_parameters JSON. Added ProducerEntry HashMap in backend/crates/rtc/src/lib.rs with MediaKind Audio/Video mapping, RtpParameters JSON parse, transport.produce(ProducerOptions::new(kind, rtp_params)) with paused false, validation of room/transport ownership, cleanup on delete_room. Wired gRPC Produce in backend/bins/media/src/main.rs with NotFound/InvalidArgument mapping, updated GetNodeStats producers count, added mahfel_media_active_producers gauge on 9102 updated every 5s. Verified: cargo check/clippy -p mahfel-rtc/-p mahfel-media pass, fmt pass, proto fmt applied, rtc-protocol regenerated.
+
+M9 runtime audit (2026-09-30): headless Firefox 155 with fake mic/camera showed Media connection unavailable and produced no captured media. Chromium 153 on the same local Compose stack published Opus/VP8 successfully. Firefox replay is being verified using the Chromium-captured bundle; this does not establish Firefox live publishing. Reproduce with transport/ICE stats before claiming current cross-browser live publication.
 <!-- SECTION:NOTES:END -->

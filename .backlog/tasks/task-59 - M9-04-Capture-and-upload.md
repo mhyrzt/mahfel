@@ -5,7 +5,7 @@ status: Done
 assignee:
   - '@codex'
 created_date: '2026-09-08 00:32'
-updated_date: '2026-09-28 14:48'
+updated_date: '2026-09-30 15:19'
 labels: []
 milestone: m-9
 dependencies: []
@@ -44,6 +44,8 @@ Integrated original encoded Opus/VP8 WebM and H264 Matroska capture through loop
 Collaboration/session-chat history, current-workspace snapshots and referenced asset copies/pins are durable. Paused history and awareness are excluded. Archive copying runs independently of media reconciliation; pending pins prevent physical metadata cleanup until bytes are verified.
 
 Validation: native codec decode/pause/crash fixtures, coordinator fencing/quota/restart tests, real S3 fragment/archive integration and PostgreSQL event/pin tests pass. Spool thresholds allow bounded in-flight sealing headroom; asynchronous media tails must be clipped by replay intervals, documented in docs/deployment/recordings.md. Container images/deployment were not exercised.
+
+2026-09-30 final completion: final media image exercised by authenticated Chromium microphone/camera/screen capture. Shared receive-clock fix removes timestamping failures; native Opus/VP8/H264 clock checks pass. Derived tracks play in Chromium and Firefox. These results supersede previous notes that images or browser capture were not exercised.
 <!-- SECTION:NOTES:END -->
 
 ## Final Summary

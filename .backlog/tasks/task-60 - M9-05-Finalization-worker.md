@@ -5,7 +5,7 @@ status: Done
 assignee:
   - '@codex'
 created_date: '2026-09-08 00:32'
-updated_date: '2026-09-28 14:48'
+updated_date: '2026-09-30 15:19'
 labels: []
 milestone: m-9
 dependencies: []
@@ -18,7 +18,7 @@ ordinal: 68000
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
-Finalize sealed original-codec fragments and collaboration replay artifacts through the M8 outbox, claims, retries and DLQ. Verify checksums/container readability and atomically accept a deterministic versioned replay manifest with complete or partial coverage. FFmpeg, reconstruction, transcoding, composition, MP4/video export, playback UI and retention are excluded.
+Finalize sealed immutable original-codec fragments and collaboration artifacts through M8 outbox, claims, retries and DLQ. Verify checksums, containers and clocks; derive browser-compatible per-source media and atomically accept deterministic replay manifests and playback indexes. Composite MP4 export is TASK-166; playback UI and retention are TASK-61.
 <!-- SECTION:DESCRIPTION:END -->
 
 ## Acceptance Criteria
@@ -29,7 +29,7 @@ Finalize sealed original-codec fragments and collaboration replay artifacts thro
 ## Implementation Plan
 
 <!-- SECTION:PLAN:BEGIN -->
-Finalize sealed recording generations via recordings.finalize.v1 and existing M8 outbox/retry/claims/DLQ machinery. Verify original segment checksums/readability, preserve track timing and gaps, assemble versioned replay manifest/events/snapshots/assets, publish ready complete/partial atomically and safely under retries. No FFmpeg, video reconstruction, transcoding, composition or MP4/video exports. Leave playback and retention to TASK-61.
+1. Verify immutable originals and archive assets through real storage boundaries. 2. Derive bounded per-source browser media and content-addressed replay index under existing worker claims. 3. Accept Ready atomically, backfill legacy recordings without replacing original manifests, and deduplicate export queueing. 4. Validate native codecs and real PostgreSQL/RustFS/RabbitMQ retry, fencing and cleanup.
 <!-- SECTION:PLAN:END -->
 
 ## Implementation Notes
@@ -40,10 +40,14 @@ Completed recordings.finalize.v1 through the existing M8 outbox, quorum queue/DL
 Validation: real PostgreSQL/RustFS/RabbitMQ test proves storage-failure retry, corrupt-fragment partial coverage, original-byte preservation, archive-copy verification/pin release, duplicate finalization and empty-recording failure. PostgreSQL tests prove stale claim rejection and operator replay. Native Opus/VP8/H264 readability and clock fixtures, strict workspace clippy/build, SQL, protobuf and docs pass.
 
 Earlier composition/export notes are superseded: FFmpeg, video reconstruction, transcoding, composition and MP4/video export are excluded. Playback, retention and orphan manifest cleanup remain TASK-61. No images were built or deployment/browser recording session tested.
+
+2026-09-30 completion audit: a fresh MAHFEL_TESTCONTAINERS=1 mahfel-worker integration run failed while finalizing a referenced asset: job retry reason asset_copy_unavailable, then timed out waiting for recording finalization. The prior successful result is not sufficient to call this fresh run green. Source of the copy failure still needs diagnosis; no retry/time limit workaround was applied.
+
+2026-09-30 final completion: Approved completion scope preserves immutable original fragments and derives bounded browser-compatible H264/AAC segments plus a content-addressed index in the existing worker. Ready acceptance is claim-fenced and capped at 8MiB/10000 segments. Legacy backfill preserves original manifest pointers and deduplicates exports. Real PostgreSQL/RabbitMQ/RustFS worker integration passes, including asset archive verification, retry, original preservation, browser media and retention. Native Opus/VP8/H264 checks pass; final packaged worker runs successfully. This supersedes earlier unresolved asset-copy and packaging notes.
 <!-- SECTION:NOTES:END -->
 
 ## Final Summary
 
 <!-- SECTION:FINAL_SUMMARY:BEGIN -->
-Finalized sealed original-track replay bundles with checksum/decode verification, explicit partial/unusable outcomes and claim-fenced manifests. Real infrastructure tests cover retry, corruption, archived assets, duplicates and replay; video export and M9-06 remain outside scope.
+Finalization verifies immutable originals, produces accepted synchronized browser media and safely backfills legacy recordings; real infrastructure and native fixtures pass.
 <!-- SECTION:FINAL_SUMMARY:END -->
