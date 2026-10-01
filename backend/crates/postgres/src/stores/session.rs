@@ -1,6 +1,8 @@
 use crate::DatabaseError;
 use crate::stores::{sqlx_store_error, store_error};
-use mahfel_application::ports::{BoxFuture, SessionDetailsFields, SessionStore, StoreError};
+use mahfel_application::ports::{
+    BoxFuture, SessionDetailsFields, SessionStartClaim, SessionStore, StoreError,
+};
 use mahfel_domain::{
     AdmissionPolicy, RoomId, Session, SessionDurationMinutes, SessionId, SessionTitle,
     SessionVisibility,
@@ -69,6 +71,87 @@ struct SessionRow {
 }
 
 impl SessionStore for PostgresSessionStore {
+    fn claim_start(&self, id: SessionId) -> BoxFuture<'_, Result<SessionStartClaim, StoreError>> {
+        Box::pin(async move {
+            let mut tx = self.pool.begin().await.map_err(sqlx_store_error)?;
+            let current: Option<(String, bool)> = sqlx::query_as(
+                "SELECT status, auto_record FROM mahfel.sessions WHERE id = $1 FOR UPDATE",
+            )
+            .bind(id.as_uuid())
+            .fetch_optional(&mut *tx)
+            .await
+            .map_err(sqlx_store_error)?;
+            let Some((status, auto_record)) = current else {
+                return Err(StoreError::NotFound(id.to_string()));
+            };
+            if status != "scheduled" {
+                return Err(StoreError::Conflict("session is not scheduled".into()));
+            }
+            if !auto_record {
+                let row = sqlx::query_as::<_, SessionRow>(
+                    "UPDATE mahfel.sessions SET status = 'live', started_at = clock_timestamp(), updated_at = clock_timestamp(), recording_start_token = NULL, recording_start_expires_at = NULL WHERE id = $1 RETURNING id, room_id, status, auto_record, visibility, admission, title, scheduled_start_at, scheduled_duration_minutes, started_at, ended_at, created_at, updated_at",
+                )
+                    .bind(id.as_uuid())
+                    .fetch_one(&mut *tx)
+                    .await
+                    .map_err(sqlx_store_error)?;
+                tx.commit().await.map_err(sqlx_store_error)?;
+                return Ok(SessionStartClaim::Started(
+                    Session::try_from(row).map_err(store_error)?,
+                ));
+            }
+            let token = Uuid::new_v4();
+            let result = sqlx::query(
+                "UPDATE mahfel.sessions SET recording_start_token = $2, \
+                 recording_start_expires_at = clock_timestamp() + INTERVAL '15 seconds' \
+                 WHERE id = $1 AND (recording_start_token IS NULL OR \
+                 recording_start_expires_at < clock_timestamp())",
+            )
+            .bind(id.as_uuid())
+            .bind(token)
+            .execute(&mut *tx)
+            .await
+            .map_err(sqlx_store_error)?;
+            if result.rows_affected() == 0 {
+                return Err(StoreError::Conflict(
+                    "recording start already in progress".into(),
+                ));
+            }
+            tx.commit().await.map_err(sqlx_store_error)?;
+            Ok(SessionStartClaim::RecordingLease(token))
+        })
+    }
+
+    fn commit_recorded_start(
+        &self,
+        id: SessionId,
+        token: Uuid,
+    ) -> BoxFuture<'_, Result<Session, StoreError>> {
+        Box::pin(async move {
+            let row = sqlx::query_as::<_, SessionRow>(
+                "UPDATE mahfel.sessions SET status = 'live', started_at = clock_timestamp(), updated_at = clock_timestamp(), recording_start_token = NULL, recording_start_expires_at = NULL WHERE id = $1 AND status = 'scheduled' AND auto_record AND recording_start_token = $2 AND recording_start_expires_at > clock_timestamp() RETURNING id, room_id, status, auto_record, visibility, admission, title, scheduled_start_at, scheduled_duration_minutes, started_at, ended_at, created_at, updated_at",
+            )
+                .bind(id.as_uuid())
+                .bind(token)
+                .fetch_optional(&self.pool)
+                .await
+                .map_err(sqlx_store_error)?
+                .ok_or_else(|| StoreError::Conflict("recording start lease expired or preference changed".into()))?;
+            Session::try_from(row).map_err(store_error)
+        })
+    }
+
+    fn release_recorded_start(
+        &self,
+        id: SessionId,
+        token: Uuid,
+    ) -> BoxFuture<'_, Result<(), StoreError>> {
+        Box::pin(async move {
+            sqlx::query("UPDATE mahfel.sessions SET recording_start_token = NULL, recording_start_expires_at = NULL WHERE id = $1 AND recording_start_token = $2 AND status = 'scheduled'")
+                .bind(id.as_uuid()).bind(token).execute(&self.pool).await.map_err(sqlx_store_error)?;
+            Ok(())
+        })
+    }
     fn get(&self, id: SessionId) -> BoxFuture<'_, Result<Option<Session>, StoreError>> {
         Box::pin(async move {
             let row = sqlx::query_as::<_, SessionRow>(

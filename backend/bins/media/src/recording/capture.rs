@@ -4,7 +4,7 @@ use mahfel_config::RecordingSettings;
 use mahfel_domain::RoomId;
 use mahfel_rtc::{
     MediaRuntime,
-    recording::{CaptureClock, RecordingTap},
+    recording::{CaptureClock, CapturePipeline, RecordingTap},
 };
 use mahfel_rtc_protocol::media::{ReconcileRecordingRequest, ReconcileRecordingResponse};
 use sha2::{Digest, Sha256};
@@ -47,6 +47,53 @@ struct Capture {
 }
 
 impl Recordings {
+    /// Check the same room, spool and private object store used by capture
+    /// before the control plane commits an auto-recorded session as live.
+    pub async fn prepare(&self, room_id: &str) -> Result<(), Status> {
+        let room = RoomId::from_uuid(
+            Uuid::parse_str(room_id).map_err(|_| Status::invalid_argument("room id"))?,
+        );
+        if self.upload_failed.load(Ordering::Acquire) {
+            return Err(Status::unavailable("recording upload unavailable"));
+        }
+        if self.entries.lock().await.len() >= 100 {
+            return Err(Status::resource_exhausted("recording capacity"));
+        }
+        CapturePipeline::check_available()
+            .map_err(|_| Status::unavailable("recording codecs unavailable"))?;
+        let total = directory_size(self.settings.spool_directory.clone())
+            .await
+            .map_err(|_| Status::unavailable("recording spool unavailable"))?;
+        if total >= self.settings.node_spool_bytes {
+            return Err(Status::resource_exhausted("recording spool exhausted"));
+        }
+        tokio::fs::create_dir_all(&self.settings.spool_directory)
+            .await
+            .map_err(|_| Status::unavailable("recording spool unavailable"))?;
+        let probe = self
+            .settings
+            .spool_directory
+            .join(format!(".prepare-{}", Uuid::new_v4()));
+        let spool_result = tokio::fs::write(&probe, b"recording-ready").await;
+        let _ = tokio::fs::remove_file(&probe).await;
+        spool_result.map_err(|_| Status::unavailable("recording spool unwritable"))?;
+        let key = format!("recordings/preflight/{}", Uuid::new_v4());
+        self.storage
+            .put(&key, b"recording-ready".to_vec())
+            .await
+            .map_err(|_| Status::unavailable("recording storage unwritable"))?;
+        let read = self.storage.read(&key, 32).await;
+        let deleted = self.storage.delete(&key).await;
+        if !matches!(read, Ok(ref bytes) if bytes == b"recording-ready") || deleted.is_err() {
+            return Err(Status::unavailable("recording storage verification failed"));
+        }
+        self.media
+            .create_room(room)
+            .await
+            .map_err(|_| Status::unavailable("media room unavailable"))?;
+        Ok(())
+    }
+
     pub fn new(
         media: Arc<MediaRuntime>,
         storage: Arc<dyn RecordingStorage>,

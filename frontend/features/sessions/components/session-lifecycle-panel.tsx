@@ -61,6 +61,12 @@ export function SessionLifecyclePanel({
         } catch {
           setError(text.lifecycleFailed);
         }
+      } else if (
+        action === "start" &&
+        axios.isAxiosError(failure) &&
+        failure.response?.status === 503
+      ) {
+        setError(text.recordingStartUnavailable);
       } else {
         setError(text.lifecycleFailed);
       }

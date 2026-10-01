@@ -38,9 +38,23 @@ pub(crate) async fn end(
         },
     )
     .await?;
+    state
+        .realtime
+        .speakers
+        .clear_session(session.id, &state.realtime.registry);
+    let response = response_with_room(&state, session.clone()).await?;
+    tokio::spawn(cleanup_ended_session(state, session.id, session.room_id));
+    Ok(Json(response))
+}
+
+async fn cleanup_ended_session(
+    state: AppState,
+    session_id: SessionId,
+    room_id: mahfel_domain::RoomId,
+) {
     if let Some(recordings) = &state.recordings {
         let wait = async {
-            while recordings.capture_pending(session.id).await.unwrap_or(true) {
+            while recordings.capture_pending(session_id).await.unwrap_or(true) {
                 tokio::time::sleep(std::time::Duration::from_millis(250)).await;
             }
         };
@@ -48,33 +62,28 @@ pub(crate) async fn end(
             .await
             .is_err()
         {
-            if let Err(error) = recordings.expire_capture(session.id).await {
-                tracing::warn!(%error, session_id = %session.id, "recording timeout state will reconcile after database recovery");
+            if let Err(error) = recordings.expire_capture(session_id).await {
+                tracing::warn!(%error, %session_id, "recording timeout state will reconcile after database recovery");
             }
-            tracing::warn!(session_id = %session.id, "recording seal deadline reached before media cleanup");
+            tracing::warn!(%session_id, "recording seal deadline reached before media cleanup");
         }
     }
-    state
-        .realtime
-        .speakers
-        .clear_session(session.id, &state.realtime.registry);
-    match state.realtime.media_for(session.id, session.room_id).await {
+    match state.realtime.media_for(session_id, room_id).await {
         Ok(media) => {
             let media_room = if state.realtime.placement.is_some() {
-                crate::http::ws::media_room_id(session.id)
+                crate::http::ws::media_room_id(session_id)
             } else {
-                session.room_id
+                room_id
             };
             if let Err(error) = MediaGateway::close_room(media.as_ref(), media_room).await {
-                tracing::warn!(?error, room_id = %session.room_id, "could not release ended session room");
+                tracing::warn!(?error, %room_id, "could not release ended session room");
                 if let Err(error) = media.clear_room_media(media_room).await {
-                    tracing::warn!(?error, room_id = %session.room_id, "could not clear ended session media");
+                    tracing::warn!(?error, %room_id, "could not clear ended session media");
                 }
             }
         }
         Err(error) => {
-            tracing::warn!(?error, room_id = %session.room_id, "could not resolve ended session media node");
+            tracing::warn!(?error, %room_id, "could not resolve ended session media node");
         }
     }
-    Ok(Json(response_with_room(&state, session).await?))
 }

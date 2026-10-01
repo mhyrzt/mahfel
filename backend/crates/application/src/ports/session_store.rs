@@ -1,5 +1,13 @@
 use super::{BoxFuture, StoreError};
 use mahfel_domain::{RoomId, Session, SessionId};
+use uuid::Uuid;
+
+/// A database-fenced start decision. An unrecorded session is committed in the
+/// same transaction; a recorded one must pass capture preflight first.
+pub enum SessionStartClaim {
+    Started(Session),
+    RecordingLease(Uuid),
+}
 
 /// Which advisory fields a PATCH request supplied. A supplied null clears its
 /// field; an absent field must not overwrite a concurrent edit to that field.
@@ -15,6 +23,39 @@ pub struct SessionDetailsFields {
 ///
 /// Methods return [`BoxFuture`] so the port is dyn-compatible.
 pub trait SessionStore: Send + Sync {
+    fn claim_start(&self, id: SessionId) -> BoxFuture<'_, Result<SessionStartClaim, StoreError>> {
+        Box::pin(async move {
+            let _ = id;
+            Err(StoreError::Unexpected(
+                "recording start gate unavailable".into(),
+            ))
+        })
+    }
+    fn commit_recorded_start(
+        &self,
+        id: SessionId,
+        token: Uuid,
+    ) -> BoxFuture<'_, Result<Session, StoreError>> {
+        Box::pin(async move {
+            let _ = (id, token);
+            Err(StoreError::Unexpected(
+                "recording start gate unavailable".into(),
+            ))
+        })
+    }
+    fn release_recorded_start(
+        &self,
+        id: SessionId,
+        token: Uuid,
+    ) -> BoxFuture<'_, Result<(), StoreError>> {
+        Box::pin(async move {
+            let _ = (id, token);
+            Err(StoreError::Unexpected(
+                "recording start gate unavailable".into(),
+            ))
+        })
+    }
+
     fn get(&self, id: SessionId) -> BoxFuture<'_, Result<Option<Session>, StoreError>>;
 
     fn insert<'a>(&'a self, session: &'a Session) -> BoxFuture<'a, Result<(), StoreError>>;

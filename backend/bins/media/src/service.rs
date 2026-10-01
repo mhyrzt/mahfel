@@ -27,6 +27,17 @@ impl mahfel_rtc_protocol::media::media_control_service_server::MediaControlServi
     for MediaControlServiceImpl
 {
     type WatchActiveSpeakersStream = speaker::SpeakerStream;
+    async fn prepare_recording(
+        &self,
+        request: Request<mahfel_rtc_protocol::media::PrepareRecordingRequest>,
+    ) -> Result<Response<mahfel_rtc_protocol::media::PrepareRecordingResponse>, Status> {
+        self.recordings
+            .prepare(&request.into_inner().room_id)
+            .await?;
+        Ok(Response::new(
+            mahfel_rtc_protocol::media::PrepareRecordingResponse {},
+        ))
+    }
     async fn reconcile_recording(
         &self,
         request: Request<mahfel_rtc_protocol::media::ReconcileRecordingRequest>,

@@ -587,6 +587,42 @@ impl FakeSessionStore {
 }
 
 impl SessionStore for FakeSessionStore {
+    fn claim_start(
+        &self,
+        id: SessionId,
+    ) -> BoxFuture<'_, Result<mahfel_application::ports::SessionStartClaim, StoreError>> {
+        Box::pin(async move {
+            let mut sessions = self.sessions.lock().expect("fake store lock");
+            let room = sessions
+                .iter()
+                .find(|session| session.id == id)
+                .ok_or_else(|| StoreError::NotFound(id.to_string()))?
+                .room_id;
+            if sessions.iter().any(|session| {
+                session.room_id == room && session.id != id && session.status == SessionStatus::Live
+            }) {
+                return Err(StoreError::Conflict("live session exists".into()));
+            }
+            let slot = sessions
+                .iter_mut()
+                .find(|session| session.id == id)
+                .ok_or_else(|| StoreError::NotFound(id.to_string()))?;
+            if slot.status != SessionStatus::Scheduled {
+                return Err(StoreError::Conflict("not scheduled".into()));
+            }
+            if slot.auto_record {
+                return Ok(
+                    mahfel_application::ports::SessionStartClaim::RecordingLease(Uuid::new_v4()),
+                );
+            }
+            slot.start(OffsetDateTime::now_utc())
+                .map_err(StoreError::unexpected)?;
+            Ok(mahfel_application::ports::SessionStartClaim::Started(
+                slot.clone(),
+            ))
+        })
+    }
+
     fn get(&self, id: SessionId) -> BoxFuture<'_, Result<Option<Session>, StoreError>> {
         Box::pin(async move {
             Ok(self
@@ -2790,7 +2826,7 @@ async fn manager_can_schedule_start_and_end_a_session() {
         &app,
         Method::POST,
         &format!("/v1/rooms/{}/sessions", room.id),
-        "{}",
+        r#"{"auto_record":false}"#,
     )
     .await;
     assert_eq!(resp.status(), StatusCode::CREATED);
@@ -2858,7 +2894,7 @@ async fn session_details_patch_preserves_omitted_fields_and_allows_ended_edits()
         &app,
         Method::POST,
         &format!("/v1/rooms/{}/sessions", room.id),
-        r#"{"title":"Lesson","scheduled_duration_minutes":90}"#,
+        r#"{"title":"Lesson","scheduled_duration_minutes":90,"auto_record":false}"#,
     )
     .await;
     assert_eq!(created.status(), StatusCode::CREATED);
@@ -2982,8 +3018,10 @@ async fn second_live_session_returns_conflict() {
     let rooms = FakeRoomStore::default();
     let room = rooms.seed_room("Algebra", principal().actor_id, RoomVisibility::InviteOnly);
     let sessions = FakeSessionStore::default();
-    let first = Session::schedule(room.id, None, OffsetDateTime::now_utc());
-    let second = Session::schedule(room.id, None, OffsetDateTime::now_utc());
+    let mut first = Session::schedule(room.id, None, OffsetDateTime::now_utc());
+    let mut second = Session::schedule(room.id, None, OffsetDateTime::now_utc());
+    first.auto_record = false;
+    second.auto_record = false;
     sessions.seed(first.clone());
     sessions.seed(second.clone());
     let app = session_app(Some(principal()), rooms, sessions);

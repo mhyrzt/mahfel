@@ -10,6 +10,7 @@ import "mahfel/media/v1/track.proto";
 import "mahfel/media/v1/transport.proto";
 
 service MediaControlService {
+  rpc PrepareRecording(PrepareRecordingRequest) returns (PrepareRecordingResponse);
   rpc ReconcileRecording(ReconcileRecordingRequest) returns (ReconcileRecordingResponse);
   rpc GetNodeInfo(GetNodeInfoRequest) returns (GetNodeInfoResponse);
   rpc GetNodeStats(GetNodeStatsRequest) returns (GetNodeStatsResponse);

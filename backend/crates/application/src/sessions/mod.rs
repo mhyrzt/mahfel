@@ -20,7 +20,7 @@ pub use join::{JoinOutcome, JoinSession, join_session, preflight_join};
 pub use leave::{LeaveSession, leave_session};
 pub use list::{ListSessions, list_sessions};
 pub use schedule::{ScheduleSession, schedule_session};
-pub use start::{StartSession, start_session};
+pub use start::{StartSession, start_session, start_session_with_recording};
 pub use visibility::{GetSessionForCaller, get_session_for_caller};
 
 pub(crate) use guard::{require_joinable, require_not_blocked};

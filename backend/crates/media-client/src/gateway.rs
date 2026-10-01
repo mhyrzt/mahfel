@@ -9,6 +9,20 @@ pub struct GrpcMediaGateway {
 }
 
 impl GrpcMediaGateway {
+    pub async fn prepare_recording(&self, room_id: String) -> Result<(), tonic::Status> {
+        let mut client = self.client.clone();
+        let mut request =
+            tonic::Request::new(mahfel_rtc_protocol::media::PrepareRecordingRequest { room_id });
+        request.set_timeout(std::time::Duration::from_secs(10));
+        tokio::time::timeout(
+            std::time::Duration::from_secs(10),
+            client.prepare_recording(request),
+        )
+        .await
+        .map_err(|_| tonic::Status::deadline_exceeded("recording preparation deadline"))??;
+        Ok(())
+    }
+
     pub fn from_channel(channel: Channel) -> Self {
         Self {
             client: MediaControlServiceClient::new(channel),

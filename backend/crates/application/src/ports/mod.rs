@@ -59,7 +59,7 @@ pub use recording_storage::{ObjectPage, RecordingStorage};
 pub use recording_store::RecordingStore;
 pub use room_store::RoomStore;
 pub use service_principal_store::ServicePrincipalStore;
-pub use session_store::{SessionDetailsFields, SessionStore};
+pub use session_store::{SessionDetailsFields, SessionStartClaim, SessionStore};
 pub use store_error::StoreError;
 pub use user_attribute::{AttributeError, UserAttributeWriter};
 pub use user_store::UserStore;

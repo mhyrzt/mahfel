@@ -1,6 +1,6 @@
 use mahfel_application::ports::{
-    MediaPlacement, MediaPlacementStore, RoomStore, SessionDetailsFields, SessionStore, StoreError,
-    UserStore,
+    MediaPlacement, MediaPlacementStore, RoomStore, SessionDetailsFields, SessionStartClaim,
+    SessionStore, StoreError, UserStore,
 };
 use mahfel_domain::{
     DisplayName, NodeId, Room, RoomId, RoomMember, RoomRole, RoomTitle, RoomVisibility, Session,
@@ -362,6 +362,126 @@ async fn verify_sessions(pool: &PgPool) -> Result<(), Box<dyn Error>> {
         1,
         "the losing concurrent start must conflict, got {outcomes:?}"
     );
+
+    let gate_room = Room::create(
+        RoomTitle::new("Recorded start gate".to_owned())?,
+        user.id,
+        RoomVisibility::InviteOnly,
+        now,
+    );
+    rooms
+        .create_with_manager(
+            &gate_room,
+            &RoomMember::new(gate_room.id, user.id, RoomRole::Manager, now),
+        )
+        .await?;
+    let gated = Session::schedule(gate_room.id, None, now);
+    sessions.insert(&gated).await?;
+    let SessionStartClaim::RecordingLease(expired) = sessions.claim_start(gated.id).await? else {
+        panic!("auto recording should require a preflight lease");
+    };
+    assert!(matches!(
+        sessions.claim_start(gated.id).await,
+        Err(StoreError::Conflict(_))
+    ));
+    assert_eq!(
+        sessions.get(gated.id).await?.expect("session").status,
+        SessionStatus::Scheduled
+    );
+    sqlx::query("UPDATE mahfel.sessions SET recording_start_expires_at = clock_timestamp() - INTERVAL '1 second' WHERE id = $1")
+        .bind(gated.id.as_uuid()).execute(pool).await?;
+    let SessionStartClaim::RecordingLease(current) = sessions.claim_start(gated.id).await? else {
+        panic!("expired preflight lease should be reclaimable");
+    };
+    assert_ne!(current, expired);
+    assert!(matches!(
+        sessions.commit_recorded_start(gated.id, expired).await,
+        Err(StoreError::Conflict(_))
+    ));
+    sessions.release_recorded_start(gated.id, current).await?;
+    assert_eq!(
+        sessions.get(gated.id).await?.expect("session").status,
+        SessionStatus::Scheduled
+    );
+
+    let SessionStartClaim::RecordingLease(token) = sessions.claim_start(gated.id).await? else {
+        panic!("released lease should be reclaimable");
+    };
+    let started = sessions.commit_recorded_start(gated.id, token).await?;
+    assert_eq!(started.status, SessionStatus::Live);
+    let recording_count: i64 =
+        sqlx::query_scalar("SELECT count(*) FROM mahfel.recordings WHERE session_id = $1")
+            .bind(gated.id.as_uuid())
+            .fetch_one(pool)
+            .await?;
+    assert_eq!(recording_count, 1);
+
+    let unrecorded_room = Room::create(
+        RoomTitle::new("Unrecorded start".to_owned())?,
+        user.id,
+        RoomVisibility::InviteOnly,
+        now,
+    );
+    rooms
+        .create_with_manager(
+            &unrecorded_room,
+            &RoomMember::new(unrecorded_room.id, user.id, RoomRole::Manager, now),
+        )
+        .await?;
+    let mut unrecorded = Session::schedule(unrecorded_room.id, None, now);
+    unrecorded.auto_record = false;
+    sessions.insert(&unrecorded).await?;
+    let SessionStartClaim::Started(started) = sessions.claim_start(unrecorded.id).await? else {
+        panic!("unrecorded session should start without preflight");
+    };
+    assert_eq!(started.status, SessionStatus::Live);
+    let recording_count: i64 =
+        sqlx::query_scalar("SELECT count(*) FROM mahfel.recordings WHERE session_id = $1")
+            .bind(unrecorded.id.as_uuid())
+            .fetch_one(pool)
+            .await?;
+    assert_eq!(recording_count, 0);
+
+    let preference_room = Room::create(
+        RoomTitle::new("Recording preference race".to_owned())?,
+        user.id,
+        RoomVisibility::InviteOnly,
+        now,
+    );
+    rooms
+        .create_with_manager(
+            &preference_room,
+            &RoomMember::new(preference_room.id, user.id, RoomRole::Manager, now),
+        )
+        .await?;
+    let mut preference = Session::schedule(preference_room.id, None, now);
+    sessions.insert(&preference).await?;
+    let SessionStartClaim::RecordingLease(token) = sessions.claim_start(preference.id).await?
+    else {
+        panic!("auto recording should acquire a lease");
+    };
+    preference.auto_record = false;
+    sessions
+        .save_details(
+            &preference,
+            SessionDetailsFields {
+                auto_record: true,
+                ..Default::default()
+            },
+        )
+        .await?;
+    assert!(matches!(
+        sessions.commit_recorded_start(preference.id, token).await,
+        Err(StoreError::Conflict(_))
+    ));
+    assert_eq!(
+        sessions.get(preference.id).await?.expect("session").status,
+        SessionStatus::Scheduled
+    );
+    let SessionStartClaim::Started(started) = sessions.claim_start(preference.id).await? else {
+        panic!("disabled auto recording should bypass preflight");
+    };
+    assert_eq!(started.status, SessionStatus::Live);
 
     Ok(())
 }

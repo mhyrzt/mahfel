@@ -55,6 +55,17 @@ test("a manager can start a scheduled session", async () => {
   expect(post).toHaveBeenCalledWith("/v1/sessions/session-1/start");
 });
 
+test("recording readiness failure leaves start available with a retry message", async () => {
+  const unavailable = new AxiosError("Unavailable");
+  Object.assign(unavailable, { response: { status: 503 } });
+  post.mockRejectedValue(unavailable);
+  render(<SessionLifecyclePanel session={session} canManage locale="en" />);
+  fireEvent.click(screen.getByRole("button", { name: "Start session" }));
+  expect(await screen.findByText(/Recording could not start/)).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Start session" })).toBeEnabled();
+  expect(refresh).not.toHaveBeenCalled();
+});
+
 test("a member sees the schedule without management actions", () => {
   render(<SessionLifecyclePanel session={session} canManage={false} locale="en" />);
 

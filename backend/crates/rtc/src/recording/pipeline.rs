@@ -63,6 +63,30 @@ fn failure(error: impl std::fmt::Display) -> RtcError {
 }
 
 impl CapturePipeline {
+    pub fn check_available() -> Result<(), RtcError> {
+        gst::init().map_err(failure)?;
+        for name in [
+            "rtpbin",
+            "udpsrc",
+            "udpsink",
+            "rtpopusdepay",
+            "opusparse",
+            "rtpvp8depay",
+            "rtph264depay",
+            "h264parse",
+            "webmmux",
+            "matroskamux",
+            "splitmuxsink",
+            "identity",
+            "queue",
+        ] {
+            if gst::ElementFactory::find(name).is_none() {
+                return Err(failure(format!("missing capture element: {name}")));
+            }
+        }
+        Ok(())
+    }
+
     pub fn start(
         parameters: &Value,
         directory: &Path,
@@ -122,8 +146,10 @@ impl CapturePipeline {
         } else {
             "fragments.video"
         };
+        // All tracks use the shared receive clock. Applying an RTCP sender's
+        // NTP correction after capture begins can move mux timestamps backward.
         let description = format!(
-            "rtpbin name=rtp latency=50 ntp-sync=true add-reference-timestamp-meta=true \
+            "rtpbin name=rtp latency=50 ntp-sync=false add-reference-timestamp-meta=true \
              udpsrc name=rtp_source address=127.0.0.1 port=0 buffer-size=262144 \
                caps=\"application/x-rtp,media=(string){media},encoding-name=(string){encoding},clock-rate=(int){rate},payload=(int){payload}{channels}\" ! rtp.recv_rtp_sink_0 \
              udpsrc name=rtcp_source address=127.0.0.1 port=0 buffer-size=65536 caps=application/x-rtcp ! rtp.recv_rtcp_sink_0 \
@@ -227,7 +253,9 @@ impl CapturePipeline {
                 gst::MessageView::Eos(..) => {
                     self.ended.store(true, std::sync::atomic::Ordering::Release);
                 }
-                gst::MessageView::Error(error) => return Err(failure(error.error())),
+                gst::MessageView::Error(error) => {
+                    return Err(failure(format!("{} ({:?})", error.error(), error.debug())));
+                }
                 gst::MessageView::Element(element) => {
                     let Some(data) = element.structure() else {
                         continue;

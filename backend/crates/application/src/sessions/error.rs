@@ -26,6 +26,8 @@ pub enum SessionOperationError {
     /// Starting a session when the room already has a live one.
     #[error("a live session already exists for this room")]
     Conflict,
+    #[error("recording capture is unavailable; the session remains scheduled")]
+    RecordingUnavailable,
     #[error("session is not live")]
     NotLive,
     #[error("invalid session transition: {0}")]
@@ -55,6 +57,7 @@ impl ApplicationError for SessionOperationError {
             Self::Conflict | Self::NotLive | Self::Domain(_) | Self::Participant(_) => {
                 ErrorKind::Conflict
             }
+            Self::RecordingUnavailable => ErrorKind::Unavailable,
             Self::Validation(_) => ErrorKind::Unprocessable,
             Self::Participation(_) => ErrorKind::Internal,
             Self::Admission(error) => error.kind(),

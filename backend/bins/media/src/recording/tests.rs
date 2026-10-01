@@ -72,6 +72,12 @@ impl RecordingStorage for Storage {
     ) -> BoxFuture<'a, Result<(), FileStorageError>> {
         Box::pin(async { Ok(()) })
     }
+    fn delete<'a>(&'a self, key: &'a str) -> BoxFuture<'a, Result<(), FileStorageError>> {
+        Box::pin(async move {
+            self.objects.lock().expect("objects").remove(key);
+            Ok(())
+        })
+    }
 }
 
 #[tokio::test]
@@ -93,8 +99,8 @@ async fn commands_are_fenced_and_sealed_generations_cannot_reactivate() {
         ..Default::default()
     };
     let records = Recordings::new(
-        media,
-        storage,
+        media.clone(),
+        storage.clone(),
         settings.clone(),
         &prometheus::Registry::new(),
     )
@@ -106,6 +112,28 @@ async fn commands_are_fenced_and_sealed_generations_cannot_reactivate() {
         revision: 1,
         desired_state: "recording".into(),
     };
+    storage.fail.store(true, Ordering::Release);
+    assert!(
+        records.prepare(&request.room_id).await.is_err(),
+        "storage outage must block preflight"
+    );
+    assert!(
+        !media
+            .has_room(mahfel_domain::RoomId::from_uuid(
+                Uuid::parse_str(&request.room_id).expect("room id")
+            ))
+            .await,
+        "failed preflight must not allocate a media room"
+    );
+    storage.fail.store(false, Ordering::Release);
+    records
+        .prepare(&request.room_id)
+        .await
+        .expect("capture dependencies ready");
+    assert!(
+        storage.objects.lock().expect("objects").is_empty(),
+        "preflight object removed"
+    );
     records.reconcile(request.clone()).await.expect("start");
     tokio::time::sleep(Duration::from_millis(300)).await;
     assert!(

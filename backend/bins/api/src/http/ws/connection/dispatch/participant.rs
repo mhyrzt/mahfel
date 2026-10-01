@@ -371,7 +371,9 @@ fn join_rejection_code(error: &SessionOperationError) -> &'static str {
         SessionOperationError::Conflict
         | SessionOperationError::Domain(_)
         | SessionOperationError::Participant(_) => "conflict",
-        SessionOperationError::Store(_) | SessionOperationError::Participation(_) => "unavailable",
+        SessionOperationError::Store(_)
+        | SessionOperationError::Participation(_)
+        | SessionOperationError::RecordingUnavailable => "unavailable",
         SessionOperationError::Admission(_) => "admission_unavailable",
         SessionOperationError::Validation(_) => "invalid_request",
     }

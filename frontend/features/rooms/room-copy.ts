@@ -146,6 +146,8 @@ const copy = {
     endedSession: "This session has ended.",
     cancelledSession: "This session was cancelled.",
     lifecycleFailed: "The session could not be updated. Check its current state and try again.",
+    recordingStartUnavailable:
+      "Recording could not start. The session is still scheduled. Try starting it again.",
     liveSessionConflict:
       "Another session is already live in this room. End it before starting this one.",
     openLiveSession: "Open the live session",
@@ -299,6 +301,8 @@ const copy = {
     endedSession: "این دیدار پایان یافته است.",
     cancelledSession: "این دیدار لغو شده است.",
     lifecycleFailed: "به‌روزرسانی دیدار ممکن نشد. وضعیت آن را بررسی و دوباره تلاش کنید.",
+    recordingStartUnavailable:
+      "ضبط آغاز نشد و دیدار هنوز برنامه‌ریزی‌شده است. دوباره برای شروع دیدار تلاش کنید.",
     liveSessionConflict:
       "دیدار دیگری در این محفل در حال برگزاری است. پیش از شروع این دیدار، آن را پایان دهید.",
     openLiveSession: "رفتن به دیدار در حال برگزاری",
