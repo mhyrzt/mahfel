@@ -1,7 +1,8 @@
 # Continuous integration
 
 Mahfel uses GitLab CI with a root workflow, shared image jobs under `ci/`, and component jobs in
-`backend/.gitlab-ci.yml` and `frontend/.gitlab-ci.yml`. All validation and scan jobs are blocking.
+`backend/.gitlab-ci.yml` and `frontend/.gitlab-ci.yml`. Validation and build jobs are blocking;
+image security scans are advisory and do not block subsequent stages when they fail.
 The structure follows LMS, using Mahfel's pinned Rust and Bun tools and four runtime images.
 
 ## Pipeline triggers and scope
@@ -26,12 +27,12 @@ publishing without waiting for application jobs. Pages also performs its own str
 | Backend | Rustfmt, Clippy with warnings denied, SQLFluff, nextest unit/binary tests, Docker-backed integration tests, doctests, three runtime image builds |
 | Frontend | Prettier, ESLint, separate TypeScript validation, Vitest, Next.js production build, Storybook build, web runtime image build |
 | Shared protocol | Buf formatting and lint |
-| Images | Trivy HIGH/CRITICAL vulnerability checks for API, media, worker, and web |
+| Images | Advisory Trivy HIGH/CRITICAL vulnerability checks for API, media, worker, and web |
 
-Backend production runtimes use Debian 13 (`trixie-slim`) and install available package updates
-during image construction. Rust compilation remains on the pinned Bookworm build image; each
-runtime build checks that its binary's shared libraries resolve in Debian 13. A successful build
-does not imply a clean security scan: unpatched HIGH/CRITICAL findings still block publication.
+Security scans retain their vulnerability reports and failing exit codes so findings remain
+visible as job warnings. All four scan jobs use `allow_failure: true`, including release
+pipelines, so findings and scanner failures do not block publishing or deployment. Backend
+production runtimes remain on Debian 12 (`bookworm-slim`).
 
 Backend compile jobs install Python and `python3-pip` alongside the native toolchain because
 `mediasoup-sys` installs its Python build dependencies through `python3 -m pip`.
@@ -80,7 +81,8 @@ Do not enable these Docker jobs on a runner accepting arbitrary untrusted fork c
 
 Build jobs produce compressed Docker archives. Separate scan jobs inspect those exact archives and
 upload GitLab container-scanning reports using Trivy's GitLab report template. Any HIGH or CRITICAL
-vulnerability fails the scan; the pipeline does not ignore unfixed vulnerabilities.
+vulnerability fails the scan job with an allowed-failure warning; it does not fail the pipeline.
+Unfixed vulnerabilities remain included in reports.
 
 Mahfel has one release environment: Darkube production. Release tags use
 `APP_NAME-vMAJOR.MINOR.PATCH`, where the app is `api`, `media`, `worker`, or `web`. Versions have
@@ -90,8 +92,8 @@ Rust tags still run the shared backend workspace checks. Every release runs `rel
 requires the tagged commit to be reachable from the default branch (`main`).
 
 Publishing runs only for pushed, protected component release tags. The publish stage waits for all
-preceding validation, builds, and scans, and loads the already-scanned archive rather than rebuilding
-it. CI strips the app prefix from the Git release tag: `api-v0.1.0` publishes `api:v0.1.0`
+preceding validation and builds to succeed and advisory scans to finish. It loads the same build
+archive rather than rebuilding it. CI strips the app prefix from the Git release tag: `api-v0.1.0` publishes `api:v0.1.0`
 and deploys Darkube image tag `v0.1.0`. The image repository identifies the app:
 
 ```text

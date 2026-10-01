@@ -42,6 +42,7 @@ variables:
 
 .image-scan:
   stage: security
+  allow_failure: true
   image:
     name: $TRIVY_IMAGE
     entrypoint: [""]

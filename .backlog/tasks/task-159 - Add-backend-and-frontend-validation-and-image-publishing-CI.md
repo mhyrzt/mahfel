@@ -5,7 +5,7 @@ status: Done
 assignee:
   - '@codex'
 created_date: '2026-09-28 08:56'
-updated_date: '2026-10-01 14:27'
+updated_date: '2026-10-01 14:31'
 labels:
   - ci
   - backend
@@ -78,6 +78,8 @@ Final local frontend validation against committed HEAD source (reusing the insta
 Security remediation investigation for pipeline 2114541: all backend tests and images pass. Trivy jobs 7322100/1/2 execute successfully and block on Debian 12 OS findings, not scanner failure. API 70 (66 High, 4 Critical), media 291 (275 High, 16 Critical), worker 375 (356 High, 19 Critical); all structured reports show no solution for the installed Bookworm packages. Plan: test supported Debian 13 runtime packages against the same blocking scanner, verify native binary compatibility and media/export requirements, remediate findings where patches exist, and retain explicit evidence for any remaining unpatched issues. Do not change severity thresholds or ignore unfixed findings globally.
 
 Prepared runtime remediation: API/media/worker production stages now use Debian 13 trixie-slim and apt-get upgrade before installing runtime packages. Rust build/toolchain stays pinned on Bookworm. Each final image checks ldd output and rejects unresolved shared libraries. Debian tracker confirms patched Trixie versions for representative GStreamer and util-linux findings; this is not proof all findings are resolved. Dockerfile build checks, strict docs and diff checks pass. Local runtime build/package download repeatedly stalls; current Trivy DB downloads from upstream and mirror timed out, so no fresh local scan or full runtime compatibility claim is made. Existing shared Trivy cache is August 25 and is not valid current security proof. Pushing the focused patch will use the remote build/scan gates for actual findings. Asked user whether to retain blocking all HIGH/CRITICAL versus reporting all but blocking only patchable findings; keep existing policy unless explicitly changed.
+
+User explicitly changed security policy and withdrew the Docker remediation: make scans nonblocking and revert Docker changes. Restored backend/Dockerfile byte-for-byte to c8d8889 parent (Bookworm; removed the attempted Trixie upgrades and ldd checks). Shared .image-scan now has allow_failure=true for all four apps in branch and release pipelines; vulnerability reports and HIGH/CRITICAL failing exit codes remain visible. Tests, builds, release protection and tag ancestry are unchanged. Updated CI documentation to describe advisory findings and scanner failures. Assembled YAML assertions and GitLab CI Lint main dry-run pass; resolved API/media/worker/web scan jobs all report allow_failure=true.
 <!-- SECTION:NOTES:END -->
 
 ## Final Summary
