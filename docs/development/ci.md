@@ -35,8 +35,11 @@ reduce memory use while compiling the AWS SDK and native media dependencies on t
 
 The `prepare` stage runs `cargo fetch --locked` and `bun install --frozen-lockfile` for the selected
 components before application checks. These jobs populate lockfile/toolchain-keyed dependency
-caches; subsequent jobs pull those caches without uploading competing copies. Rust compiled
-targets and installed tools use a separate build cache. Bun jobs still install from the frozen
+caches; subsequent jobs pull those caches without uploading competing copies. Installed Rust
+tools use a separate cache. Compiled `backend/target/` outputs are not shared between jobs:
+mediasoup's Meson state contains absolute paths that break when restored into another runner
+workspace. The tools cache uses a new key so older archives containing compiled targets are
+not restored. Bun jobs still install from the frozen
 lockfile into their own workspace using the prepared download cache. Docker builds keep their
 separate BuildKit caches; they do not consume these job caches. System packages remain part of
 each backend compile job's setup. Vitest runs with two workers to bound memory

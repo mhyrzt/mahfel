@@ -52,13 +52,12 @@ backend-prepare:
   cache:
     - *backend-dependency-cache
     - key:
-        prefix: rust-build-1.95.0
+        prefix: rust-tools-1.95.0
         files:
           - backend/Cargo.lock
           - backend/rust-toolchain.toml
       paths:
         - .cargo-ci/bin/
-        - backend/target/
   before_script:
     - apt-get update && apt-get install -y --no-install-recommends ca-certificates clang cmake g++ make pkg-config python3 python3-pip libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev
     - python3 -m pip --version
