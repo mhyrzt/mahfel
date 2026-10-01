@@ -79,6 +79,7 @@ impl RecordingFinalizationStore for PostgresRecordingStore {
             recording,
             generation,
             key,
+            playback_key,
             partial,
             usable,
         } = manifest;
@@ -90,10 +91,10 @@ impl RecordingFinalizationStore for PostgresRecordingStore {
             if claim.is_none() {
                 return Ok(false);
             }
-            let result = sqlx::query("UPDATE mahfel.recordings SET status = CASE WHEN $4 THEN 'ready' ELSE 'failed' END, manifest_key = CASE WHEN $4 THEN $3 ELSE NULL END, \
+            let result = sqlx::query("UPDATE mahfel.recordings SET status = CASE WHEN $4 THEN 'ready' ELSE 'failed' END, manifest_key = CASE WHEN $4 THEN COALESCE(manifest_key, $3) ELSE manifest_key END, playback_index_key = CASE WHEN $4 THEN $6 ELSE NULL END, \
                 partial_coverage = partial_coverage OR $5, warning = CASE WHEN NOT $4 THEN 'unusable_recording' WHEN $5 THEN 'partial_recording' ELSE NULL END \
                 WHERE id = $1 AND capture_generation = $2 AND status = 'finalizing' AND NOT EXISTS (SELECT 1 FROM mahfel.recording_generations WHERE recording_id = $1 AND NOT sealed)")
-                .bind(recording).bind(generation).bind(key).bind(usable).bind(partial).execute(&mut *tx).await.map_err(sqlx_store_error)?;
+                .bind(recording).bind(generation).bind(key).bind(usable).bind(partial).bind(playback_key).execute(&mut *tx).await.map_err(sqlx_store_error)?;
             if result.rows_affected() == 1 {
                 sqlx::query("UPDATE mahfel.recording_assets SET copy_status = 'ready' WHERE recording_id = $1 AND copy_status = 'pending'")
                     .bind(recording).execute(&mut *tx).await.map_err(sqlx_store_error)?;

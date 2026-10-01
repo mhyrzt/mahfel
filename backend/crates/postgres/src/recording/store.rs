@@ -6,6 +6,7 @@ use time::OffsetDateTime;
 use uuid::Uuid;
 
 const COLUMNS: &str = "id, session_id, status, revision, capture_generation, initiated_by, started_at, stopped_at, warning, partial_coverage AS partial, manifest_key";
+const LIST_COLUMNS: &str = "id, session_id, status, revision, capture_generation, initiated_by, started_at, stopped_at, CASE WHEN status = 'finalizing' AND EXISTS (SELECT 1 FROM mahfel.background_jobs job WHERE job.job_type = 'recordings.finalize' AND job.status = 'dead' AND job.payload ->> 'recording_id' = recordings.id::TEXT) THEN 'playback_processing_failed' ELSE warning END AS warning, partial_coverage AS partial, manifest_key";
 
 #[derive(Clone)]
 pub struct PostgresRecordingStore {
@@ -120,7 +121,7 @@ impl RecordingStore for PostgresRecordingStore {
                 return Err(StoreError::NotFound("session".into()));
             }
             let sql = format!(
-                "SELECT {COLUMNS} FROM mahfel.recordings WHERE session_id = $1 AND deleted_at IS NULL ORDER BY started_at DESC, id LIMIT 100"
+                "SELECT {LIST_COLUMNS} FROM mahfel.recordings WHERE session_id = $1 AND deleted_at IS NULL ORDER BY started_at DESC, id LIMIT 100"
             );
             sqlx::query_as::<_, RecordingRow>(sqlx::AssertSqlSafe(sql))
                 .bind(session.as_uuid())

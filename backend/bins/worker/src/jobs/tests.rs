@@ -434,6 +434,24 @@ async fn chat_deletion_drains_outbox_and_cleans_object() -> Result<(), Box<dyn E
         serde_json::from_slice(&recording_storage.read(&manifest_key, 1024 * 1024).await?)?;
     assert_eq!(manifest["version"], 1);
     assert_eq!(manifest["tracks"].as_object().expect("tracks").len(), 1);
+    let playback_key: String =
+        sqlx::query_scalar("SELECT playback_index_key FROM mahfel.recordings WHERE id = $1")
+            .bind(recording.id.as_uuid())
+            .fetch_one(&database)
+            .await?;
+    let playback: serde_json::Value =
+        serde_json::from_slice(&recording_storage.read(&playback_key, 1024 * 1024).await?)?;
+    assert_eq!(playback["version"], 1);
+    let browser_segment = playback["segments"][0]["object_key"]
+        .as_str()
+        .expect("browser segment");
+    let browser_bytes = recording_storage
+        .read(browser_segment, 64 * 1024 * 1024)
+        .await?;
+    assert!(
+        browser_bytes.windows(4).any(|window| window == b"ftyp"),
+        "browser MP4 container"
+    );
     assert!(manifest["partial"].as_bool().expect("partial coverage"));
     assert_eq!(manifest["losses"].as_array().expect("losses").len(), 1);
     assert_eq!(

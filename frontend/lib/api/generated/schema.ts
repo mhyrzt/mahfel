@@ -1152,6 +1152,38 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/sessions/{session_id}/recordings/{recording_id}/playback/media-window": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get: operations["getRecordingPlaybackMediaWindow"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/sessions/{session_id}/recordings/{recording_id}/playback/retry": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post: operations["retryRecordingPlayback"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/v1/sessions/{session_id}/roster": {
     parameters: {
       query?: never;
@@ -1648,12 +1680,26 @@ export interface components {
       corrected_intervals: number;
       participant_id: string;
     };
+    PlaybackMediaSegmentResponse: {
+      actor_id: string;
+      audio: boolean;
+      end_ns: string;
+      object_key: string;
+      source: string;
+      start_ns: string;
+      track_id: string;
+    };
     PlaybackResponse: {
       paused: boolean;
       /** Format: int64 */
       position_ms: number;
       /** Format: double */
       rate: number;
+    };
+    PlaybackWindowResponse: {
+      urls: {
+        [key: string]: string;
+      };
     };
     PresentationRequest:
       | {
@@ -1743,6 +1789,7 @@ export interface components {
       /** Format: int64 */
       expires_in_seconds: number;
       manifest_key: string;
+      media: components["schemas"]["PlaybackMediaSegmentResponse"][];
       urls: {
         [key: string]: string;
       };
@@ -5976,6 +6023,114 @@ export interface operations {
       };
     };
   };
+  getRecordingPlaybackMediaWindow: {
+    parameters: {
+      query: {
+        start_ms: number;
+      };
+      header?: never;
+      path: {
+        session_id: string;
+        recording_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["PlaybackWindowResponse"];
+        };
+      };
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
+      };
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
+      };
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
+      };
+    };
+  };
+  retryRecordingPlayback: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        session_id: string;
+        recording_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      202: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
+      };
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
+      };
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
+      };
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
+      };
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
+      };
+    };
+  };
   roster: {
     parameters: {
       query?: never;
@@ -6067,6 +6222,15 @@ export interface operations {
       };
       /** @description Invalid transition or a live session already exists */
       409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
+      };
+      /** @description Recording is unavailable; the session remains scheduled */
+      503: {
         headers: {
           [name: string]: unknown;
         };

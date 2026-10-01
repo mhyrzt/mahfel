@@ -43,6 +43,12 @@ pub async fn finalize_recording<
     let mut usable = false;
     let mut sections = BTreeMap::new();
     let mut tracks = BTreeMap::new();
+    let mut browser_segments = Vec::new();
+    let session_origin: i128 = metadata["session_origin_ns"]
+        .as_str()
+        .ok_or(JobFailure::Permanent("invalid_session_clock"))?
+        .parse()
+        .map_err(|_| JobFailure::Permanent("invalid_session_clock"))?;
     let mut losses = Vec::new();
     let mut intervals = Vec::new();
     let mut coverage = BTreeMap::<String, Vec<(u64, u64)>>::new();
@@ -116,10 +122,50 @@ pub async fn finalize_recording<
                     let readable = checksum == receipt.sha256
                         && bytes.len() as u64 == receipt.bytes
                         && verifier
-                            .readable(bytes, &receipt.container)
+                            .readable(bytes.clone(), &receipt.container)
                             .await
                             .map_err(|_| JobFailure::Retryable("container_verifier_unavailable"))?;
                     if readable {
+                        if browser_segments.len() >= super::playback::MAX_MEDIA_SEGMENTS {
+                            return Err(JobFailure::Permanent("playback_segment_limit"));
+                        }
+                        let browser = verifier
+                            .browser_segment(
+                                bytes,
+                                &receipt.container,
+                                receipt.codec.starts_with("audio/"),
+                            )
+                            .await
+                            .map_err(|error| {
+                                tracing::warn!(%error, recording_id = %payload.recording_id, "browser segment conversion failed");
+                                JobFailure::Retryable("browser_segment_unavailable")
+                            })?;
+                        let browser_hash = format!("{:x}", Sha256::digest(&browser));
+                        let browser_key = format!(
+                            "recordings/{}/replay/{}/media/{browser_hash}.mp4",
+                            payload.recording_id, payload.capture_generation
+                        );
+                        storage
+                            .put_media(&browser_key, browser)
+                            .await
+                            .map_err(|_| {
+                                JobFailure::Retryable("browser_segment_storage_unavailable")
+                            })?;
+                        let start = i128::from(receipt.unix_origin_ns)
+                            + i128::from(receipt.start_ns)
+                            - session_origin;
+                        let end = i128::from(receipt.unix_origin_ns) + i128::from(receipt.end_ns)
+                            - session_origin;
+                        browser_segments.push(json!({
+                            "track_id": format!("{}:{}:{}", receipt.generation, receipt.boot_id, receipt.producer_id),
+                            "actor_id": receipt.actor_id,
+                            "source": receipt.source,
+                            "audio": receipt.codec.starts_with("audio/"),
+                            "start_ns": start.max(0).to_string(),
+                            "end_ns": end.max(0).to_string(),
+                            "object_key": browser_key,
+                            "sha256": browser_hash,
+                        }));
                         usable = true;
                         coverage
                             .entry(format!(
@@ -235,6 +281,34 @@ pub async fn finalize_recording<
         .put(&key, bytes)
         .await
         .map_err(|_| JobFailure::Retryable("manifest_storage_unavailable"))?;
+    browser_segments.sort_by(|left, right| {
+        let start = |value: &serde_json::Value| {
+            value["start_ns"]
+                .as_str()
+                .and_then(|value| value.parse::<i128>().ok())
+                .unwrap_or(0)
+        };
+        start(left).cmp(&start(right))
+    });
+    let playback = json!({
+        "version": 1,
+        "clock": "session_relative_nanoseconds",
+        "segments": browser_segments,
+    });
+    let playback_bytes = serde_json::to_vec(&playback)
+        .map_err(|_| JobFailure::Permanent("playback_index_serialization"))?;
+    if playback_bytes.len() as u64 > super::playback::INDEX_MAX_BYTES {
+        return Err(JobFailure::Permanent("playback_index_limit"));
+    }
+    let playback_hash = format!("{:x}", Sha256::digest(&playback_bytes));
+    let playback_key = format!(
+        "recordings/{}/replay/{}/playback-{playback_hash}.json",
+        payload.recording_id, payload.capture_generation
+    );
+    storage
+        .put(&playback_key, playback_bytes)
+        .await
+        .map_err(|_| JobFailure::Retryable("playback_index_storage_unavailable"))?;
     if !records
         .accept(
             job,
@@ -243,6 +317,7 @@ pub async fn finalize_recording<
                 recording: payload.recording_id,
                 generation: payload.capture_generation,
                 key,
+                playback_key,
                 partial,
                 usable,
             },

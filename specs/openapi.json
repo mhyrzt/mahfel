@@ -5405,6 +5405,169 @@
         }
       }
     },
+    "/v1/sessions/{session_id}/recordings/{recording_id}/playback/media-window": {
+      "get": {
+        "tags": [
+          "recordings"
+        ],
+        "operationId": "getRecordingPlaybackMediaWindow",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "recording_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "start_ms",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlaybackWindowResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/sessions/{session_id}/recordings/{recording_id}/playback/retry": {
+      "post": {
+        "tags": [
+          "recordings"
+        ],
+        "operationId": "retryRecordingPlayback",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "recording_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": ""
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/sessions/{session_id}/roster": {
       "get": {
         "tags": [
@@ -5520,6 +5683,16 @@
           },
           "409": {
             "description": "Invalid transition or a live session already exists",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Recording is unavailable; the session remains scheduled",
             "content": {
               "application/json": {
                 "schema": {
@@ -6902,6 +7075,41 @@
           }
         }
       },
+      "PlaybackMediaSegmentResponse": {
+        "type": "object",
+        "required": [
+          "track_id",
+          "actor_id",
+          "source",
+          "audio",
+          "start_ns",
+          "end_ns",
+          "object_key"
+        ],
+        "properties": {
+          "actor_id": {
+            "type": "string"
+          },
+          "audio": {
+            "type": "boolean"
+          },
+          "end_ns": {
+            "type": "string"
+          },
+          "object_key": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string"
+          },
+          "start_ns": {
+            "type": "string"
+          },
+          "track_id": {
+            "type": "string"
+          }
+        }
+      },
       "PlaybackResponse": {
         "type": "object",
         "required": [
@@ -6921,6 +7129,23 @@
           "rate": {
             "type": "number",
             "format": "double"
+          }
+        }
+      },
+      "PlaybackWindowResponse": {
+        "type": "object",
+        "required": [
+          "urls"
+        ],
+        "properties": {
+          "urls": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "propertyNames": {
+              "type": "string"
+            }
           }
         }
       },
@@ -7240,6 +7465,7 @@
           "manifest_key",
           "urls",
           "assets",
+          "media",
           "expires_in_seconds"
         ],
         "properties": {
@@ -7259,6 +7485,12 @@
           },
           "manifest_key": {
             "type": "string"
+          },
+          "media": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PlaybackMediaSegmentResponse"
+            }
           },
           "urls": {
             "type": "object",

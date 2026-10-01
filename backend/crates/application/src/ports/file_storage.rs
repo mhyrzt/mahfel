@@ -44,6 +44,14 @@ pub trait FileStorage: Send + Sync {
         expiry: Duration,
     ) -> BoxFuture<'a, Result<PresignedFileRequest, FileStorageError>>;
 
+    fn presign_playback<'a>(
+        &'a self,
+        key: &'a str,
+        expiry: Duration,
+    ) -> BoxFuture<'a, Result<PresignedFileRequest, FileStorageError>> {
+        self.presign_download(key, "segment.mp4", expiry)
+    }
+
     fn delete<'a>(&'a self, key: &'a str) -> BoxFuture<'a, Result<(), FileStorageError>>;
     fn promote<'a>(
         &'a self,

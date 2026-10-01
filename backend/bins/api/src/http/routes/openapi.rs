@@ -76,6 +76,8 @@ Protected routes require an Authorization: Bearer token. User requests use Keycl
         super::recordings::export_retry,
         super::recordings::export_download,
         super::recordings::playback,
+        super::recordings::playback_media_window,
+        super::recordings::playback_retry,
         super::recordings::remove,
         // System and health endpoints
         super::status::status,

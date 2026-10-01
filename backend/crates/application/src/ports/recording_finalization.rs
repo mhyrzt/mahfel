@@ -35,12 +35,21 @@ pub trait RecordingVerifier: Send + Sync {
         bytes: Vec<u8>,
         container: &'a str,
     ) -> BoxFuture<'a, Result<bool, StoreError>>;
+    /// Convert one verified original fragment to a standalone browser MP4
+    /// while preserving its source and clock bounds in the playback index.
+    fn browser_segment<'a>(
+        &'a self,
+        bytes: Vec<u8>,
+        container: &'a str,
+        audio: bool,
+    ) -> BoxFuture<'a, Result<Vec<u8>, StoreError>>;
 }
 
 pub struct ManifestAcceptance {
     pub recording: Uuid,
     pub generation: i32,
     pub key: String,
+    pub playback_key: String,
     pub partial: bool,
     pub usable: bool,
 }

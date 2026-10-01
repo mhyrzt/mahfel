@@ -61,6 +61,24 @@ pub(super) fn download<'a>(
     })
 }
 
+pub(super) fn playback<'a>(
+    storage: &'a S3FileStorage,
+    key: &'a str,
+    expiry: Duration,
+) -> BoxFuture<'a, Result<PresignedFileRequest, FileStorageError>> {
+    Box::pin(async move {
+        let signed = storage
+            .public
+            .get_object()
+            .bucket(&storage.bucket)
+            .key(key)
+            .presigned(presign_config(expiry)?)
+            .await
+            .map_err(|_| FileStorageError::Unavailable)?;
+        Ok(to_request(&signed))
+    })
+}
+
 fn presign_config(expiry: Duration) -> Result<PresigningConfig, FileStorageError> {
     PresigningConfig::expires_in(expiry).map_err(|_| FileStorageError::Unavailable)
 }

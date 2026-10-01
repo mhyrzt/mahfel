@@ -11,6 +11,7 @@ mahfel-application = { path = "../application" }
 mahfel-config = { path = "../config" }
 tokio.workspace = true
 thiserror.workspace = true
+tracing.workspace = true
 
 [lints]
 workspace = true

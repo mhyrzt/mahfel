@@ -30,6 +30,13 @@ pub trait RecordingStorage: Send + Sync {
         key: &'a str,
         bytes: Vec<u8>,
     ) -> BoxFuture<'a, Result<(), FileStorageError>>;
+    fn put_media<'a>(
+        &'a self,
+        key: &'a str,
+        bytes: Vec<u8>,
+    ) -> BoxFuture<'a, Result<(), FileStorageError>> {
+        self.put(key, bytes)
+    }
     fn put_fragment<'a>(
         &'a self,
         key: &'a str,
@@ -50,4 +57,10 @@ pub trait RecordingStorage: Send + Sync {
         source: &'a str,
         destination: &'a str,
     ) -> BoxFuture<'a, Result<(), FileStorageError>>;
+    fn delete<'a>(&'a self, key: &'a str) -> BoxFuture<'a, Result<(), FileStorageError>> {
+        Box::pin(async move {
+            let _ = key;
+            Err(FileStorageError::Unavailable)
+        })
+    }
 }

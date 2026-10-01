@@ -8,6 +8,7 @@ use crate::{
 };
 use mahfel_domain::SessionId;
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 use std::collections::BTreeMap;
 use std::time::Duration;
 use uuid::Uuid;
@@ -15,12 +16,133 @@ use uuid::Uuid;
 const MANIFEST_MAX_BYTES: u64 = 8 * 1024 * 1024;
 const PAGE_MAX_BYTES: u64 = 8 * 1024 * 1024;
 const MAX_PAGES: usize = 4096;
+pub(super) const INDEX_MAX_BYTES: u64 = 8 * 1024 * 1024;
+pub(super) const MAX_MEDIA_SEGMENTS: usize = 10000;
+const MEDIA_WINDOW_NS: i128 = 30_000_000_000;
+const MAX_WINDOW_SEGMENTS: usize = 256;
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct PlaybackMediaSegment {
+    pub track_id: String,
+    pub actor_id: String,
+    pub source: String,
+    pub audio: bool,
+    pub start_ns: String,
+    pub end_ns: String,
+    pub object_key: String,
+    pub sha256: String,
+}
+
+#[derive(Deserialize)]
+struct PlaybackIndex {
+    version: u32,
+    clock: String,
+    segments: Vec<PlaybackMediaSegment>,
+}
+
+async fn load_index<S: RecordingPlaybackStore + ?Sized, F: FileStorage + ?Sized>(
+    store: &S,
+    storage: &F,
+    session: SessionId,
+    recording: Uuid,
+) -> Result<Vec<PlaybackMediaSegment>, RecordingOperationError> {
+    let key = store
+        .playback_index(session, recording)
+        .await?
+        .ok_or(RecordingOperationError::NotFound)?;
+    let prefix = format!("recordings/{recording}/replay/");
+    if !key.starts_with(&prefix) || key.contains("..") {
+        return Err(RecordingOperationError::Unavailable);
+    }
+    let bytes = storage
+        .read(&key, INDEX_MAX_BYTES)
+        .await
+        .map_err(|_| RecordingOperationError::Unavailable)?
+        .bytes;
+    let hash = format!("{:x}", Sha256::digest(&bytes));
+    if !key.ends_with(&format!("playback-{hash}.json")) {
+        return Err(RecordingOperationError::Unavailable);
+    }
+    let index: PlaybackIndex =
+        serde_json::from_slice(&bytes).map_err(|_| RecordingOperationError::Unavailable)?;
+    if index.version != 1
+        || index.clock != "session_relative_nanoseconds"
+        || index.segments.len() > MAX_MEDIA_SEGMENTS
+    {
+        return Err(RecordingOperationError::Unavailable);
+    }
+    for segment in &index.segments {
+        let start: i128 = segment
+            .start_ns
+            .parse()
+            .map_err(|_| RecordingOperationError::Unavailable)?;
+        let end: i128 = segment
+            .end_ns
+            .parse()
+            .map_err(|_| RecordingOperationError::Unavailable)?;
+        if start < 0
+            || end < start
+            || !segment.object_key.starts_with(&prefix)
+            || segment.object_key.contains("..")
+            || segment.sha256.len() != 64
+            || !segment
+                .object_key
+                .ends_with(&format!("{}.mp4", segment.sha256))
+        {
+            return Err(RecordingOperationError::Unavailable);
+        }
+    }
+    Ok(index.segments)
+}
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct PlaybackDescriptor {
     pub manifest_key: String,
     pub urls: BTreeMap<String, String>,
     pub assets: BTreeMap<String, String>,
+    pub media: Vec<PlaybackMediaSegment>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct PlaybackWindow {
+    pub urls: BTreeMap<String, String>,
+}
+
+pub async fn playback_window<S: RecordingPlaybackStore + ?Sized, F: FileStorage + ?Sized>(
+    store: &S,
+    storage: &F,
+    session: SessionId,
+    recording: Uuid,
+    principal: &Principal,
+    start_ms: u64,
+    expires: Duration,
+) -> Result<PlaybackWindow, RecordingOperationError> {
+    if !can_play(store, session, principal).await? {
+        return Err(RecordingOperationError::NotFound);
+    }
+    let segments = load_index(store, storage, session, recording).await?;
+    let start = i128::from(start_ms) * 1_000_000;
+    let end = start.saturating_add(MEDIA_WINDOW_NS);
+    let selected = segments
+        .into_iter()
+        .filter(|segment| {
+            let from = segment.start_ns.parse::<i128>().unwrap_or(i128::MAX);
+            let until = segment.end_ns.parse::<i128>().unwrap_or(i128::MIN);
+            from < end && until > start
+        })
+        .collect::<Vec<_>>();
+    if selected.len() > MAX_WINDOW_SEGMENTS {
+        return Err(RecordingOperationError::Unavailable);
+    }
+    let mut urls = BTreeMap::new();
+    for segment in selected {
+        let url = storage
+            .presign_playback(&segment.object_key, expires)
+            .await
+            .map_err(|_| RecordingOperationError::Unavailable)?;
+        urls.insert(segment.object_key, url.url);
+    }
+    Ok(PlaybackWindow { urls })
 }
 
 async fn can_play<S: RecordingPlaybackStore + ?Sized>(
@@ -60,6 +182,7 @@ pub async fn playback_descriptor<S: RecordingPlaybackStore + ?Sized, F: FileStor
         .manifest(session, recording)
         .await?
         .ok_or(RecordingOperationError::NotFound)?;
+    let media = load_index(store, storage, session, recording).await?;
     let manifest = storage
         .read(&manifest_key, MANIFEST_MAX_BYTES)
         .await
@@ -132,6 +255,7 @@ pub async fn playback_descriptor<S: RecordingPlaybackStore + ?Sized, F: FileStor
         manifest_key,
         urls,
         assets,
+        media,
     })
 }
 
@@ -165,6 +289,39 @@ pub async fn delete_recording<
     Ok(store.delete(session, recording, principal.actor_id).await?)
 }
 
+pub async fn retry_playback<
+    S: RecordingPlaybackStore + ?Sized,
+    R: RoomStore + ?Sized,
+    T: SessionStore + ?Sized,
+>(
+    store: &S,
+    rooms: &R,
+    sessions: &T,
+    session: SessionId,
+    recording: Uuid,
+    principal: &Principal,
+) -> Result<(), RecordingOperationError> {
+    let target = sessions
+        .get(session)
+        .await?
+        .ok_or(RecordingOperationError::NotFound)?;
+    let membership = rooms.get_member(target.room_id, principal.actor_id).await?;
+    let capabilities = ServerCapabilityResolver.resolve(
+        principal,
+        CapabilityContext::in_room(membership.map(|member| member.role)),
+    );
+    if !capabilities.has(Capability::ManageSystem) && !can_play(store, session, principal).await? {
+        return Err(RecordingOperationError::NotFound);
+    }
+    if !capabilities.has(Capability::ManageRecording) {
+        return Err(RecordingOperationError::Forbidden);
+    }
+    if !store.retry_processing(session, recording).await? {
+        return Err(RecordingOperationError::Conflict);
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -178,7 +335,31 @@ mod tests {
     struct PlaybackStore {
         member: ActorId,
     }
+    fn test_index(recording: Uuid) -> (String, Vec<u8>) {
+        let bytes = serde_json::to_vec(&serde_json::json!({
+            "version": 1, "clock": "session_relative_nanoseconds", "segments": [{
+                "track_id": "track-1", "actor_id": Uuid::nil().to_string(),
+                "source": "camera", "audio": false,
+                "start_ns": "0", "end_ns": "10000000000",
+                "object_key": format!("recordings/{recording}/replay/1/media/{}.mp4", "a".repeat(64)),
+                "sha256": "a".repeat(64),
+            }],
+        }))
+        .expect("index json");
+        let hash = format!("{:x}", Sha256::digest(&bytes));
+        (
+            format!("recordings/{recording}/replay/1/playback-{hash}.json"),
+            bytes,
+        )
+    }
     impl RecordingPlaybackStore for PlaybackStore {
+        fn playback_index(
+            &self,
+            _session: SessionId,
+            recording: Uuid,
+        ) -> BoxFuture<'_, Result<Option<String>, StoreError>> {
+            Box::pin(async move { Ok(Some(test_index(recording).0)) })
+        }
         fn can_play(
             &self,
             _session: SessionId,
@@ -234,6 +415,18 @@ mod tests {
                 "recordings/r/replay/1/assets/0-h.json" => serde_json::to_vec(
                     &serde_json::json!([{"file_id": "f1", "archive_key": "recordings/r/assets/f1"}]),
                 ),
+                _ if key.contains("/playback-") => {
+                    let recording = key
+                        .split('/')
+                        .nth(1)
+                        .and_then(|id| Uuid::parse_str(id).ok());
+                    match recording {
+                        Some(recording) if test_index(recording).0 == key => {
+                            Ok(test_index(recording).1)
+                        }
+                        _ => return Box::pin(async { Err(FileStorageError::NotFound) }),
+                    }
+                }
                 _ => return Box::pin(async { Err(FileStorageError::NotFound) }),
             };
             Box::pin(async move {
@@ -288,11 +481,13 @@ mod tests {
     async fn authorized_member_receives_replay_urls() {
         let member = ActorId::from_uuid(Uuid::new_v4());
         let store = PlaybackStore { member };
+        let recording = Uuid::new_v4();
+        let session = SessionId::from_uuid(Uuid::new_v4());
         let descriptor = playback_descriptor(
             &store,
             &ManifestStorage,
-            SessionId::from_uuid(Uuid::new_v4()),
-            Uuid::new_v4(),
+            session,
+            recording,
             &principal(member),
             Duration::from_secs(300),
         )
@@ -321,6 +516,19 @@ mod tests {
             descriptor.assets.get("f1").map(String::as_str),
             Some("https://storage.invalid/recordings/r/assets/f1")
         );
+        assert_eq!(descriptor.media.len(), 1);
+        let window = playback_window(
+            &store,
+            &ManifestStorage,
+            session,
+            recording,
+            &principal(member),
+            0,
+            Duration::from_secs(300),
+        )
+        .await
+        .expect("media window");
+        assert_eq!(window.urls.len(), 1);
     }
 
     #[tokio::test]
@@ -337,6 +545,18 @@ mod tests {
         )
         .await
         .expect_err("outsider must not obtain playback urls");
+        assert_eq!(error.kind(), crate::ErrorKind::NotFound);
+        let error = playback_window(
+            &store,
+            &ManifestStorage,
+            SessionId::from_uuid(Uuid::new_v4()),
+            Uuid::new_v4(),
+            &principal(ActorId::from_uuid(Uuid::new_v4())),
+            0,
+            Duration::from_secs(300),
+        )
+        .await
+        .expect_err("outsider must not obtain media urls");
         assert_eq!(error.kind(), crate::ErrorKind::NotFound);
     }
 }

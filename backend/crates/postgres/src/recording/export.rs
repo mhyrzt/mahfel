@@ -49,7 +49,7 @@ pub(super) async fn enqueue_export(
     recording_id: Uuid,
     manifest_key: &str,
 ) -> Result<(), sqlx::Error> {
-    let exists: bool = sqlx::query_scalar("SELECT EXISTS (SELECT 1 FROM mahfel.recording_exports WHERE recording_id = $1 AND manifest_key = $2 AND profile_version = 1)").bind(recording_id).bind(manifest_key).fetch_one(&mut **tx).await?;
+    let exists: bool = sqlx::query_scalar("SELECT EXISTS (SELECT 1 FROM mahfel.recording_exports WHERE recording_id = $1 AND profile_version = 1)").bind(recording_id).fetch_one(&mut **tx).await?;
     if exists {
         return Ok(());
     }

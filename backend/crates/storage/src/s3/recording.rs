@@ -161,6 +161,24 @@ impl RecordingStorage for S3FileStorage {
             Ok(())
         })
     }
+    fn put_media<'a>(
+        &'a self,
+        key: &'a str,
+        bytes: Vec<u8>,
+    ) -> BoxFuture<'a, Result<(), FileStorageError>> {
+        Box::pin(async move {
+            self.internal
+                .put_object()
+                .bucket(&self.bucket)
+                .key(key)
+                .content_type("video/mp4")
+                .body(ByteStream::from(bytes))
+                .send()
+                .await
+                .map_err(|_| FileStorageError::Unavailable)?;
+            Ok(())
+        })
+    }
     fn read<'a>(
         &'a self,
         key: &'a str,
@@ -237,6 +255,26 @@ impl RecordingStorage for S3FileStorage {
                 .bucket(&self.bucket)
                 .key(destination)
                 .copy_source(format!("{}/{}", self.bucket, source))
+                .send()
+                .await
+                .map_err(|error| {
+                    tracing::warn!(
+                        error = %error,
+                        source_key = source,
+                        destination_key = destination,
+                        "recording asset copy failed"
+                    );
+                    FileStorageError::Unavailable
+                })?;
+            Ok(())
+        })
+    }
+    fn delete<'a>(&'a self, key: &'a str) -> BoxFuture<'a, Result<(), FileStorageError>> {
+        Box::pin(async move {
+            self.internal
+                .delete_object()
+                .bucket(&self.bucket)
+                .key(key)
                 .send()
                 .await
                 .map_err(|_| FileStorageError::Unavailable)?;

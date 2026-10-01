@@ -34,6 +34,14 @@ impl FileStorage for S3FileStorage {
         super::presigned::download(self, key, file_name, expiry)
     }
 
+    fn presign_playback<'a>(
+        &'a self,
+        key: &'a str,
+        expiry: Duration,
+    ) -> BoxFuture<'a, Result<PresignedFileRequest, FileStorageError>> {
+        super::presigned::playback(self, key, expiry)
+    }
+
     fn delete<'a>(&'a self, key: &'a str) -> BoxFuture<'a, Result<(), FileStorageError>> {
         super::objects::delete(self, key)
     }

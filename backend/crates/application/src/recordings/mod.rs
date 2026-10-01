@@ -9,4 +9,7 @@ mod export;
 pub use export::{export_recording, get_export, retry_export};
 
 mod playback;
-pub use playback::{PlaybackDescriptor, delete_recording, playback_descriptor};
+pub use playback::{
+    PlaybackDescriptor, PlaybackMediaSegment, PlaybackWindow, delete_recording,
+    playback_descriptor, playback_window, retry_playback,
+};

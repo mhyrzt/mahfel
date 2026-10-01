@@ -414,6 +414,7 @@ async fn recording_commands_are_authorized_serialized_and_audited() -> Result<()
         recording: start.id.as_uuid(),
         generation: 3,
         key: "recordings/test/manifest.json".into(),
+        playback_key: "recordings/test/playback.json".into(),
         partial: true,
         usable: true,
     };
@@ -750,6 +751,7 @@ async fn recording_commands_are_authorized_serialized_and_audited() -> Result<()
         recording: automatic[0].id.as_uuid(),
         generation: 1,
         key: "recordings/test/replayed-manifest.json".into(),
+        playback_key: "recordings/test/replayed-playback.json".into(),
         partial: false,
         usable: true,
     };
@@ -766,6 +768,57 @@ async fn recording_commands_are_authorized_serialized_and_audited() -> Result<()
             .await?
     );
     assert!(jobs.succeed(&replay, replay_token).await?);
+    // Apply the migration's backfill to a legacy Ready recording. It must keep
+    // the accepted original manifest and the existing export while adding replay.
+    sqlx::query("UPDATE mahfel.recordings SET playback_index_key = NULL WHERE id = $1")
+        .bind(automatic[0].id.as_uuid())
+        .execute(&pool)
+        .await?;
+    let migration: &'static str =
+        include_str!("../../../migrations/0033_recorded_session_start.sql");
+    let backfill: &'static str =
+        &migration[migration.find("WITH legacy AS").expect("backfill SQL")..];
+    sqlx::raw_sql(backfill).execute(&pool).await?;
+    let backfill_id: Uuid =
+        sqlx::query_scalar("SELECT id FROM mahfel.background_jobs WHERE idempotency_key = $1")
+            .bind(format!("recording.playback.backfill:{}:1", automatic[0].id))
+            .fetch_one(&pool)
+            .await?;
+    let backfill_job = jobs
+        .inspect(backfill_id)
+        .await?
+        .expect("backfill job")
+        .envelope;
+    let mahfel_postgres::JobClaim::Claimed(backfill_token) = jobs.claim(&backfill_job).await?
+    else {
+        panic!("backfill claim")
+    };
+    let backfill_acceptance = ManifestAcceptance {
+        key: "recordings/test/new-derived-manifest.json".into(),
+        playback_key: "recordings/test/backfilled-playback.json".into(),
+        ..replay_acceptance
+    };
+    assert!(
+        stores
+            .recordings
+            .accept(&backfill_job, backfill_token, &backfill_acceptance)
+            .await?
+    );
+    assert!(jobs.succeed(&backfill_job, backfill_token).await?);
+    let (original, playback): (String, String) = sqlx::query_as(
+        "SELECT manifest_key, playback_index_key FROM mahfel.recordings WHERE id = $1",
+    )
+    .bind(automatic[0].id.as_uuid())
+    .fetch_one(&pool)
+    .await?;
+    assert_eq!(original, "recordings/test/replayed-manifest.json");
+    assert_eq!(playback, "recordings/test/backfilled-playback.json");
+    let exports: i64 =
+        sqlx::query_scalar("SELECT count(*) FROM mahfel.recording_exports WHERE recording_id = $1")
+            .bind(automatic[0].id.as_uuid())
+            .fetch_one(&pool)
+            .await?;
+    assert_eq!(exports, 1, "backfill must not duplicate exports");
     {
         use mahfel_application::ports::RecordingPlaybackStore;
         let recording = automatic[0].id.as_uuid();

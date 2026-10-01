@@ -7,6 +7,12 @@ const actor = "c1fa6ded-3fb1-4e5a-bbb9-25168f5b189d";
 
 test("allows the authenticated session routes used by the workspace", () => {
   expect(isAllowedBackendPath(`v1/sessions/${session}/start`)).toBe(true);
+  expect(
+    isAllowedBackendPath(`v1/sessions/${session}/recordings/${actor}/playback/media-window`),
+  ).toBe(true);
+  expect(isAllowedBackendPath(`v1/sessions/${session}/recordings/${actor}/playback/retry`)).toBe(
+    true,
+  );
   expect(isAllowedBackendPath(`v1/sessions/${session}/lobby/${actor}/admit`)).toBe(true);
   expect(isAllowedBackendPath(`v1/sessions/${session}/collaboration/grants/${actor}`)).toBe(true);
   expect(isAllowedBackendPath(`v1/sessions/${session}/collaboration/notes/images`)).toBe(true);

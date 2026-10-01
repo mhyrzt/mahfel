@@ -6,7 +6,7 @@ use crate::http::{
 };
 use axum::{
     Json, Router,
-    extract::State,
+    extract::{Query, State},
     http::StatusCode,
     routing::{get, post},
 };
@@ -92,6 +92,14 @@ pub(crate) fn route() -> Router<AppState> {
         .route(
             "/sessions/{session_id}/recordings/{recording_id}/playback",
             get(playback),
+        )
+        .route(
+            "/sessions/{session_id}/recordings/{recording_id}/playback/media-window",
+            get(playback_media_window),
+        )
+        .route(
+            "/sessions/{session_id}/recordings/{recording_id}/playback/retry",
+            post(playback_retry),
         )
         .route(
             "/sessions/{session_id}/recordings/{recording_id}",
@@ -278,7 +286,87 @@ pub(crate) struct RecordingPlaybackResponse {
     pub manifest_key: String,
     pub urls: std::collections::BTreeMap<String, String>,
     pub assets: std::collections::BTreeMap<String, String>,
+    pub media: Vec<PlaybackMediaSegmentResponse>,
     pub expires_in_seconds: u64,
+}
+
+#[derive(Serialize, ToSchema)]
+pub(crate) struct PlaybackMediaSegmentResponse {
+    pub track_id: String,
+    pub actor_id: String,
+    pub source: String,
+    pub audio: bool,
+    pub start_ns: String,
+    pub end_ns: String,
+    pub object_key: String,
+}
+
+impl From<mahfel_application::recordings::PlaybackMediaSegment> for PlaybackMediaSegmentResponse {
+    fn from(segment: mahfel_application::recordings::PlaybackMediaSegment) -> Self {
+        Self {
+            track_id: segment.track_id,
+            actor_id: segment.actor_id,
+            source: segment.source,
+            audio: segment.audio,
+            start_ns: segment.start_ns,
+            end_ns: segment.end_ns,
+            object_key: segment.object_key,
+        }
+    }
+}
+
+#[derive(Deserialize)]
+pub(crate) struct PlaybackWindowQuery {
+    start_ms: u64,
+}
+
+#[derive(Serialize, ToSchema)]
+pub(crate) struct PlaybackWindowResponse {
+    urls: std::collections::BTreeMap<String, String>,
+}
+
+#[utoipa::path(get, operation_id = "getRecordingPlaybackMediaWindow", path = "/v1/sessions/{session_id}/recordings/{recording_id}/playback/media-window", tag = "recordings", params(("session_id" = Uuid, Path), ("recording_id" = Uuid, Path), ("start_ms" = u64, Query)), responses((status = 200, body = PlaybackWindowResponse), (status = 401), (status = 404), (status = 503)))]
+pub(crate) async fn playback_media_window(
+    State(state): State<AppState>,
+    Authenticated(principal): Authenticated,
+    ValidatedPath((session, recording)): ValidatedPath<(Uuid, Uuid)>,
+    Query(query): Query<PlaybackWindowQuery>,
+) -> Result<Json<PlaybackWindowResponse>, ApiError> {
+    let store = state.recording_playback.as_deref().ok_or_else(|| {
+        ApiError::from_application(ErrorKind::Unavailable, "recording unavailable".into())
+    })?;
+    let window = mahfel_application::recordings::playback_window(
+        store,
+        state.storage.as_ref(),
+        SessionId::from_uuid(session),
+        recording,
+        &principal,
+        query.start_ms,
+        std::time::Duration::from_secs(PLAYBACK_URL_TTL_SECONDS),
+    )
+    .await?;
+    Ok(Json(PlaybackWindowResponse { urls: window.urls }))
+}
+
+#[utoipa::path(post, operation_id = "retryRecordingPlayback", path = "/v1/sessions/{session_id}/recordings/{recording_id}/playback/retry", tag = "recordings", params(("session_id" = Uuid, Path), ("recording_id" = Uuid, Path)), responses((status = 202), (status = 401), (status = 403), (status = 404), (status = 409), (status = 503)))]
+pub(crate) async fn playback_retry(
+    State(state): State<AppState>,
+    Authenticated(principal): Authenticated,
+    ValidatedPath((session, recording)): ValidatedPath<(Uuid, Uuid)>,
+) -> Result<StatusCode, ApiError> {
+    let store = state.recording_playback.as_deref().ok_or_else(|| {
+        ApiError::from_application(ErrorKind::Unavailable, "recording unavailable".into())
+    })?;
+    mahfel_application::recordings::retry_playback(
+        store,
+        state.rooms.as_ref(),
+        state.sessions.as_ref(),
+        SessionId::from_uuid(session),
+        recording,
+        &principal,
+    )
+    .await?;
+    Ok(StatusCode::ACCEPTED)
 }
 
 const PLAYBACK_URL_TTL_SECONDS: u64 = 300;
@@ -305,6 +393,7 @@ pub(crate) async fn playback(
         manifest_key: descriptor.manifest_key,
         urls: descriptor.urls,
         assets: descriptor.assets,
+        media: descriptor.media.into_iter().map(Into::into).collect(),
         expires_in_seconds: PLAYBACK_URL_TTL_SECONDS,
     }))
 }

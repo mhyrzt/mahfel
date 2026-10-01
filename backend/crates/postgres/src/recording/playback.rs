@@ -6,6 +6,35 @@ use mahfel_domain::{ActorId, SessionId};
 use uuid::Uuid;
 
 impl RecordingPlaybackStore for PostgresRecordingStore {
+    fn retry_processing(
+        &self,
+        session: SessionId,
+        recording: Uuid,
+    ) -> BoxFuture<'_, Result<bool, StoreError>> {
+        Box::pin(async move {
+            let job: Option<Uuid> = sqlx::query_scalar(
+                "SELECT job.id FROM mahfel.background_jobs job JOIN mahfel.recordings recording ON job.payload ->> 'recording_id' = recording.id::TEXT WHERE recording.session_id = $1 AND recording.id = $2 AND recording.deleted_at IS NULL AND recording.status = 'finalizing' AND job.job_type = 'recordings.finalize' AND job.status = 'dead' ORDER BY job.updated_at DESC LIMIT 1",
+            ).bind(session.as_uuid()).bind(recording).fetch_optional(&self.pool).await.map_err(sqlx_store_error)?;
+            let Some(job) = job else {
+                return Ok(false);
+            };
+            crate::JobStore::new(self.pool.clone())
+                .replay_dead(job)
+                .await
+                .map_err(sqlx_store_error)
+        })
+    }
+    fn playback_index(
+        &self,
+        session: SessionId,
+        recording: Uuid,
+    ) -> BoxFuture<'_, Result<Option<String>, StoreError>> {
+        Box::pin(async move {
+            sqlx::query_scalar("SELECT playback_index_key FROM mahfel.recordings WHERE session_id = $1 AND id = $2 AND status = 'ready' AND deleted_at IS NULL")
+                .bind(session.as_uuid()).bind(recording).fetch_optional(&self.pool).await
+                .map(|value: Option<Option<String>>| value.flatten()).map_err(sqlx_store_error)
+        })
+    }
     fn can_play(
         &self,
         session: SessionId,
@@ -19,7 +48,7 @@ impl RecordingPlaybackStore for PostgresRecordingStore {
         recording: Uuid,
     ) -> BoxFuture<'_, Result<Option<String>, StoreError>> {
         Box::pin(async move {
-            sqlx::query_scalar("SELECT manifest_key FROM mahfel.recordings WHERE session_id = $1 AND id = $2 AND status = 'ready' AND deleted_at IS NULL")
+            sqlx::query_scalar("SELECT manifest_key FROM mahfel.recordings WHERE session_id = $1 AND id = $2 AND status = 'ready' AND playback_index_key IS NOT NULL AND deleted_at IS NULL")
                 .bind(session.as_uuid()).bind(recording).fetch_optional(&self.pool).await.map_err(sqlx_store_error)
         })
     }

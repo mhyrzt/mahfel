@@ -13,10 +13,30 @@ pub trait RecordingPlaybackStore: Send + Sync {
         session: SessionId,
         recording: Uuid,
     ) -> BoxFuture<'_, Result<Option<String>, StoreError>>;
+    fn playback_index(
+        &self,
+        session: SessionId,
+        recording: Uuid,
+    ) -> BoxFuture<'_, Result<Option<String>, StoreError>> {
+        Box::pin(async move {
+            let _ = (session, recording);
+            Ok(None)
+        })
+    }
     fn delete(
         &self,
         session: SessionId,
         recording: Uuid,
         actor: ActorId,
     ) -> BoxFuture<'_, Result<(), StoreError>>;
+    fn retry_processing(
+        &self,
+        session: SessionId,
+        recording: Uuid,
+    ) -> BoxFuture<'_, Result<bool, StoreError>> {
+        Box::pin(async move {
+            let _ = (session, recording);
+            Ok(false)
+        })
+    }
 }
