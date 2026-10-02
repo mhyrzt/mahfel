@@ -119,14 +119,3 @@ frontend-web-publish:
   dependencies: [frontend-web-build]
   variables:
     IMAGE_TARGET: web
-
-frontend-web-deploy:
-  extends: [.darkube-deploy, .frontend-release-rules]
-  rules:
-    - if: '$MAHFEL_SKIP_DEPLOY == "true"'
-      when: never
-    - !reference [.frontend-release-rules, rules]
-  variables:
-    IMAGE_TARGET: web
-    DARKUBE_APP_ID: $MAHFEL_WEB_DARKUBE_APP_ID
-    DARKUBE_DEPLOY_TOKEN: $MAHFEL_WEB_DARKUBE_DEPLOY_TOKEN
