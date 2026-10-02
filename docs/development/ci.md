@@ -40,6 +40,9 @@ The unit-test job also installs the media runtime's GStreamer base/good/bad plug
 recording readiness tests can check the required capture codecs.
 Rust compile jobs limit Cargo to two build processes and disable dev/test debug information to
 reduce memory use while compiling the AWS SDK and native media dependencies on the shared runner.
+`MESON_ARGS=-Ddebug=false` also disables mediasoup C++ debug symbols without disabling runtime
+assertions or tests. The same non-secret GitLab project variable applies to retries of older
+release pipelines. Production Docker build settings remain independent.
 
 The `prepare` stage runs `cargo fetch --locked` and `bun install --frozen-lockfile` for the selected
 components before application checks. These jobs populate lockfile/toolchain-keyed dependency

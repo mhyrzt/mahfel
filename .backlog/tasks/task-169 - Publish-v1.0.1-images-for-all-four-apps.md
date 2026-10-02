@@ -5,7 +5,7 @@ status: In Progress
 assignee:
   - '@codex'
 created_date: '2026-10-02 09:21'
-updated_date: '2026-10-02 09:43'
+updated_date: '2026-10-02 10:02'
 labels:
   - release
   - ci
@@ -27,8 +27,6 @@ Publish api, media, worker and web v1.0.1 images from the corrected source. Pres
 - [ ] #4 API, media, and worker versions and tags are v1.0.1; corrected web version and tag are v1.0.2, including all CI repairs.
 <!-- AC:END -->
 
-
-
 ## Implementation Plan
 
 <!-- SECTION:PLAN:BEGIN -->
@@ -39,4 +37,6 @@ Publish api, media, worker and web v1.0.1 images from the corrected source. Pres
 
 <!-- SECTION:NOTES:BEGIN -->
 Web v1.0.1 production and Docker builds passed, but Storybook failed because staticDirs still referenced removed recording-renderer-dist. Removed the obsolete Storybook static directory and preparing web v1.0.2; preserve immutable v1.0.1 tag. Backend components remain v1.0.1. All actual release pipelines contain no deployment jobs.
+
+API documentation tests hit a compiler-killed mediasoup C++ build with Ninja -j32. Configured non-secret MESON_ARGS=-Ddebug=false in GitLab and backend CI to reduce native compiler memory without disabling assertions or tests; production Dockerfiles unchanged. Retried failed job 7327000 as 7327216.
 <!-- SECTION:NOTES:END -->
