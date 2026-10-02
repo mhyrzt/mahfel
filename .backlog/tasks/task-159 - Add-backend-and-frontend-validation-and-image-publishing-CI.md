@@ -5,7 +5,7 @@ status: Done
 assignee:
   - '@codex'
 created_date: '2026-09-28 08:56'
-updated_date: '2026-10-01 14:31'
+updated_date: '2026-10-02 07:10'
 labels:
   - ci
   - backend
@@ -25,7 +25,7 @@ Add strict Rust/Bun/docs/protobuf CI and disposable integration tests. Protected
 - [x] #1 Change-aware MR and branch pipelines run strict backend/frontend checks with dependency caches and test reports
 - [x] #2 CI configuration validates and runner, registry, and local verification requirements are documented
 - [x] #3 Protected component version tags select only their own production image and Darkube release; main pushes never publish or deploy
-- [x] #4 The selected component image has blocking build and scan jobs before publishing; Docker uses APP_NAME:vVERSION and Darkube receives the same vVERSION image tag
+- [x] #4 The selected component image has blocking build jobs and advisory security scan jobs before publishing; Docker uses APP_NAME:vVERSION and Darkube receives the same vVERSION image tag
 <!-- AC:END -->
 
 ## Implementation Plan
@@ -80,10 +80,14 @@ Security remediation investigation for pipeline 2114541: all backend tests and i
 Prepared runtime remediation: API/media/worker production stages now use Debian 13 trixie-slim and apt-get upgrade before installing runtime packages. Rust build/toolchain stays pinned on Bookworm. Each final image checks ldd output and rejects unresolved shared libraries. Debian tracker confirms patched Trixie versions for representative GStreamer and util-linux findings; this is not proof all findings are resolved. Dockerfile build checks, strict docs and diff checks pass. Local runtime build/package download repeatedly stalls; current Trivy DB downloads from upstream and mirror timed out, so no fresh local scan or full runtime compatibility claim is made. Existing shared Trivy cache is August 25 and is not valid current security proof. Pushing the focused patch will use the remote build/scan gates for actual findings. Asked user whether to retain blocking all HIGH/CRITICAL versus reporting all but blocking only patchable findings; keep existing policy unless explicitly changed.
 
 User explicitly changed security policy and withdrew the Docker remediation: make scans nonblocking and revert Docker changes. Restored backend/Dockerfile byte-for-byte to c8d8889 parent (Bookworm; removed the attempted Trixie upgrades and ldd checks). Shared .image-scan now has allow_failure=true for all four apps in branch and release pipelines; vulnerability reports and HIGH/CRITICAL failing exit codes remain visible. Tests, builds, release protection and tag ancestry are unchanged. Updated CI documentation to describe advisory findings and scanner failures. Assembled YAML assertions and GitLab CI Lint main dry-run pass; resolved API/media/worker/web scan jobs all report allow_failure=true.
+
+2026-10-02 pipeline 2114753 unit job 7324059 failed before compilation/tests: cargo install cargo-nextest refused because the cached binary already existed without Cargo installation records. Add .cargo-ci/.crates.toml and .cargo-ci/.crates2.json alongside bin in the tools cache, and bump its prefix to rust-tools-v2-1.95.0 to prevent old incomplete archives from being restored. Offline Cargo 1.95.0 fixture reproduces binary-only restore collision and succeeds after restoring both metadata files into a different installation root. Assembled cache/policy assertions, GitLab CI Lint main dry-run (no errors/warnings), strict docs and diff checks pass. Full live unit run pending push. Production Docker remains restored; security scans remain advisory.
 <!-- SECTION:NOTES:END -->
 
 ## Final Summary
 
 <!-- SECTION:FINAL_SUMMARY:BEGIN -->
 Added strict backend/frontend/docs/protobuf CI with integration tests and reports. Main/MRs validate only. Protected APP_NAME-vMAJOR.MINOR.PATCH tags on main commits build and scan their component, publish registry.hamdocker.ir/hamdars/mahfel/APP_NAME:vVERSION, and deploy the matching vVERSION to Darkube production. API/worker/web deployment is automatic; media remains manual. Configuration, release-selection/ancestry checks, scripts, image-tag mapping and docs pass. Live releases and external protected-tag/credential/platform setup remain unperformed.
+
+User-approved follow-up: image scans are advisory for all four apps, including releases; production runtime Docker changes were reverted. Rust CI now includes required GStreamer dependencies and plugins, excludes nonportable compiled targets from cross-job caches, and retains Cargo installation records with cached tools.
 <!-- SECTION:FINAL_SUMMARY:END -->
