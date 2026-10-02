@@ -79,8 +79,15 @@ async fn keycloak_tokens_verify_and_reject_tampering() -> Result<(), Box<dyn Err
 
     // A tampered signature is rejected.
     let mut tampered = access_token.clone().into_bytes();
-    let last = tampered.len() - 1;
-    tampered[last] = if tampered[last] == b'A' { b'B' } else { b'A' };
+    let signature_start = access_token
+        .rfind('.')
+        .expect("JWT has a signature segment")
+        + 1;
+    tampered[signature_start] = if tampered[signature_start] == b'A' {
+        b'B'
+    } else {
+        b'A'
+    };
     let tampered = String::from_utf8(tampered)?;
     assert!(
         matches!(

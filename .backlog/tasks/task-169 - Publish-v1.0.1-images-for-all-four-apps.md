@@ -5,7 +5,7 @@ status: In Progress
 assignee:
   - '@codex'
 created_date: '2026-10-02 09:21'
-updated_date: '2026-10-02 10:02'
+updated_date: '2026-10-02 10:20'
 labels:
   - release
   - ci
@@ -39,4 +39,6 @@ Publish api, media, worker and web v1.0.1 images from the corrected source. Pres
 Web v1.0.1 production and Docker builds passed, but Storybook failed because staticDirs still referenced removed recording-renderer-dist. Removed the obsolete Storybook static directory and preparing web v1.0.2; preserve immutable v1.0.1 tag. Backend components remain v1.0.1. All actual release pipelines contain no deployment jobs.
 
 API documentation tests hit a compiler-killed mediasoup C++ build with Ninja -j32. Configured non-secret MESON_ARGS=-Ddebug=false in GitLab and backend CI to reduce native compiler memory without disabling assertions or tests; production Dockerfiles unchanged. Retried failed job 7327000 as 7327216.
+
+Media unit validation also hit a native compiler kill from a pre-setting job; retried as 7327272. API integration ran 423 tests with one flaky failure: mutating the final JWT base64 character can alter only unused bits. Corrected the test to mutate the first signature character, without changing production verification. Retried immutable-tag integration validation as 7327325; validating the corrected test locally against disposable Keycloak.
 <!-- SECTION:NOTES:END -->
