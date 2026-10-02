@@ -142,6 +142,15 @@ Temporary Docker image tags and registry login state are removed after jobs; Bui
 build cache. Image archives expire after one day; JUnit and scan reports expire after seven days. Retry an expired
 publish job by rerunning the pipeline so its build archives are available again.
 
+To publish images without deploying, supply `MAHFEL_SKIP_DEPLOY=true` to each tag pipeline:
+
+```bash
+git push -o ci.variable=MAHFEL_SKIP_DEPLOY=true origin api-v0.1.0
+```
+
+This omits all Darkube deployment jobs while retaining validation, advisory scans, and image
+publishing. Push component tags individually so each tag receives its own release pipeline.
+
 ## Darkube deployment
 
 The `deploy` stage runs after publishing and all quality gates. `backend-api-deploy`,

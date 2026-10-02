@@ -222,6 +222,10 @@ backend-worker-publish:
 
 backend-api-deploy:
   extends: [.darkube-deploy, .backend-api-release-rules]
+  rules:
+    - if: '$MAHFEL_SKIP_DEPLOY == "true"'
+      when: never
+    - !reference [.backend-api-release-rules, rules]
   stage: deploy
   variables:
     IMAGE_TARGET: api
@@ -230,6 +234,10 @@ backend-api-deploy:
 
 backend-worker-deploy:
   extends: [.darkube-deploy, .backend-worker-release-rules]
+  rules:
+    - if: '$MAHFEL_SKIP_DEPLOY == "true"'
+      when: never
+    - !reference [.backend-worker-release-rules, rules]
   stage: deploy
   variables:
     IMAGE_TARGET: worker
@@ -238,6 +246,10 @@ backend-worker-deploy:
 
 backend-media-deploy:
   extends: [.darkube-deploy, .backend-media-release-rules]
+  rules:
+    - if: '$MAHFEL_SKIP_DEPLOY == "true"'
+      when: never
+    - !reference [.backend-media-release-rules, rules]
   stage: deploy
   when: manual
   allow_failure: true
