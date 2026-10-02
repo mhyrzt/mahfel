@@ -1,6 +1,6 @@
 ---
 id: m-16
-title: "M16 - Darkube production deployment"
+title: "M16 - Kubernetes production deployment"
 ---
 
 ## Description
