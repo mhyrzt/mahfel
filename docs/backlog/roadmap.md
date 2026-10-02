@@ -275,11 +275,11 @@ admission thresholds across RTC, TURN, reconnect, WebSocket, chat, and collabora
 **Milestone done:** an operator can diagnose elevated API latency, overloaded/bad-quality media,
 queue/worker failure, PostgreSQL saturation, S3 errors, and AI usage from linked telemetry/runbooks.
 
-## M16 — Darkube production deployment
+## M16 — Kubernetes production deployment
 
 | ID and title | Problem description | Implementation scope | Dependencies | Done criteria |
 |---|---|---|---|---|
-| M16-01 Platform manifests/config | Compose is not a production deployment specification. | Darkube app/service definitions, images, private/public ports, env/secrets, resources, probes and scrape discovery. | M13, M15 | Manifests validate and contain no plaintext secrets or application persistent volumes. |
+| M16-01 Platform manifests/config | Compose is not a production deployment specification. | Kubernetes workload/service definitions, images, private/public ports, env/secrets, resources, probes and scrape discovery. | M13, M15 | Manifests validate and contain no plaintext secrets or application persistent volumes. |
 | M16-02 HTTP scaling rollout | Web/API/worker need safe horizontally scaled release behavior. | Ingress domains/TLS/CORS, API replicas, worker concurrency, resource limits/autoscaling, migration job and rollback. | M16-01 | Two API and two worker replicas pass functional/rolling deployment tests. |
 | M16-03 Media public networking | SFU candidates fail if stable addresses or port preservation are wrong. | Per-replica stable IP decision, 40000+ UDP/TCP service, announced address injection, firewall and flow affinity. | M16-01, platform answers | Two nodes receive reachable candidates; external/container ports match; direct UDP verified. |
 | M16-04 UDP platform qualification | LB throughput/PPS/source-IP behavior is currently unknown. | Packet capture and load tests for port preservation, sustained bandwidth, PPS, loss, source IP and generic UDP balancing. | M16-03, M14 | Evidence answers every open platform question and sets supported topology/limits. |
@@ -287,6 +287,6 @@ queue/worker failure, PostgreSQL saturation, S3 errors, and AI usage from linked
 | M16-06 Media placement/draining rollout | Scheduler identity must match platform replica/network lifecycle. | Registry address publication, node resources, probes, drain hook/grace period, autoscaling constraints and rollback. | M16-03, M4-06, M13-05 | New rooms distribute across two nodes; rolling removal drains without new placement. |
 | M16-07 Production acceptance/runbooks | A green deployment is not proof that classroom paths work. | End-to-end classroom, direct UDP, forced TURN, WebSocket, file transfer, job, observability, backup/restore and incident/rollback checks. | M16-02–M16-06 | Signed test report passes all paths and documents owners, rollback, limitations and capacity. |
 
-**Milestone done:** a production-like Darkube environment supports direct UDP and TURN, scaled
+**Milestone done:** a production-like Kubernetes environment supports direct UDP and TURN, scaled
 API/worker and at least two scheduled media nodes, with verified platform limits and operational
 runbooks.

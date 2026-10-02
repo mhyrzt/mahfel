@@ -5,7 +5,7 @@ status: In Progress
 assignee:
   - '@codex'
 created_date: '2026-10-02 09:21'
-updated_date: '2026-10-02 10:52'
+updated_date: '2026-10-02 14:53'
 labels:
   - release
   - ci
@@ -16,21 +16,21 @@ ordinal: 177000
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
-Publish corrected API, media and worker v1.0.1 images and web v1.0.2. Preserve existing release tags, advisory security scans and blocking validation/build gates. Publish images and GitLab releases only; do not execute Darkube deployment. Web production URL is https://mahfel.rastai.ai and its approved API build URL is https://mahfel-api.rastai.ai.
+Publish corrected API, media and worker v1.0.1 images and web v1.0.2. Preserve existing release tags, advisory security scans and blocking validation/build gates. Publish images and GitLab releases only; do not execute the former deployment platform deployment. Web production URL is https://mahfel.rastai.ai and its approved API build URL is https://mahfel-api.rastai.ai.
 <!-- SECTION:DESCRIPTION:END -->
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Protected component release pipelines publish all four registry images with recorded digests
-- [x] #2 Release pipelines do not create deployment jobs in publish-only mode
-- [x] #3 Web image uses the approved production API URL and all relevant validation gates pass
-- [x] #4 API, media, and worker versions and tags are v1.0.1; corrected web version and tag are v1.0.2, including all CI repairs.
+- [x] #1 Release pipelines do not create deployment jobs in publish-only mode
+- [x] #2 Web image uses the approved production API URL and all relevant validation gates pass
+- [x] #3 API, media, and worker versions and tags are v1.0.1; corrected web version and tag are v1.0.2, including all CI repairs.
+- [ ] #4 All four images from successful protected release builds are published under hamdars/mahfel-component with verified registry and image configuration digests.
 <!-- AC:END -->
 
 ## Implementation Plan
 
 <!-- SECTION:PLAN:BEGIN -->
-1. Add an explicit publish-only pipeline switch and validate release rules. 2. Set versions to 1.0.1 and regenerate API contracts. 3. Configure tag protection and required build variables. 4. Push component tags with deployment disabled and track builds/publishing to completion. 5. Verify registry digests and finalize release notes.
+1. Change CI image repository composition to MAHFEL_IMAGE_PREFIX-component and update documentation. 2. Verify all protected release gates passed and locate their exact image archives. 3. Publish those validated archives under mahfel-api, mahfel-media, mahfel-worker, and mahfel-web without rebuilding or moving tags. 4. Verify registry manifests and image configuration digests against the archives. 5. Update GitLab releases and finalize tracking; no deployment.
 <!-- SECTION:PLAN:END -->
 
 ## Implementation Notes
@@ -47,4 +47,6 @@ Web v1.0.2 passed all blocking checks and Docker build, but publish job 7327157 
 Corrected JWT tampering integration test passed locally against disposable Keycloak, and workspace formatting passed. API documentation retry 7327216 passed. Registry upload permissions remain the publication blocker for completed worker and web builds.
 
 Final current state: worker pipeline 2116231, media 2116230, and corrected web 2116264 passed all blocking tests/builds but publication was denied by registry upload permissions. API pipeline 2116229 still runs integration retry 7327325; all its other validation gates passed. GitLab release notes explicitly identify unpublished images and disabled deployment. Publication AC remains unchecked and task remains In Progress until write access is granted and all four registry digests are verified.
+
+User requested flat mahfel-component registry repositories instead of mahfel/component. CI publisher and cleanup now use the flat names. All blocking validation/build jobs in the four protected release pipelines passed. Original publisher jobs contain the previous naming configuration, so publish their exact successful build artifacts directly under the newly approved repository names, without rebuilding or moving tags.
 <!-- SECTION:NOTES:END -->

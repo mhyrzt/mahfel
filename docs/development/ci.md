@@ -89,7 +89,7 @@ upload GitLab container-scanning reports using Trivy's GitLab report template. A
 vulnerability fails the scan job with an allowed-failure warning; it does not fail the pipeline.
 Unfixed vulnerabilities remain included in reports.
 
-Mahfel has one release environment: Darkube production. Release tags use
+The initial production deployment uses K3s and Argo CD. Release tags use
 `APP_NAME-vMAJOR.MINOR.PATCH`, where the app is `api`, `media`, `worker`, or `web`. Versions have
 three numeric parts without leading zeroes; prerelease suffixes are not production release triggers.
 Each component versions independently. A tag pipeline selects only that component's runtime image;
@@ -98,8 +98,7 @@ requires the tagged commit to be reachable from the default branch (`main`).
 
 Publishing runs only for pushed, protected component release tags. The publish stage waits for all
 preceding validation and builds to succeed and advisory scans to finish. It loads the same build
-archive rather than rebuilding it. CI strips the app prefix from the Git release tag: `api-v0.1.0` publishes `api:v0.1.0`
-and deploys Darkube image tag `v0.1.0`. The image repository identifies the app:
+archive rather than rebuilding it. CI strips the app prefix from the Git release tag: `api-v0.1.0` publishes `mahfel-api:v0.1.0`. The image repository identifies the app:
 
 ```text
 registry.hamdocker.ir/hamdars/mahfel-api:v0.1.0
@@ -145,45 +144,18 @@ Temporary Docker image tags and registry login state are removed after jobs; Bui
 build cache. Image archives expire after one day; JUnit and scan reports expire after seven days. Retry an expired
 publish job by rerunning the pipeline so its build archives are available again.
 
-To publish images without deploying, supply `MAHFEL_SKIP_DEPLOY=true` to each tag pipeline:
+## Kubernetes deployment
 
-```bash
-git push -o ci.variable=MAHFEL_SKIP_DEPLOY=true origin api-v0.1.0
-```
+Release pipelines validate and publish images; they do not deploy to the VPS.
+Argo CD owns deployment after reviewed configuration changes reach Git.
 
-This omits all Darkube deployment jobs while retaining validation, advisory scans, and image
-publishing. Push component tags individually so each tag receives its own release pipeline.
+Verify registry publication and pull access, then update the selected component's immutable image
+reference in `deploy/kubernetes/overlays/production/kustomization.yaml` through a reviewed Git change.
+Argo CD tracks that configuration and requires manual sync initially. Publishing a tag does not
+change the deployment manifest. Runtime secrets and TLS use encrypted SealedSecrets in the production GitOps profile.
 
-## Darkube deployment
-
-The `deploy` stage runs after publishing and all quality gates. `backend-api-deploy`,
-`backend-worker-deploy`, and `frontend-web-deploy` automatically deploy their component when its
-protected version tag is pushed. They pass the exact published image tag to the same Darkube CLI used by LMS. Each app has a
-separate resource group to serialize rollouts and a production environment entry. Deploy jobs do not
-use `needs`, so they cannot bypass failed checks or publishing jobs.
-
-`backend-media-deploy` is an optional manual job. Run it only after the public networking and media
-drain requirements in [Darkube deployment](../deployment/darkube.md) have been qualified. An
-ordinary CLI deployment does not implement graceful media draining or prove UDP connectivity.
-
-Create four Docker-image apps on Darkube, configured to pull the corresponding image repository
-above with registry credentials. Configure runtime secrets, private operations probes, and the
-required production network topology on those apps. Database migrations must finish before rolling
-API/worker versions that require them; configure that release operation before enabling the deploy
-tokens. These CI jobs update existing apps, not create infrastructure or configure migrations.
-
-Set the following GitLab variables for each component, using protected and masked deploy tokens:
-
-| Component | App ID | Deploy token |
-| --- | --- | --- |
-| API | `MAHFEL_API_DARKUBE_APP_ID` | `MAHFEL_API_DARKUBE_DEPLOY_TOKEN` |
-| Worker | `MAHFEL_WORKER_DARKUBE_APP_ID` | `MAHFEL_WORKER_DARKUBE_DEPLOY_TOKEN` |
-| Web | `MAHFEL_WEB_DARKUBE_APP_ID` | `MAHFEL_WEB_DARKUBE_DEPLOY_TOKEN` |
-| Media | `MAHFEL_MEDIA_DARKUBE_APP_ID` | `MAHFEL_MEDIA_DARKUBE_DEPLOY_TOKEN` |
-
-Keep CI credentials available to these `production/*` environment entries. Missing app IDs or
-tokens fail a deploy job before it invokes Darkube. Adding the jobs does not mean that a live
-deployment or platform qualification has passed.
+See [Kubernetes deployment](../deployment/kubernetes.md) for bootstrap, migration hooks, media
+rollout constraints and acceptance. This preparation does not establish registry or live rollout success.
 
 ## Local validation
 

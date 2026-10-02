@@ -6,8 +6,8 @@ Accepted
 
 ## Context
 
-Hamravesh/Darkube provides container scheduling and horizontal scaling. Container filesystems and
-replica identities are not durable.
+Managed container platforms provide container scheduling and horizontal scaling. Container
+filesystems and replica identities are not durable.
 
 ## Decision
 
@@ -22,5 +22,5 @@ public networking plus graceful draining. External managed infrastructure become
 
 ## Alternatives considered
 
-Per-container persistent application volumes impair scaling and failover. Hardcoded Darkube
+Per-container persistent application volumes impair scaling and failover. Hardcoded platform
 behavior would prevent portable testing and alternative deployments.

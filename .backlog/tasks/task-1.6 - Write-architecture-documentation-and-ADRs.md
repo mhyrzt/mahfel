@@ -5,7 +5,7 @@ status: Done
 assignee:
   - '@codex'
 created_date: '2026-09-07 23:24'
-updated_date: '2026-09-08 00:40'
+updated_date: '2026-10-02 14:53'
 labels: []
 milestone: m-0
 dependencies: []
@@ -24,7 +24,7 @@ Problem: architectural boundaries and deployment assumptions are not durable. Sc
 - [x] #1 mkdocs build --strict passes
 - [x] #2 All required architecture pages and Mermaid flows exist
 - [x] #3 ADRs 0001 through 0014 contain status, context, decision, consequences, and alternatives
-- [x] #4 Darkube unknowns and private-port policy are explicit
+- [x] #4 the former deployment platform unknowns and private-port policy are explicit
 <!-- AC:END -->
 
 ## Implementation Plan
@@ -42,5 +42,5 @@ Validated the complete MkDocs navigation and all architecture/ADR/deployment pag
 ## Final Summary
 
 <!-- SECTION:FINAL_SUMMARY:BEGIN -->
-Documented the four-component architecture, eight Mermaid runtime flows, observability/network boundaries, Darkube unknowns, and accepted ADRs 0001 through 0014.
+Documented the four-component architecture, eight Mermaid runtime flows, observability/network boundaries, the former deployment platform unknowns, and accepted ADRs 0001 through 0014.
 <!-- SECTION:FINAL_SUMMARY:END -->

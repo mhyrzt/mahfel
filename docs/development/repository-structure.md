@@ -28,7 +28,11 @@
 | `frontend/Dockerfile` | Next.js production image definition |
 | `bruno` | Bruno API collection (placeholder; generated from the OpenAPI document per ADR 0016) |
 | `proto` | Source protobuf contracts |
-| `deploy` | Container, Prometheus, Grafana, and future platform assets |
+| `deploy/kubernetes` | Generic Kubernetes applications, production and local profiles, production runbook |
+| `deploy/argocd` | Manual GitOps production deployment and bootstrap |
+| `deploy/k3s` | VPS cluster configuration example |
+| `deploy/vps` | Ubuntu 24.04 host and cluster bootstrap |
+| `deploy` | Container and observability assets |
 | `docs` | MkDocs architecture, decisions, deployment, development, roadmap |
 
 Crates are added when a meaningful boundary has implementation and tests. Chat, files,

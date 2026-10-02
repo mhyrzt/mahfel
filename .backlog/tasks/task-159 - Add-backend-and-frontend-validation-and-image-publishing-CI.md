@@ -1,11 +1,11 @@
 ---
 id: TASK-159
-title: Add validation and production Darkube CI
+title: Add validation and image publishing CI
 status: Done
 assignee:
   - '@codex'
 created_date: '2026-09-28 08:56'
-updated_date: '2026-10-02 07:10'
+updated_date: '2026-10-02 14:54'
 labels:
   - ci
   - backend
@@ -17,21 +17,21 @@ ordinal: 167000
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
-Add strict Rust/Bun/docs/protobuf CI and disposable integration tests. Protected APP_NAME-vMAJOR.MINOR.PATCH tags on main commits select per-component registry.hamdocker.ir publishing and Darkube production rollout. Main/MRs validate only. API/worker/web tagged releases deploy automatically; media tagged releases expose an optional manual deploy pending platform qualification. Preserve docs Pages and document runner, tag protection, registry, credentials, versioning, and migration prerequisites.
+Add strict Rust/Bun/docs/protobuf CI and disposable integration tests. Protected APP_NAME-vMAJOR.MINOR.PATCH tags on main commits select per-component registry.hamdocker.ir publishing and the former deployment platform production rollout. Main/MRs validate only. API/worker/web tagged releases deploy automatically; media tagged releases expose an optional manual deploy pending platform qualification. Preserve docs Pages and document runner, tag protection, registry, credentials, versioning, and migration prerequisites.
 <!-- SECTION:DESCRIPTION:END -->
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
 - [x] #1 Change-aware MR and branch pipelines run strict backend/frontend checks with dependency caches and test reports
 - [x] #2 CI configuration validates and runner, registry, and local verification requirements are documented
-- [x] #3 Protected component version tags select only their own production image and Darkube release; main pushes never publish or deploy
-- [x] #4 The selected component image has blocking build jobs and advisory security scan jobs before publishing; Docker uses APP_NAME:vVERSION and Darkube receives the same vVERSION image tag
+- [x] #3 Protected component version tags select only their own production image and the former deployment platform release; main pushes never publish or deploy
+- [x] #4 The selected component image has blocking build jobs and advisory security scan jobs before publishing; Docker uses APP_NAME:vVERSION and the former deployment platform receives the same vVERSION image tag
 <!-- AC:END -->
 
 ## Implementation Plan
 
 <!-- SECTION:PLAN:BEGIN -->
-Protected APP_NAME-vMAJOR.MINOR.PATCH tags on commits reachable from main select per-component Darkube releases. Main/MRs validate only. Strip APP_NAME- for Docker APP_NAME:vVERSION publishing, cleanup, and Darkube image-tag. Preserve blocking validation/scans and require the production API URL for web releases.
+Protected APP_NAME-vMAJOR.MINOR.PATCH tags on commits reachable from main select per-component the former deployment platform releases. Main/MRs validate only. Strip APP_NAME- for Docker APP_NAME:vVERSION publishing, cleanup, and the former deployment platform image-tag. Preserve blocking validation/scans and require the production API URL for web releases.
 <!-- SECTION:PLAN:END -->
 
 ## Implementation Notes
@@ -43,15 +43,15 @@ Validation: GitLab CI Lint dry-run with main context accepted the assembled conf
 
 2026-09-28 scope refinement: Mahfel has only a production release environment. Restricted all four image publishers to production branch push pipelines. Removed default/staging release URL variables and the staging workflow exception. Production branch web builds require MAHFEL_API_URL_PRODUCTION; other refs retain validation-only builds. Updated CI documentation. YAML/rule assertions, five URL-selection scenarios, ShellCheck, and changed-file formatting checks pass.
 
-User clarified the only release environment is Darkube production. Extending the CI setup with Darkube rollout jobs; release branch selection requested. Production topology and media rollout limitations remain documented and are not live-qualified by adding CI jobs.
+User clarified the only release environment is the former deployment platform production. Extending the CI setup with the former deployment platform rollout jobs; release branch selection requested. Production topology and media rollout limitations remain documented and are not live-qualified by adding CI jobs.
 
-User explicitly selected the default branch (main) for Darkube production. This supersedes the earlier separate production-branch assumptions. Publish and deploy rules share default-branch push conditions; main web builds require MAHFEL_API_URL_PRODUCTION.
+User explicitly selected the default branch (main) for the former deployment platform production. This supersedes the earlier separate production-branch assumptions. Publish and deploy rules share default-branch push conditions; main web builds require MAHFEL_API_URL_PRODUCTION.
 
-Darkube completion: verified actual v1.1 CLI deploy help supports token, app-id, image-tag, and job-id. Reset the image entrypoint for GitLab scripts. Final main-context GitLab CI Lint dry-run passes; resolved deploy inheritance selects Darkube commands, production environment/resource groups, default-branch push rules, dependencies=[], and no needs that bypass stage gates. Main/other-branch/missing-URL scenarios, ShellCheck, focused frontend YAML formatting, strict MkDocs, and changed-file diff checks pass. Main deploys API/worker/web after all scans and publishes; media is optional manual per current deployment guide. No live deploy, app creation, registry push, migration, or RTC qualification was attempted. App IDs/tokens and production runtime/migration setup must be configured on GitLab/Darkube.
+the former deployment platform completion: verified actual v1.1 CLI deploy help supports token, app-id, image-tag, and job-id. Reset the image entrypoint for GitLab scripts. Final main-context GitLab CI Lint dry-run passes; resolved deploy inheritance selects the former deployment platform commands, production environment/resource groups, default-branch push rules, dependencies=[], and no needs that bypass stage gates. Main/other-branch/missing-URL scenarios, ShellCheck, focused frontend YAML formatting, strict MkDocs, and changed-file diff checks pass. Main deploys API/worker/web after all scans and publishes; media is optional manual per current deployment guide. No live deploy, app creation, registry push, migration, or RTC qualification was attempted. App IDs/tokens and production runtime/migration setup must be configured on GitLab/the former deployment platform.
 
-Release-tag refinement supersedes automatic main publishing/deployment. Stable protected api-vX.Y.Z/media-vX.Y.Z/worker-vX.Y.Z/web-vX.Y.Z push tags select only their runtime image and release jobs. Backend tags retain shared workspace checks; every release checks main ancestry. Exact CI_COMMIT_TAG is used for Docker and Darkube. Main builds use validation fixture URL; web release builds require MAHFEL_API_URL_PRODUCTION. Validation: 18 local pipeline-selection contexts (protected/unprotected components, invalid/leading-zero/prerelease tags, main/MR/feature/schedule/UI contexts), dependency/inheritance assertions, three build URL scenarios, disposable Git ancestry acceptance/rejection, ShellCheck, focused YAML formatting, strict docs, and diff checks pass. GitLab CI Lint accepted main and four synthetic protected-component tag contexts. No actual Git tag, registry publication, deployment, or protected-tag setting was created.
+Release-tag refinement supersedes automatic main publishing/deployment. Stable protected api-vX.Y.Z/media-vX.Y.Z/worker-vX.Y.Z/web-vX.Y.Z push tags select only their runtime image and release jobs. Backend tags retain shared workspace checks; every release checks main ancestry. Exact CI_COMMIT_TAG is used for Docker and the former deployment platform. Main builds use validation fixture URL; web release builds require MAHFEL_API_URL_PRODUCTION. Validation: 18 local pipeline-selection contexts (protected/unprotected components, invalid/leading-zero/prerelease tags, main/MR/feature/schedule/UI contexts), dependency/inheritance assertions, three build URL scenarios, disposable Git ancestry acceptance/rejection, ShellCheck, focused YAML formatting, strict docs, and diff checks pass. GitLab CI Lint accepted main and four synthetic protected-component tag contexts. No actual Git tag, registry publication, deployment, or protected-tag setting was created.
 
-Image-tag refinement: kept Git APP_NAME-vVERSION release triggers, stripped the component prefix for Docker APP_NAME:vVERSION and Darkube vVERSION, including publisher cleanup. Eight local component/version scenarios using stubbed Docker/Darkube CLIs passed publishing, cleanup, and deployment argument assertions. YAML parsing, strict MkDocs, and git diff --check passed. No images were published or deployed.
+Image-tag refinement: kept Git APP_NAME-vVERSION release triggers, stripped the component prefix for Docker APP_NAME:vVERSION and the former deployment platform vVERSION, including publisher cleanup. Eight local component/version scenarios using stubbed Docker/the former deployment platform CLIs passed publishing, cleanup, and deployment argument assertions. YAML parsing, strict MkDocs, and git diff --check passed. No images were published or deployed.
 
 Live backend-lint failed because the shared Rust CI setup installed python3 without python3-pip. Verified mediasoup-sys 0.17.0 build.rs invokes python3 -m pip install --target for invoke. Added python3-pip and an early pip-version check to .backend-base, covering lint/unit/doctest jobs; Docker chef already installs pip. YAML/inheritance assertions, strict MkDocs, and diff checks pass. The corrected runner build has not yet been executed.
 
@@ -87,7 +87,7 @@ User explicitly changed security policy and withdrew the Docker remediation: mak
 ## Final Summary
 
 <!-- SECTION:FINAL_SUMMARY:BEGIN -->
-Added strict backend/frontend/docs/protobuf CI with integration tests and reports. Main/MRs validate only. Protected APP_NAME-vMAJOR.MINOR.PATCH tags on main commits build and scan their component, publish registry.hamdocker.ir/hamdars/mahfel/APP_NAME:vVERSION, and deploy the matching vVERSION to Darkube production. API/worker/web deployment is automatic; media remains manual. Configuration, release-selection/ancestry checks, scripts, image-tag mapping and docs pass. Live releases and external protected-tag/credential/platform setup remain unperformed.
+Added strict backend/frontend/docs/protobuf CI with integration tests and reports. Main/MRs validate only. Protected APP_NAME-vMAJOR.MINOR.PATCH tags on main commits build and scan their component, publish registry.hamdocker.ir/hamdars/mahfel/APP_NAME:vVERSION, and deploy the matching vVERSION to the former deployment platform production. API/worker/web deployment is automatic; media remains manual. Configuration, release-selection/ancestry checks, scripts, image-tag mapping and docs pass. Live releases and external protected-tag/credential/platform setup remain unperformed.
 
 User-approved follow-up: image scans are advisory for all four apps, including releases; production runtime Docker changes were reverted. Rust CI now includes required GStreamer dependencies and plugins, excludes nonportable compiled targets from cross-job caches, and retains Cargo installation records with cached tools.
 <!-- SECTION:FINAL_SUMMARY:END -->

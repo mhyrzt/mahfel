@@ -37,8 +37,8 @@ formatting, and `just minikube lint` to render and validate the complete Kuberne
 The helper checks that the current kubectl context is exactly `minikube` before changing resources.
 It creates ConfigMaps from the repository's canonical Caddyfile, index page, and Keycloak realm
 fixture; no copies of these files are maintained in the Minikube directory. Manifests are in
-`deploy/minikube/infrastructure/` and `deploy/minikube/applications/`, with a file per component.
-The root Kustomization renders them with `kubectl kustomize deploy/minikube` for inspection. The helper
+`deploy/kubernetes/overlays/local/infrastructure/` and `deploy/kubernetes/overlays/local/applications/`, with a file per component.
+The root Kustomization renders them with `kubectl kustomize deploy/kubernetes/overlays/local` for inspection. The helper
 applies them in dependency order so migrations and seeds complete before the API starts. The
 documentation-only address `192.0.2.1` in the checked-in manifests is replaced with the actual
 `minikube ip` during `up` for RTC traffic. The OIDC host alias uses `192.0.2.2` as a placeholder

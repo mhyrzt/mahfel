@@ -4,7 +4,7 @@ title: M1-03 HTTP contract foundation
 status: Done
 assignee: []
 created_date: '2026-09-08 00:31'
-updated_date: '2026-09-19 11:22'
+updated_date: '2026-10-02 14:53'
 labels: []
 milestone: m-1
 dependencies: []
@@ -52,7 +52,7 @@ Validation: cargo fmt --all --check clean; cargo clippy --workspace --all-target
 
 Refactor after review: split bins/api/src/http/mod.rs into single-concern modules — mod.rs (composition only), cors.rs, middleware.rs (security headers), request_id.rs, error.rs, extractor.rs, pagination.rs, routes/{mod,status,health,echo}.rs, and tests.rs. Added an unversioned-unknown-route 404 contract test (14 tests total). No behavior change.
 
-Path change after review: API version prefix is /v1 (not /api/v1) because mahfel-api is served on its own host (api.mahfel.localhost; darkube routes web and API to separate ingresses), so /api was redundant. Updated router nest, http module docs/comments, tests, backend/AGENTS.md, docs/development/conventions.md, docs/deployment/local.md, docs/backlog/roadmap.md, and OIDC redirect fixtures (backend/config/default.toml, backend/config/local.toml.example, deploy/dex/config.yaml, .env.example). 14 tests pass; just docs strict build passes.
+Path change after review: API version prefix is /v1 (not /api/v1) because mahfel-api is served on its own host (api.mahfel.localhost; the former deployment platform routes web and API to separate ingresses), so /api was redundant. Updated router nest, http module docs/comments, tests, backend/AGENTS.md, docs/development/conventions.md, docs/deployment/local.md, docs/backlog/roadmap.md, and OIDC redirect fixtures (backend/config/default.toml, backend/config/local.toml.example, deploy/dex/config.yaml, .env.example). 14 tests pass; just docs strict build passes.
 <!-- SECTION:NOTES:END -->
 
 ## Final Summary
