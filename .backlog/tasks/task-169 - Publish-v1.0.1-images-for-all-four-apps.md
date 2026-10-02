@@ -1,10 +1,11 @@
 ---
 id: TASK-169
-title: Publish v1.0.1 images for all four apps
+title: Publish corrected release images for all apps
 status: In Progress
 assignee:
   - '@codex'
 created_date: '2026-10-02 09:21'
+updated_date: '2026-10-02 09:43'
 labels:
   - release
   - ci
@@ -20,14 +21,22 @@ Publish api, media, worker and web v1.0.1 images from the corrected source. Pres
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 All four app versions and release tags identify v1.0.1 and the source includes the CI repairs
-- [ ] #2 Protected component release pipelines publish all four registry images with recorded digests
-- [ ] #3 Release pipelines do not create deployment jobs in publish-only mode
-- [ ] #4 Web image uses the approved production API URL and all relevant validation gates pass
+- [ ] #1 Protected component release pipelines publish all four registry images with recorded digests
+- [x] #2 Release pipelines do not create deployment jobs in publish-only mode
+- [ ] #3 Web image uses the approved production API URL and all relevant validation gates pass
+- [ ] #4 API, media, and worker versions and tags are v1.0.1; corrected web version and tag are v1.0.2, including all CI repairs.
 <!-- AC:END -->
+
+
 
 ## Implementation Plan
 
 <!-- SECTION:PLAN:BEGIN -->
 1. Add an explicit publish-only pipeline switch and validate release rules. 2. Set versions to 1.0.1 and regenerate API contracts. 3. Configure tag protection and required build variables. 4. Push component tags with deployment disabled and track builds/publishing to completion. 5. Verify registry digests and finalize release notes.
 <!-- SECTION:PLAN:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Web v1.0.1 production and Docker builds passed, but Storybook failed because staticDirs still referenced removed recording-renderer-dist. Removed the obsolete Storybook static directory and preparing web v1.0.2; preserve immutable v1.0.1 tag. Backend components remain v1.0.1. All actual release pipelines contain no deployment jobs.
+<!-- SECTION:NOTES:END -->
