@@ -1,12 +1,12 @@
 ---
 id: TASK-99
-title: M16-01 Platform manifests/config
+title: M16-01 Platform deployment/config
 status: To Do
 assignee: []
 created_date: '2026-09-08 00:32'
-updated_date: '2026-10-02 14:51'
+updated_date: '2026-10-03 11:28'
 labels: []
-milestone: m-16
+milestone: m-17
 dependencies: []
 documentation:
   - docs/backlog/roadmap.md
@@ -17,10 +17,10 @@ ordinal: 107000
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
-Problem: Compose is not a production deployment specification.\n\nImplementation scope: Kubernetes workload/service definitions, images, private/public ports, env/secrets, resources, probes and scrape discovery.
+Problem: Development configuration is not a production deployment specification. Implementation scope: Production Compose definitions and deployment targets, images, private/public ports, external dependencies, runtime secrets, resources, healthchecks and scrape discovery.
 <!-- SECTION:DESCRIPTION:END -->
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Manifests validate and contain no plaintext secrets or application persistent volumes.
+- [ ] #1 Deployment configuration validates and contains no plaintext secrets; durable application state remains in PostgreSQL and S3.
 <!-- AC:END -->

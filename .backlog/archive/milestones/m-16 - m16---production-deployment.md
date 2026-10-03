@@ -1,6 +1,6 @@
 ---
 id: m-16
-title: "M16 - Kubernetes production deployment"
+title: "M16 - Production deployment"
 ---
 
 ## Description
