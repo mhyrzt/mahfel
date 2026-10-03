@@ -1,8 +1,8 @@
 # Continuous integration
 
 Mahfel uses GitLab CI with a root workflow, shared image jobs under `ci/`, and component jobs in
-`backend/.gitlab-ci.yml` and `frontend/.gitlab-ci.yml`. Validation and build jobs are blocking;
-image security scans are advisory and do not block subsequent stages when they fail.
+`backend/.gitlab-ci.yml`, `frontend/.gitlab-ci.yml` and `docs/.gitlab-ci.yml`. Validation and build
+jobs are blocking; image security scans are advisory and do not block subsequent stages when they fail.
 The structure follows LMS, using Mahfel's pinned Rust and Bun tools and four runtime images.
 
 ## Pipeline triggers and scope
@@ -89,7 +89,7 @@ upload GitLab container-scanning reports using Trivy's GitLab report template. A
 vulnerability fails the scan job with an allowed-failure warning; it does not fail the pipeline.
 Unfixed vulnerabilities remain included in reports.
 
-The initial production deployment uses K3s and Argo CD. Release tags use
+Release tags use
 `APP_NAME-vMAJOR.MINOR.PATCH`, where the app is `api`, `media`, `worker`, or `web`. Versions have
 three numeric parts without leading zeroes; prerelease suffixes are not production release triggers.
 Each component versions independently. A tag pipeline selects only that component's runtime image;
@@ -144,18 +144,10 @@ Temporary Docker image tags and registry login state are removed after jobs; Bui
 build cache. Image archives expire after one day; JUnit and scan reports expire after seven days. Retry an expired
 publish job by rerunning the pipeline so its build archives are available again.
 
-## Kubernetes deployment
+## Deployment boundary
 
-Release pipelines validate and publish images; they do not deploy to the VPS.
-Argo CD owns deployment after reviewed configuration changes reach Git.
-
-Verify registry publication and pull access, then update the selected component's immutable image
-reference in `deploy/kubernetes/overlays/production/kustomization.yaml` through a reviewed Git change.
-Argo CD tracks that configuration and requires manual sync initially. Publishing a tag does not
-change the deployment manifest. Runtime secrets and TLS use encrypted SealedSecrets in the production GitOps profile.
-
-See [Kubernetes deployment](../deployment/kubernetes.md) for bootstrap, migration hooks, media
-rollout constraints and acceptance. This preparation does not establish registry or live rollout success.
+Release pipelines validate and publish images. This repository does not currently define a
+production deployment job; image publication alone does not deploy an application.
 
 ## Local validation
 

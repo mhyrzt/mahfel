@@ -2,7 +2,7 @@
 
 `mahfel-api` authorizes file operations and stores metadata in PostgreSQL. The browser sends bytes
 directly to S3-compatible storage. The API uses an internal S3 endpoint to verify uploads; it
-signs browser URLs against a public endpoint. In local Minikube these are `http://rustfs:9000` and
+signs browser URLs against a public endpoint. In local Compose these are `http://rustfs:9000` and
 `https://s3.mahfel.localhost`. Both endpoint names must address the same bucket.
 
 ## Transfer contract
@@ -86,8 +86,8 @@ finishes after its metadata has been cleaned up. The final `files/` prefix has n
 The `[storage]` section has internal/public endpoints, region, bucket, credentials, and path-style
 addressing; environment overrides use `MAHFEL_STORAGE__*`. Replace all local fixture credentials
 in shared or production environments. The API checks the bucket at startup. Configure bucket
-CORS for the browser origin, PUT and GET, and the signed request headers; Minikube bootstrap sets
-this for its RustFS bucket.
+CORS for the browser origin, PUT and GET, and the signed request headers; the local RustFS
+initialization service sets this for its development bucket.
 
 `backend/crates/storage/tests/s3.rs` runs the signed PUT/GET/copy/read/delete contract against a
 disposable RustFS container (`MAHFEL_TESTCONTAINERS=1`). It creates and removes a test bucket and

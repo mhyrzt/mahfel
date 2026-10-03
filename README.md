@@ -75,19 +75,5 @@ just compose-up
 Open `https://mahfel.localhost`. `just bootstrap` installs the Compose Caddy CA in your host
 trust store and may prompt for `sudo`.
 
-For initial VPS production, use the [K3s + Argo CD runbook](deploy/kubernetes/RUNBOOK.md).
-
-To use Minikube locally instead:
-
-```bash
-just minikube init
-just minikube bootstrap
-```
-
-Initialize the cluster once. `just minikube bootstrap` builds and deploys the apps, then forwards
-HTTPS until you stop the command. Host ports 80 and 443 must be free. Certificate trust and
-forwarding may prompt for `sudo`. Open `https://mahfel.localhost` once forwarding starts. Run
-`just minikube cert` if the Minikube CA changes.
-
 See [getting started](docs/development/getting-started.md) for details. Run `just --list` for all
 development commands.

@@ -71,11 +71,6 @@ docs-serve:
 api-docs-export:
     just backend api-docs-export
 
-# Forward Minikube recipes and arguments to the deployment Justfile.
-[group('Components')]
-minikube *args:
-    just --justfile deploy/minikube/justfile {{args}}
-
 # Resolve requested Compose profiles and print the selected profiles, one per line.
 _compose-selected-profiles *profiles:
     #!/usr/bin/env bash

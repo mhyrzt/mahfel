@@ -74,8 +74,8 @@ The coordinator checks open and pending files every 250 ms and stops capture at 
 In-flight mux/queue bytes can finish while sealing; provision filesystem headroom beyond the
 threshold. Encoded queues are bounded to 4 MiB per tap. Individual accepted fragments are capped
 at 32 MiB. Storage failure keeps journals for retry; capacity exhaustion never blocks publishers.
-Compose mounts a named spool volume; Minikube mounts a disk-backed 2 GiB emptyDir, preserving
-container restarts within a pod but not pod/host loss. PostgreSQL and S3 remain authoritative.
+Compose mounts a named spool volume that survives container restarts. Host or volume loss
+can still destroy unpublished fragments; PostgreSQL and S3 remain authoritative.
 API, media and worker must use the same private bucket and storage credentials.
 
 Referenced presentation files, embedded images and recorded chat attachments receive private

@@ -141,8 +141,7 @@ stack without rebuilding an image:
 docker compose --profile infrastructure --profile mahfel run --rm --no-deps mahfel-seed
 ```
 
-The Minikube seed Job reads the same directory packaged in the API image; rebuild that image and
-run `just minikube up` after changing a fixture. A user fixture requires
+A user fixture requires
 Keycloak; principal and room fixtures only require PostgreSQL. Re-running fixtures preserves
 existing users, passwords, rooms, memberships, and session state. The classroom fixture has stable
 IDs in `backend/seeds/0003_development_rooms.toml`; its manager and members refer to the bundled
@@ -158,8 +157,7 @@ To seed profile pictures or room/session assets, add a later TOML file with `kin
 `session`), `context_id`, and `path`. An avatar's context ID must equal its owner ID; room and
 session owners must be members of the room. Paths may be absolute or relative to the TOML file.
 For container deployments, keep relative assets inside `backend/seeds/`; an absolute path must
-exist inside the seed container. Compose mounts the checkout directory at `/app/seeds`, while the
-Minikube API image copies it to the same path.
+exist inside the seed container. Compose mounts the checkout directory at `/app/seeds`.
 PNG and JPEG are accepted for avatars; room and session assets also accept PDF. Files are checked
 before database writes, uploaded to S3-compatible storage, and verified through the normal file
 completion flow. Re-running a fixture with the same ID and content keeps the ready file. The seed

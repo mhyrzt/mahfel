@@ -33,8 +33,6 @@ nav:
       - Continuous integration: development/ci.md
   - Deployment:
       - Local: deployment/local.md
-      - Kubernetes production: deployment/kubernetes.md
-      - Local Kubernetes: deployment/minikube.md
       - Background jobs: deployment/background-jobs.md
       - Recordings: deployment/recordings.md
   - Architecture:
@@ -79,6 +77,4 @@ nav:
       - 0028 Recording MP4 export: adr/0028-recording-mp4-export.md
       - 0029 Mandatory recording start: adr/0029-mandatory-recording-start.md
       - 0030 Native recording image rendering: adr/0030-native-recording-image-rendering.md
-      - 0031 VPS Kubernetes production: adr/0031-vps-kubernetes-production.md
-      - 0032 Cluster TURN and Sealed Secrets: adr/0032-cluster-turn-and-sealed-secrets.md
   - Backlog: backlog/roadmap.md

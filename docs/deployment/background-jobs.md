@@ -35,8 +35,7 @@ and other permanent failures go straight to the DLQ. The source queue uses an at
 dead-letter policy with `reject-publish` overflow. The DLQ keeps messages for seven days;
 PostgreSQL retains dead job state and attempt history until an operator resolves it.
 
-In local Minikube, `just minikube` applies the broker policy after RabbitMQ starts. Other
-deployments must apply the equivalent quorum-queue policy before starting workers:
+Apply the quorum-queue policy after RabbitMQ starts and before starting workers:
 
 ```bash
 rabbitmqctl set_policy mahfel-job-dlx '^mahfel\.jobs\.(files\.cleanup|recordings\.finalize)\.v1$' \
