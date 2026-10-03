@@ -18,3 +18,13 @@ ci-artifacts
 
 frontend/storybook-static
 e2e/artifacts
+
+# Local credentials and Python cache artifacts never enter image context.
+.local/
+**/.venv/
+**/__pycache__/
+**/.pytest_cache/
+**/.mypy_cache/
+**/.ruff_cache/
+
+.uv-cache/
