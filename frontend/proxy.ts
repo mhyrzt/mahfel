@@ -5,7 +5,10 @@ import { sessionCookieName, shouldUseSecureAuthCookies } from "./lib/auth/cookie
 const PUBLIC_PATHS = ["/", "/login", "/api/auth", "/api/health"];
 
 function isPublicPath(pathname: string): boolean {
-  return PUBLIC_PATHS.some((path) => pathname === path || pathname.startsWith(`${path}/`));
+  return (
+    pathname === "/mahfel-mark.svg" ||
+    PUBLIC_PATHS.some((path) => pathname === path || pathname.startsWith(`${path}/`))
+  );
 }
 
 export async function proxy(request: NextRequest): Promise<NextResponse> {
