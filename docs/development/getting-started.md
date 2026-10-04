@@ -116,6 +116,11 @@ Host processes use `backend/config/local.toml` and environment overrides. The fr
 `frontend/.env.local`. Use direct loopback ports for this mode, or configure the Caddy upstream
 variables documented in [local deployment](../deployment/local.md) when HTTPS domains are needed.
 
+After Keycloak login, the web session provisions the account through `POST /v1/auth/provision`
+and refreshes the token before using authenticated APIs. The refreshed `app_user_id` must match
+the API profile. Existing sessions without a linked identity perform the same recovery on their
+next server session read. Provisioning failures withhold the API token and retry after five seconds.
+
 The local realm fixture seeds an administrator; bootstrapping a service principal locally is to log
 in through `mahfel-web` as that administrator, let `POST /v1/auth/provision` link the local user, then
 call `POST /v1/admin/service-principals` with the resulting access token. The raw API key is returned

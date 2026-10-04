@@ -2,6 +2,7 @@ import type { JWT } from "next-auth/jwt";
 import type { Session } from "next-auth";
 import { AUTH_CONFIG } from "./config";
 import { extractUserFromToken } from "./jwt";
+import { serverApiBaseUrl } from "../api/config";
 
 interface ExtendedJWT extends JWT {
   accessToken: string;
@@ -81,6 +82,7 @@ async function exchangeKeycloakToken(token: ExtendedJWT): Promise<ExtendedJWT> {
     return {
       ...token,
       accessToken: data.access_token,
+      userId: extractUserFromToken(data.access_token).userId,
       refreshToken: nextRefreshToken,
       expiresAt:
         Number.isFinite(expiresInSeconds) && expiresInSeconds > 0
@@ -140,6 +142,42 @@ function tokenFromOidcAccount(
   } as ExtendedJWT;
 }
 
+async function provisionSession(token: ExtendedJWT): Promise<ExtendedJWT> {
+  let current = token;
+  try {
+    const response = await fetch(`${serverApiBaseUrl.replace(/\/$/, "")}/v1/auth/provision`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token.accessToken}` },
+      cache: "no-store",
+      signal: AbortSignal.timeout(AUTH_UPSTREAM_TIMEOUT_MS),
+    });
+    if (!response.ok) {
+      throw new Error("Account provisioning failed");
+    }
+    const profile: unknown = await response.json();
+    if (
+      typeof profile !== "object" ||
+      profile === null ||
+      !("user_id" in profile) ||
+      typeof profile.user_id !== "string"
+    ) {
+      throw new Error("Invalid application profile");
+    }
+    const refreshed = await exchangeKeycloakToken(token);
+    current = refreshed;
+    if (refreshed.error || refreshed.userId !== profile.user_id) {
+      throw new Error("Identity link missing from refreshed token");
+    }
+    return refreshed;
+  } catch {
+    return {
+      ...current,
+      error: "AccountProvisioningUnavailable",
+      refreshRetryAt: Date.now() + REFRESH_RETRY_MS,
+    };
+  }
+}
+
 export const jwtCallback = async ({
   token,
   account,
@@ -150,7 +188,7 @@ export const jwtCallback = async ({
   trigger?: string;
 }): Promise<JWT> => {
   if (account?.access_token) {
-    return tokenFromOidcAccount(token, account as never);
+    return provisionSession(tokenFromOidcAccount(token, account as never));
   }
   if (typeof (token as ExtendedJWT).idToken !== "string" || !(token as ExtendedJWT).idToken) {
     return { ...token, error: "SessionMigrationRequired" } as JWT;
@@ -158,6 +196,16 @@ export const jwtCallback = async ({
   const current = token as ExtendedJWT;
   if (current.refreshRetryAt && Date.now() < current.refreshRetryAt && current.error) {
     return current;
+  }
+  if (!current.userId || current.error === "AccountProvisioningUnavailable") {
+    if (!current.refreshToken || Date.now() >= current.refreshExpiresAt) {
+      return { ...current, error: "RefreshTokenExpired" } as JWT;
+    }
+    const valid = Date.now() >= current.expiresAt ? await exchangeKeycloakToken(current) : current;
+    if (valid.error && valid.error !== "AccountProvisioningUnavailable") {
+      return valid;
+    }
+    return provisionSession(valid);
   }
   if (Date.now() + ACCESS_REFRESH_BUFFER_MS < current.expiresAt) {
     return current;
