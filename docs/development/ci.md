@@ -101,10 +101,10 @@ preceding validation and builds to succeed and advisory scans to finish. It load
 archive rather than rebuilding it. CI strips the app prefix from the Git release tag: `api-v0.1.0` publishes `mahfel-api:v0.1.0`. The image repository identifies the app:
 
 ```text
-registry.hamdocker.ir/hamdars/mahfel-api:v0.1.0
-registry.hamdocker.ir/hamdars/mahfel-media:v0.1.0
-registry.hamdocker.ir/hamdars/mahfel-worker:v0.1.0
-registry.hamdocker.ir/hamdars/mahfel-web:v0.1.0
+registry.hamdocker.ir/aiedut/mahfel-api:v0.1.0
+registry.hamdocker.ir/aiedut/mahfel-media:v0.1.0
+registry.hamdocker.ir/aiedut/mahfel-worker:v0.1.0
+registry.hamdocker.ir/aiedut/mahfel-web:v0.1.0
 ```
 
 Main pushes, merge requests, other branches, schedules, and UI pipelines validate and scan without
@@ -130,7 +130,7 @@ Configure these GitLab CI/CD variables before publishing:
 | `CI_REGISTRY_USERNAME` | Registry account allowed to push Mahfel images |
 | `CI_REGISTRY_PASSWORD` | Masked registry password or token, available to protected release tags |
 | `MAHFEL_IMAGE_REGISTRY` | Defaults to `registry.hamdocker.ir` |
-| `MAHFEL_IMAGE_PREFIX` | Defaults to `registry.hamdocker.ir/hamdars/mahfel`; component names are appended with a hyphen |
+| `MAHFEL_IMAGE_PREFIX` | Defaults to `registry.hamdocker.ir/aiedut/mahfel`; component names are appended with a hyphen |
 | `NEXT_PUBLIC_MAHFEL_API_URL` | Public API URL used by validation builds; defaults to the local fixture URL |
 | `MAHFEL_API_URL_PRODUCTION` | `https://api.mahfel.rastai.ai` for `web-v*` release builds |
 | `RASTPLOY_SERVER` | HTTPS deployment endpoint, for example `https://deploy.rastai.ir` |
