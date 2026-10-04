@@ -134,6 +134,12 @@ const meta = {
     ),
   ],
   args: {
+    connection: {
+      signaling: "connected",
+      offline: false,
+      media: "connected",
+      metrics: { latencyMs: 42, jitterMs: 12, packetLossPercent: 0.5 },
+    },
     roomId: "research-methods",
     roomName: "Research methods",
     title: "Weekly research discussion",
@@ -184,6 +190,53 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 export const EnglishLive: Story = {};
+
+export const PoorConnection: Story = {
+  args: {
+    connection: {
+      signaling: "connected",
+      offline: false,
+      media: "connected",
+      metrics: { latencyMs: 820, jitterMs: 95, packetLossPercent: 6 },
+    },
+  },
+};
+
+export const ConnectedWithoutMedia: Story = {
+  args: {
+    connection: {
+      signaling: "connected",
+      offline: false,
+      media: "idle",
+      metrics: { latencyMs: null, jitterMs: null, packetLossPercent: null },
+    },
+  },
+};
+
+export const Reconnecting: Story = {
+  args: {
+    state: unavailableState,
+    connection: {
+      signaling: "reconnecting",
+      offline: false,
+      media: "idle",
+      metrics: { latencyMs: null, jitterMs: null, packetLossPercent: null },
+    },
+  },
+};
+
+export const OfflinePersian: Story = {
+  args: {
+    locale: "fa",
+    state: unavailableState,
+    connection: {
+      signaling: "connected",
+      offline: true,
+      media: "idle",
+      metrics: { latencyMs: null, jitterMs: null, packetLossPercent: null },
+    },
+  },
+};
 
 export const PersianLive: Story = {
   args: { locale: "fa" },

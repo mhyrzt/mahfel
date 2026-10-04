@@ -35,6 +35,7 @@ import { SessionScreen } from "./session-screen";
 import { CollaborationWorkspace } from "./collaboration-workspace";
 import { useSessionMedia } from "./use-session-media";
 import { useRemoteSessionMedia } from "./use-remote-session-media";
+import { useSessionConnection } from "./use-session-connection";
 
 interface SessionClientProps {
   actorId?: string;
@@ -86,6 +87,7 @@ export function SessionClient({
   const [state, dispatch] = useReducer(sessionReducer, initialSessionState);
   const router = useRouter();
   const clientRef = useRef<SignalingClient | null>(null);
+  const [signalingStatus, setSignalingStatus] = useState<SignalingStatus>("connecting");
   const media = useSessionMedia(clientRef, roomId, locale);
   const { enabled: mediaEnabled, stop: stopMedia } = media;
   const remoteMedia = useRemoteSessionMedia(
@@ -96,6 +98,12 @@ export function SessionClient({
     locale,
   );
   const participantsRef = useRef<Participant[]>([]);
+  const connection = useSessionConnection(
+    signalingStatus,
+    state.phase === "live",
+    media.transportRef,
+    remoteMedia.transportRef,
+  );
   const pendingRosterRef = useRef<string[] | null>(null);
   const rosterVersionRef = useRef(-1);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -224,6 +232,10 @@ export function SessionClient({
     }
 
     function handleStatus(status: SignalingStatus) {
+      if (!active) {
+        return;
+      }
+      setSignalingStatus(status);
       if (status === "connected") {
         chatHeadRef.current = null;
         client.send({ type: "subscribe_chat", room_id: roomId, after_sequence: 0 });
@@ -495,6 +507,7 @@ export function SessionClient({
         actionError={actionError}
         media={media}
         remoteMedia={remoteMedia}
+        connection={connection}
         admissionRequests={admissionRequests}
         canAdmit={canAdmit}
         files={

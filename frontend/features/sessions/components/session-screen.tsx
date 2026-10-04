@@ -20,7 +20,8 @@ import type {
 import { WaitingRoomPanel } from "./waiting-room-panel";
 import { AccessManagement } from "./access-management";
 import { SessionSidebar } from "./session-sidebar";
-import { SessionBreadcrumb } from "./session-breadcrumb";
+import { SessionHeader } from "./session-header";
+import type { SessionConnection } from "./use-session-connection";
 import type { useSessionMedia } from "./use-session-media";
 import type { useRemoteSessionMedia } from "./use-remote-session-media";
 import { RemoteAudio } from "./remote-audio";
@@ -47,6 +48,7 @@ interface SessionScreenProps {
   actionError?: string | null;
   media?: ReturnType<typeof useSessionMedia>;
   remoteMedia?: ReturnType<typeof useRemoteSessionMedia>;
+  connection?: SessionConnection;
   canAdmit?: boolean;
   onAdmit?: (request: AdmissionRequest) => void;
   onReject?: (request: AdmissionRequest) => void;
@@ -75,31 +77,58 @@ export function SessionScreen({
   actionError,
   media,
   remoteMedia,
+  connection,
   canAdmit,
   onAdmit,
   onReject,
   onLeave,
 }: Readonly<SessionScreenProps>) {
   const text = messagesFor(locale).sessions;
+  const header = (
+    <SessionHeader
+      roomId={roomId}
+      roomName={roomName ?? title}
+      title={title}
+      locale={locale}
+      connection={connection}
+    />
+  );
   if (state.phase === "loading") {
     return (
-      <SessionMessage icon={LoaderCircle} title={text.loadingTitle} message={text.loadingMessage} />
+      <>
+        {header}
+        <SessionMessage
+          icon={LoaderCircle}
+          title={text.loadingTitle}
+          message={text.loadingMessage}
+        />
+      </>
     );
   }
 
   if (state.phase === "waiting") {
     return (
-      <WaitingRoomPanel roomName={state.roomName ?? title} locale={locale} onRetry={onRetryJoin} />
+      <>
+        {header}
+        <WaitingRoomPanel
+          roomName={state.roomName ?? title}
+          locale={locale}
+          onRetry={onRetryJoin}
+        />
+      </>
     );
   }
 
   if (state.phase === "rejected" || state.phase === "unavailable") {
     return (
-      <SessionMessage
-        icon={AlertCircle}
-        title={state.phase === "rejected" ? text.rejectedTitle : text.unavailableTitle}
-        message={state.message ?? text.retryMessage}
-      />
+      <>
+        {header}
+        <SessionMessage
+          icon={AlertCircle}
+          title={state.phase === "rejected" ? text.rejectedTitle : text.unavailableTitle}
+          message={state.message ?? text.retryMessage}
+        />
+      </>
     );
   }
 
@@ -164,14 +193,7 @@ export function SessionScreen({
         dir={locale === "fa" ? "rtl" : "ltr"}
         className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden"
       >
-        {roomId ? (
-          <SessionBreadcrumb
-            roomId={roomId}
-            roomName={roomName ?? title}
-            title={title}
-            locale={locale}
-          />
-        ) : null}
+        {header}
         {!isLive ? (
           <header className="rounded-xl border bg-card px-4 py-3 md:px-6">
             <h1 className="truncate text-lg font-semibold">{title}</h1>

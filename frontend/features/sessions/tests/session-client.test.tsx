@@ -96,6 +96,25 @@ test("leave closes signaling and returns to the room", () => {
   expect(push).toHaveBeenCalledWith("/room/room-1");
 });
 
+test("connection status stays visible when signaling starts reconnecting", async () => {
+  const client = mountSession();
+  await act(async () => {
+    client.onStatus("connected");
+    client.onMessage({
+      v: 1,
+      type: "joined",
+      session_id: "session-1",
+      participant_id: "part-a111",
+    });
+  });
+  expect(screen.getByRole("button", { name: "Connection details: Connected" })).toBeInTheDocument();
+  await act(async () => client.onStatus("reconnecting"));
+  expect(
+    screen.getByRole("button", { name: "Connection details: Reconnecting" }),
+  ).toBeInTheDocument();
+  expect(screen.getByText("Reconnecting to the session…")).toBeInTheDocument();
+});
+
 test("joined participants can try media controls and see setup failures", async () => {
   mountSession();
   deliver({ v: 1, type: "joined", session_id: "session-1", participant_id: "part-a111" });

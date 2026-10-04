@@ -195,5 +195,5 @@ export function useSessionMedia(
     };
   }, []);
 
-  return { enabled, streams, busy, error, toggle, stop };
+  return { enabled, streams, busy, error, toggle, stop, transportRef };
 }

@@ -2,6 +2,33 @@ import type { Locale } from "./config";
 
 export interface Messages {
   language: Record<Locale, string>;
+  sessionConnection: {
+    title: string;
+    signaling: string;
+    media: string;
+    quality: string;
+    latency: string;
+    jitter: string;
+    packetLoss: string;
+    unavailable: string;
+    estimate: string;
+    idleHint: string;
+    status: Record<
+      | "connecting"
+      | "connected"
+      | "reconnecting"
+      | "unauthorized"
+      | "unavailable"
+      | "closed"
+      | "offline",
+      string
+    >;
+    mediaStatus: Record<
+      "idle" | "connecting" | "connected" | "disconnected" | "unavailable",
+      string
+    >;
+    qualityLabel: Record<"good" | "fair" | "poor" | "unknown", string>;
+  };
   recordingExports: {
     title: string;
     empty: string;
@@ -200,6 +227,36 @@ export interface Messages {
 const messages: Record<Locale, Messages> = {
   en: {
     language: { en: "English", fa: "Persian" },
+    sessionConnection: {
+      title: "Connection details",
+      signaling: "Session connection",
+      media: "Audio & video",
+      quality: "Estimated quality",
+      latency: "Latency",
+      jitter: "Jitter",
+      packetLoss: "Packet loss",
+      unavailable: "Not available",
+      estimate:
+        "Quality is an estimate from recent media measurements. Latency is the round-trip time to the media server.",
+      idleHint: "Media measurements appear when you send or receive audio or video.",
+      status: {
+        connecting: "Connecting",
+        connected: "Connected",
+        reconnecting: "Reconnecting",
+        unauthorized: "Sign-in expired",
+        unavailable: "Unavailable",
+        closed: "Disconnected",
+        offline: "Offline",
+      },
+      mediaStatus: {
+        idle: "Not active",
+        connecting: "Connecting",
+        connected: "Connected",
+        disconnected: "Media interrupted",
+        unavailable: "Measurements unavailable",
+      },
+      qualityLabel: { good: "Good", fair: "Fair", poor: "Poor", unknown: "Not measured" },
+    },
     recordingExports: {
       title: "Recordings",
       empty: "No recordings yet.",
@@ -394,6 +451,36 @@ const messages: Record<Locale, Messages> = {
   },
   fa: {
     language: { en: "English", fa: "پارسی" },
+    sessionConnection: {
+      title: "جزئیات اتصال",
+      signaling: "اتصال نشست",
+      media: "صدا و تصویر",
+      quality: "کیفیت تقریبی",
+      latency: "تأخیر",
+      jitter: "نوسان تأخیر",
+      packetLoss: "اتلاف بسته",
+      unavailable: "در دسترس نیست",
+      estimate:
+        "کیفیت بر اساس اندازه‌گیری‌های اخیر رسانه تخمین زده می‌شود. تأخیر، زمان رفت‌وبرگشت تا سرور رسانه است.",
+      idleHint: "اندازه‌گیری رسانه هنگام ارسال یا دریافت صدا و تصویر نمایش داده می‌شود.",
+      status: {
+        connecting: "در حال اتصال",
+        connected: "متصل",
+        reconnecting: "اتصال دوباره",
+        unauthorized: "ورود منقضی شده",
+        unavailable: "در دسترس نیست",
+        closed: "قطع شده",
+        offline: "آفلاین",
+      },
+      mediaStatus: {
+        idle: "فعال نیست",
+        connecting: "در حال اتصال",
+        connected: "متصل",
+        disconnected: "ارتباط رسانه قطع شده",
+        unavailable: "اندازه‌گیری در دسترس نیست",
+      },
+      qualityLabel: { good: "خوب", fair: "متوسط", poor: "ضعیف", unknown: "اندازه‌گیری نشده" },
+    },
     recordingExports: {
       title: "ضبط‌ها",
       empty: "هنوز ضبطی وجود ندارد.",

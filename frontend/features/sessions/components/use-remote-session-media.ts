@@ -254,5 +254,5 @@ export function useRemoteSessionMedia(
     };
   }, [active, actorId, consume, failureText, publishStreams, request, roomId]);
 
-  return { streams, error };
+  return { streams, error, transportRef };
 }
