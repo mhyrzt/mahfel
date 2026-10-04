@@ -1519,7 +1519,7 @@ async fn verify_identity_lifecycle(
     let profile = IdentityProfile {
         display_name: Some(DisplayName::new("Shinji Ikari".to_owned())?),
         email: Some(EmailAddress::new("shinji.ikari@mahfel.local".to_owned())?),
-        username: Username::new("shinji".to_owned())?,
+        username: Username::new("shinji.ikari@mahfel.local".to_owned())?,
         email_verified: true,
         avatar_url: Some(AvatarUrl::new(
             "https://s3.mahfel.localhost/avatars/shinji.png".to_owned(),
@@ -1538,6 +1538,11 @@ async fn verify_identity_lifecycle(
         )
         .await?;
     assert_eq!(first.user.display_name.as_str(), "Shinji Ikari");
+    assert_eq!(first.user.username.as_str(), "shinji.ikari@mahfel.local");
+    assert_eq!(
+        first.identity.username.as_str(),
+        "shinji.ikari@mahfel.local"
+    );
     assert_eq!(first.identity.user_id, first.user.id);
     assert!(first.identity.email_verified);
     assert_eq!(

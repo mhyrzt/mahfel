@@ -5,7 +5,7 @@ status: In Progress
 assignee:
   - '@codex'
 created_date: '2026-10-04 07:30'
-updated_date: '2026-10-04 08:59'
+updated_date: '2026-10-04 09:35'
 labels: []
 dependencies: []
 references:
@@ -42,4 +42,6 @@ Production workspace screenshot traced to ServerApiRequestError 403. ADR 0019 pr
 All four versioned app images were published. Corrected CD pipeline 2122323 passed API, media and web; worker retry 7347199 was submitted after isolated RabbitMQ account restoration and worker readiness recovery. Deployment acceptance remains open pending latest live verification. User requested commit/push: public-logo fix aeb64f2 and account provisioning fix dc95422 committed separately. Git/network approval tooling is responding again; release and live verification remain separate from this commit/push request.
 
 User requested direct Keycloak sign-in from landing entry button and reported SessionExpired. Landing CTA now calls NextAuth signIn directly with workspace callback. Temporary AccountProvisioningUnavailable errors pass auth proxy so server session recovery can run; invalid refresh tokens remain blocked. Login displays readable safe error text instead of raw auth codes. Thirteen focused tests pass. Current production pipeline/session diagnosis remains unavailable because automatic approval review returns internal HTTP 404.
+
+Live login incident root cause proven by PostgreSQL users_username_valid check failures at both provided session timestamps. Keycloak client, API audience, app_user_id mapper and mahfel-admin user-management roles audited correctly with reconciler. Added migration 0034 to allow email-shaped usernames on users and identities while retaining length, trim and whitespace constraints. Real disposable PostgreSQL migration/identity lifecycle regression passes (1 passed, 0 skipped); SQLFluff passes. Applied exact constraint correction transactionally to production with lock/statement timeouts; release migrator will record 0034 through SQLx normally.
 <!-- SECTION:NOTES:END -->
