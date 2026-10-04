@@ -132,7 +132,9 @@ Configure these GitLab CI/CD variables before publishing:
 | `MAHFEL_IMAGE_REGISTRY` | Defaults to `registry.hamdocker.ir` |
 | `MAHFEL_IMAGE_PREFIX` | Defaults to `registry.hamdocker.ir/hamdars/mahfel`; component names are appended with a hyphen |
 | `NEXT_PUBLIC_MAHFEL_API_URL` | Public API URL used by validation builds; defaults to the local fixture URL |
-| `MAHFEL_API_URL_PRODUCTION` | Public production API HTTPS URL for `web-v*` release builds |
+| `MAHFEL_API_URL_PRODUCTION` | `https://api.mahfel.rastai.ai` for `web-v*` release builds |
+| `RASTPLOY_SERVER` | HTTPS deployment endpoint, for example `https://deploy.rastai.ir` |
+| `RASTPLOY_TOKEN` | Protected, masked token scoped to Mahfel production app targets and deployment create/read permissions |
 
 Protect the release tag patterns so protected credentials are available. Web release builds require
 `MAHFEL_API_URL_PRODUCTION`, so a missing setting cannot publish a web image compiled
@@ -146,8 +148,25 @@ publish job by rerunning the pipeline so its build archives are available again.
 
 ## Deployment boundary
 
-Release pipelines validate and publish images. This repository does not currently define a
-production deployment job; image publication alone does not deploy an application.
+Protected component release pipelines automatically deploy through Rastploy after the publish
+stage succeeds. Each job uses the same protected push/tag rules as its image publisher, strips
+the app prefix (`api-v1.0.1` becomes `v1.0.1`) and deploys only `mahfel-api`, `mahfel-media`,
+`mahfel-worker` or `mahfel-web` in production. Branches, merge requests and unprotected tags do
+not deploy. Deploy jobs are serialized, blocking and not interruptible; they wait for Rastploy's
+terminal deployment result. They have no early `needs` bypass, so the publish stage must finish.
+
+Configure `RASTPLOY_SERVER` as the HTTPS endpoint and `RASTPLOY_TOKEN` as a protected, masked
+bearer token scoped to those four targets in production with deployment create/read permissions.
+CI never receives SSH access, the age private key or runtime secrets. The app jobs do not fetch
+private submodules. The Rastploy daemon reads the independently maintained DevOps repository.
+
+Production manifests, initial shared database/broker provisioning, external Keycloak/S3 settings,
+DNS, TURN certificates and first-deployment ordering are documented in the
+[DevOps Mahfel guide](https://hamgit.ir/hamdars/devops/-/blob/main/services/mahfel/README.md).
+Publish the reviewed DevOps configuration and ciphertext before releasing applications. Web
+releases need `MAHFEL_API_URL_PRODUCTION=https://api.mahfel.rastai.ai`; an old web image built with
+the previous production URL requires a new release. Media deployment requires draining active
+rooms, and image rollback does not reverse database migrations.
 
 ## Local validation
 

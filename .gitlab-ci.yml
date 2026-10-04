@@ -1,6 +1,7 @@
 include:
   - local: ci/common.yml
   - local: ci/release.yml
+  - local: ci/deploy.yml
   - local: ci/proto.yml
   - local: backend/.gitlab-ci.yml
   - local: frontend/.gitlab-ci.yml
@@ -13,6 +14,7 @@ stages:
   - build
   - security
   - publish
+  - deploy
   - docs
 
 default:
