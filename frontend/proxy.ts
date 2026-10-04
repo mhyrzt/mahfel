@@ -24,7 +24,12 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
     cookieName: sessionCookieName(),
   });
 
-  if (!publicPath && token?.error && token.error !== "RefreshTemporarilyUnavailable") {
+  if (
+    !publicPath &&
+    token?.error &&
+    token.error !== "RefreshTemporarilyUnavailable" &&
+    token.error !== "AccountProvisioningUnavailable"
+  ) {
     if (pathname.startsWith("/api/")) {
       return NextResponse.json({ error: "SessionExpired" }, { status: 401 });
     }
