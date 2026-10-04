@@ -4,7 +4,7 @@ import Link from "next/link";
 
 import type { CalendarPreference } from "@/features/account/calendar-preference";
 import type { Theme } from "@/features/appearance/theme";
-import { defaultLocale, type Locale } from "@/lib/i18n/config";
+import { defaultLocale, directionForLocale, type Locale } from "@/lib/i18n/config";
 import { AccountQuickSettings } from "./account-quick-settings";
 import { SidebarNavigation } from "./sidebar-navigation";
 import { MobileNavigation } from "./mobile-navigation";
@@ -30,11 +30,8 @@ export function AppShell({
   accountImage?: string | null;
 }>) {
   return (
-    <div className="min-h-screen bg-muted/40">
-      <aside
-        className="fixed inset-y-0 start-0 z-20 hidden w-16 flex-col items-center border-e bg-sidebar md:flex"
-        dir={locale === "fa" ? "rtl" : "ltr"}
-      >
+    <div className="min-h-screen bg-muted/40" dir={directionForLocale(locale)}>
+      <aside className="fixed inset-y-0 start-0 z-20 hidden w-16 flex-col items-center border-e bg-sidebar md:flex">
         <Link
           aria-label="Mahfel home"
           className="mt-2 flex size-12 items-center justify-center rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
