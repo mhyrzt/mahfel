@@ -20,7 +20,9 @@ function LoginContent() {
       </div>
       {error ? (
         <p role="alert" className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">
-          {error}
+          {error === "SessionExpired"
+            ? "Your session has expired. Sign in again to continue."
+            : "Sign-in could not be completed. Please try again."}
         </p>
       ) : null}
       <Button

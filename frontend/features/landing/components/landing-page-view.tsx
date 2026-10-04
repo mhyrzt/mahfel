@@ -2,7 +2,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { ArrowUpRight } from "lucide-react";
 
-import { Button } from "@/components/ui/button";
+import { KeycloakSignInButton } from "./keycloak-sign-in-button";
 import { ThemeSwitcher } from "@/features/appearance/components/theme-switcher";
 import type { Theme } from "@/features/appearance/theme";
 import { LocaleSwitcher } from "@/features/i18n/components/locale-switcher";
@@ -43,12 +43,10 @@ export function LandingPageView({ locale, theme }: Readonly<{ locale: Locale; th
               {messages.home.description}
             </p>
           </div>
-          <Button asChild className="h-12 gap-3 rounded-xl px-5 text-sm font-semibold">
-            <Link href="/login">
-              {messages.home.signIn}
-              <ArrowUpRight aria-hidden="true" className="size-4 rtl:-rotate-90" />
-            </Link>
-          </Button>
+          <KeycloakSignInButton>
+            {messages.home.signIn}
+            <ArrowUpRight aria-hidden="true" className="size-4 rtl:-rotate-90" />
+          </KeycloakSignInButton>
         </section>
         <aside
           className="relative mx-auto flex aspect-square w-full max-w-[30rem] items-center justify-center"
