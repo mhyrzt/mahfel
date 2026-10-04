@@ -77,3 +77,15 @@ trust store and may prompt for `sudo`.
 
 See [getting started](docs/development/getting-started.md) for details. Run `just --list` for all
 development commands.
+
+## Deployment repository
+
+`devops/` is a Git submodule pointing to `hamdars/devops`, which contains Rastploy and shared
+deployment configuration. Initialize the pinned revision after cloning Mahfel:
+
+```bash
+git submodule update --init devops
+```
+
+Access to the private `hamdars/devops` repository is required. Application builds do not require
+the submodule, and its files are excluded from Mahfel's Docker build context.

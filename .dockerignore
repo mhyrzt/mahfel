@@ -1,5 +1,6 @@
 .git
 .backlog
+devops/
 .env
 **/.env.local
 **/.env.*.local

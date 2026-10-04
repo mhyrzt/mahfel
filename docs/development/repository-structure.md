@@ -29,6 +29,7 @@
 | `bruno` | Bruno API collection (placeholder; generated from the OpenAPI document per ADR 0016) |
 | `proto` | Source protobuf contracts |
 | `deploy` | Container and observability assets |
+| `devops` | Git submodule for `hamdars/devops`, including Rastploy deployment configuration |
 | `docs` | MkDocs architecture, decisions, deployment, development, roadmap |
 
 Crates are added when a meaningful boundary has implementation and tests. Chat, files,
