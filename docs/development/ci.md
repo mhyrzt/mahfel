@@ -189,3 +189,21 @@ just docs
 
 GitLab's CI Lint validates the assembled pipeline and dependencies. Local YAML parsing cannot prove
 runner image availability, registry access, Docker-backed acceptance, or a successful GitLab run.
+
+## Retrying production deployment
+
+After a release image has passed its build and publish jobs, production CD can be
+retried from the protected default branch without rebuilding that image. Run a
+pipeline with `MAHFEL_DEPLOY_ONLY=true` and select the releases to deploy:
+
+- `MAHFEL_REDEPLOY_API_TAG=api-v1.0.2`
+- `MAHFEL_REDEPLOY_MEDIA_TAG=media-v1.0.2`
+- `MAHFEL_REDEPLOY_WORKER_TAG=worker-v1.0.2`
+- `MAHFEL_REDEPLOY_WEB_TAG=web-v1.0.4`
+
+Omit a component variable to leave that component out. This lane accepts manual
+or API pipeline triggers on the protected default branch, runs the deployment
+script checks, and then runs the selected Rastploy jobs. Use only immutable
+release images whose original build and publish jobs succeeded; this lane does
+not build or publish images. It uses the same production token and deployment
+resource group as release CD.

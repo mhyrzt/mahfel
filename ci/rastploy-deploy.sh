@@ -18,7 +18,7 @@ response=$(curl --fail --silent --show-error --connect-timeout 5 --max-time 30 \
     -X POST "$server/api/v1/deployments" \
     -H "Authorization: Bearer $RASTPLOY_TOKEN" \
     -H 'Content-Type: application/json' --data "$payload")
-id=$(printf '%s' "$response" | jq -er '.id | strings | select(test("^[a-zA-Z0-9_-]+$"))')
+id=$(printf '%s' "$response" | jq -er '.id | strings | select(test("^[a-zA-Z0-9_-][a-zA-Z0-9_.-]*$"))')
 echo "Deployment $id queued: mahfel-$IMAGE_TARGET production $version"
 for _attempt in $(seq 1 90); do
     response=$(curl --fail --silent --show-error --retry 2 --connect-timeout 5 --max-time 15 \

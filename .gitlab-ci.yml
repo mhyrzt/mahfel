@@ -1,11 +1,26 @@
 include:
   - local: ci/common.yml
+  - local: ci/redeploy.yml
+    rules:
+      - if: '$MAHFEL_DEPLOY_ONLY == "true"'
   - local: ci/release.yml
+    rules:
+      - if: '$MAHFEL_DEPLOY_ONLY != "true"'
   - local: ci/deploy.yml
+    rules:
+      - if: '$MAHFEL_DEPLOY_ONLY != "true"'
   - local: ci/proto.yml
+    rules:
+      - if: '$MAHFEL_DEPLOY_ONLY != "true"'
   - local: backend/.gitlab-ci.yml
+    rules:
+      - if: '$MAHFEL_DEPLOY_ONLY != "true"'
   - local: frontend/.gitlab-ci.yml
+    rules:
+      - if: '$MAHFEL_DEPLOY_ONLY != "true"'
   - local: docs/.gitlab-ci.yml
+    rules:
+      - if: '$MAHFEL_DEPLOY_ONLY != "true"'
 
 stages:
   - prepare
@@ -24,6 +39,9 @@ workflow:
   auto_cancel:
     on_new_commit: interruptible
   rules:
+    - if: '$MAHFEL_DEPLOY_ONLY == "true" && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH && $CI_COMMIT_REF_PROTECTED == "true" && ($CI_PIPELINE_SOURCE == "api" || $CI_PIPELINE_SOURCE == "web")'
+    - if: '$MAHFEL_DEPLOY_ONLY == "true"'
+      when: never
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
       changes: &pipeline-changes
         - backend/**/*

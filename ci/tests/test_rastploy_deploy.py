@@ -21,7 +21,7 @@ from pathlib import Path
 args = sys.argv[1:]
 if "-X" in args:
     Path(os.environ["REQUEST_FILE"]).write_text(args[args.index("--data") + 1])
-    print(json.dumps({"id": os.environ.get("MOCK_ID", "fixture-deployment")}))
+    print(json.dumps({"id": os.environ.get("MOCK_ID", "20261004T080951.123456789-1a2b3c4d")}))
 else:
     print(json.dumps({"status": os.environ.get("MOCK_STATUS", "succeeded")}))
 """)
@@ -72,7 +72,9 @@ else:
         self.assertFalse((self.root / "request.json").exists())
 
     def test_rejects_invalid_deployment_id(self):
-        self.assertNotEqual(self.run_script(MOCK_ID="../../other-resource").returncode, 0)
+        for deployment_id in ("../../other-resource", "..", ".", "https://other.example/id"):
+            with self.subTest(deployment_id=deployment_id):
+                self.assertNotEqual(self.run_script(MOCK_ID=deployment_id).returncode, 0)
 
 
 if __name__ == "__main__":
