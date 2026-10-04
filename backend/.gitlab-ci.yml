@@ -27,6 +27,7 @@ variables:
     CARGO_PROFILE_DEV_DEBUG: "0"
     CARGO_PROFILE_TEST_DEBUG: "0"
     MESON_ARGS: "-Ddebug=false"
+    PIP_INDEX_URL: https://repo.hmirror.ir/python/simple/
   cache: &backend-dependency-cache
     key:
       prefix: rust-deps-1.95.0

@@ -207,3 +207,7 @@ script checks, and then runs the selected Rastploy jobs. Use only immutable
 release images whose original build and publish jobs succeeded; this lane does
 not build or publish images. It uses the same production token and deployment
 resource group as release CD.
+
+Backend CI uses `https://repo.hmirror.ir/python/simple/` for Python build dependencies, matching
+the existing Devops package mirror. The project-level `PIP_INDEX_URL` variable also supplies this
+setting to retries of releases created before that CI default was added.

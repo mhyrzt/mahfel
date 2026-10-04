@@ -5,7 +5,7 @@ status: In Progress
 assignee:
   - '@codex'
 created_date: '2026-10-04 07:30'
-updated_date: '2026-10-04 09:35'
+updated_date: '2026-10-04 10:17'
 labels: []
 dependencies: []
 references:
@@ -44,4 +44,8 @@ All four versioned app images were published. Corrected CD pipeline 2122323 pass
 User requested direct Keycloak sign-in from landing entry button and reported SessionExpired. Landing CTA now calls NextAuth signIn directly with workspace callback. Temporary AccountProvisioningUnavailable errors pass auth proxy so server session recovery can run; invalid refresh tokens remain blocked. Login displays readable safe error text instead of raw auth codes. Thirteen focused tests pass. Current production pipeline/session diagnosis remains unavailable because automatic approval review returns internal HTTP 404.
 
 Live login incident root cause proven by PostgreSQL users_username_valid check failures at both provided session timestamps. Keycloak client, API audience, app_user_id mapper and mahfel-admin user-management roles audited correctly with reconciler. Added migration 0034 to allow email-shaped usernames on users and identities while retaining length, trim and whitespace constraints. Real disposable PostgreSQL migration/identity lifecycle regression passes (1 passed, 0 skipped); SQLFluff passes. Applied exact constraint correction transactionally to production with lock/statement timeouts; release migrator will record 0034 through SQLx normally.
+
+API patch tag api-v1.0.3 at 162f4a4 triggers pipeline 2122668. Integration gate passed. Unit attempts failed before test execution on Rust distribution connection timeouts; latest retry 7348636 is compiling. Doc-test attempts failed downloading Python invoke from files.pythonhosted.org. Verified existing Devops repo.hmirror.ir Python mirror serves invoke on its own host, configured nonsecret project PIP_INDEX_URL and retry 7348649. Persisted mirror default in backend CI and documented it. No tests or security gates weakened.
+
+User confirmed production sign-in works after the database constraint repair. Pipeline 2122668 integration gate passed; unit 7348636 and doc-test 7348649 continue. GitLab CI lint of the edited backend defaults is valid with no errors or warnings, strict docs build passes.
 <!-- SECTION:NOTES:END -->
