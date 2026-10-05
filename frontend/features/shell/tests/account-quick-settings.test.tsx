@@ -34,12 +34,12 @@ test("opens account settings from the avatar in the workspace shell", () => {
 
   const dialog = screen.getByRole("dialog", { name: "Account" });
   expect(within(dialog).getByText("roya@example.com")).toBeInTheDocument();
-  expect(within(dialog).getByRole("group", { name: "Appearance" })).toBeInTheDocument();
+  expect(within(dialog).getByRole("radiogroup", { name: "Appearance" })).toBeInTheDocument();
 
-  const calendar = within(dialog).getByRole("group", { name: "Calendar type" });
-  fireEvent.click(within(calendar).getByRole("button", { name: "Persian" }));
-  expect(within(calendar).getByRole("button", { name: "Persian" })).toHaveAttribute(
-    "aria-pressed",
+  const calendar = within(dialog).getByRole("radiogroup", { name: "Calendar type" });
+  fireEvent.click(within(calendar).getByRole("radio", { name: "Persian" }));
+  expect(within(calendar).getByRole("radio", { name: "Persian" })).toHaveAttribute(
+    "aria-checked",
     "true",
   );
   expect(document.cookie).toContain("mahfel_calendar=persian");

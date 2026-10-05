@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "tw-animate-css";
 
 @theme inline {
   --color-background: var(--background);
@@ -215,4 +216,11 @@ main:has([data-session-sidebar]) [data-testid="session-detail"] {
   --border: #30303f;
   --input: #30303f;
   --ring: #a997f5;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-state] {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
 }

@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { cookies } from "next/headers";
 
+import { DirectionProvider } from "@/components/ui/direction";
+
 import { isTheme, themeCookieName } from "@/features/appearance/theme";
 import { directionForLocale } from "@/lib/i18n/config";
 import { getLocale } from "@/lib/i18n/server";
@@ -27,7 +29,9 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
 
   return (
     <html data-theme={theme} dir={directionForLocale(locale)} lang={locale}>
-      <body>{children}</body>
+      <body>
+        <DirectionProvider dir={directionForLocale(locale)}>{children}</DirectionProvider>
+      </body>
     </html>
   );
 }

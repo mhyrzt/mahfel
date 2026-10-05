@@ -2,7 +2,9 @@
 
 import type { LucideIcon } from "lucide-react";
 
-import { Button } from "@/components/ui/button";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Label } from "@/components/ui/label";
+import { useId } from "react";
 import { cn } from "@/lib/utils";
 
 export interface SegmentOption<Value extends string> {
@@ -17,44 +19,60 @@ export function SegmentedControl<Value extends string>({
   options,
   onValueChange,
   className,
+  dir,
+  disabled = false,
 }: Readonly<{
   label: string;
   value: Value;
   options: readonly SegmentOption<Value>[];
   onValueChange: (value: Value) => void;
   className?: string;
+  dir?: "ltr" | "rtl";
+  disabled?: boolean;
 }>) {
+  const groupId = useId();
   return (
-    <div
+    <RadioGroup
+      dir={dir}
+      disabled={disabled}
       aria-label={label}
       className={cn(
         "grid w-full grid-flow-col auto-cols-fr gap-1 rounded-xl border bg-muted/40 p-1",
         className,
       )}
-      role="group"
+      orientation="horizontal"
+      value={value}
+      onValueChange={(nextValue) => {
+        const option = options.find((item) => item.value === nextValue);
+        if (option) {
+          onValueChange(option.value);
+        }
+      }}
     >
       {options.map((option) => {
         const Icon = option.icon;
         const selected = value === option.value;
         return (
-          <Button
-            aria-pressed={selected}
+          <Label
+            htmlFor={`${groupId}-${option.value}`}
             className={cn(
-              "h-9 min-w-0 gap-1.5 rounded-lg px-2 text-xs font-medium shadow-none sm:text-sm",
+              "relative flex h-9 min-w-0 cursor-pointer items-center justify-center gap-1.5 rounded-lg px-2 text-xs font-medium shadow-none has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring has-[:disabled]:cursor-not-allowed has-[:disabled]:opacity-50 sm:text-sm",
               selected
                 ? "bg-background text-foreground shadow-sm ring-1 ring-border/80 hover:bg-background"
                 : "text-muted-foreground hover:bg-background/60 hover:text-foreground",
             )}
             key={option.value}
-            onClick={() => onValueChange(option.value)}
-            type="button"
-            variant="ghost"
           >
+            <RadioGroupItem
+              className="sr-only"
+              id={`${groupId}-${option.value}`}
+              value={option.value}
+            />
             {Icon ? <Icon aria-hidden="true" className="size-4 shrink-0" /> : null}
             <span className="truncate">{option.label}</span>
-          </Button>
+          </Label>
         );
       })}
-    </div>
+    </RadioGroup>
   );
 }
