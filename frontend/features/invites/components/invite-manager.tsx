@@ -74,8 +74,10 @@ export function InviteManager({
 
   async function copy(link: InviteLink) {
     try {
-      await navigator.clipboard.writeText(link.code);
-      setNotice(locale === "fa" ? "کد دعوت کپی شد." : "Invite code copied.");
+      await navigator.clipboard.writeText(
+        `${window.location.origin}/join?code=${encodeURIComponent(link.code)}`,
+      );
+      setNotice(locale === "fa" ? "پیوند دعوت کپی شد." : "Invite link copied.");
     } catch {
       setError(unavailable);
     }
