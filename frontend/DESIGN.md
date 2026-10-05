@@ -275,9 +275,37 @@ colors, RTL behavior, focus behavior, motion, and density.
 Prefer composition over introducing custom primitives when a shadcn/Radix primitive already solves
 accessibility correctly.
 
-Primitives currently present include Button, Dialog, DropdownMenu, Popover, Tooltip, Sheet, Tabs,
-ScrollArea, Select, Avatar, Separator, Sidebar, Skeleton, SegmentedControl, Badge, Card, Input,
-Textarea, and message/bubble/attachment components used by chat and files.
+**Shadcn maxing** means using shared shadcn primitives for ordinary controls, including simple buttons, inputs, textareas,
+labels, checkboxes, radios, switches, and selects. Compose forms with Field, FieldLabel,
+FieldDescription, and FieldError; use Alert for contextual failures and Empty for empty states.
+Exclusive preferences use RadioGroup; SegmentedControl is a styled composition of RadioGroup and
+Label, with the existing preference persistence handled by each feature.
+ESLint enforces shared control usage in product routes/features, with native file inputs allowed.
+
+Primitives currently present include Button, Dialog, DropdownMenu, Tooltip, Sheet, Tabs, ScrollArea,
+Select, NativeSelect, Avatar, Separator, Sidebar, Skeleton, SegmentedControl, Badge, Card, Input,
+Textarea, Checkbox, Switch, RadioGroup, Field, Label, InputGroup, Slider, Progress, Table, Collapsible,
+Alert, Empty, Spinner, Breadcrumb, DirectionProvider, Carousel, HoverCard, and Message/Bubble/Attachment.
+
+The current registry source is adapted to the local `cn()` helper and individual Radix packages.
+Semantic tokens provide light/dark/system styling; registry `dark:` defaults are not used to replace
+the cookie-based theme system. DirectionProvider follows the server-resolved locale. Media seeking
+remains LTR in both locales. Motion utilities come from `tw-animate-css`, with reduced-motion rules.
+
+Intentional exceptions: hidden native file inputs retain browser selection/reset behavior; the
+microphone level meter retains meter semantics; Lexical, Excalidraw, PDF canvases, and media elements
+retain their specialized engines. The custom Persian/Gregorian calendar retains UTC date keys and
+Saturday-first behavior while its day controls use Button. The existing chat scroll policy remains
+pending browser parity verification of Message Scroller. Layout HTML and screen-reader-only live
+announcements do not need component wrappers.
+
+Button's `plain` variant supports specialized tile/row geometry while retaining shared focus and
+disabled behavior. New consumers should prefer an existing visual variant whenever it fits.
+
+Invitation copy actions use Button with a localized “Copy link” label/tooltip and link-copy success
+feedback. Copy the complete `BASE_URL/join?code=CODE` URL for both room and session invitations,
+using the current site origin and URL-encoding the code. The displayed code may remain short for
+manual entry; the clipboard content must be the complete join URL.
 
 Do not add a second component library (ADR 0014).
 

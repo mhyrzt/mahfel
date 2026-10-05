@@ -102,6 +102,18 @@ built on Radix UI plus locally owned wrappers.
 
 Prefer existing primitives and keep them reusable across features.
 
+Follow **shadcn maxing**: use shared shadcn primitives even for simple buttons, inputs, textareas,
+labels, checkboxes, radios, switches, and selects. Compose forms with Field and its label/error
+components; use RadioGroup for exclusive choices, Switch for boolean settings, and shared feedback
+primitives for errors, empty states, and progress. Product routes/features must pass the ESLint
+restrictions on raw ordinary controls.
+
+Keep native file inputs for browser upload plumbing and semantic layout HTML where appropriate.
+Retain specialized editor, canvas, calendar, and media behavior; use shared primitives around these
+engines. Adapt new registry components to local `cn()`, individual Radix packages, semantic theme
+tokens, and RTL direction. Review generated dependencies and diffs; do not overwrite customized
+primitives or install the entire component catalog.
+
 Do not introduce another component system merely because a single component is convenient to import.
 
 Keep application-specific styling out of generic `components/ui` primitives.
@@ -198,6 +210,14 @@ size, apply upstream timeouts, and strip cookies and hop-by-hop headers when for
 
 WebSocket authentication uses a single-use ticket obtained from `POST /v1/ws/tickets` (ADR 0025); do
 not pass the raw access token as a long-lived socket credential.
+
+## Invitation Sharing
+
+Invitation copy buttons copy the complete join URL, not the bare code:
+`BASE_URL/join?code=CODE`. In browser copy handlers, use `window.location.origin` as `BASE_URL`
+and URL-encode the invitation code with `encodeURIComponent`. Use this format for both room and
+session invitations. Keep button labels, tooltips, and success feedback localized and worded as
+copying a link. The invitation list may still display the bare code.
 
 ## API Boundaries
 
