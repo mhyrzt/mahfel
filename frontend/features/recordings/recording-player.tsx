@@ -1,5 +1,9 @@
 "use client";
 
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Checkbox } from "@/components/ui/checkbox";
+import { FieldSet, FieldLegend, FieldLabel } from "@/components/ui/field";
+import { Slider } from "@/components/ui/slider";
 import { useEffect, useRef, useState } from "react";
 import { Pause, Play } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -219,9 +223,9 @@ export function RecordingPlayer({
   return (
     <div className="space-y-3" dir={locale === "fa" ? "rtl" : "ltr"}>
       {failed ? (
-        <p role="alert" className="text-sm text-destructive">
-          {text.unavailable}
-        </p>
+        <Alert variant="destructive" className="text-sm text-destructive">
+          <AlertDescription>{text.unavailable}</AlertDescription>
+        </Alert>
       ) : null}
       {!ready && !failed ? (
         <p role="status" className="text-sm text-muted-foreground">
@@ -235,18 +239,18 @@ export function RecordingPlayer({
         <div ref={container} className="recording-scene relative origin-top-left" />
       </div>
       {audioTracks.length > 0 ? (
-        <fieldset className="flex flex-wrap gap-3 text-sm">
-          <legend className="mb-1 text-muted-foreground">{text.audio}</legend>
+        <FieldSet className="flex flex-row flex-wrap gap-3 text-sm">
+          <FieldLegend className="mb-1 text-muted-foreground">{text.audio}</FieldLegend>
           {audioTracks.map((track) => (
-            <label key={track.track_id} className="flex items-center gap-2">
-              <input
-                type="checkbox"
+            <FieldLabel key={track.track_id} className="flex items-center gap-2">
+              <Checkbox
                 checked={!muted.has(track.track_id)}
-                onChange={(event) => {
-                  media.current?.setMuted(track.track_id, !event.target.checked);
+                onCheckedChange={(checked) => {
+                  const enabled = checked === true;
+                  media.current?.setMuted(track.track_id, !enabled);
                   setMuted((previous) => {
                     const next = new Set(previous);
-                    if (event.target.checked) {
+                    if (enabled) {
                       next.delete(track.track_id);
                     } else {
                       next.add(track.track_id);
@@ -256,9 +260,9 @@ export function RecordingPlayer({
                 }}
               />
               {actorNames[track.actor_id] ?? track.source}
-            </label>
+            </FieldLabel>
           ))}
-        </fieldset>
+        </FieldSet>
       ) : null}
       <div className="flex items-center gap-3">
         <Button
@@ -274,16 +278,21 @@ export function RecordingPlayer({
             <Play aria-hidden="true" className="size-4" />
           )}
         </Button>
-        <input
+        <Slider
+          dir="ltr"
+          aria-valuetext={formatTime(position)}
           aria-label={text.seek}
-          className="h-1.5 w-full accent-primary"
-          disabled={!ready}
-          max={Math.max(0, duration)}
+          className="h-6 w-full"
+          disabled={!ready || duration <= 0}
+          max={Math.max(SEEK_STEP_MS, duration)}
           min={0}
-          onChange={(event) => seek(Number(event.target.value))}
+          onValueChange={([next]) => {
+            if (next !== undefined) {
+              seek(next);
+            }
+          }}
           step={SEEK_STEP_MS}
-          type="range"
-          value={Math.min(position, Math.max(0, duration))}
+          value={[Math.min(position, Math.max(0, duration))]}
         />
         <span aria-label={text.position} className="shrink-0 text-xs text-muted-foreground">
           {formatTime(position)} / {formatTime(duration)}

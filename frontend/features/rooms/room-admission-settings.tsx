@@ -6,6 +6,9 @@ import { useRouter } from "next/navigation";
 import { browserApiClient } from "@/lib/api/browser";
 import type { Locale } from "@/lib/i18n/config";
 
+import { Switch } from "@/components/ui/switch";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+
 import { roomCopy } from "./room-copy";
 
 export function RoomAdmissionSettings({
@@ -46,28 +49,18 @@ export function RoomAdmissionSettings({
             {policy === "lobby" ? text.lobby : text.openAdmission}
           </p>
         </div>
-        <button
-          aria-checked={policy === "lobby"}
+        <Switch
+          checked={policy === "lobby"}
           aria-label={text.lobby}
-          className="relative h-6 w-11 shrink-0 rounded-full bg-muted-foreground/40 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring data-[checked=true]:bg-primary disabled:opacity-50"
-          data-checked={policy === "lobby"}
           data-testid="room-admission-toggle"
           disabled={pending}
-          onClick={() => void toggle()}
-          role="switch"
-          type="button"
-        >
-          <span
-            aria-hidden="true"
-            className="absolute start-0.5 top-0.5 size-5 rounded-full bg-background shadow-sm transition-transform data-[checked=true]:translate-x-5 rtl:data-[checked=true]:-translate-x-5"
-            data-checked={policy === "lobby"}
-          />
-        </button>
+          onCheckedChange={() => void toggle()}
+        />
       </div>
       {error ? (
-        <p role="alert" className="text-sm text-destructive">
-          {text.admissionSaveFailed}
-        </p>
+        <Alert variant="destructive">
+          <AlertDescription>{text.admissionSaveFailed}</AlertDescription>
+        </Alert>
       ) : null}
     </section>
   );

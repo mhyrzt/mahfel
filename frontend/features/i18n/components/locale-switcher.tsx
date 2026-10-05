@@ -66,6 +66,7 @@ export function LocaleSwitcher({ locale, compact = false }: Readonly<LocaleSwitc
 
   return (
     <SegmentedControl
+      dir={locale === "fa" ? "rtl" : "ltr"}
       label={messages.account.language}
       onValueChange={changeLocale}
       options={options}

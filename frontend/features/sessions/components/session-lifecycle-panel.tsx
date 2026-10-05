@@ -1,5 +1,6 @@
 "use client";
 
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { CircleStop } from "lucide-react";
@@ -158,9 +159,9 @@ export function SessionLifecyclePanel({
             <DialogDescription>{text.confirmEnd}</DialogDescription>
           </DialogHeader>
           {error && compact ? (
-            <p className="text-sm text-destructive" role="alert">
-              {error}
-            </p>
+            <Alert variant="destructive" className="text-sm text-destructive">
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
           ) : null}
           <DialogFooter>
             <Button onClick={() => setConfirmingEnd(false)} variant="outline">

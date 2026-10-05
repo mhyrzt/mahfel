@@ -3,6 +3,7 @@
 import { useEffect, useState, type FormEvent } from "react";
 import Link from "next/link";
 
+import { Field, FieldLabel } from "@/components/ui/field";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { browserApiClient } from "@/lib/api/browser";
@@ -133,10 +134,10 @@ export function JoinByCodePanel({
             <h1 className="text-xl font-semibold">{text.title}</h1>
             <p className="text-sm text-muted-foreground">{text.description}</p>
           </div>
-          <div className="space-y-2">
-            <label className="block text-sm font-medium" htmlFor="invite-code">
+          <Field>
+            <FieldLabel className="block text-sm font-medium" htmlFor="invite-code">
               {text.code}
-            </label>
+            </FieldLabel>
             <Input
               autoComplete="off"
               id="invite-code"
@@ -144,7 +145,7 @@ export function JoinByCodePanel({
               placeholder="xxx-yyyy-zzz"
               value={code}
             />
-          </div>
+          </Field>
           <Button disabled={pending || !code.trim()} type="submit">
             {text.continue}
           </Button>

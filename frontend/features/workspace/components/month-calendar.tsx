@@ -146,11 +146,12 @@ export function MonthCalendar({
             stateClass = "font-semibold text-primary ring-1 ring-primary/40 hover:bg-accent";
           }
           return (
-            <button
+            <Button
+              variant="plain"
               aria-current={isToday ? "date" : undefined}
               aria-label={date}
               aria-pressed={selected}
-              className={`relative mx-auto grid size-9 place-items-center rounded-lg text-sm tabular-nums transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 ${stateClass}`}
+              className={`relative mx-auto grid size-9 p-0 place-items-center rounded-lg text-sm tabular-nums transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 ${stateClass}`}
               key={date}
               onClick={() => onSelectDate(date)}
               type="button"
@@ -159,7 +160,7 @@ export function MonthCalendar({
               {active.has(date) && !selected ? (
                 <span className="absolute bottom-1 size-1 rounded-full bg-primary" />
               ) : null}
-            </button>
+            </Button>
           );
         })}
       </div>

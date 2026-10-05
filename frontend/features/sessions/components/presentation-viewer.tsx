@@ -1,5 +1,6 @@
 "use client";
 
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useEffect, useState, type ReactNode } from "react";
 import { Presentation, Square } from "lucide-react";
 
@@ -67,9 +68,9 @@ export function PresentationViewer({
   return (
     <div className="flex h-full min-h-0 flex-1 flex-col gap-3 overflow-hidden rounded-xl border bg-background p-3">
       {failed ? (
-        <p role="alert" className="text-sm text-destructive">
-          {text.unavailable}
-        </p>
+        <Alert variant="destructive" className="text-sm text-destructive">
+          <AlertDescription>{text.unavailable}</AlertDescription>
+        </Alert>
       ) : null}
       {totalPages > 0 ? (
         <>

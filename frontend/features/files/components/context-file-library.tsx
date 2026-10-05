@@ -1,5 +1,7 @@
 "use client";
 
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Label } from "@/components/ui/label";
 import {
   useCallback,
   useEffect,
@@ -247,7 +249,7 @@ export function ContextFileLibrary({
         }}
         onDrop={(event) => void onDrop(event)}
       >
-        <label className="flex min-h-20 cursor-pointer flex-col items-center justify-center gap-1 px-3 py-3 text-center text-xs text-muted-foreground focus-within:ring-2 focus-within:ring-ring">
+        <Label className="flex min-h-20 cursor-pointer flex-col items-center justify-center gap-1 px-3 py-3 text-center text-xs text-muted-foreground focus-within:ring-2 focus-within:ring-ring">
           <UploadCloud aria-hidden="true" className="size-5" />
           <span>{uploading ? text.uploading : dropLabel}</span>
           <input
@@ -258,12 +260,12 @@ export function ContextFileLibrary({
             onChange={(event) => void onFileChange(event)}
             type="file"
           />
-        </label>
+        </Label>
       </div>
       {error ? (
-        <p className="text-sm text-destructive" role="alert">
-          {error}
-        </p>
+        <Alert variant="destructive" className="text-sm text-destructive">
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
       ) : null}
       {loading ? null : (
         <FileList

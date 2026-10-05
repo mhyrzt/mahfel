@@ -3,6 +3,8 @@
 import { useEffect, useId, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 
+import { Field, FieldLabel, FieldError } from "@/components/ui/field";
+import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -99,12 +101,12 @@ export function CreateSessionForm({
   return (
     <form className="max-w-xl space-y-6" data-testid="create-session-form" onSubmit={submit}>
       <h1 className="text-2xl font-semibold tracking-tight">{text.newSession}</h1>
-      <div className="space-y-2">
-        <label className="block text-sm font-medium" htmlFor="session-room">
+      <Field>
+        <FieldLabel className="block text-sm font-medium" htmlFor="session-room">
           {text.roomSelection}
-        </label>
-        <select
-          className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        </FieldLabel>
+        <NativeSelect
+          className="h-10 w-full bg-background"
           id="session-room"
           onChange={(event) => {
             setCanManage(false);
@@ -114,43 +116,43 @@ export function CreateSessionForm({
           value={roomId}
         >
           {rooms.map((room) => (
-            <option key={room.id} value={room.id}>
+            <NativeSelectOption key={room.id} value={room.id}>
               {room.title}
-            </option>
+            </NativeSelectOption>
           ))}
-        </select>
-      </div>
+        </NativeSelect>
+      </Field>
       {!checkingRole && !canManage ? (
         <p className="text-sm text-muted-foreground" role="status">
           {text.managerOnly}
         </p>
       ) : null}
-      <div className="space-y-2">
-        <label className="block text-sm font-medium" htmlFor="session-title">
+      <Field>
+        <FieldLabel className="block text-sm font-medium" htmlFor="session-title">
           {text.sessionTitle}
-        </label>
+        </FieldLabel>
         <Input
           id="session-title"
           maxLength={300}
           onChange={(event) => setTitle(event.target.value)}
           value={title}
         />
-      </div>
-      <div className="space-y-2">
-        <label className="block text-sm font-medium" htmlFor="session-start">
+      </Field>
+      <Field>
+        <FieldLabel className="block text-sm font-medium" htmlFor="session-start">
           {text.plannedStart}
-        </label>
+        </FieldLabel>
         <Input
           id="session-start"
           type="datetime-local"
           onChange={(event) => setStart(event.target.value)}
           value={start}
         />
-      </div>
-      <div className="space-y-2">
-        <label className="block text-sm font-medium" htmlFor="session-duration">
+      </Field>
+      <Field>
+        <FieldLabel className="block text-sm font-medium" htmlFor="session-duration">
           {text.duration}
-        </label>
+        </FieldLabel>
         <Input
           id="session-duration"
           min={1}
@@ -159,20 +161,16 @@ export function CreateSessionForm({
           onChange={(event) => setDuration(event.target.value)}
           value={duration}
         />
-      </div>
-      <div className="flex items-center gap-2 text-sm">
+      </Field>
+      <Field orientation="horizontal">
         <Checkbox
           id={autoRecordId}
           checked={autoRecord}
           onCheckedChange={(checked) => setAutoRecord(checked === true)}
         />
-        <label htmlFor={autoRecordId}>{text.autoRecord}</label>
-      </div>
-      {error ? (
-        <p className="text-sm text-destructive" role="alert">
-          {error}
-        </p>
-      ) : null}
+        <FieldLabel htmlFor={autoRecordId}>{text.autoRecord}</FieldLabel>
+      </Field>
+      {error ? <FieldError>{error}</FieldError> : null}
       <Button disabled={pending || checkingRole || !canManage} type="submit">
         {pending ? text.creating : text.newSession}
       </Button>

@@ -1,5 +1,6 @@
 "use client";
 
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { signOut } from "next-auth/react";
 import { LogOut, Settings2 } from "lucide-react";
 import { useState } from "react";
@@ -116,9 +117,9 @@ export function AccountQuickSettings({
             {shell.logout}
           </DropdownMenuItem>
           {logoutError ? (
-            <p className="px-2 py-1 text-xs text-destructive" role="alert">
-              {shell.logoutFailed}
-            </p>
+            <Alert variant="destructive" className="px-2 py-1 text-xs text-destructive">
+              <AlertDescription>{shell.logoutFailed}</AlertDescription>
+            </Alert>
           ) : null}
         </DropdownMenuContent>
       </DropdownMenu>

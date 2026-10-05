@@ -1,5 +1,6 @@
 "use client";
 
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useEffect, useState, type ReactNode } from "react";
 
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
@@ -62,9 +63,9 @@ export function CreateWorkspaceDialog({
     content = <CreateRoomForm locale={locale} onCreated={() => onOpenChange(false)} />;
   } else if (failed) {
     content = (
-      <p role="alert" className="text-sm text-destructive">
-        {text.sessionUnavailable}
-      </p>
+      <Alert variant="destructive" className="text-sm text-destructive">
+        <AlertDescription>{text.sessionUnavailable}</AlertDescription>
+      </Alert>
     );
   } else if (rooms === null) {
     content = (

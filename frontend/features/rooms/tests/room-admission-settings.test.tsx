@@ -23,3 +23,14 @@ test("a manager can change the room's joining policy", async () => {
     expect(refresh).toHaveBeenCalledOnce();
   });
 });
+
+test("a failed admission change keeps the saved policy and re-enables the switch", async () => {
+  put.mockRejectedValue(new Error("Unavailable"));
+  render(<RoomAdmissionSettings roomId="room-1" initialPolicy="open" locale="en" />);
+  const toggle = screen.getByRole("switch", { name: "Lobby admission" });
+  fireEvent.click(toggle);
+  expect(toggle).toBeDisabled();
+  await screen.findByRole("alert");
+  expect(toggle).not.toBeDisabled();
+  expect(toggle).not.toBeChecked();
+});

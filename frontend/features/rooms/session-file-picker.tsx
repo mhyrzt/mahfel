@@ -1,5 +1,6 @@
 "use client";
 
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useRef, useState, type DragEvent } from "react";
 import { CloudUpload, FolderOpen, HardDriveUpload } from "lucide-react";
 
@@ -141,8 +142,9 @@ export function SessionFilePicker({
         open={open}
       >
         <DialogTrigger asChild>
-          <button
-            className="flex min-h-28 w-full flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-border bg-background px-4 py-5 text-center text-sm transition-colors hover:border-primary/60 hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring data-[dragging=true]:border-primary data-[dragging=true]:bg-primary/5 disabled:opacity-50"
+          <Button
+            variant="plain"
+            className="flex h-auto whitespace-normal min-h-28 w-full flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-border bg-background px-4 py-5 text-center text-sm transition-colors hover:border-primary/60 hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring data-[dragging=true]:border-primary data-[dragging=true]:bg-primary/5 disabled:opacity-50"
             data-dragging={dragging}
             disabled={pending}
             onDragEnter={(event) => {
@@ -157,7 +159,7 @@ export function SessionFilePicker({
             <CloudUpload aria-hidden="true" className="size-5 text-muted-foreground" />
             <span className="font-medium">{pending ? text.uploading : text.addSessionFile}</span>
             <span className="text-xs text-muted-foreground">{text.dropFileHint}</span>
-          </button>
+          </Button>
         </DialogTrigger>
         <DialogContent className="max-h-[min(85dvh,40rem)] max-w-lg overflow-y-auto">
           <DialogHeader>
@@ -220,16 +222,16 @@ export function SessionFilePicker({
             </div>
           )}
           {error ? (
-            <p className="text-sm text-destructive" role="alert">
-              {text.filePickFailed}
-            </p>
+            <Alert variant="destructive" className="text-sm text-destructive">
+              <AlertDescription>{text.filePickFailed}</AlertDescription>
+            </Alert>
           ) : null}
         </DialogContent>
       </Dialog>
       {!open && error ? (
-        <p className="text-sm text-destructive" role="alert">
-          {text.filePickFailed}
-        </p>
+        <Alert variant="destructive" className="text-sm text-destructive">
+          <AlertDescription>{text.filePickFailed}</AlertDescription>
+        </Alert>
       ) : null}
     </div>
   );

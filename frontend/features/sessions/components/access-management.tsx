@@ -1,5 +1,15 @@
 "use client";
 
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Table,
+  TableHeader,
+  TableBody,
+  TableRow,
+  TableHead,
+  TableCell,
+} from "@/components/ui/table";
 import { useEffect, useState } from "react";
 
 import { browserApiClient } from "@/lib/api/browser";
@@ -86,33 +96,33 @@ export function AccessManagement({
     <div className="space-y-3">
       <h3 className="font-semibold">{text.permissions}</h3>
       {error ? (
-        <p role="alert" className="text-sm text-destructive">
-          {text.unavailable}
-        </p>
+        <Alert variant="destructive" className="text-sm text-destructive">
+          <AlertDescription>{text.unavailable}</AlertDescription>
+        </Alert>
       ) : null}
       <div className="overflow-x-auto rounded-xl border bg-card">
-        <table className="w-full min-w-[28rem] border-collapse text-xs">
-          <thead className="bg-muted/60 text-muted-foreground">
-            <tr>
-              <th
+        <Table className="w-full min-w-[28rem] border-collapse text-xs">
+          <TableHeader className="bg-muted/60 text-muted-foreground">
+            <TableRow>
+              <TableHead
                 className="sticky start-0 z-10 min-w-28 bg-muted/60 px-3 py-3 text-start font-medium"
                 scope="col"
               >
                 {text.permissions}
-              </th>
+              </TableHead>
               {fields.map(({ key, label }) => (
-                <th className="px-2 py-3 text-center font-medium" key={key} scope="col">
+                <TableHead className="px-2 py-3 text-center font-medium" key={key} scope="col">
                   {label}
-                </th>
+                </TableHead>
               ))}
-            </tr>
-          </thead>
-          <tbody>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
             {grants.map((grant) => {
               const locked = grant.actor_id === actorId || grant.is_manager;
               return (
-                <tr className="border-t border-border/70" key={grant.actor_id}>
-                  <th
+                <TableRow className="border-t border-border/70" key={grant.actor_id}>
+                  <TableHead
                     className="sticky start-0 z-10 bg-card px-3 py-3 text-start font-medium"
                     scope="row"
                   >
@@ -124,24 +134,23 @@ export function AccessManagement({
                         {grant.actor_id === actorId ? text.accessSelf : text.accessManaged}
                       </span>
                     ) : null}
-                  </th>
+                  </TableHead>
                   {fields.map(({ key, label }) => (
-                    <td className="px-2 py-3 text-center" key={key}>
-                      <input
+                    <TableCell className="px-2 py-3 text-center" key={key}>
+                      <Checkbox
                         aria-label={`${grant.display_name}: ${label}`}
                         checked={grant[key]}
                         className="size-4 cursor-pointer accent-primary disabled:cursor-not-allowed disabled:opacity-50"
                         disabled={locked || busy !== null}
-                        onChange={(event) => void setAccess(grant, key, event.target.checked)}
-                        type="checkbox"
+                        onCheckedChange={(checked) => void setAccess(grant, key, checked === true)}
                       />
-                    </td>
+                    </TableCell>
                   ))}
-                </tr>
+                </TableRow>
               );
             })}
-          </tbody>
-        </table>
+          </TableBody>
+        </Table>
       </div>
     </div>
   );

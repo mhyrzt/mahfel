@@ -1,9 +1,12 @@
 "use client";
 
-import type { FormEvent, ReactNode } from "react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { useRef, type FormEvent, type ReactNode } from "react";
 import { Paperclip, Send, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
+import { InputGroup, InputGroupTextarea, InputGroupAddon } from "@/components/ui/input-group";
+import { Label } from "@/components/ui/label";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { roomCopy } from "@/features/rooms/room-copy";
 import type { Locale } from "@/lib/i18n/config";
 
@@ -38,6 +41,7 @@ export function ConversationPanel({
   error?: string | null;
   children: ReactNode;
 }>) {
+  const fileInput = useRef<HTMLInputElement>(null);
   const text = roomCopy(locale);
   const attachable = Boolean(onAttachFiles);
   return (
@@ -59,9 +63,9 @@ export function ConversationPanel({
         </div>
       ) : null}
       {error ? (
-        <p role="alert" className="text-sm text-destructive">
-          {error}
-        </p>
+        <Alert variant="destructive" className="text-sm text-destructive">
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
       ) : null}
       {children}
       <form className="mt-auto shrink-0 rounded-xl border bg-background p-2" onSubmit={onSend}>
@@ -83,24 +87,25 @@ export function ConversationPanel({
                 <Paperclip aria-hidden="true" className="size-3 shrink-0" />
                 <span className="min-w-0 truncate">{file.name}</span>
                 {onRemoveAttachment ? (
-                  <button
+                  <Button
+                    variant="plain"
                     aria-label={`${text.removeAttachment}: ${file.name}`}
-                    className="text-muted-foreground hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    className="size-5 p-0 text-muted-foreground hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                     onClick={() => onRemoveAttachment(index)}
                     type="button"
                   >
                     <X aria-hidden="true" className="size-3" />
-                  </button>
+                  </Button>
                 ) : null}
               </li>
             ))}
           </ul>
         ) : null}
-        <div className="flex items-end gap-2">
-          <label className="sr-only" htmlFor={`chat-draft-${roomId}`}>
+        <InputGroup className="h-auto items-end gap-2 rounded-lg border-0 bg-transparent shadow-none has-[[data-slot=input-group-control]:focus-visible]:ring-2">
+          <Label className="sr-only" htmlFor={`chat-draft-${roomId}`}>
             {text.writeMessage}
-          </label>
-          <Textarea
+          </Label>
+          <InputGroupTextarea
             className="min-h-10 max-h-32 flex-1 resize-none border-0 bg-transparent shadow-none focus-visible:ring-0"
             id={`chat-draft-${roomId}`}
             onChange={(event) => onDraftChange(event.target.value)}
@@ -113,38 +118,55 @@ export function ConversationPanel({
             placeholder={text.writeMessage}
             value={draft}
           />
-          {attachable ? (
-            <label
-              className="inline-flex size-10 shrink-0 cursor-pointer items-center justify-center rounded-md text-muted-foreground hover:bg-muted focus-within:ring-2 focus-within:ring-ring"
-              title={text.attachFiles}
+          <InputGroupAddon align="inline-end" className="gap-2 pe-0">
+            {attachable ? (
+              <>
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        aria-label={text.attachFiles}
+                        className="size-10 shrink-0 text-muted-foreground"
+                        variant="ghost"
+                        size="icon"
+                        type="button"
+                        onClick={() => fileInput.current?.click()}
+                      >
+                        <Paperclip aria-hidden="true" className="size-4" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent dir={locale === "fa" ? "rtl" : "ltr"}>
+                      {text.attachFiles}
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+                <input
+                  ref={fileInput}
+                  aria-label={text.attachFiles}
+                  hidden
+                  multiple
+                  onChange={(event) => {
+                    const files = Array.from(event.target.files ?? []);
+                    if (files.length > 0) {
+                      onAttachFiles?.(files);
+                    }
+                    event.target.value = "";
+                  }}
+                  type="file"
+                />
+              </>
+            ) : null}
+            <Button
+              aria-label={text.send}
+              className="size-10 shrink-0"
+              disabled={sending || !draft.trim()}
+              size="icon"
+              type="submit"
             >
-              <Paperclip aria-hidden="true" className="size-4" />
-              <span className="sr-only">{text.attachFiles}</span>
-              <input
-                aria-label={text.attachFiles}
-                className="sr-only"
-                multiple
-                onChange={(event) => {
-                  const files = Array.from(event.target.files ?? []);
-                  if (files.length > 0) {
-                    onAttachFiles?.(files);
-                  }
-                  event.target.value = "";
-                }}
-                type="file"
-              />
-            </label>
-          ) : null}
-          <Button
-            aria-label={text.send}
-            className="size-10 shrink-0"
-            disabled={sending || !draft.trim()}
-            size="icon"
-            type="submit"
-          >
-            <Send aria-hidden="true" className="size-4" />
-          </Button>
-        </div>
+              <Send aria-hidden="true" className="size-4" />
+            </Button>
+          </InputGroupAddon>
+        </InputGroup>
       </form>
     </section>
   );

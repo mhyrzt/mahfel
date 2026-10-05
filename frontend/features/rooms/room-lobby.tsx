@@ -1,5 +1,6 @@
 "use client";
 
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useCallback, useEffect, useState } from "react";
 
 import { AdmissionQueue } from "@/features/sessions/components/admission-queue";
@@ -62,9 +63,9 @@ export function RoomLobby({ roomId, locale }: Readonly<{ roomId: string; locale:
     <section aria-label={text.roomRequests} data-testid="room-lobby" className="space-y-3">
       <h2 className="text-lg font-semibold">{text.roomRequests}</h2>
       {error ? (
-        <p role="alert" className="text-sm text-destructive">
-          {text.lobbyUnavailable}
-        </p>
+        <Alert variant="destructive" className="text-sm text-destructive">
+          <AlertDescription>{text.lobbyUnavailable}</AlertDescription>
+        </Alert>
       ) : null}
       <AdmissionQueue
         requests={requests}

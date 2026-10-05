@@ -1,4 +1,5 @@
 import { AlertCircle, LoaderCircle } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import type { ReactNode } from "react";
 
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -200,28 +201,28 @@ export function SessionScreen({
           </header>
         ) : null}
         {actionError ? (
-          <p
+          <Alert
+            variant="destructive"
             className="rounded-lg border border-destructive/40 p-3 text-sm text-destructive"
-            role="alert"
           >
-            {actionError}
-          </p>
+            <AlertDescription>{actionError}</AlertDescription>
+          </Alert>
         ) : null}
         {media?.error ? (
-          <p
+          <Alert
+            variant="destructive"
             className="rounded-lg border border-destructive/40 p-3 text-sm text-destructive"
-            role="alert"
           >
-            {media.error}
-          </p>
+            <AlertDescription>{media.error}</AlertDescription>
+          </Alert>
         ) : null}
         {remoteMedia?.error ? (
-          <p
+          <Alert
+            variant="destructive"
             className="rounded-lg border border-destructive/40 p-3 text-sm text-destructive"
-            role="alert"
           >
-            {remoteMedia.error}
-          </p>
+            <AlertDescription>{remoteMedia.error}</AlertDescription>
+          </Alert>
         ) : null}
         {Object.entries(remoteMedia?.streams ?? {}).map(([owner, sources]) =>
           sources.microphone ? (

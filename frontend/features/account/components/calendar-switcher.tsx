@@ -26,6 +26,7 @@ export function CalendarSwitcher({
 
   return (
     <SegmentedControl
+      dir={locale === "fa" ? "rtl" : "ltr"}
       label={messages.calendarType}
       onValueChange={changeCalendar}
       options={calendarPreferences.map((value) => ({ value, label: messages[value] }))}

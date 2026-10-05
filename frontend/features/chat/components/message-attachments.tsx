@@ -1,5 +1,6 @@
 "use client";
 
+import { Button } from "@/components/ui/button";
 import { useEffect, useState } from "react";
 import Image from "next/image";
 import { FileVideo, Play } from "lucide-react";
@@ -108,9 +109,10 @@ function ImageTile({
 }: Readonly<{ file: FileRecord; onOpen: (file: FileRecord) => void }>) {
   const url = useObjectUrl(file.id);
   return (
-    <button
+    <Button
+      variant="plain"
       aria-label={file.file_name}
-      className="group/media relative aspect-square min-h-24 overflow-hidden rounded-lg border bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      className="group/media relative block h-auto w-full p-0 aspect-square min-h-24 overflow-hidden rounded-lg border bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       onClick={() => onOpen(file)}
       type="button"
     >
@@ -126,7 +128,7 @@ function ImageTile({
       ) : (
         <span className="block size-full" />
       )}
-    </button>
+    </Button>
   );
 }
 
@@ -136,9 +138,10 @@ function VideoTile({
 }: Readonly<{ file: FileRecord; onOpen: (file: FileRecord) => void }>) {
   const poster = useVideoPoster(file.id);
   return (
-    <button
+    <Button
+      variant="plain"
       aria-label={file.file_name}
-      className="relative aspect-video min-h-24 overflow-hidden rounded-lg border bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      className="relative block h-auto w-full p-0 aspect-video min-h-24 overflow-hidden rounded-lg border bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       onClick={() => onOpen(file)}
       type="button"
     >
@@ -159,7 +162,7 @@ function VideoTile({
       <span className="absolute inset-0 grid place-items-center bg-black/25">
         <Play aria-hidden="true" className="size-6 fill-white text-white" />
       </span>
-    </button>
+    </Button>
   );
 }
 

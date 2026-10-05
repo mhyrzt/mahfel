@@ -1,5 +1,6 @@
 "use client";
 
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useCallback, useEffect, useState } from "react";
 
 import { browserApiClient } from "@/lib/api/browser";
@@ -83,9 +84,9 @@ export function InviteManager({
   return (
     <section className="space-y-3" data-testid={`${target}-invite-manager`}>
       {error ? (
-        <p role="alert" className="text-sm text-destructive">
-          {error}
-        </p>
+        <Alert variant="destructive" className="text-sm text-destructive">
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
       ) : null}
       {notice ? (
         <p role="status" className="text-sm text-muted-foreground">

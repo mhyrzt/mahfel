@@ -1,8 +1,10 @@
 "use client";
 
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { Plus, Trash2 } from "lucide-react";
 
+import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { browserApiClient } from "@/lib/api/browser";
@@ -125,9 +127,9 @@ export function RoomMembers({
         </Button>
       </form>
       {error ? (
-        <p className="text-sm text-destructive" role="alert">
-          {text.memberActionFailed}
-        </p>
+        <Alert variant="destructive" className="text-sm text-destructive">
+          <AlertDescription>{text.memberActionFailed}</AlertDescription>
+        </Alert>
       ) : null}
       {loading ? (
         <p className="text-sm text-muted-foreground" role="status">
@@ -150,18 +152,18 @@ export function RoomMembers({
                 {member.user_id === actorId ? text.you : member.user_id}
               </span>
               <div className="flex flex-wrap items-center gap-2">
-                <select
+                <NativeSelect
                   aria-label={`${text.memberRole}: ${member.user_id}`}
-                  className="h-9 rounded-md border bg-background px-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  className="h-9 bg-background"
                   disabled={pending || protectedManager}
                   onChange={(event) =>
                     void changeRole(member, event.target.value as RoomMemberRecord["role"])
                   }
                   value={member.role}
                 >
-                  <option value="member">{text.member}</option>
-                  <option value="manager">{text.manager}</option>
-                </select>
+                  <NativeSelectOption value="member">{text.member}</NativeSelectOption>
+                  <NativeSelectOption value="manager">{text.manager}</NativeSelectOption>
+                </NativeSelect>
                 {confirming === member.user_id ? (
                   <>
                     <Button

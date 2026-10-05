@@ -1,5 +1,6 @@
 "use client";
 
+import { Empty, EmptyDescription } from "@/components/ui/empty";
 import { useEffect, useRef } from "react";
 import { MoreVertical } from "lucide-react";
 
@@ -95,9 +96,9 @@ export function ChatMessageList({
   }
   if (messages.length === 0) {
     return (
-      <p className="rounded-lg border border-dashed px-4 py-10 text-center text-sm text-muted-foreground">
-        {text.noMessages}
-      </p>
+      <Empty className="rounded-lg border border-dashed px-4 py-10 text-center text-sm text-muted-foreground">
+        <EmptyDescription>{text.noMessages}</EmptyDescription>
+      </Empty>
     );
   }
   const sentAt = (value: string) =>

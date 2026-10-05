@@ -1,5 +1,6 @@
 "use client";
 
+import { Empty, EmptyDescription } from "@/components/ui/empty";
 import { useState } from "react";
 import { LayoutGrid, List } from "lucide-react";
 
@@ -41,7 +42,11 @@ export function FileList({
   const text = roomCopy(locale);
   const [view, setView] = useState<FileView>(initialView);
   if (files.length === 0) {
-    return <p className="text-sm text-muted-foreground">{text.noFiles}</p>;
+    return (
+      <Empty className="text-sm text-muted-foreground">
+        <EmptyDescription>{text.noFiles}</EmptyDescription>
+      </Empty>
+    );
   }
   return (
     <div className="space-y-3">

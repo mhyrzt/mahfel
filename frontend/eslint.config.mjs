@@ -98,6 +98,26 @@ export default defineConfig([
       "react/self-closing-comp": "error",
     },
   },
+  {
+    files: ["app/**/*.tsx", "features/**/*.tsx"],
+    ignores: ["**/tests/**", "**/stories/**"],
+    rules: {
+      "no-restricted-syntax": [
+        "error",
+        {
+          selector:
+            "JSXOpeningElement[name.name=/^(button|textarea|select|label|progress|table)$/]",
+          message: "Use the shared shadcn primitive for this control.",
+        },
+        {
+          selector:
+            "JSXOpeningElement[name.name='input']:not(:has(JSXAttribute[name.name='type'][value.value='file']))",
+          message:
+            "Use Input, Checkbox, Switch, or Slider; native file inputs are the intentional exception.",
+        },
+      ],
+    },
+  },
   globalIgnores([
     ".next/**",
     "out/**",

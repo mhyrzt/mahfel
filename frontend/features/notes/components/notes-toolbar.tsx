@@ -1,4 +1,6 @@
 import { INSERT_ORDERED_LIST_COMMAND, INSERT_UNORDERED_LIST_COMMAND } from "@lexical/list";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Separator } from "@/components/ui/separator";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import { $setBlocksType } from "@lexical/selection";
 import { $createHeadingNode } from "@lexical/rich-text";
@@ -72,144 +74,186 @@ export function NotesToolbar({
     }
   };
   return (
-    <div
-      className="flex flex-wrap items-center gap-1 border-b bg-muted/30 p-2"
-      role="toolbar"
-      aria-label={text.noteFormatting}
-    >
-      <Button
-        type="button"
-        size="icon"
-        variant="ghost"
-        aria-label={text.undo}
-        title={text.undo}
-        disabled={disabled}
-        onClick={() => editor.dispatchCommand(UNDO_COMMAND, undefined)}
+    <TooltipProvider>
+      <div
+        className="flex flex-wrap items-center gap-1 border-b bg-muted/30 p-2"
+        role="toolbar"
+        aria-label={text.noteFormatting}
       >
-        <Undo2 className="size-4" />
-      </Button>
-      <Button
-        type="button"
-        size="icon"
-        variant="ghost"
-        aria-label={text.redo}
-        title={text.redo}
-        disabled={disabled}
-        onClick={() => editor.dispatchCommand(REDO_COMMAND, undefined)}
-      >
-        <Redo2 className="size-4" />
-      </Button>
-      <span className="mx-1 h-6 w-px bg-border" aria-hidden="true" />
-      <Button
-        type="button"
-        size="icon"
-        variant="ghost"
-        aria-label={text.paragraph}
-        title={text.paragraph}
-        disabled={disabled}
-        onClick={paragraph}
-      >
-        <Pilcrow className="size-4" />
-      </Button>
-      <Button
-        type="button"
-        size="icon"
-        variant="ghost"
-        aria-label={text.heading}
-        title={text.heading}
-        disabled={disabled}
-        onClick={heading}
-      >
-        <Heading2 className="size-4" />
-      </Button>
-      <span className="mx-1 h-6 w-px bg-border" aria-hidden="true" />
-      <Button
-        type="button"
-        size="icon"
-        variant="ghost"
-        aria-label={text.bold}
-        title={text.bold}
-        disabled={disabled}
-        onClick={() => editor.dispatchCommand(FORMAT_TEXT_COMMAND, "bold")}
-      >
-        <Bold className="size-4" />
-      </Button>
-      <Button
-        type="button"
-        size="icon"
-        variant="ghost"
-        aria-label={text.italic}
-        title={text.italic}
-        disabled={disabled}
-        onClick={() => editor.dispatchCommand(FORMAT_TEXT_COMMAND, "italic")}
-      >
-        <Italic className="size-4" />
-      </Button>
-      <Button
-        type="button"
-        size="icon"
-        variant="ghost"
-        aria-label={text.underline}
-        title={text.underline}
-        disabled={disabled}
-        onClick={() => editor.dispatchCommand(FORMAT_TEXT_COMMAND, "underline")}
-      >
-        <Underline className="size-4" />
-      </Button>
-      <span className="mx-1 h-6 w-px bg-border" aria-hidden="true" />
-      <Button
-        type="button"
-        size="icon"
-        variant="ghost"
-        aria-label={text.bullets}
-        title={text.bullets}
-        disabled={disabled}
-        onClick={() => editor.dispatchCommand(INSERT_UNORDERED_LIST_COMMAND, undefined)}
-      >
-        <List className="size-4" />
-      </Button>
-      <Button
-        type="button"
-        size="icon"
-        variant="ghost"
-        aria-label={text.numbers}
-        title={text.numbers}
-        disabled={disabled}
-        onClick={() => editor.dispatchCommand(INSERT_ORDERED_LIST_COMMAND, undefined)}
-      >
-        <ListOrdered className="size-4" />
-      </Button>
-      <Button
-        type="button"
-        size="icon"
-        variant="ghost"
-        aria-label={text.insertImage}
-        title={text.insertImage}
-        data-testid="notes-insert-image"
-        disabled={disabled || uploadingImage}
-        onClick={() => imageInput.current?.click()}
-      >
-        {uploadingImage ? text.loading : <ImagePlus className="size-4" />}
-      </Button>
-      <input
-        ref={imageInput}
-        className="sr-only"
-        type="file"
-        accept="image/png,image/jpeg"
-        aria-label={text.insertImage}
-        disabled={disabled || uploadingImage}
-        onChange={(event) => {
-          const file = event.target.files?.[0];
-          if (file) {
-            void insertImage(file);
-          }
-        }}
-      />
-      {imageError ? (
-        <span className="text-xs text-destructive" role="alert">
-          {text.imageFailed}
-        </span>
-      ) : null}
-    </div>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              type="button"
+              size="icon"
+              variant="ghost"
+              aria-label={text.undo}
+              disabled={disabled}
+              onClick={() => editor.dispatchCommand(UNDO_COMMAND, undefined)}
+            >
+              <Undo2 className="size-4" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent dir={locale === "fa" ? "rtl" : "ltr"}>{text.undo}</TooltipContent>
+        </Tooltip>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              type="button"
+              size="icon"
+              variant="ghost"
+              aria-label={text.redo}
+              disabled={disabled}
+              onClick={() => editor.dispatchCommand(REDO_COMMAND, undefined)}
+            >
+              <Redo2 className="size-4" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent dir={locale === "fa" ? "rtl" : "ltr"}>{text.redo}</TooltipContent>
+        </Tooltip>
+        <Separator orientation="vertical" className="mx-1 h-6" />
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              type="button"
+              size="icon"
+              variant="ghost"
+              aria-label={text.paragraph}
+              disabled={disabled}
+              onClick={paragraph}
+            >
+              <Pilcrow className="size-4" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent dir={locale === "fa" ? "rtl" : "ltr"}>{text.paragraph}</TooltipContent>
+        </Tooltip>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              type="button"
+              size="icon"
+              variant="ghost"
+              aria-label={text.heading}
+              disabled={disabled}
+              onClick={heading}
+            >
+              <Heading2 className="size-4" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent dir={locale === "fa" ? "rtl" : "ltr"}>{text.heading}</TooltipContent>
+        </Tooltip>
+        <Separator orientation="vertical" className="mx-1 h-6" />
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              type="button"
+              size="icon"
+              variant="ghost"
+              aria-label={text.bold}
+              disabled={disabled}
+              onClick={() => editor.dispatchCommand(FORMAT_TEXT_COMMAND, "bold")}
+            >
+              <Bold className="size-4" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent dir={locale === "fa" ? "rtl" : "ltr"}>{text.bold}</TooltipContent>
+        </Tooltip>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              type="button"
+              size="icon"
+              variant="ghost"
+              aria-label={text.italic}
+              disabled={disabled}
+              onClick={() => editor.dispatchCommand(FORMAT_TEXT_COMMAND, "italic")}
+            >
+              <Italic className="size-4" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent dir={locale === "fa" ? "rtl" : "ltr"}>{text.italic}</TooltipContent>
+        </Tooltip>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              type="button"
+              size="icon"
+              variant="ghost"
+              aria-label={text.underline}
+              disabled={disabled}
+              onClick={() => editor.dispatchCommand(FORMAT_TEXT_COMMAND, "underline")}
+            >
+              <Underline className="size-4" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent dir={locale === "fa" ? "rtl" : "ltr"}>{text.underline}</TooltipContent>
+        </Tooltip>
+        <Separator orientation="vertical" className="mx-1 h-6" />
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              type="button"
+              size="icon"
+              variant="ghost"
+              aria-label={text.bullets}
+              disabled={disabled}
+              onClick={() => editor.dispatchCommand(INSERT_UNORDERED_LIST_COMMAND, undefined)}
+            >
+              <List className="size-4" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent dir={locale === "fa" ? "rtl" : "ltr"}>{text.bullets}</TooltipContent>
+        </Tooltip>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              type="button"
+              size="icon"
+              variant="ghost"
+              aria-label={text.numbers}
+              disabled={disabled}
+              onClick={() => editor.dispatchCommand(INSERT_ORDERED_LIST_COMMAND, undefined)}
+            >
+              <ListOrdered className="size-4" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent dir={locale === "fa" ? "rtl" : "ltr"}>{text.numbers}</TooltipContent>
+        </Tooltip>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              type="button"
+              size="icon"
+              variant="ghost"
+              aria-label={text.insertImage}
+              data-testid="notes-insert-image"
+              disabled={disabled || uploadingImage}
+              onClick={() => imageInput.current?.click()}
+            >
+              {uploadingImage ? text.loading : <ImagePlus className="size-4" />}
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent dir={locale === "fa" ? "rtl" : "ltr"}>{text.insertImage}</TooltipContent>
+        </Tooltip>
+        <input
+          ref={imageInput}
+          className="sr-only"
+          type="file"
+          accept="image/png,image/jpeg"
+          aria-label={text.insertImage}
+          disabled={disabled || uploadingImage}
+          onChange={(event) => {
+            const file = event.target.files?.[0];
+            if (file) {
+              void insertImage(file);
+            }
+          }}
+        />
+        {imageError ? (
+          <span className="text-xs text-destructive" role="alert">
+            {text.imageFailed}
+          </span>
+        ) : null}
+      </div>
+    </TooltipProvider>
   );
 }

@@ -1,5 +1,6 @@
 import { Copy, Link2, Plus, RotateCw, Trash2 } from "lucide-react";
 
+import { Empty, EmptyDescription } from "@/components/ui/empty";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -71,9 +72,9 @@ export function InviteLinkList({
         </header>
         <div>
           {links.length === 0 ? (
-            <div className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
-              {text.empty}
-            </div>
+            <Empty className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
+              <EmptyDescription>{text.empty}</EmptyDescription>
+            </Empty>
           ) : (
             <ul className="space-y-3">
               {links.map((link) => (

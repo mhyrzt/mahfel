@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { Camera, Mic } from "lucide-react";
 
 import {
@@ -13,11 +13,16 @@ import {
 import type { Locale } from "@/lib/i18n/config";
 import { messagesFor } from "@/lib/i18n/messages";
 
+import { Switch } from "@/components/ui/switch";
+import { Field, FieldLabel } from "@/components/ui/field";
+
 interface DevicePreferencesProps {
   locale: Locale;
 }
 
 export function DevicePreferences({ locale }: Readonly<DevicePreferencesProps>) {
+  const microphoneFieldId = useId();
+  const cameraFieldId = useId();
   const messages = messagesFor(locale).account;
   const [previewEnabled, setPreviewEnabled] = useState(true);
   const [devices, setDevices] = useState<MediaDeviceInfo[]>([]);
@@ -157,32 +162,25 @@ export function DevicePreferences({ locale }: Readonly<DevicePreferencesProps>) 
           <span className="text-sm text-muted-foreground" aria-hidden="true">
             {previewEnabled ? messages.previewOn : messages.previewOff}
           </span>
-          <label className="relative inline-flex h-6 w-11 shrink-0 cursor-pointer" dir="ltr">
-            <input
-              aria-label={previewEnabled ? messages.disablePreview : messages.enablePreview}
-              checked={previewEnabled}
-              className="peer sr-only"
-              onChange={(event) => setPreviewEnabled(event.currentTarget.checked)}
-              role="switch"
-              type="checkbox"
-            />
-            <span className="pointer-events-none absolute inset-0 cursor-pointer rounded-full bg-muted-foreground/35 transition-colors peer-checked:bg-primary peer-focus-visible:outline-none peer-focus-visible:ring-2 peer-focus-visible:ring-ring peer-focus-visible:ring-offset-2" />
-            <span className="pointer-events-none absolute left-0.5 top-0.5 size-5 rounded-full bg-background shadow transition-transform peer-checked:translate-x-5" />
-          </label>
+          <Switch
+            aria-label={previewEnabled ? messages.disablePreview : messages.enablePreview}
+            checked={previewEnabled}
+            onCheckedChange={setPreviewEnabled}
+          />
         </div>
       </div>
       <div className="grid items-start gap-5 sm:grid-cols-2">
-        <div className="min-w-0 space-y-2">
-          <label className="flex h-5 items-center gap-2 text-sm font-medium">
+        <Field className="min-w-0 gap-2">
+          <FieldLabel className="h-5" htmlFor={microphoneFieldId}>
             <Mic aria-hidden="true" className="size-4 text-muted-foreground" />
             {messages.microphone}
-          </label>
+          </FieldLabel>
           <Select
             disabled={microphones.length === 0}
             onValueChange={setMicrophoneId}
             value={microphoneId || undefined}
           >
-            <SelectTrigger aria-label={messages.chooseMicrophone}>
+            <SelectTrigger id={microphoneFieldId} aria-label={messages.chooseMicrophone}>
               <SelectValue placeholder={messages.noMicrophones} />
             </SelectTrigger>
             <SelectContent
@@ -214,18 +212,18 @@ export function DevicePreferences({ locale }: Readonly<DevicePreferencesProps>) 
               style={{ transform: `scaleX(${level / 100})` }}
             />
           </div>
-        </div>
-        <div className="min-w-0 space-y-2">
-          <label className="flex h-5 items-center gap-2 text-sm font-medium">
+        </Field>
+        <Field className="min-w-0 gap-2">
+          <FieldLabel className="h-5" htmlFor={cameraFieldId}>
             <Camera aria-hidden="true" className="size-4 text-muted-foreground" />
             {messages.camera}
-          </label>
+          </FieldLabel>
           <Select
             disabled={cameras.length === 0}
             onValueChange={setCameraId}
             value={cameraId || undefined}
           >
-            <SelectTrigger aria-label={messages.chooseCamera}>
+            <SelectTrigger id={cameraFieldId} aria-label={messages.chooseCamera}>
               <SelectValue placeholder={messages.noCameras} />
             </SelectTrigger>
             <SelectContent dir={locale === "fa" ? "rtl" : "ltr"}>
@@ -236,7 +234,7 @@ export function DevicePreferences({ locale }: Readonly<DevicePreferencesProps>) 
               ))}
             </SelectContent>
           </Select>
-        </div>
+        </Field>
       </div>
       <video
         autoPlay

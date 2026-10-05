@@ -1,5 +1,6 @@
 "use client";
 
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
 
@@ -153,9 +154,11 @@ export function WorkspaceBrowserMenu({
   let content: ReactNode;
   if (error) {
     content = (
-      <p className="text-sm text-destructive" role="alert">
-        {kind === "rooms" ? text.unavailable : text.sessionUnavailable}
-      </p>
+      <Alert variant="destructive" className="text-sm text-destructive">
+        <AlertDescription>
+          {kind === "rooms" ? text.unavailable : text.sessionUnavailable}
+        </AlertDescription>
+      </Alert>
     );
   } else if (rooms === null) {
     content = (

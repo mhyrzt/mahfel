@@ -77,6 +77,7 @@ export function ThemeSwitcher({ locale, theme, compact = false }: Readonly<Theme
 
   return (
     <SegmentedControl
+      dir={locale === "fa" ? "rtl" : "ltr"}
       label={messages.label}
       onValueChange={changeTheme}
       options={options}

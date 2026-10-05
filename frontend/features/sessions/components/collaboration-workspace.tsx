@@ -1,5 +1,6 @@
 "use client";
 
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useCallback, useEffect, useState } from "react";
 import dynamic from "next/dynamic";
 
@@ -105,9 +106,9 @@ export function CollaborationWorkspace({
   return (
     <section className="flex h-full min-h-0 flex-col gap-2" aria-label={text.title}>
       {failed ? (
-        <p role="alert" className="text-sm text-destructive">
-          {text.unavailable}
-        </p>
+        <Alert variant="destructive" className="text-sm text-destructive">
+          <AlertDescription>{text.unavailable}</AlertDescription>
+        </Alert>
       ) : null}
       {!metadata ? <p className="text-sm text-muted-foreground">{text.loading}</p> : surface}
     </section>

@@ -555,8 +555,9 @@ export function SessionClient({
           role="status"
         >
           <MessageCircle aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-primary" />
-          <button
-            className="min-w-0 flex-1 text-start"
+          <Button
+            variant="plain"
+            className="block h-auto min-w-0 flex-1 p-0 text-start"
             type="button"
             onClick={() => {
               setChatNotice(null);
@@ -567,15 +568,16 @@ export function SessionClient({
               {locale === "fa" ? "پیام تازه" : "New message"}
             </span>
             <span className="block truncate text-muted-foreground">{chatNotice}</span>
-          </button>
-          <button
+          </Button>
+          <Button
+            variant="plain"
             aria-label={locale === "fa" ? "بستن" : "Dismiss"}
-            className="rounded-md p-1 hover:bg-muted"
+            className="size-6 rounded-md p-1 hover:bg-muted"
             onClick={() => setChatNotice(null)}
             type="button"
           >
             <X aria-hidden="true" className="size-4" />
-          </button>
+          </Button>
         </div>
       ) : null}
       <Dialog

@@ -3,6 +3,14 @@
 import Link from "next/link";
 import { CalendarDays, Clock3, Radio } from "lucide-react";
 
+import {
+  Empty,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+  EmptyDescription,
+} from "@/components/ui/empty";
+
 import { RecordingList } from "@/features/recordings/recording-list";
 import type { components } from "@/lib/api/generated/schema";
 import type { Locale } from "@/lib/i18n/config";
@@ -64,11 +72,15 @@ export function RoomSessions({
   return (
     <section aria-label={text.sessions} className="space-y-5" data-testid="room-sessions">
       {sessions.length === 0 ? (
-        <div className="rounded-xl border border-dashed bg-card px-6 py-12">
-          <CalendarDays aria-hidden="true" className="mb-4 size-6 text-muted-foreground" />
-          <p className="font-medium">{text.noSessions}</p>
-          <p className="mt-1 text-sm text-muted-foreground">{text.noSessionsHelp}</p>
-        </div>
+        <Empty className="rounded-xl border border-dashed bg-card px-6 py-12">
+          <EmptyHeader>
+            <EmptyMedia>
+              <CalendarDays aria-hidden="true" className="size-6 text-muted-foreground" />
+            </EmptyMedia>
+            <EmptyTitle>{text.noSessions}</EmptyTitle>
+            <EmptyDescription>{text.noSessionsHelp}</EmptyDescription>
+          </EmptyHeader>
+        </Empty>
       ) : (
         <ol className="space-y-3">
           {sorted.map((session) => {

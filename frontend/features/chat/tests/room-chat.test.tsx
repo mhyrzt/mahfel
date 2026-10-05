@@ -148,7 +148,7 @@ test("uploads composer attachments against the sent message", async () => {
   fireEvent.change(screen.getByLabelText("Write a message"), {
     target: { value: "Report" },
   });
-  fireEvent.change(screen.getByLabelText("Attach files"), {
+  fireEvent.change(screen.getByLabelText("Attach files", { selector: "input" }), {
     target: { files: [new File(["clip"], "clip.mp4", { type: "video/mp4" })] },
   });
   fireEvent.click(screen.getByRole("button", { name: "Send" }));

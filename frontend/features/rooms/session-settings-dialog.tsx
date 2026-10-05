@@ -4,6 +4,7 @@ import { useEffect, useId, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { Settings2 } from "lucide-react";
 
+import { Field, FieldLabel, FieldError } from "@/components/ui/field";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -43,6 +44,9 @@ export function SessionSettingsDialog({
   const [start, setStart] = useState("");
   const [duration, setDuration] = useState(session.scheduled_duration_minutes?.toString() ?? "");
   const autoRecordId = useId();
+  const titleId = useId();
+  const startId = useId();
+  const durationId = useId();
   const [autoRecord, setAutoRecord] = useState(session.auto_record ?? true);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState(false);
@@ -102,43 +106,41 @@ export function SessionSettingsDialog({
           <DialogDescription>{session.title}</DialogDescription>
         </DialogHeader>
         <form className="space-y-4" onSubmit={(event) => void save(event)}>
-          <label className="block space-y-1 text-sm font-medium">
-            <span>{text.sessionTitle}</span>
-            <Input onChange={(event) => setTitle(event.target.value)} value={title} />
-          </label>
-          <label className="block space-y-1 text-sm font-medium">
-            <span>{text.plannedStart}</span>
+          <Field>
+            <FieldLabel htmlFor={titleId}>{text.sessionTitle}</FieldLabel>
+            <Input id={titleId} onChange={(event) => setTitle(event.target.value)} value={title} />
+          </Field>
+          <Field>
+            <FieldLabel htmlFor={startId}>{text.plannedStart}</FieldLabel>
             <Input
+              id={startId}
               onChange={(event) => setStart(event.target.value)}
               type="datetime-local"
               value={start}
             />
-          </label>
-          <label className="block space-y-1 text-sm font-medium">
-            <span>{text.duration}</span>
+          </Field>
+          <Field>
+            <FieldLabel htmlFor={durationId}>{text.duration}</FieldLabel>
             <Input
+              id={durationId}
               max={10080}
               min={1}
               onChange={(event) => setDuration(event.target.value)}
               type="number"
               value={duration}
             />
-          </label>
+          </Field>
           {session.status === "scheduled" ? (
-            <div className="flex items-center gap-2 text-sm">
+            <Field orientation="horizontal">
               <Checkbox
                 id={autoRecordId}
                 checked={autoRecord}
                 onCheckedChange={(checked) => setAutoRecord(checked === true)}
               />
-              <label htmlFor={autoRecordId}>{text.autoRecord}</label>
-            </div>
+              <FieldLabel htmlFor={autoRecordId}>{text.autoRecord}</FieldLabel>
+            </Field>
           ) : null}
-          {error ? (
-            <p className="text-sm text-destructive" role="alert">
-              {text.sessionSettingsFailed}
-            </p>
-          ) : null}
+          {error ? <FieldError>{text.sessionSettingsFailed}</FieldError> : null}
           <div className="flex justify-end gap-2">
             <Button onClick={() => setOpen(false)} type="button" variant="outline">
               {text.cancel}

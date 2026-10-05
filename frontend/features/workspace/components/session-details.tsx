@@ -69,12 +69,13 @@ export function SessionDetails({ session, locale, timeZone }: Readonly<SessionDe
     <>
       <Dialog>
         <DialogTrigger asChild>
-          <button
-            className="hidden w-full rounded-xl text-left outline-none focus-visible:ring-2 focus-visible:ring-ring md:block"
+          <Button
+            variant="plain"
+            className="hidden h-auto w-full whitespace-normal p-0 rounded-xl text-start outline-none focus-visible:ring-2 focus-visible:ring-ring md:block"
             type="button"
           >
             <SessionAgendaRow locale={locale} session={session} timeZone={timeZone} />
-          </button>
+          </Button>
         </DialogTrigger>
         <DialogContent>
           <DialogHeader>
@@ -86,12 +87,13 @@ export function SessionDetails({ session, locale, timeZone }: Readonly<SessionDe
       </Dialog>
       <Sheet>
         <SheetTrigger asChild>
-          <button
-            className="w-full rounded-xl text-left outline-none focus-visible:ring-2 focus-visible:ring-ring md:hidden"
+          <Button
+            variant="plain"
+            className="block h-auto w-full whitespace-normal p-0 rounded-xl text-start outline-none focus-visible:ring-2 focus-visible:ring-ring md:hidden"
             type="button"
           >
             <SessionAgendaRow locale={locale} session={session} timeZone={timeZone} />
-          </button>
+          </Button>
         </SheetTrigger>
         <SheetContent side="bottom">
           <SheetHeader>

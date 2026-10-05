@@ -1,4 +1,8 @@
-import { Download, LoaderCircle, Play, RotateCcw, Trash2 } from "lucide-react";
+import { Download, Play, RotateCcw, Trash2 } from "lucide-react";
+import { Empty, EmptyDescription } from "@/components/ui/empty";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Progress } from "@/components/ui/progress";
+import { Spinner } from "@/components/ui/spinner";
 import { Button } from "@/components/ui/button";
 import type { Locale } from "@/lib/i18n/config";
 import { messagesFor } from "@/lib/i18n/messages";
@@ -40,12 +44,14 @@ export function RecordingListView({
         </p>
       ) : null}
       {failed || actionFailed ? (
-        <p role="alert" className="text-sm text-destructive">
-          {actionFailed ? text.retryFailed : text.unavailable}
-        </p>
+        <Alert variant="destructive" className="text-sm text-destructive">
+          <AlertDescription>{actionFailed ? text.retryFailed : text.unavailable}</AlertDescription>
+        </Alert>
       ) : null}
       {!loading && !failed && items.length === 0 ? (
-        <p className="py-8 text-center text-sm text-muted-foreground">{text.empty}</p>
+        <Empty className="py-8 text-center text-sm text-muted-foreground">
+          <EmptyDescription>{text.empty}</EmptyDescription>
+        </Empty>
       ) : null}
       <ul className="space-y-3">
         {items.map((item) => {
@@ -141,13 +147,10 @@ export function RecordingListView({
               </div>
               {status === "rendering" || status === "queued" ? (
                 <div className="flex items-center gap-2">
-                  <LoaderCircle
-                    aria-hidden="true"
-                    className="size-4 animate-spin text-muted-foreground motion-reduce:animate-none"
-                  />
-                  <progress
+                  <Spinner aria-hidden="true" className="size-4 text-muted-foreground" />
+                  <Progress
                     aria-label={text.rendering}
-                    className="h-1.5 w-full accent-primary"
+                    className="h-1.5 w-full"
                     max={100}
                     value={exportRecord?.progress ?? 0}
                   />

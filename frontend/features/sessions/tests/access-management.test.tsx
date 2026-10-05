@@ -53,3 +53,15 @@ test("a manager cannot change their own access and can grant presenting separate
   );
   expect(screen.getByRole("checkbox", { name: "Shinji: Edit" })).not.toBeChecked();
 });
+
+test("a rejected permission update retains the saved value and releases pending controls", async () => {
+  put.mockRejectedValue(new Error("Unavailable"));
+  render(<AccessManagement actorId="manager" sessionId="session" locale="en" />);
+  const present = await screen.findByRole("checkbox", { name: "Shinji: Present" });
+  fireEvent.click(present);
+  expect(present).toBeDisabled();
+  await screen.findByRole("alert");
+  expect(present).not.toBeChecked();
+  expect(present).not.toBeDisabled();
+  expect(screen.getByRole("checkbox", { name: "Misato: Edit" })).toBeDisabled();
+});

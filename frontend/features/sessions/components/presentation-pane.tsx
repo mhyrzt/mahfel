@@ -1,5 +1,6 @@
 "use client";
 
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import Image from "next/image";
 import dynamic from "next/dynamic";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -203,9 +204,9 @@ export function PresentationPane({
     return (
       <div className="flex h-full min-h-0 flex-1 flex-col gap-3 overflow-hidden rounded-xl border bg-background p-3">
         {failed ? (
-          <p role="alert" className="text-sm text-destructive">
-            {text.unavailable}
-          </p>
+          <Alert variant="destructive" className="text-sm text-destructive">
+            <AlertDescription>{text.unavailable}</AlertDescription>
+          </Alert>
         ) : null}
         <div className="min-h-0 flex-1">
           {ready ? (
