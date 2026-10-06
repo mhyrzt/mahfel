@@ -40,6 +40,7 @@ nav:
       - Components: architecture/components.md
       - Chat: architecture/chat.md
       - Collaboration: architecture/collaboration.md
+      - Session interactions: architecture/session-interactions.md
       - Networking: architecture/networking.md
       - Data flow: architecture/data-flow.md
       - Files: architecture/files.md

@@ -21,3 +21,5 @@ starting, recording, stopping, and failed states; a locally toggled button canno
 recording exists. Recording artifacts should use the existing direct file transfer and authorized
 download boundary, scoped to a recording context. Keep stable `data-testid` anchors on the
 control, indicator, and artifact list for cross-service E2E tests.
+
+`interactions/` owns session poll and quiz drafting, answering, results, named-voter pages, and the shared raise-hand queue. Session composition owns its panel and the existing signaling connection.

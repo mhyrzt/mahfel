@@ -70,8 +70,8 @@ Do not expose every action at once.
 Common actions stay visible. Less common actions belong in contextual menus, popovers, command
 menus, or secondary panels.
 
-Visible session controls today: microphone, camera, screen share, participants, notes, whiteboard,
-presentation, and leave. Secondary actions (moderation, device settings, invite management,
+Visible session controls today: microphone, camera, screen share, raise/lower hand, reactions, participants, notes, whiteboard,
+presentation, and leave. Polls and quizzes use a stage view alongside whiteboard and presentation. Emoji reactions briefly rise from the stage bottom; reduced-motion users see stationary notices. Secondary actions (moderation, device settings, invite management,
 recording, statistics) live in contextual menus and panels.
 
 ### Familiar, but distinctly Mahfel
@@ -283,7 +283,7 @@ Label, with the existing preference persistence handled by each feature.
 ESLint enforces shared control usage in product routes/features, with native file inputs allowed.
 
 Primitives currently present include Button, Dialog, DropdownMenu, Tooltip, Sheet, Tabs, ScrollArea,
-Select, NativeSelect, Avatar, Separator, Sidebar, Skeleton, SegmentedControl, Badge, Card, Input,
+Select, NativeSelect, Avatar, Separator, Sidebar, Skeleton, SegmentedControl, Badge, Card, Questionnaire, Input,
 Textarea, Checkbox, Switch, RadioGroup, Field, Label, InputGroup, Slider, Progress, Table, Collapsible,
 Alert, Empty, Spinner, Breadcrumb, DirectionProvider, Carousel, HoverCard, and Message/Bubble/Attachment.
 
