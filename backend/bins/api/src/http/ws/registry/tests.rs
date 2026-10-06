@@ -153,6 +153,58 @@ fn a_second_device_does_not_add_a_participant() {
     );
 }
 
+#[tokio::test]
+async fn interaction_notifications_are_session_scoped_and_retry_full_queues() {
+    let first = registry();
+    let second = registry();
+    let session = SessionId::new();
+    let room = RoomId::new();
+    let (tx_a, mut rx_a) = mpsc::channel(1);
+    let (tx_b, mut rx_b) = mpsc::channel(1);
+    let (tx_elsewhere, mut rx_elsewhere) = mpsc::channel(1);
+    let id_a = Uuid::new_v4();
+    let id_b = Uuid::new_v4();
+    let elsewhere = Uuid::new_v4();
+    let _a = first.register(id_a, ActorId::new(), tx_a);
+    let _b = second.register(id_b, ActorId::new(), tx_b);
+    let _other = first.register(elsewhere, ActorId::new(), tx_elsewhere);
+    first.joined(id_a, room, session, ParticipantId::new());
+    second.joined(id_b, room, session, ParticipantId::new());
+    first.joined(elsewhere, room, SessionId::new(), ParticipantId::new());
+    for hub in [&first, &second] {
+        hub.send_interaction_version(session, 1);
+        hub.send_interaction_version(session, 2);
+    }
+    assert!(rx_elsewhere.try_recv().is_err());
+    for receiver in [&mut rx_a, &mut rx_b] {
+        assert!(matches!(
+            receiver.try_recv(),
+            Ok(Outbound::Message(
+                ServerMessage::SessionInteractionsChanged { version: 1, .. }
+            ))
+        ));
+    }
+    for hub in [&first, &second] {
+        hub.send_interaction_version(session, 2);
+    }
+    for receiver in [&mut rx_a, &mut rx_b] {
+        assert!(matches!(
+            receiver.try_recv(),
+            Ok(Outbound::Message(
+                ServerMessage::SessionInteractionsChanged { version: 2, .. }
+            ))
+        ));
+    }
+    for hub in [&first, &second] {
+        hub.send_interaction_version(session, 2);
+    }
+    assert!(rx_a.try_recv().is_err());
+    assert!(rx_b.try_recv().is_err());
+    first.joined(id_a, room, session, ParticipantId::new());
+    first.send_interaction_version(session, 2);
+    assert!(rx_a.try_recv().is_ok(), "rejoin resets notification cursor");
+}
+
 #[test]
 fn a_participant_stays_present_while_one_connection_is_live() {
     let registry = registry();

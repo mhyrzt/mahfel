@@ -38,6 +38,7 @@ struct Connection {
     room_id: Option<RoomId>,
     participant_id: Option<ParticipantId>,
     roster_version: Option<u64>,
+    interaction_version: Option<i64>,
     /// Guards against a stale intent landing after a reconnect: an operation
     /// tagged with an older generation is a no-op. The guard is replica-local.
     generation: u64,
@@ -129,6 +130,7 @@ impl ConnectionRegistry {
                 room_id: None,
                 participant_id: None,
                 roster_version: None,
+                interaction_version: None,
                 generation: 0,
             },
         );

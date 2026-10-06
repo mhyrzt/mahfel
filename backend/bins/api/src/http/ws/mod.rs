@@ -13,12 +13,13 @@ mod state;
 pub(crate) mod tickets;
 
 pub use config::WsConfig;
+pub(crate) use envelope::ServerMessage;
 pub use metrics::WsMetrics;
 pub use placement::MediaPlacementRouter;
 pub(crate) use placement::media_room_id;
-pub use state::{ParticipationStores, WsState};
 #[cfg(test)]
-pub(super) use {envelope::ServerMessage, registry::Outbound};
+pub(super) use registry::Outbound;
+pub use state::{ParticipationStores, WsState};
 
 use crate::http::{error::ApiError, state::AppState};
 use axum::{
@@ -83,3 +84,5 @@ fn bearer_token(headers: &HeaderMap) -> Option<&str> {
         .map(str::trim)
         .filter(|token| !token.is_empty())
 }
+
+mod interaction_fanout;

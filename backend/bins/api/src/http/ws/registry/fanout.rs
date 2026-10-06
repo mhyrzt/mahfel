@@ -115,3 +115,29 @@ impl ConnectionRegistry {
         }
     }
 }
+
+impl ConnectionRegistry {
+    pub fn send_interaction_version(&self, session: SessionId, version: i64) {
+        let message = crate::http::ws::envelope::ServerMessage::SessionInteractionsChanged {
+            session_id: session.to_string(),
+            version,
+        };
+        let mut connections = self.lock();
+        for connection in connections.values_mut() {
+            if connection.session_id == Some(session)
+                && connection.interaction_version != Some(version)
+            {
+                match connection
+                    .sender
+                    .try_send(Outbound::Message(message.clone()))
+                {
+                    Ok(()) => connection.interaction_version = Some(version),
+                    Err(tokio::sync::mpsc::error::TrySendError::Full(_)) => {
+                        self.inner.metrics.send_dropped()
+                    }
+                    Err(tokio::sync::mpsc::error::TrySendError::Closed(_)) => {}
+                }
+            }
+        }
+    }
+}

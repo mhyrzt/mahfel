@@ -33,6 +33,7 @@ impl ConnectionRegistry {
             connection.room_id = Some(room_id);
             connection.participant_id = Some(participant_id);
             connection.roster_version = None;
+            connection.interaction_version = None;
             connection.generation = generation;
         }
         generation
@@ -53,6 +54,7 @@ impl ConnectionRegistry {
         connection.room_id = None;
         connection.participant_id = None;
         connection.roster_version = None;
+        connection.interaction_version = None;
         true
     }
 

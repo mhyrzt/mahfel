@@ -70,6 +70,10 @@ Protected routes require an Authorization: Bearer token. User requests use Keycl
         (name = "files", description = "Context-authorized file metadata and direct S3 transfers")
     ),
     paths(
+        super::interactions::handlers::snapshot,
+        super::interactions::reactions::react,
+        super::interactions::handlers::command,
+        super::interactions::handlers::voters,
         super::recordings::list,
         super::recordings::command,
         super::recordings::export_status,
@@ -166,6 +170,18 @@ Protected routes require an Authorization: Bearer token. User requests use Keycl
         crate::http::turn::turn_credentials,
     ),
     components(schemas(
+        super::interactions::dto::InteractionRequest,
+        super::interactions::reactions::ReactionRequest,
+        super::interactions::dto::InteractionAction,
+        super::interactions::dto::ActivityDefinitionRequest,
+        super::interactions::dto::ActivityKindDto,
+        super::interactions::dto::ActivityStatusDto,
+        super::interactions::dto::ActivityResultsResponse,
+        super::interactions::dto::ActivityResponse,
+        super::interactions::dto::HandResponse,
+        super::interactions::dto::InteractionsResponse,
+        super::interactions::dto::VoterResponse,
+        super::interactions::dto::VotersResponse,
         super::recordings::RecordingResponse,
         super::recordings::RecordingExportResponse,
         super::recordings::RecordingDownloadResponse,
@@ -264,6 +280,10 @@ pub(crate) struct ApiDoc;
 /// the generated document and the route table in sync.
 #[cfg(test)]
 pub(crate) const REST_PATH_TEMPLATES: &[&str] = &[
+    "/v1/sessions/{session_id}/interactions",
+    "/v1/sessions/{session_id}/interactions/reactions",
+    "/v1/sessions/{session_id}/interactions/commands",
+    "/v1/sessions/{session_id}/interactions/activities/{activity_id}/voters",
     "/v1/status",
     "/v1/health",
     "/v1/echo",

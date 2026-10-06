@@ -351,6 +351,25 @@ export interface ResumeConsumer {
   v?: 1;
 }
 
+export interface SessionInteractionsChanged {
+  id?: string;
+  session_id: string;
+  type: "session_interactions_changed";
+  v: 1;
+  version: number;
+}
+
+export interface SessionReaction {
+  emoji: string;
+  event_id: string;
+  id?: string;
+  participant_id: string;
+  session_id: string;
+  type: "session_reaction";
+  username: string;
+  v: 1;
+}
+
 export interface SessionRoster {
   id?: string;
   participant_ids: string[];
@@ -486,6 +505,8 @@ export type ServerMessage =
   | JoinWaiting
   | ParticipantJoined
   | ParticipantLeft
+  | SessionInteractionsChanged
+  | SessionReaction
   | SessionRoster
   | ActiveSpeakers
   | JoinRejected

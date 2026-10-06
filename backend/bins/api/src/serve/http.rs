@@ -70,6 +70,8 @@ pub(super) async fn app(
     let rooms: Arc<dyn mahfel_application::ports::RoomStore> = Arc::new(stores.rooms.clone());
     let users: Arc<dyn mahfel_application::ports::UserStore> = Arc::new(stores.users.clone());
     let chat: Arc<dyn mahfel_application::ports::ChatStore> = Arc::new(stores.chat.clone());
+    let interactions: Arc<dyn mahfel_application::ports::InteractionStore> =
+        Arc::new(stores.interactions.clone());
     let collaboration: Arc<dyn mahfel_application::ports::CollaborationStore> =
         Arc::new(stores.collaboration.clone());
     let files: Arc<dyn mahfel_application::ports::FileStore> = Arc::new(stores.files.clone());
@@ -125,7 +127,8 @@ pub(super) async fn app(
         coordination.store.clone(),
         PostgresSessionLifecycle::new(lifecycle_pool),
     )
-    .with_auth_tickets(coordination.store.clone());
+    .with_auth_tickets(coordination.store.clone())
+    .with_interactions(Arc::clone(&interactions), coordination.store.clone());
     super::recordings::spawn(
         stores.recordings.clone(),
         recording_storage,
@@ -153,6 +156,7 @@ pub(super) async fn app(
         rooms,
         users,
         chat,
+        interactions: Some(interactions),
         recording_exports: Some(Arc::new(stores.recordings.clone())),
         recordings: Some(Arc::new(stores.recordings.clone())),
         recording_playback: Some(Arc::new(stores.recordings.clone())),

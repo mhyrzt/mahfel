@@ -98,6 +98,17 @@ pub enum ServerMessage {
     },
     /// Complete live roster. The version lets clients discard an older frame
     /// after reconnect or a delayed cross-replica wakeup.
+    SessionInteractionsChanged {
+        session_id: String,
+        version: i64,
+    },
+    SessionReaction {
+        session_id: String,
+        event_id: String,
+        participant_id: String,
+        username: String,
+        emoji: String,
+    },
     SessionRoster {
         session_id: String,
         version: u64,

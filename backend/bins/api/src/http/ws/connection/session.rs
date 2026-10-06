@@ -120,6 +120,15 @@ pub(super) async fn run(
             }
         };
         if registry.left_if_current(id, handle) && remaining == 0 {
+            if let Some(store) = &state.interactions {
+                if let Err(error) = store
+                    .clear_departed(handle.session_id, handle.participant_id)
+                    .await
+                {
+                    tracing::warn!(%error, "failed to clear departed hand");
+                }
+                state.wake_interactions().await;
+            }
             if let Err(error) = state
                 .stores
                 .participation

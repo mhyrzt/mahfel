@@ -1661,7 +1661,7 @@ impl InviteStore for FakeInviteStore {
     }
 }
 
-fn ws_state(principal: Option<Principal>) -> WsState {
+pub(super) fn ws_state(principal: Option<Principal>) -> WsState {
     let (_shutdown_tx, shutdown_rx) = watch::channel(false);
     let metrics = WsMetrics::register(&prometheus::Registry::new()).expect("register ws metrics");
     WsState::new(
@@ -1700,6 +1700,7 @@ fn state_with(
     let realtime = ws_state(principal.clone());
     let (service_auth, service_principals) = service_seams(FakeServicePrincipalStore::default());
     AppState {
+        interactions: None,
         files: Arc::new(FakeFileStore),
         storage: Arc::new(FakeFileStorage),
         chat: Arc::new(FakeChatStore),
@@ -1784,6 +1785,7 @@ fn authenticated_room_app(principal: Principal, store: FakeRoomStore) -> Router 
     let realtime = ws_state(Some(principal.clone()));
     let (service_auth, service_principals) = service_seams(FakeServicePrincipalStore::default());
     api_router(AppState {
+        interactions: None,
         files: Arc::new(FakeFileStore),
         storage: Arc::new(FakeFileStorage),
         chat: Arc::new(FakeChatStore),
@@ -2787,6 +2789,7 @@ fn session_app(
     let realtime = ws_state(principal.clone());
     let (service_auth, service_principals) = service_seams(FakeServicePrincipalStore::default());
     api_router(AppState {
+        interactions: None,
         files: Arc::new(FakeFileStore),
         storage: Arc::new(FakeFileStorage),
         chat: Arc::new(FakeChatStore),
@@ -3083,6 +3086,7 @@ fn policy_session_app_with_recordings(
     let realtime = ws_state(principal.clone());
     let (service_auth, service_principals) = service_seams(FakeServicePrincipalStore::default());
     api_router(AppState {
+        interactions: None,
         files: Arc::new(FakeFileStore),
         storage: Arc::new(FakeFileStorage),
         chat: Arc::new(FakeChatStore),
@@ -3326,6 +3330,7 @@ async fn serve_ws_with_stores(
     );
     let (service_auth, service_principals) = service_seams(FakeServicePrincipalStore::default());
     let state = AppState {
+        interactions: None,
         files: Arc::new(FakeFileStore),
         storage: Arc::new(FakeFileStorage),
         chat: Arc::new(FakeChatStore),
@@ -3555,6 +3560,7 @@ async fn serve_ws_with_verifier(verifier: TokenVerifier, config: WsConfig) -> Ws
     );
     let (service_auth, service_principals) = service_seams(FakeServicePrincipalStore::default());
     let state = AppState {
+        interactions: None,
         files: Arc::new(FakeFileStore),
         storage: Arc::new(FakeFileStorage),
         chat: Arc::new(FakeChatStore),
@@ -4010,6 +4016,7 @@ fn service_app(
     let realtime = ws_state(principal.clone());
     let (service_auth, service_principals) = service_seams(service_store);
     api_router(AppState {
+        interactions: None,
         files: Arc::new(FakeFileStore),
         storage: Arc::new(FakeFileStorage),
         chat: Arc::new(FakeChatStore),
@@ -4281,6 +4288,7 @@ async fn serve_ws_with(
     );
     let (service_auth, service_principals) = service_seams(FakeServicePrincipalStore::default());
     let state = AppState {
+        interactions: None,
         files: Arc::new(FakeFileStore),
         storage: Arc::new(FakeFileStorage),
         chat: Arc::new(FakeChatStore),
@@ -4739,6 +4747,7 @@ fn participation_app(
     let realtime = ws_state(principal.clone());
     let (service_auth, service_principals) = service_seams(FakeServicePrincipalStore::default());
     api_router(AppState {
+        interactions: None,
         files: Arc::new(FakeFileStore),
         storage: Arc::new(FakeFileStorage),
         chat: Arc::new(FakeChatStore),
@@ -5005,6 +5014,7 @@ fn invite_app(
     let realtime = ws_state(principal.clone());
     let (service_auth, service_principals) = service_seams(FakeServicePrincipalStore::default());
     api_router(AppState {
+        interactions: None,
         files: Arc::new(FakeFileStore),
         storage: Arc::new(FakeFileStorage),
         chat: Arc::new(FakeChatStore),
@@ -5405,6 +5415,7 @@ fn admission_app(
     let realtime = ws_state(principal.clone());
     let (service_auth, service_principals) = service_seams(FakeServicePrincipalStore::default());
     api_router(AppState {
+        interactions: None,
         files: Arc::new(FakeFileStore),
         storage: Arc::new(FakeFileStorage),
         chat: Arc::new(FakeChatStore),
@@ -5445,6 +5456,7 @@ fn redeem_app(
     let realtime = ws_state(principal.clone());
     let (service_auth, service_principals) = service_seams(FakeServicePrincipalStore::default());
     api_router(AppState {
+        interactions: None,
         files: Arc::new(FakeFileStore),
         storage: Arc::new(FakeFileStorage),
         chat: Arc::new(FakeChatStore),

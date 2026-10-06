@@ -4344,6 +4344,269 @@
         }
       }
     },
+    "/v1/sessions/{session_id}/interactions": {
+      "get": {
+        "tags": [
+          "interactions"
+        ],
+        "operationId": "snapshot",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InteractionsResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/sessions/{session_id}/interactions/activities/{activity_id}/voters": {
+      "get": {
+        "tags": [
+          "interactions"
+        ],
+        "operationId": "voters",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "activity_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VotersResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/sessions/{session_id}/interactions/commands": {
+      "post": {
+        "tags": [
+          "interactions"
+        ],
+        "operationId": "command",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InteractionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/sessions/{session_id}/interactions/reactions": {
+      "post": {
+        "tags": [
+          "interactions"
+        ],
+        "operationId": "react",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReactionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/sessions/{session_id}/invite-links": {
       "get": {
         "tags": [
@@ -5813,6 +6076,200 @@
   },
   "components": {
     "schemas": {
+      "ActivityDefinitionRequest": {
+        "type": "object",
+        "required": [
+          "question",
+          "options",
+          "kind",
+          "multiple",
+          "anonymous",
+          "correct_options"
+        ],
+        "properties": {
+          "anonymous": {
+            "type": "boolean"
+          },
+          "correct_options": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "int32",
+              "minimum": 0
+            }
+          },
+          "explanation": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "kind": {
+            "$ref": "#/components/schemas/ActivityKindDto"
+          },
+          "multiple": {
+            "type": "boolean"
+          },
+          "options": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "question": {
+            "type": "string"
+          }
+        }
+      },
+      "ActivityKindDto": {
+        "type": "string",
+        "enum": [
+          "poll",
+          "quiz"
+        ]
+      },
+      "ActivityResponse": {
+        "type": "object",
+        "required": [
+          "id",
+          "question",
+          "options",
+          "kind",
+          "multiple",
+          "anonymous",
+          "status",
+          "selected",
+          "vote_version",
+          "submitted"
+        ],
+        "properties": {
+          "anonymous": {
+            "type": "boolean"
+          },
+          "draft_correct_options": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "integer",
+              "format": "int32",
+              "minimum": 0
+            }
+          },
+          "draft_explanation": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/ActivityKindDto"
+          },
+          "multiple": {
+            "type": "boolean"
+          },
+          "options": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "participation_count": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0
+          },
+          "question": {
+            "type": "string"
+          },
+          "results": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ActivityResultsResponse"
+              }
+            ]
+          },
+          "selected": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "int32",
+              "minimum": 0
+            }
+          },
+          "status": {
+            "$ref": "#/components/schemas/ActivityStatusDto"
+          },
+          "submitted": {
+            "type": "boolean"
+          },
+          "vote_version": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "ActivityResultsResponse": {
+        "type": "object",
+        "required": [
+          "respondents",
+          "counts"
+        ],
+        "properties": {
+          "correct": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "correct_options": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "integer",
+              "format": "int32",
+              "minimum": 0
+            }
+          },
+          "counts": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          "explanation": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "respondents": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      },
+      "ActivityStatusDto": {
+        "type": "string",
+        "enum": [
+          "draft",
+          "open",
+          "closed"
+        ]
+      },
       "AddMemberRequest": {
         "type": "object",
         "required": [
@@ -6511,6 +6968,30 @@
           }
         }
       },
+      "HandResponse": {
+        "type": "object",
+        "required": [
+          "participant_id",
+          "actor_id",
+          "name",
+          "order"
+        ],
+        "properties": {
+          "actor_id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "order": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "participant_id": {
+            "type": "string"
+          }
+        }
+      },
       "HealthResponse": {
         "type": "object",
         "required": [
@@ -6560,6 +7041,255 @@
             "format": "int64",
             "description": "Expected object size in bytes, limited to 50 MiB.",
             "minimum": 0
+          }
+        }
+      },
+      "InteractionAction": {
+        "oneOf": [
+          {
+            "type": "object",
+            "required": [
+              "id",
+              "definition",
+              "action"
+            ],
+            "properties": {
+              "action": {
+                "type": "string",
+                "enum": [
+                  "save_draft"
+                ]
+              },
+              "definition": {
+                "$ref": "#/components/schemas/ActivityDefinitionRequest"
+              },
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "id",
+              "action"
+            ],
+            "properties": {
+              "action": {
+                "type": "string",
+                "enum": [
+                  "launch"
+                ]
+              },
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "id",
+              "action"
+            ],
+            "properties": {
+              "action": {
+                "type": "string",
+                "enum": [
+                  "close"
+                ]
+              },
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "id",
+              "selected",
+              "expected_version",
+              "action"
+            ],
+            "properties": {
+              "action": {
+                "type": "string",
+                "enum": [
+                  "vote"
+                ]
+              },
+              "expected_version": {
+                "type": "integer",
+                "format": "int64"
+              },
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "selected": {
+                "type": "array",
+                "items": {
+                  "type": "integer",
+                  "format": "int32",
+                  "minimum": 0
+                }
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "id",
+              "expected_version",
+              "action"
+            ],
+            "properties": {
+              "action": {
+                "type": "string",
+                "enum": [
+                  "retract"
+                ]
+              },
+              "expected_version": {
+                "type": "integer",
+                "format": "int64"
+              },
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "raised",
+              "expected_version",
+              "action"
+            ],
+            "properties": {
+              "action": {
+                "type": "string",
+                "enum": [
+                  "set_hand"
+                ]
+              },
+              "expected_version": {
+                "type": "integer",
+                "format": "int64"
+              },
+              "raised": {
+                "type": "boolean"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "participant_id",
+              "expected_order",
+              "action"
+            ],
+            "properties": {
+              "action": {
+                "type": "string",
+                "enum": [
+                  "lower_hand"
+                ]
+              },
+              "expected_order": {
+                "type": "integer",
+                "format": "int64"
+              },
+              "participant_id": {
+                "type": "string",
+                "format": "uuid"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "expected_version",
+              "action"
+            ],
+            "properties": {
+              "action": {
+                "type": "string",
+                "enum": [
+                  "clear_hands"
+                ]
+              },
+              "expected_version": {
+                "type": "integer",
+                "format": "int64"
+              }
+            }
+          }
+        ]
+      },
+      "InteractionRequest": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/InteractionAction"
+          },
+          {
+            "type": "object",
+            "required": [
+              "request_id"
+            ],
+            "properties": {
+              "request_id": {
+                "type": "string",
+                "format": "uuid"
+              }
+            }
+          }
+        ]
+      },
+      "InteractionsResponse": {
+        "type": "object",
+        "required": [
+          "version",
+          "live",
+          "can_manage",
+          "can_moderate",
+          "can_respond",
+          "activities",
+          "hands"
+        ],
+        "properties": {
+          "activities": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ActivityResponse"
+            }
+          },
+          "can_manage": {
+            "type": "boolean"
+          },
+          "can_moderate": {
+            "type": "boolean"
+          },
+          "can_respond": {
+            "type": "boolean"
+          },
+          "hands": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HandResponse"
+            }
+          },
+          "live": {
+            "type": "boolean"
+          },
+          "version": {
+            "type": "integer",
+            "format": "int64"
           }
         }
       },
@@ -7335,6 +8065,17 @@
             "type": "integer",
             "format": "int64"
           },
+          "emoji": {
+            "type": "string"
+          }
+        }
+      },
+      "ReactionRequest": {
+        "type": "object",
+        "required": [
+          "emoji"
+        ],
+        "properties": {
           "emoji": {
             "type": "string"
           }
@@ -8172,6 +8913,51 @@
               "null"
             ],
             "format": "double"
+          }
+        }
+      },
+      "VoterResponse": {
+        "type": "object",
+        "required": [
+          "name",
+          "actor_id",
+          "selected"
+        ],
+        "properties": {
+          "actor_id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "selected": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "int32",
+              "minimum": 0
+            }
+          }
+        }
+      },
+      "VotersResponse": {
+        "type": "object",
+        "required": [
+          "voters"
+        ],
+        "properties": {
+          "next_offset": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0
+          },
+          "voters": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/VoterResponse"
+            }
           }
         }
       }

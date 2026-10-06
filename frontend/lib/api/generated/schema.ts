@@ -945,6 +945,70 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/sessions/{session_id}/interactions": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get: operations["snapshot"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/sessions/{session_id}/interactions/activities/{activity_id}/voters": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get: operations["voters"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/sessions/{session_id}/interactions/commands": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post: operations["command"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/sessions/{session_id}/interactions/reactions": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post: operations["react"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/v1/sessions/{session_id}/invite-links": {
     parameters: {
       query?: never;
@@ -1276,6 +1340,44 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
   schemas: {
+    ActivityDefinitionRequest: {
+      anonymous: boolean;
+      correct_options: number[];
+      explanation?: string | null;
+      kind: components["schemas"]["ActivityKindDto"];
+      multiple: boolean;
+      options: string[];
+      question: string;
+    };
+    /** @enum {string} */
+    ActivityKindDto: "poll" | "quiz";
+    ActivityResponse: {
+      anonymous: boolean;
+      draft_correct_options?: number[] | null;
+      draft_explanation?: string | null;
+      /** Format: uuid */
+      id: string;
+      kind: components["schemas"]["ActivityKindDto"];
+      multiple: boolean;
+      options: string[];
+      participation_count?: number | null;
+      question: string;
+      results?: null | components["schemas"]["ActivityResultsResponse"];
+      selected: number[];
+      status: components["schemas"]["ActivityStatusDto"];
+      submitted: boolean;
+      /** Format: int64 */
+      vote_version: number;
+    };
+    ActivityResultsResponse: {
+      correct?: boolean | null;
+      correct_options?: number[] | null;
+      counts: number[];
+      explanation?: string | null;
+      respondents: number;
+    };
+    /** @enum {string} */
+    ActivityStatusDto: "draft" | "open" | "closed";
     AddMemberRequest: {
       role?: null | components["schemas"]["RoomRoleDto"];
       /**
@@ -1506,6 +1608,13 @@ export interface components {
       /** Format: date-time */
       updated_at: string;
     };
+    HandResponse: {
+      actor_id: string;
+      name: string;
+      /** Format: int64 */
+      order: number;
+      participant_id: string;
+    };
     HealthResponse: {
       status: string;
     };
@@ -1529,6 +1638,78 @@ export interface components {
        * @description Expected object size in bytes, limited to 50 MiB.
        */
       size_bytes: number;
+    };
+    InteractionAction:
+      | {
+          /** @enum {string} */
+          action: "save_draft";
+          definition: components["schemas"]["ActivityDefinitionRequest"];
+          /** Format: uuid */
+          id: string;
+        }
+      | {
+          /** @enum {string} */
+          action: "launch";
+          /** Format: uuid */
+          id: string;
+        }
+      | {
+          /** @enum {string} */
+          action: "close";
+          /** Format: uuid */
+          id: string;
+        }
+      | {
+          /** @enum {string} */
+          action: "vote";
+          /** Format: int64 */
+          expected_version: number;
+          /** Format: uuid */
+          id: string;
+          selected: number[];
+        }
+      | {
+          /** @enum {string} */
+          action: "retract";
+          /** Format: int64 */
+          expected_version: number;
+          /** Format: uuid */
+          id: string;
+        }
+      | {
+          /** @enum {string} */
+          action: "set_hand";
+          /** Format: int64 */
+          expected_version: number;
+          raised: boolean;
+        }
+      | {
+          /** @enum {string} */
+          action: "lower_hand";
+          /** Format: int64 */
+          expected_order: number;
+          /** Format: uuid */
+          participant_id: string;
+        }
+      | {
+          /** @enum {string} */
+          action: "clear_hands";
+          /** Format: int64 */
+          expected_version: number;
+        };
+    InteractionRequest: components["schemas"]["InteractionAction"] & {
+      /** Format: uuid */
+      request_id: string;
+    };
+    InteractionsResponse: {
+      activities: components["schemas"]["ActivityResponse"][];
+      can_manage: boolean;
+      can_moderate: boolean;
+      can_respond: boolean;
+      hands: components["schemas"]["HandResponse"][];
+      live: boolean;
+      /** Format: int64 */
+      version: number;
     };
     IntervalResponse: {
       actor_id: string;
@@ -1747,6 +1928,9 @@ export interface components {
     ReactionCountResponse: {
       /** Format: int64 */
       count: number;
+      emoji: string;
+    };
+    ReactionRequest: {
       emoji: string;
     };
     ReactionsResponse: {
@@ -1997,6 +2181,15 @@ export interface components {
       y: number;
       /** Format: double */
       zoom?: number | null;
+    };
+    VoterResponse: {
+      actor_id: string;
+      name: string;
+      selected: number[];
+    };
+    VotersResponse: {
+      next_offset?: number | null;
+      voters: components["schemas"]["VoterResponse"][];
     };
   };
   responses: never;
@@ -5240,6 +5433,193 @@ export interface operations {
       };
       /** @description Invalid transition */
       409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
+      };
+    };
+  };
+  snapshot: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        session_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["InteractionsResponse"];
+        };
+      };
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
+      };
+    };
+  };
+  voters: {
+    parameters: {
+      query?: {
+        offset?: number;
+      };
+      header?: never;
+      path: {
+        session_id: string;
+        activity_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["VotersResponse"];
+        };
+      };
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
+      };
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
+      };
+    };
+  };
+  command: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        session_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["InteractionRequest"];
+      };
+    };
+    responses: {
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
+      };
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
+      };
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
+      };
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
+      };
+    };
+  };
+  react: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        session_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["ReactionRequest"];
+      };
+    };
+    responses: {
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
+      };
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
+      };
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
+      };
+      429: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorBody"];
+        };
+      };
+      503: {
         headers: {
           [name: string]: unknown;
         };

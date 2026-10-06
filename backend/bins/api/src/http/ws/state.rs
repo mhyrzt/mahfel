@@ -39,6 +39,9 @@ pub struct WsState {
     pub stores: ParticipationStores,
     pub shutdown: watch::Receiver<bool>,
     pub chat: Option<Arc<dyn ChatStore>>,
+    pub interactions: Option<Arc<dyn mahfel_application::ports::InteractionStore>>,
+    interaction_wake: Arc<Notify>,
+    interaction_redis: Option<RedisCoordination>,
     pub collaboration: Option<Arc<dyn CollaborationStore>>,
     pub collaboration_fanout: Option<Arc<super::collaboration::Fanout>>,
     pub chat_activity: Option<Arc<dyn ChatActivityStore>>,
@@ -72,6 +75,9 @@ impl WsState {
             stores,
             shutdown,
             chat: None,
+            interactions: None,
+            interaction_wake: Arc::new(Notify::new()),
+            interaction_redis: None,
             collaboration: None,
             collaboration_fanout: None,
             chat_activity: None,
@@ -81,6 +87,34 @@ impl WsState {
             auth_tickets: None,
             session_lifecycle: None,
             session_wake: Arc::new(Notify::new()),
+        }
+    }
+
+    pub fn with_interactions(
+        mut self,
+        store: Arc<dyn mahfel_application::ports::InteractionStore>,
+        redis: RedisCoordination,
+    ) -> Self {
+        self.interactions = Some(Arc::clone(&store));
+        self.interaction_redis = Some(redis.clone());
+        super::interaction_fanout::spawn(
+            self.clone(),
+            store,
+            redis,
+            Arc::clone(&self.interaction_wake),
+        );
+        self
+    }
+    pub async fn wake_interactions(&self) {
+        self.interaction_wake.notify_one();
+        if let Some(redis) = &self.interaction_redis {
+            use mahfel_application::ports::CoordinationStore;
+            if let Err(error) = redis
+                .publish(&redis.keys().channel("session-interactions"), b"wake")
+                .await
+            {
+                tracing::warn!(%error, "interaction wakeup lost; polling will recover");
+            }
         }
     }
 
