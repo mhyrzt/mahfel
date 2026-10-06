@@ -68,7 +68,7 @@ RUN cargo nextest run --locked --workspace --all-features --tests --no-run
 CMD ["cargo", "nextest", "run", "--locked", "--profile", "ci", "--workspace", "--all-features", "--tests", "--no-capture"]
 
 FROM docker.arvancloud.ir/debian:bookworm-slim AS api
-RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates curl && \
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates curl perl-base && \
     rm -rf /var/lib/apt/lists/* && \
     groupadd --system --gid 10001 mahfel && \
     useradd --system --uid 10001 --gid mahfel --home-dir /nonexistent --shell /usr/sbin/nologin mahfel
