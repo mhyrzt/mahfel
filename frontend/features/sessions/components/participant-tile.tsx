@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { Camera, MicOff, MonitorUp } from "lucide-react";
+import { Hand, Camera, MicOff, MonitorUp } from "lucide-react";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { defaultLocale, type Locale } from "@/lib/i18n/config";
@@ -49,7 +49,15 @@ export function ParticipantTile({
           <ScreenSharePlaceholder label={text.screenSharePreview} />
         )}
         <div className="absolute inset-x-0 bottom-0 flex items-end justify-between gap-3 bg-gradient-to-t from-black/80 via-black/35 to-transparent p-3 pt-10 sm:p-4 sm:pt-12">
-          <p className="truncate text-sm font-medium text-white">{participant.name}</p>
+          <p className="truncate text-sm font-medium text-white">
+            {participant.name}
+            {participant.handRaised ? (
+              <Hand
+                className="ms-2 inline size-4 text-warning"
+                aria-label={messagesFor(locale).interactions.handRaised}
+              />
+            ) : null}
+          </p>
           <ParticipantActionsMenu
             actions={actions}
             participant={participant}
@@ -123,6 +131,12 @@ export function ParticipantTile({
         ) : null}
       </div>
       <div className="flex min-w-0 max-w-full items-center justify-center gap-1 px-2 text-center">
+        {participant.handRaised ? (
+          <Hand
+            className="size-4 shrink-0 text-warning"
+            aria-label={messagesFor(locale).interactions.handRaised}
+          />
+        ) : null}
         <p className="max-w-[min(60vw,16rem)] truncate text-sm font-medium text-foreground">
           {participant.name}
         </p>

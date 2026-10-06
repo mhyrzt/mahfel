@@ -20,9 +20,12 @@ import type {
 interface SessionStageProps {
   currentActorId?: string;
   currentParticipantId?: string | null;
-  activeSurface?: "participants" | "notes" | "whiteboard" | "presentation";
-  onSelectSurface?: (surface: "participants" | "notes" | "whiteboard" | "presentation") => void;
+  activeSurface?: "participants" | "notes" | "whiteboard" | "presentation" | "activities";
+  onSelectSurface?: (
+    surface: "participants" | "notes" | "whiteboard" | "presentation" | "activities",
+  ) => void;
   collaboration?: ReactNode;
+  activities?: ReactNode;
   participantActions?: ParticipantAction[];
   title: string;
   status: SessionStatus;
@@ -42,6 +45,9 @@ interface SessionStageProps {
   onLeave?: () => void;
   endAction?: ReactNode;
   recordingControl?: ReactNode;
+  handControl?: ReactNode;
+  reactionControl?: ReactNode;
+  reactionOverlay?: ReactNode;
 }
 
 export function SessionStage({
@@ -50,6 +56,7 @@ export function SessionStage({
   activeSurface = "participants",
   onSelectSurface,
   collaboration,
+  activities,
   title,
   status,
   participants,
@@ -69,6 +76,9 @@ export function SessionStage({
   onLeave,
   endAction,
   recordingControl,
+  handControl,
+  reactionControl,
+  reactionOverlay,
 }: Readonly<SessionStageProps>) {
   const text = messagesFor(locale).sessions;
   const participantCount = Math.max(participants.length, 1);
@@ -113,9 +123,10 @@ export function SessionStage({
 
   return (
     <section
-      className="session-stage-enter flex min-h-0 flex-1 flex-col gap-3 overflow-hidden pb-16 pt-4 sm:gap-4"
+      className="relative flex min-h-0 flex-1 flex-col gap-3 overflow-hidden pt-4 sm:gap-4"
       aria-label={formatMessage(text.stageLabel, { title })}
     >
+      {reactionOverlay}
       {activeSurface === "participants" ? (
         <div
           className={`session-participant-grid grid min-h-0 flex-1 content-center gap-2 sm:grid-cols-[repeat(var(--stage-grid-columns),minmax(0,1fr))] sm:gap-3 ${participants.length === 1 ? "grid-cols-1" : "grid-cols-2"}`}
@@ -155,12 +166,19 @@ export function SessionStage({
             />
           ))}
         </div>
-      ) : (
+      ) : null}
+      {activeSurface !== "participants" && activeSurface !== "activities" ? (
         <div className="session-surface-enter min-h-0 flex-1 overflow-hidden" key={activeSurface}>
           {collaboration}
         </div>
-      )}
-      <div className="fixed inset-x-0 bottom-[calc(4rem+env(safe-area-inset-bottom))] z-40 flex justify-center px-4 md:bottom-4 md:pb-0">
+      ) : null}
+      <div
+        hidden={activeSurface !== "activities"}
+        className="min-h-0 flex-1 overflow-y-auto px-2 sm:px-6 [&[hidden]]:hidden"
+      >
+        <div className="mx-auto flex h-full min-h-0 w-full max-w-3xl flex-col">{activities}</div>
+      </div>
+      <div className="relative z-40 mt-auto flex shrink-0 justify-center px-2 pb-[calc(4rem+env(safe-area-inset-bottom))] pt-2 md:pb-4">
         <SessionToolbar
           {...toolbarCapabilities}
           activeSurface={activeSurface}
@@ -169,6 +187,8 @@ export function SessionStage({
           onLeave={onLeave}
           endAction={endAction}
           recordingControl={recordingControl}
+          handControl={handControl}
+          reactionControl={reactionControl}
           cameraEnabled={cameraEnabled}
           microphoneEnabled={microphoneEnabled}
           screenShareEnabled={screenShareEnabled}

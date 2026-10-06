@@ -1,5 +1,6 @@
 import { notFound, redirect } from "next/navigation";
 
+import { SessionActivitiesHistory } from "@/features/interactions/activities-panel";
 import { SessionClient } from "@/features/sessions/components/session-client";
 import type { SessionCapabilities } from "@/features/sessions/session-state";
 import { getLocale } from "@/lib/i18n/server";
@@ -114,6 +115,11 @@ export default async function SessionPage({ params }: Readonly<SessionPageProps>
         collaboration={
           session.status === "ended" ? (
             <CollaborationWorkspace sessionId={sessionId} locale={locale} />
+          ) : null
+        }
+        activities={
+          session.status === "ended" ? (
+            <SessionActivitiesHistory sessionId={sessionId} locale={locale} />
           ) : null
         }
         participation={

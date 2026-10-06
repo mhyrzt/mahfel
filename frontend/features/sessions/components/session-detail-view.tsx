@@ -5,6 +5,7 @@ export function SessionDetailView({
   lifecycle,
   stage,
   collaboration,
+  activities,
   participation,
   files,
   invites,
@@ -13,6 +14,7 @@ export function SessionDetailView({
   lifecycle?: ReactNode;
   stage?: ReactNode;
   collaboration?: ReactNode;
+  activities?: ReactNode;
   participation?: ReactNode;
   files?: ReactNode;
   invites?: ReactNode;
@@ -26,6 +28,7 @@ export function SessionDetailView({
       {lifecycle}
       {stage}
       {collaboration}
+      {activities}
       {participation}
       {files}
       {invites}

@@ -1,3 +1,4 @@
+import { type ComponentProps } from "react";
 import type { Meta, StoryObj } from "@storybook/nextjs";
 import { AppShell } from "@/features/shell/components/app-shell";
 import { FileList } from "@/features/files/components/file-list";
@@ -5,6 +6,10 @@ import { InviteLinkList } from "@/features/invites/components/invite-link-list";
 import { ConversationSidebar } from "@/features/chat/components/conversation-sidebar";
 import { ConversationPreview } from "@/features/chat/stories/conversation-preview";
 import { RecordingControlsView } from "@/features/recordings/recording-controls-view";
+import { ActivitiesPanel } from "@/features/interactions/activities-panel";
+import { HandQueue } from "@/features/interactions/hand-queue";
+import { snapshot } from "@/features/interactions/stories/fixtures";
+import { useInteractionPreview } from "./use-interaction-preview";
 import { fn } from "storybook/test";
 
 import { initialSessionState, sessionReducer } from "../session-state";
@@ -118,9 +123,22 @@ const liveTiming = {
   observedAt,
 };
 
+function InteractiveSessionPreview(args: ComponentProps<typeof SessionScreen>) {
+  const interactions = useInteractionPreview(args.locale ?? "en");
+  return (
+    <SessionScreen
+      {...args}
+      handControl={interactions.handControl}
+      reactionControl={interactions.reactionControl}
+      reactionOverlay={interactions.reactionOverlay}
+    />
+  );
+}
+
 const meta = {
   title: "Sessions/Session Screen",
   component: SessionScreen,
+  render: (args) => <InteractiveSessionPreview {...args} />,
   parameters: { layout: "fullscreen" },
   decorators: [
     (Story, context) => (
@@ -247,6 +265,42 @@ export const PersianLive: Story = {
       </div>
     ),
   ],
+};
+
+export const PersianInteractions: Story = {
+  ...PersianLive,
+  args: {
+    locale: "fa",
+    state: {
+      ...liveState,
+      participants: participants.map((participant, index) => ({
+        ...participant,
+        handRaised: index < 2,
+      })),
+    },
+    activeSurface: "activities",
+    activities: (
+      <ActivitiesPanel
+        sessionId="session-demo"
+        locale="fa"
+        snapshot={snapshot}
+        error={null}
+        busy={false}
+        send={fn(async () => true)}
+        onRetry={fn()}
+      />
+    ),
+    handQueue: (
+      <HandQueue
+        locale="fa"
+        hands={snapshot.hands}
+        version={snapshot.version}
+        canModerate
+        busy={false}
+        send={fn(async () => true)}
+      />
+    ),
+  },
 };
 
 export const LiveRecording: Story = {

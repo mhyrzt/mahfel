@@ -1,5 +1,6 @@
 import type { Preview } from "@storybook/nextjs";
 
+import "@fontsource-variable/vazirmatn";
 import "../app/globals.css";
 
 const preview: Preview = {

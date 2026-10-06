@@ -1,6 +1,10 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 
+@theme {
+  --font-sans: "Vazirmatn Variable", "Inter", system-ui, sans-serif;
+}
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -69,7 +73,7 @@ body {
   margin: 0;
   background: var(--background);
   color: var(--foreground);
-  font-family: "Vazirmatn Variable", "Inter", system-ui, sans-serif;
+  font-family: var(--font-sans);
 }
 
 main:has([data-session-sidebar]) {
@@ -102,6 +106,34 @@ main:has([data-session-sidebar]) [data-testid="session-detail"] {
   to {
     opacity: 1;
     transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes session-reaction-rise {
+  0% {
+    opacity: 0;
+    transform: translateY(0) scale(0.9);
+  }
+  12% {
+    opacity: 1;
+    transform: translateY(-1rem) scale(1);
+  }
+  75% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(calc(-1 * min(65vh, 30rem))) scale(1.05);
+  }
+}
+
+.session-reaction-float {
+  animation: session-reaction-rise 3.5s ease-out forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .session-reaction-float {
+    animation: none;
   }
 }
 

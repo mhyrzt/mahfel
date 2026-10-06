@@ -32,13 +32,20 @@ interface SessionScreenProps {
   sessionId?: string;
   roomId?: string;
   roomName?: string;
-  activeSurface?: "participants" | "notes" | "whiteboard" | "presentation";
-  onSelectSurface?: (surface: "participants" | "notes" | "whiteboard" | "presentation") => void;
+  activeSurface?: "participants" | "notes" | "whiteboard" | "presentation" | "activities";
+  onSelectSurface?: (
+    surface: "participants" | "notes" | "whiteboard" | "presentation" | "activities",
+  ) => void;
   collaboration?: ReactNode;
   files?: ReactNode;
+  activities?: ReactNode;
+  handQueue?: ReactNode;
   invites?: ReactNode;
   endAction?: ReactNode;
   recordingControl?: ReactNode;
+  handControl?: ReactNode;
+  reactionControl?: ReactNode;
+  reactionOverlay?: ReactNode;
   title: string;
   state: SessionState;
   admissionRequests?: AdmissionRequest[];
@@ -65,9 +72,14 @@ export function SessionScreen({
   onSelectSurface,
   collaboration,
   files,
+  activities,
+  handQueue,
   invites,
   endAction,
   recordingControl,
+  handControl,
+  reactionControl,
+  reactionOverlay,
   title,
   state,
   admissionRequests = [],
@@ -87,6 +99,7 @@ export function SessionScreen({
   const text = messagesFor(locale).sessions;
   const header = (
     <SessionHeader
+      activeSurface={state.phase === "live" ? (activeSurface ?? "participants") : undefined}
       roomId={roomId}
       roomName={roomName ?? title}
       title={title}
@@ -170,7 +183,12 @@ export function SessionScreen({
       participants={
         <ParticipantRoster
           participants={displayParticipants}
-          summary={sessionTiming ? <SessionSummary timing={sessionTiming} locale={locale} /> : null}
+          summary={
+            <>
+              {sessionTiming ? <SessionSummary timing={sessionTiming} locale={locale} /> : null}
+              {handQueue}
+            </>
+          }
           locale={locale}
         />
       }
@@ -235,6 +253,7 @@ export function SessionScreen({
           activeSurface={activeSurface}
           onSelectSurface={onSelectSurface}
           collaboration={collaboration}
+          activities={activities}
           participantActions={
             isLive
               ? [
@@ -262,6 +281,9 @@ export function SessionScreen({
           onLeave={onLeave}
           endAction={endAction}
           recordingControl={isLive ? recordingControl : undefined}
+          handControl={isLive ? handControl : undefined}
+          reactionControl={isLive ? reactionControl : undefined}
+          reactionOverlay={isLive ? reactionOverlay : undefined}
         />
       </div>
     </SessionSidebar>

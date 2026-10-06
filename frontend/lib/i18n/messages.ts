@@ -1,6 +1,84 @@
 import type { Locale } from "./config";
 
 export interface Messages {
+  interactions: {
+    title: string;
+    create: string;
+    poll: string;
+    quiz: string;
+    question: string;
+    option: string;
+    addOption: string;
+    removeOption: string;
+    multiple: string;
+    anonymous: string;
+    anonymousHint: string;
+    namedHint: string;
+    correctOption: string;
+    explanation: string;
+    exactSet: string;
+    saveDraft: string;
+    draft: string;
+    open: string;
+    closed: string;
+    launch: string;
+    close: string;
+    closeQuizHint: string;
+    cancel: string;
+    edit: string;
+    vote: string;
+    submit: string;
+    submitted: string;
+    waitingResults: string;
+    changeVote: string;
+    retract: string;
+    selectOne: string;
+    selectMany: string;
+    chooseAnswer: string;
+    respondents: string;
+    responses: string;
+    selected: string;
+    correct: string;
+    incorrect: string;
+    multiPercentage: string;
+    viewVoters: string;
+    more: string;
+    empty: string;
+    loading: string;
+    failed: string;
+    conflict: string;
+    invalid: string;
+    retry: string;
+    newActivity: string;
+    raiseHand: string;
+    lowerHand: string;
+    handRaised: string;
+    handQueue: string;
+    clearHands: string;
+    queuePosition: string;
+    emptyHands: string;
+    slideshow: string;
+    slide: string;
+    questionNavigation: string;
+    questionPosition: string;
+    previousQuestion: string;
+    nextQuestion: string;
+    reactions: string;
+    reactionSent: string;
+    reactionThrottled: string;
+    like: string;
+    dislike: string;
+    applause: string;
+    love: string;
+    laugh: string;
+    surprise: string;
+    celebrate: string;
+    fire: string;
+    privacy: string;
+    named: string;
+    finalAnswer: string;
+    activeFirst: string;
+  };
   language: Record<Locale, string>;
   sessionConnection: {
     title: string;
@@ -226,6 +304,85 @@ export interface Messages {
 
 const messages: Record<Locale, Messages> = {
   en: {
+    interactions: {
+      title: "Polls & quizzes",
+      create: "Create",
+      poll: "Poll",
+      quiz: "Quiz",
+      question: "Question",
+      option: "Option {number}",
+      addOption: "Add option",
+      removeOption: "Remove option {number}",
+      multiple: "Allow multiple answers",
+      anonymous: "Anonymous voting",
+      anonymousHint: "Individual choices are hidden from everyone, including hosts.",
+      namedHint: "Your name and choices appear alongside the results.",
+      correctOption: "Correct option {number}",
+      explanation: "Explanation (optional)",
+      exactSet: "Select every correct option and no incorrect options.",
+      saveDraft: "Save draft",
+      draft: "Draft",
+      open: "Open",
+      closed: "Closed",
+      launch: "Launch",
+      close: "Close activity",
+      closeQuizHint: "Closing reveals the correct answers and results to everyone.",
+      cancel: "Cancel",
+      edit: "Edit draft",
+      vote: "Vote",
+      submit: "Submit answer",
+      submitted: "Answer submitted",
+      waitingResults: "Results will appear when the host closes the quiz.",
+      changeVote: "Change vote",
+      retract: "Retract vote",
+      selectOne: "Choose one option.",
+      selectMany: "Choose one or more options.",
+      chooseAnswer: "Choose an answer before submitting.",
+      respondents: "{count} respondents",
+      responses: "{count} submissions",
+      selected: "Your choice",
+      correct: "Correct",
+      incorrect: "Incorrect",
+      multiPercentage: "Percentages are based on respondents and may total more than 100%.",
+      viewVoters: "View voters",
+      more: "Show more",
+      empty: "No polls or quizzes yet.",
+      loading: "Loading activities…",
+      failed: "Could not update session interactions. Try again.",
+      conflict:
+        "This changed on another device or the host closed it. Review the latest state and try again.",
+      invalid: "Check the question, distinct options and correct answers.",
+      retry: "Retry",
+      newActivity: "A new poll or quiz is open",
+      raiseHand: "Raise hand",
+      lowerHand: "Lower hand",
+      handRaised: "Hand raised",
+      handQueue: "Raised hands",
+      clearHands: "Lower all hands",
+      queuePosition: "Position {number}",
+      emptyHands: "No hands raised.",
+      slideshow: "slideshow",
+      slide: "slide",
+      questionNavigation: "Question navigation",
+      questionPosition: "Question {current} of {total}",
+      previousQuestion: "Previous",
+      nextQuestion: "Next",
+      reactions: "Reactions",
+      reactionSent: "Reaction sent",
+      reactionThrottled: "Wait a moment before reacting again.",
+      like: "Like",
+      dislike: "Dislike",
+      applause: "Applause",
+      love: "Love",
+      laugh: "Laugh",
+      surprise: "Surprised",
+      celebrate: "Celebrate",
+      fire: "Fire",
+      privacy: "Voting privacy",
+      named: "Named voting",
+      finalAnswer: "Your quiz answer cannot be changed after submission.",
+      activeFirst: "Close the active activity before launching another.",
+    },
     language: { en: "English", fa: "Persian" },
     sessionConnection: {
       title: "Connection details",
@@ -450,6 +607,86 @@ const messages: Record<Locale, Messages> = {
     },
   },
   fa: {
+    interactions: {
+      title: "نظرسنجی و آزمون",
+      create: "ساختن",
+      poll: "نظرسنجی",
+      quiz: "آزمون",
+      question: "پرسش",
+      option: "گزینهٔ {number}",
+      addOption: "افزودن گزینه",
+      removeOption: "حذف گزینهٔ {number}",
+      multiple: "انتخاب چند گزینه",
+      anonymous: "رأی‌گیری ناشناس",
+      anonymousHint: "انتخاب‌های افراد از همه، حتی میزبان، پنهان می‌ماند.",
+      namedHint: "نام و انتخاب‌های شما همراه نتایج نمایش داده می‌شود.",
+      correctOption: "گزینهٔ درست {number}",
+      explanation: "توضیح پاسخ (اختیاری)",
+      exactSet: "همهٔ گزینه‌های درست را انتخاب کنید؛ هیچ گزینهٔ نادرستی انتخاب نکنید.",
+      saveDraft: "ذخیرهٔ پیش‌نویس",
+      draft: "پیش‌نویس",
+      open: "باز",
+      closed: "بسته",
+      launch: "شروع",
+      close: "پایان رأی‌گیری",
+      closeQuizHint: "با پایان آزمون، پاسخ‌های درست و نتایج برای همه نمایش داده می‌شود.",
+      cancel: "انصراف",
+      edit: "ویرایش پیش‌نویس",
+      vote: "ثبت رأی",
+      submit: "ثبت پاسخ",
+      submitted: "پاسخ ثبت شد",
+      waitingResults: "پس از پایان آزمون توسط میزبان، نتایج نمایش داده می‌شود.",
+      changeVote: "تغییر رأی",
+      retract: "پس‌گرفتن رأی",
+      selectOne: "یک گزینه انتخاب کنید.",
+      selectMany: "یک یا چند گزینه انتخاب کنید.",
+      chooseAnswer: "پیش از ثبت، یک پاسخ انتخاب کنید.",
+      respondents: "{count} پاسخ‌دهنده",
+      responses: "{count} پاسخ ثبت‌شده",
+      selected: "انتخاب شما",
+      correct: "درست",
+      incorrect: "نادرست",
+      multiPercentage:
+        "درصدها بر پایهٔ تعداد پاسخ‌دهندگان است و مجموع آن‌ها ممکن است از ۱۰۰٪ بیشتر باشد.",
+      viewVoters: "نمایش رأی‌دهندگان",
+      more: "نمایش بیشتر",
+      empty: "هنوز نظرسنجی یا آزمونی وجود ندارد.",
+      loading: "در حال بارگذاری…",
+      failed: "به‌روزرسانی ممکن نشد. دوباره تلاش کنید.",
+      conflict:
+        "وضعیت در دستگاه دیگری تغییر کرده یا میزبان رأی‌گیری را بسته است. وضعیت تازه را بررسی کنید.",
+      invalid: "پرسش، گزینه‌های متفاوت و پاسخ‌های درست را بررسی کنید.",
+      retry: "تلاش دوباره",
+      newActivity: "نظرسنجی یا آزمون تازه‌ای شروع شد",
+      raiseHand: "بالا بردن دست",
+      lowerHand: "پایین آوردن دست",
+      handRaised: "دست بالا",
+      handQueue: "دست‌های بالا",
+      clearHands: "پایین آوردن همهٔ دست‌ها",
+      queuePosition: "نفر {number}",
+      emptyHands: "کسی دستش را بالا نبرده است.",
+      slideshow: "نمایش اسلایدی",
+      slide: "اسلاید",
+      questionNavigation: "جابه‌جایی بین پرسش‌ها",
+      questionPosition: "پرسش {current} از {total}",
+      previousQuestion: "قبلی",
+      nextQuestion: "بعدی",
+      reactions: "واکنش‌ها",
+      reactionSent: "واکنش فرستاده شد",
+      reactionThrottled: "برای واکنش بعدی کمی صبر کنید.",
+      like: "پسندیدن",
+      dislike: "نپسندیدن",
+      applause: "تشویق",
+      love: "علاقه",
+      laugh: "خنده",
+      surprise: "تعجب",
+      celebrate: "جشن",
+      fire: "عالیه",
+      privacy: "حریم خصوصی رأی‌گیری",
+      named: "رأی‌گیری با نام",
+      finalAnswer: "پس از ثبت، پاسخ آزمون قابل تغییر نیست.",
+      activeFirst: "پیش از شروع مورد بعدی، رأی‌گیری فعال را ببندید.",
+    },
     language: { en: "English", fa: "پارسی" },
     sessionConnection: {
       title: "جزئیات اتصال",

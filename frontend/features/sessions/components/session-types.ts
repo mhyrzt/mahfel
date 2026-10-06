@@ -3,6 +3,7 @@ export type SessionStatus = "scheduled" | "live" | "ended";
 export type ParticipantAction = "mute" | "remove" | "block";
 
 export interface Participant {
+  handRaised?: boolean;
   id: string;
   actorId?: string;
   name: string;

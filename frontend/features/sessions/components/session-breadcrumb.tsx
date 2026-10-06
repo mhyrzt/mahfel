@@ -1,3 +1,5 @@
+import type { SessionSurface } from "./use-session-view";
+import { messagesFor } from "@/lib/i18n/messages";
 import Link from "next/link";
 import {
   Breadcrumb,
@@ -15,7 +17,23 @@ export function SessionBreadcrumb({
   roomName,
   title,
   locale,
-}: Readonly<{ roomId: string; roomName: string; title: string; locale: Locale }>) {
+  activeSurface,
+}: Readonly<{
+  roomId: string;
+  roomName: string;
+  title: string;
+  locale: Locale;
+  activeSurface?: SessionSurface;
+}>) {
+  const text = messagesFor(locale);
+  const viewLabels = {
+    participants: text.sessions.participants,
+    activities: text.interactions.title,
+    notes: text.collaboration.notes,
+    whiteboard: text.collaboration.whiteboard,
+    presentation: text.collaboration.presentation,
+  };
+  const viewLabel = activeSurface ? viewLabels[activeSurface] : null;
   return (
     <Breadcrumb
       aria-label={locale === "fa" ? "مسیر صفحه" : "Breadcrumb"}
@@ -40,8 +58,20 @@ export function SessionBreadcrumb({
         </BreadcrumbItem>
         <BreadcrumbSeparator className="shrink-0" />
         <BreadcrumbItem className="min-w-0">
-          <BreadcrumbPage className="truncate font-medium">{title}</BreadcrumbPage>
+          {viewLabel ? (
+            <span className="truncate">{title}</span>
+          ) : (
+            <BreadcrumbPage className="truncate font-medium">{title}</BreadcrumbPage>
+          )}
         </BreadcrumbItem>
+        {viewLabel ? (
+          <>
+            <BreadcrumbSeparator className="shrink-0" />
+            <BreadcrumbItem className="min-w-0">
+              <BreadcrumbPage className="truncate font-medium">{viewLabel}</BreadcrumbPage>
+            </BreadcrumbItem>
+          </>
+        ) : null}
       </BreadcrumbList>
     </Breadcrumb>
   );

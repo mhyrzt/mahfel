@@ -1,4 +1,4 @@
-import { Mic, MicOff, UsersRound } from "lucide-react";
+import { Hand, Mic, MicOff, UsersRound } from "lucide-react";
 import type { ReactNode } from "react";
 
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -60,7 +60,15 @@ export function ParticipantRoster({
                         </AvatarFallback>
                       </Avatar>
                       <div className="min-w-0">
-                        <p className="truncate text-sm font-medium">{participant.name}</p>
+                        <p className="flex min-w-0 items-center gap-1.5 text-sm font-medium">
+                          <span className="truncate">{participant.name}</span>
+                          {participant.handRaised ? (
+                            <Hand
+                              className="size-4 shrink-0 text-warning"
+                              aria-label={messagesFor(locale).interactions.handRaised}
+                            />
+                          ) : null}
+                        </p>
                         <p className="text-xs text-muted-foreground">
                           {text.roles[participant.role]}
                         </p>

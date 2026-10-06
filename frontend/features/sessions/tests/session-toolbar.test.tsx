@@ -34,3 +34,9 @@ test("a manager can reach the end-for-everyone action from the toolbar", () => {
   expect(screen.getByRole("button", { name: "Leave session" })).toBeVisible();
   expect(screen.getByRole("button", { name: "End session for everyone" })).toBeVisible();
 });
+
+test("keeps hand and reaction controls visible before live interaction handlers are available", () => {
+  render(<SessionToolbar locale="en" />);
+  expect(screen.getByRole("button", { name: "Raise hand" })).toBeDisabled();
+  expect(screen.getByRole("button", { name: "Reactions" })).toBeDisabled();
+});

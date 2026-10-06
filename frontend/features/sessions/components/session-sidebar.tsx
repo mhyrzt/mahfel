@@ -108,7 +108,7 @@ export function SessionSidebar({
           )
         : null}
       <SidebarInset className="h-full min-h-0 min-w-0 overflow-hidden bg-muted/40">
-        <div className="h-full min-h-0 overflow-hidden px-2 pt-1 md:px-4 md:pt-0">
+        <div className="flex h-full min-h-0 flex-col overflow-hidden px-2 pt-1 md:px-4 md:pt-0">
           <SidebarTrigger
             className="mb-3 md:hidden"
             aria-label={messagesFor(locale).sessions.participants}

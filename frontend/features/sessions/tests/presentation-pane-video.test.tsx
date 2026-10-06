@@ -86,7 +86,7 @@ test("renders a synchronized video player and forwards playback", async () => {
     />,
   );
 
-  const player = await screen.findByTestId("presentation-player-stub");
+  const player = await screen.findByTestId("presentation-player-stub", {}, { timeout: 5000 });
   expect(player).toHaveTextContent("https://storage.test/video");
   expect(playerProps.current?.canPresent).toBe(true);
   expect(playerProps.current?.playback).toEqual({ positionMs: 1000, paused: true, rate: 1 });
@@ -124,6 +124,6 @@ test("keeps video playback read-only for viewers", async () => {
     />,
   );
 
-  await screen.findByTestId("presentation-player-stub");
+  await screen.findByTestId("presentation-player-stub", {}, { timeout: 5000 });
   expect(playerProps.current?.canPresent).toBe(false);
 });

@@ -1,9 +1,17 @@
 "use client";
 
 import { useEffect, useReducer, useRef, useState, type ReactNode } from "react";
+import { useSessionView } from "./use-session-view";
 import { useRouter } from "next/navigation";
 import { MessageCircle, X } from "lucide-react";
 
+import { ActivitiesPanel } from "@/features/interactions/activities-panel";
+import { HandQueue } from "@/features/interactions/hand-queue";
+import { HandControl } from "@/features/interactions/hand-control";
+import { useSessionInteractions } from "@/features/interactions/use-session-interactions";
+import { useSessionReactions } from "@/features/interactions/use-session-reactions";
+import { ReactionControl } from "@/features/interactions/reaction-control";
+import { ReactionOverlay } from "@/features/interactions/reaction-overlay";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -87,6 +95,11 @@ export function SessionClient({
   const [state, dispatch] = useReducer(sessionReducer, initialSessionState);
   const router = useRouter();
   const clientRef = useRef<SignalingClient | null>(null);
+  const interactions = useSessionInteractions(sessionId, locale, state.phase === "live");
+  const handleInteractionMessage = interactions.handleMessage;
+  const reactions = useSessionReactions(sessionId, locale, state.phase === "live");
+  const handleReactionMessage = reactions.handleMessage;
+  const ownHand = interactions.snapshot?.hands.find((hand) => hand.actor_id === actorId);
   const [signalingStatus, setSignalingStatus] = useState<SignalingStatus>("connecting");
   const media = useSessionMedia(clientRef, roomId, locale);
   const { enabled: mediaEnabled, stop: stopMedia } = media;
@@ -116,9 +129,7 @@ export function SessionClient({
     participant: Participant;
   } | null>(null);
   const [admissionRequests, setAdmissionRequests] = useState<AdmissionRequest[]>([]);
-  const [activeSurface, setActiveSurface] = useState<
-    "participants" | "notes" | "whiteboard" | "presentation"
-  >("participants");
+  const { activeSurface, setActiveSurface, selectedActivityId, selectActivity } = useSessionView();
   const actionText = roomCopy(locale);
 
   useEffect(() => {
@@ -255,6 +266,8 @@ export function SessionClient({
     }
 
     function handleMessage(message: ServerMessage) {
+      handleInteractionMessage(message);
+      handleReactionMessage(message);
       if ("session_id" in message && message.session_id !== sessionId) {
         return;
       }
@@ -360,7 +373,16 @@ export function SessionClient({
         default:
       }
     }
-  }, [actorId, capabilities, locale, roomId, sessionId, title]);
+  }, [
+    actorId,
+    capabilities,
+    handleInteractionMessage,
+    handleReactionMessage,
+    locale,
+    roomId,
+    sessionId,
+    title,
+  ]);
 
   useEffect(() => {
     if (!canAdmit) {
@@ -466,15 +488,75 @@ export function SessionClient({
   return (
     <div className="h-full min-h-0">
       <SessionScreen
+        reactionOverlay={<ReactionOverlay reactions={reactions.reactions} locale={locale} />}
+        reactionControl={
+          <ReactionControl
+            locale={locale}
+            disabled={reactions.busy || !interactions.snapshot?.can_respond}
+            handRaised={Boolean(ownHand)}
+            onReact={(emoji) => void reactions.send(emoji)}
+            onToggleHand={() =>
+              void interactions.send({
+                action: "set_hand",
+                raised: !ownHand,
+                expected_version: ownHand?.order ?? 0,
+              })
+            }
+          />
+        }
+        activities={
+          <ActivitiesPanel
+            selectedActivityId={selectedActivityId}
+            onSelectActivity={selectActivity}
+            sessionId={sessionId}
+            locale={locale}
+            snapshot={interactions.snapshot}
+            error={interactions.error}
+            busy={interactions.busy}
+            send={interactions.send}
+            onRetry={() => void interactions.refresh()}
+          />
+        }
+        handQueue={
+          interactions.snapshot ? (
+            <HandQueue
+              hands={interactions.snapshot.hands}
+              version={interactions.snapshot.version}
+              canModerate={interactions.snapshot.can_moderate}
+              busy={interactions.busy}
+              locale={locale}
+              send={interactions.send}
+            />
+          ) : null
+        }
+        handControl={
+          <HandControl
+            raised={Boolean(ownHand)}
+            disabled={interactions.busy || !interactions.snapshot?.can_respond}
+            locale={locale}
+            onToggle={() =>
+              void interactions.send({
+                action: "set_hand",
+                raised: !ownHand,
+                expected_version: ownHand?.order ?? 0,
+              })
+            }
+          />
+        }
         recordingControl={<RecordingControls sessionId={sessionId} locale={locale} />}
         actorId={actorId}
         sessionId={sessionId}
         roomId={roomId}
         roomName={roomName ?? title}
         activeSurface={activeSurface}
-        onSelectSurface={setActiveSurface}
+        onSelectSurface={(surface) => {
+          setActiveSurface(surface);
+          if (surface === "activities") {
+            interactions.dismissNotice();
+          }
+        }}
         collaboration={
-          activeSurface !== "participants" ? (
+          activeSurface !== "participants" && activeSurface !== "activities" ? (
             <CollaborationWorkspace
               displayName={
                 state.participants.find((participant) => participant.actorId === actorId)?.name ??
@@ -490,6 +572,12 @@ export function SessionClient({
         title={title}
         state={{
           ...state,
+          participants: state.participants.map((participant) => ({
+            ...participant,
+            handRaised:
+              interactions.snapshot?.hands.some((hand) => hand.participant_id === participant.id) ??
+              false,
+          })),
           capabilities: {
             ...state.capabilities,
             canPublishAudio:
@@ -549,6 +637,38 @@ export function SessionClient({
           />
         }
       />
+      {(interactions.error || reactions.error) && state.phase === "live" ? (
+        <div
+          className="fixed bottom-20 start-4 z-40 max-w-[calc(100vw-2rem)] rounded-lg border bg-card p-3 text-sm text-destructive"
+          role="alert"
+        >
+          {interactions.error || reactions.error}
+        </div>
+      ) : null}
+      {interactions.notice ? (
+        <div
+          className="fixed end-4 top-20 z-40 flex max-w-[calc(100vw-2rem)] items-center gap-2 rounded-xl border bg-card p-3 shadow-lg"
+          role="status"
+        >
+          <Button
+            variant="ghost"
+            onClick={() => {
+              setActiveSurface("activities");
+              interactions.dismissNotice();
+            }}
+          >
+            {messagesFor(locale).interactions.newActivity}
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            aria-label={messagesFor(locale).interactions.cancel}
+            onClick={interactions.dismissNotice}
+          >
+            <X className="size-4" aria-hidden="true" />
+          </Button>
+        </div>
+      ) : null}
       {chatNotice ? (
         <div
           className="fixed end-4 top-4 z-50 flex max-w-[min(22rem,calc(100vw-2rem))] items-start gap-3 rounded-xl border bg-card p-3 text-sm shadow-lg"

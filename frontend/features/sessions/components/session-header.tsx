@@ -1,3 +1,4 @@
+import type { SessionSurface } from "./use-session-view";
 import { directionForLocale, type Locale } from "@/lib/i18n/config";
 
 import { SessionBreadcrumb } from "./session-breadcrumb";
@@ -10,12 +11,14 @@ export function SessionHeader({
   title,
   locale,
   connection,
+  activeSurface,
 }: Readonly<{
   roomId?: string;
   roomName: string;
   title: string;
   locale: Locale;
   connection?: SessionConnection;
+  activeSurface?: SessionSurface;
 }>) {
   return (
     <div
@@ -24,7 +27,13 @@ export function SessionHeader({
     >
       <div className="min-w-0 flex-1">
         {roomId ? (
-          <SessionBreadcrumb roomId={roomId} roomName={roomName} title={title} locale={locale} />
+          <SessionBreadcrumb
+            activeSurface={activeSurface}
+            roomId={roomId}
+            roomName={roomName}
+            title={title}
+            locale={locale}
+          />
         ) : null}
       </div>
       {connection ? <SessionConnectionStatus connection={connection} locale={locale} /> : null}
