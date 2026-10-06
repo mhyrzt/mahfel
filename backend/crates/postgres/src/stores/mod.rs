@@ -38,6 +38,7 @@ use sqlx::PgPool;
 /// individual store they need, and each store clone is a cheap pool-handle
 /// clone.
 pub struct PostgresStores {
+    pub interactions: crate::PostgresInteractionStore,
     pub recordings: crate::PostgresRecordingStore,
     pub collaboration: crate::PostgresCollaborationStore,
     pub users: PostgresUserStore,
@@ -59,6 +60,7 @@ impl PostgresStores {
     #[must_use]
     pub fn new(pool: PgPool) -> Self {
         Self {
+            interactions: crate::PostgresInteractionStore::new(pool.clone()),
             recordings: crate::PostgresRecordingStore::new(pool.clone()),
             collaboration: crate::PostgresCollaborationStore::new(pool.clone()),
             users: PostgresUserStore::new(pool.clone()),

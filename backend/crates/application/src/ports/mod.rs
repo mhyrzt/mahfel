@@ -67,3 +67,9 @@ pub use user_store::UserStore;
 pub use recording_export::{ExportArtifact, ExportSource, RecordingExportStore, RecordingExporter};
 
 pub use recording_playback::RecordingPlaybackStore;
+
+pub mod interaction_store;
+pub use interaction_store::{
+    ActivityRecord, ActivityStatus, ActivityVote, InteractionCommand, InteractionError,
+    InteractionSnapshot, InteractionStore, RaisedHand,
+};

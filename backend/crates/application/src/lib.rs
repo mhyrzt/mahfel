@@ -26,3 +26,5 @@ pub mod users;
 pub use error::{ApplicationError, ErrorKind};
 
 pub use recordings::artifacts as recording_artifacts;
+
+pub mod interactions;

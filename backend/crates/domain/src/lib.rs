@@ -75,3 +75,6 @@ pub use validation::{
 };
 
 pub use recording_export::{RecordingExport, RecordingExportStatus};
+
+pub mod activity;
+pub use activity::{ActivityDefinition, ActivityError, ActivityKind};

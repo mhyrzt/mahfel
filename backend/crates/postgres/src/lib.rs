@@ -32,3 +32,6 @@ pub use stores::{
     PostgresParticipantStore, PostgresParticipationStore, PostgresRoomStore,
     PostgresServicePrincipalStore, PostgresSessionStore, PostgresStores, PostgresUserStore,
 };
+
+mod interactions;
+pub use interactions::PostgresInteractionStore;
