@@ -1,16 +1,13 @@
 # Engineering roadmap
 
-This roadmap is the implementation sequence after bootstrap. IDs are stable planning identifiers;
-Backlog.md holds the executable task records. Dependencies name roadmap IDs or milestone completion.
-Capacity and product assumptions must be validated rather than treated as promises.
+This roadmap describes the implementation sequence after bootstrap. Roadmap IDs are stable
+planning identifiers; [GitLab issues](https://hamgit.ir/hamdars/mahfel/-/issues) hold the executable
+work records and [GitLab milestones](https://hamgit.ir/hamdars/mahfel/-/milestones) group delivery.
+Dependencies name roadmap IDs or milestone completion. Capacity and product assumptions must be
+validated rather than treated as promises.
 
-Backlog task mapping: M0-01–M0-08 are `TASK-1.1`–`TASK-1.8`; M1-01–M1-07 are
-`TASK-2`–`TASK-8`; M2 is `TASK-9`–`TASK-16` plus `TASK-114` (M2-09); M3 is `TASK-17`–`TASK-25`; M4 is
-`TASK-26`–`TASK-31` plus `TASK-123`–`TASK-128`, `TASK-129`–`TASK-131`, and `TASK-132`; M5 is `TASK-32`–`TASK-37`; M6 is `TASK-38`–`TASK-43`; M7 is
-`TASK-44`–`TASK-49`; M8 is `TASK-50`–`TASK-55`; M9 is `TASK-56`–`TASK-61`; M10 is
-`TASK-62`–`TASK-67`; M11 is `TASK-68`–`TASK-73`; M12 is `TASK-74`–`TASK-78`; M13 is
-`TASK-79`–`TASK-85`; M14 is `TASK-86`–`TASK-91`; M15 is `TASK-92`–`TASK-98`; and M16 is
-`TASK-99`–`TASK-105`. Every Backlog title begins with its roadmap ID.
+See [issue tracking](issue-tracking.md) for the legacy task-to-issue mapping. This document describes
+scope and sequencing; GitLab owns current task status and validation evidence.
 
 ## M0 — Repository and engineering foundation
 

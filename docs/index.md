@@ -12,4 +12,4 @@ The initial operational model deliberately contains four application components:
 boundaries until production evidence justifies another deployable service.
 
 Start with the [architecture overview](architecture/overview.md), then use the
-[local deployment guide](deployment/local.md) and [engineering roadmap](backlog/roadmap.md).
+[local deployment guide](deployment/local.md) and [engineering roadmap](development/roadmap.md).

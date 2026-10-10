@@ -178,8 +178,8 @@ recorded startup after storage recovery succeeded. Storage was restored after th
 
 These results establish local runtime behavior; they do not establish CI or production
 deployment. Firefox replay used Chromium-captured media: Firefox live publication remains
-tracked under TASK-20. The stale media drain flag after a quick local restart remains
-tracked under TASK-83; the local verification cleared that ephemeral flag explicitly.
+tracked under [TASK-20](https://hamgit.ir/hamdars/mahfel/-/work_items/68). The stale media drain flag after a quick local restart remains
+tracked under [TASK-83](https://hamgit.ir/hamdars/mahfel/-/work_items/131); the local verification cleared that ephemeral flag explicitly.
 
 See the [native spike evidence](../development/recording-spike.md) for ten-minute clock checks and
 1/8/24-track resource profiles. Run targeted gates from `backend/`:

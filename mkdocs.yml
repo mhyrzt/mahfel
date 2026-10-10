@@ -31,6 +31,7 @@ nav:
       - Recording spike: development/recording-spike.md
       - Recording MP4 exports: development/recording-export.md
       - Continuous integration: development/ci.md
+      - Issue tracking: development/issue-tracking.md
   - Deployment:
       - Local: deployment/local.md
       - Background jobs: deployment/background-jobs.md
@@ -78,4 +79,4 @@ nav:
       - 0028 Recording MP4 export: adr/0028-recording-mp4-export.md
       - 0029 Mandatory recording start: adr/0029-mandatory-recording-start.md
       - 0030 Native recording image rendering: adr/0030-native-recording-image-rendering.md
-  - Backlog: backlog/roadmap.md
+  - Roadmap: development/roadmap.md

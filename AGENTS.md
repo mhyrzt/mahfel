@@ -28,35 +28,29 @@ For work spanning both trees, read both files and apply each file to its own sco
 
 The more specific scoped instructions take precedence when they intentionally differ from this file.
 
-## Backlog.md Workflow
+## GitLab Issues Workflow
 
-This project uses Backlog.md for task and project management.
+Use [GitLab issues](https://hamgit.ir/hamdars/mahfel/-/issues) and
+[GitLab milestones](https://hamgit.ir/hamdars/mahfel/-/milestones) for task and project management.
 
-At the beginning of every repository task, run:
+At the beginning of repository work, search existing issues and read the relevant issue and
+milestone before creating new work. Preserve unrelated issues and milestones.
 
-```bash
-backlog instructions overview
-```
+Use `glab` from this repository or the GitLab API for project `hamdars/mahfel` (ID `48414`) on
+`hamgit.ir`. Read `glab <command> --help` before unfamiliar operations. Prefer structured API
+request bodies for descriptions so Markdown and newlines remain intact.
 
-Use that output to determine whether an existing task should be read or updated, or whether a new task is appropriate.
+Create an issue when work requires planning, decisions, or handoff notes; skip mechanical issue
+creation for trivial work. Record the problem, scope, acceptance criteria, dependencies, and
+validation evidence in the issue. Assign the appropriate milestone and verified GitLab assignees.
 
-When required, use:
+Use `status::To Do`, `status::In Progress`, and `status::Done` labels for task progress. Close done
+issues after relevant validation and update their final summary. Archived issues remain closed
+with `status::Archived`; archival does not imply acceptance criteria were completed.
 
-```bash
-backlog instructions task-creation
-backlog instructions task-execution
-backlog instructions task-finalization
-```
-
-Before using an unfamiliar Backlog command:
-
-```bash
-backlog <command> --help
-```
-
-Never manually edit Backlog task, draft, document, decision, or milestone Markdown files. Use the `backlog` CLI so metadata, relationships, and history remain consistent.
-
-Do not create Backlog tasks mechanically for trivial work if the Backlog instructions say one is unnecessary.
+Legacy task IDs are retained in migrated issue titles and original metadata. See
+`docs/development/issue-tracking.md` for the migration mapping and conventions. GitLab is the
+source of task state; do not recreate a local task database.
 
 ## Working Style
 
@@ -65,14 +59,14 @@ Before changing code:
 1. Understand the requested behavior.
 2. Inspect the smallest relevant implementation area.
 3. Read the applicable architecture or ADR documents when the change touches a documented boundary.
-4. Check the relevant Backlog task or milestone.
+4. Check the relevant GitLab issue or milestone.
 5. Implement the smallest coherent change that solves the request.
 6. Validate the changed surface.
 7. Report what changed, what was validated, and any remaining risk.
 
 Prefer working code over speculative abstractions.
 
-Do not implement future roadmap functionality merely because it appears in `docs/backlog/roadmap.md`.
+Do not implement future roadmap functionality merely because it appears in `docs/development/roadmap.md`.
 
 Do not expand the scope of a task without a concrete reason.
 
@@ -280,7 +274,7 @@ A task is complete when:
 - relevant tests or checks pass;
 - architecture boundaries remain intact;
 - documentation is updated when required;
-- Backlog state is finalized according to the Backlog workflow.
+- GitLab issue state and validation notes are finalized according to the GitLab workflow.
 
 In the final response, summarize:
 
