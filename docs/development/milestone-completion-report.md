@@ -93,7 +93,9 @@ later and revalidated with PostgreSQL, static analysis and the backend unit gate
 Frontend checks include formatting, strict ESLint, TypeScript, 254 unit/component tests and
 production build. The final Chromium chat acceptance also verifies an uploaded attachment becomes
 visible on both API replicas, then edit, reload and delete, without full-history event refreshes.
-The browser suite is `e2e/tests/milestone-acceptance.spec.ts`; it requires development identities,
+The browser scenarios are split into `session-media-recovery`, `device-permissions`,
+`session-admission-moderation`, `persistent-chat`, `invite-links`, `session-lifecycle`, and
+`session-lifecycle-rtl` specs under `e2e/tests/`. They require development identities,
 real API/SFU/storage services and explicit routing of the second client to another API replica.
 Set `MAHFEL_E2E_AUDIO_FIXTURE` to a continuous WAV fixture for overlapping-speaker acceptance.
 Fixtures use synthetic capture devices; signaling, persistence and media transport are real.

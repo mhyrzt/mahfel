@@ -25,6 +25,11 @@ export default defineConfig({
             "--use-fake-device-for-media-stream",
             "--use-fake-ui-for-media-stream",
             "--auto-select-desktop-capture-source=Entire screen",
+            ...(process.env.MAHFEL_E2E_AUDIO_FIXTURE
+              ? [
+                  `--use-file-for-fake-audio-capture=${process.env.MAHFEL_E2E_AUDIO_FIXTURE}`,
+                ]
+              : []),
           ],
         },
       },
@@ -37,6 +42,7 @@ export default defineConfig({
           firefoxUserPrefs: {
             "media.navigator.streams.fake": true,
             "media.navigator.permission.disabled": true,
+            "media.peerconnection.ice.loopback": true,
           },
         },
       },
