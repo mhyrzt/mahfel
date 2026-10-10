@@ -56,6 +56,12 @@ created and when a verified file is published. At most four pending, quarantined
 may reference one message. The global file contract limits each object to 50 MiB. Soft deletion
 marks linked files for worker cleanup.
 
+Publishing a verified attachment appends an `edited` message snapshot in the same PostgreSQL
+transaction as the transition to ready, without changing the message's body-edit timestamp.
+WebSocket snapshots include additive `attachment_ids` metadata. Clients fetch at most four ready
+files for the affected message instead of reloading conversation history; repeated publication
+does not append another event.
+
 Redis counters limit each actor to ten new messages or replies per room per ten seconds and 60
 per minute, across API replicas. Redis failure rejects new posts while the limit cannot be
 enforced. Managers can moderate abusive content with the existing soft-delete permission.

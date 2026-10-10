@@ -1,11 +1,28 @@
 # Mahfel
 
-Mahfel is a standalone, education-oriented realtime communication and collaboration
-platform. It is designed for classrooms, conferencing, persistent chat,
-collaborative notes and whiteboards, files, recordings, transcripts, and AI
-participants. It can integrate with an LMS, but it is not itself an LMS.
+Mahfel brings live classrooms, collaborative whiteboards and notes, file sharing,
+and recordings into one self-hosted platform with a Farsi-first, RTL interface.
+Run it on your own infrastructure and connect it to your LMS through REST APIs
+and SSO.
 
-The repository currently contains the engineering foundation only:
+## Why Mahfel
+
+- **Built for teaching:** combine video, screen sharing, PDF/image presentations,
+  shared notes, and whiteboards in the same classroom.
+- **Designed for Farsi-speaking classrooms:** a Farsi-first, RTL interface.
+- **Control your deployment:** self-host the platform and its artifact storage
+  on infrastructure you operate.
+- **Connect your existing systems:** REST integrations and SSO let Mahfel fit
+  alongside your LMS without replacing it.
+- **Keep learning after the session:** recordings, file sharing, and attendance
+  reports support review and follow-up.
+
+Transcription, AI participants, and AI voice interaction are planned; the
+comparison below distinguishes supported features from future work.
+
+## Application components
+
+Mahfel runs as four application components:
 
 - `mahfel-web` — Next.js browser application
 - `mahfel-api` — Rust control plane
@@ -18,46 +35,46 @@ and the implementation roadmap.
 ## Feature comparison
 
 How Mahfel compares with common meeting and virtual-classroom products. The Mahfel column reflects
-implemented behavior, or a planned milestone where marked 🕒. Competitor entries are based on public
+implemented behavior, or planned features where marked 🕒. Competitor entries are based on public
 product documentation at the time of writing and can change by plan, edition, or version — ❌ means
 "not advertised as a built-in feature" in the sources reviewed, not a definitive absence.
 
-Legend: ✅ supported · ❌ not supported / not advertised · 🕒 on the Mahfel roadmap (not yet implemented)
+Legend: ✅ supported · ❌ not supported / not advertised · 🕒 planned for Mahfel (not yet implemented)
 
-| Feature | Mahfel | Google Meet | Jitsi Meet | BigBlueButton | Alocom | Skyroom |
-| --- | :---: | :---: | :---: | :---: | :---: | :---: |
-| Video meetings | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Large webinars / broadcasts | ❌ | ✅ | ✅ | ❌ | ✅ | ✅ |
-| Online classrooms | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Screen sharing | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| In-meeting chat | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Collaborative whiteboard | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Collaborative notes | ✅ | ❌ | ✅ | ✅ | ❌ | ❌ |
-| File sharing | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Presentation (PDF / images) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Video playback in presentation | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Session recording | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Transcription / captions | 🕒 | ✅ | ❌ | ❌ | ✅ | ❌ |
-| Breakout rooms / groups | ❌ | ✅ | ✅ | ✅ | ✅ | ❌ |
-| Polls / quizzes | ❌ | ✅ | ✅ | ✅ | ✅ | ❌ |
-| Raise hand | ❌ | ✅ | ✅ | ✅ | ❌ | ❌ |
-| Waiting room / lobby admission | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ |
-| Attendance & participation report | ✅ | ✅ | ❌ | ✅ | ✅ | ❌ |
-| Invite links / join by code | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Host moderation (mute / remove / block) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| SSO (OIDC / SAML) | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ |
-| Active speaker view | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ |
-| Virtual backgrounds / blur | ❌ | ✅ | ✅ | ✅ | ❌ | ❌ |
-| Noise suppression | ❌ | ✅ | ✅ | ❌ | ❌ | ❌ |
-| End-to-end encryption | ❌ | ✅ | ✅ | ❌ | ❌ | ❌ |
-| Phone dial-in (PSTN / SIP) | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ |
-| Live streaming (RTMP) | ❌ | ✅ | ✅ | ❌ | ❌ | ✅ |
-| Native mobile apps | ❌ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Self-hosting / on-premises | ✅ | ❌ | ✅ | ✅ | ✅ | ✅ |
-| REST API & integrations | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Farsi-first / RTL interface | ✅ | ❌ | ❌ | ❌ | ✅ | ✅ |
-| AI participant / assistant | 🕒 | ✅ | ❌ | ❌ | ❌ | ❌ |
-| AI voice interaction | 🕒 | ❌ | ❌ | ❌ | ❌ | ❌ |
+| Feature                                 | Mahfel | Google Meet | Jitsi Meet | BigBlueButton | Alocom | Skyroom |
+| --------------------------------------- | :----: | :---------: | :--------: | :-----------: | :----: | :-----: |
+| Video meetings                          |   ✅   |     ✅      |     ✅     |      ✅       |   ✅   |   ✅    |
+| Large webinars / broadcasts             |   🕒   |     ✅      |     ✅     |      ❌       |   ✅   |   ✅    |
+| Online classrooms                       |   ✅   |     ✅      |     ✅     |      ✅       |   ✅   |   ✅    |
+| Screen sharing                          |   ✅   |     ✅      |     ✅     |      ✅       |   ✅   |   ✅    |
+| In-meeting chat                         |   ✅   |     ✅      |     ✅     |      ✅       |   ✅   |   ✅    |
+| Collaborative whiteboard                |   ✅   |     ✅      |     ✅     |      ✅       |   ✅   |   ✅    |
+| Collaborative notes                     |   ✅   |     ❌      |     ✅     |      ✅       |   ❌   |   ❌    |
+| File sharing                            |   ✅   |     ✅      |     ✅     |      ✅       |   ✅   |   ✅    |
+| Presentation (PDF / images)             |   ✅   |     ✅      |     ✅     |      ✅       |   ✅   |   ✅    |
+| Video playback in presentation          |   ✅   |     ✅      |     ✅     |      ✅       |   ✅   |   ✅    |
+| Session recording                       |   ✅   |     ✅      |     ✅     |      ✅       |   ✅   |   ✅    |
+| Transcription / captions                |   🕒   |     ✅      |     ❌     |      ❌       |   ✅   |   ❌    |
+| Breakout rooms / groups                 |   🕒   |     ✅      |     ✅     |      ✅       |   ✅   |   ❌    |
+| Polls / quizzes                         |   🕒   |     ✅      |     ✅     |      ✅       |   ✅   |   ❌    |
+| Raise hand                              |   🕒   |     ✅      |     ✅     |      ✅       |   ❌   |   ❌    |
+| Waiting room / lobby admission          |   ✅   |     ✅      |     ✅     |      ✅       |   ❌   |   ❌    |
+| Attendance & participation report       |   ✅   |     ✅      |     ❌     |      ✅       |   ✅   |   ❌    |
+| Invite links / join by code             |   ✅   |     ✅      |     ✅     |      ✅       |   ✅   |   ✅    |
+| Host moderation (mute / remove / block) |   ✅   |     ✅      |     ✅     |      ✅       |   ✅   |   ✅    |
+| SSO (OIDC / SAML)                       |   ✅   |     ✅      |     ✅     |      ✅       |   ❌   |   ❌    |
+| Active speaker view                     |   ✅   |     ✅      |     ✅     |      ✅       |   ❌   |   ❌    |
+| Virtual backgrounds / blur              |   🕒   |     ✅      |     ✅     |      ✅       |   ❌   |   ❌    |
+| Noise suppression                       |   🕒   |     ✅      |     ✅     |      ❌       |   ❌   |   ❌    |
+| End-to-end encryption                   |   🕒   |     ✅      |     ✅     |      ❌       |   ❌   |   ❌    |
+| Phone dial-in (PSTN / SIP)              |   ❌   |     ✅      |     ❌     |      ❌       |   ❌   |   ❌    |
+| Live streaming (RTMP)                   |   🕒   |     ✅      |     ✅     |      ❌       |   ❌   |   ✅    |
+| Native mobile apps                      |   🕒   |     ✅      |     ✅     |      ✅       |   ✅   |   ✅    |
+| Self-hosting / on-premises              |   ✅   |     ❌      |     ✅     |      ✅       |   ✅   |   ✅    |
+| REST API & integrations                 |   ✅   |     ✅      |     ✅     |      ✅       |   ✅   |   ✅    |
+| Farsi-first / RTL interface             |   ✅   |     ❌      |     ❌     |      ❌       |   ✅   |   ✅    |
+| AI participant / assistant              |   🕒   |     ✅      |     ❌     |      ❌       |   ❌   |   ❌    |
+| AI voice interaction                    |   🕒   |     ❌      |     ❌     |      ❌       |   ❌   |   ❌    |
 
 Recording includes original tracks, authorized interactive replay and automatic workspace MP4 exports.
 Managers can delete a recording and its artifacts; see

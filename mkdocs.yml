@@ -32,6 +32,8 @@ nav:
       - Recording MP4 exports: development/recording-export.md
       - Continuous integration: development/ci.md
       - Issue tracking: development/issue-tracking.md
+      - M3-M5 completion plan: development/milestone-completion-plan.md
+      - M3-M5 completion evidence: development/milestone-completion-report.md
   - Deployment:
       - Local: deployment/local.md
       - Background jobs: deployment/background-jobs.md

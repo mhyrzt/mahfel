@@ -268,7 +268,7 @@ a session that is not live is not meaningful.
 Management endpoints are `POST`/`GET /v1/rooms/{room_id}/invite-links`,
 `POST`/`GET /v1/sessions/{session_id}/invite-links`, `POST /v1/invite-links/{link_id}/revoke`, and
 `POST /v1/invite-links/{link_id}/rotate`. Redemption and the confirmation flow that follows it are
-M4-14 (TASK-130).
+M4-14 ([TASK-130](https://hamgit.ir/hamdars/mahfel/-/work_items/178)).
 
 ### Admission and the lobby
 
@@ -410,7 +410,7 @@ a second device's transports remain. The `media_active_speakers` gauge and
 `media_speaker_stream_dropped_updates_total` counter have no room, actor, participant, or producer
 labels. Ending a session clears the API speaker list and requests a media reset that closes
 volatile room resources while retaining the router for a later session. A failed reset is logged.
-Cross-replica presence and general WebSocket coordination remain with M5-03 (TASK-34).
+Cross-replica presence and general WebSocket coordination remain with M5-03 ([TASK-34](https://hamgit.ir/hamdars/mahfel/-/work_items/82)).
 
 ## `mahfel-worker`
 
@@ -430,3 +430,36 @@ listener.
 - coturn supplies STUN/TURN traversal.
 - Prometheus scrapes private operations ports and Grafana visualizes the data.
 - Alertmanager provides the initial alert-routing boundary.
+
+### Realtime limits and cross-replica moderation
+
+Both signaling and collaboration sockets share the configured connection limit, authentication
+and heartbeat deadlines, and bounded writes. Signaling accepts a burst of 100 frames and refills
+100 frames per second; the legacy global broadcast frame is rejected. A stalled chat queue
+signals socket shutdown while retaining its participation handle until normal cleanup finishes.
+One or two failed presence renewals are tolerated; an explicit expired lease or three consecutive
+renewal failures closes the connection.
+
+Media commands recheck durable admission, room availability, blocks, and session status. Each
+connection owns its transports and consumers and may allocate at most eight transports. A
+connection caches only its resolved media gateway for two seconds; authorization is not cached.
+Removal drops the participant's transports, producers, and dependent consumers. Media operations
+clone handles before awaiting SFU responses and recheck parent resources before registering new
+children, so cleanup cannot be undone by an in-flight creation.
+
+Moderation notices fan out over Redis to other API replicas. Each replica also reconciles joined
+participants against PostgreSQL every two seconds, repairing missed microphone mute/unmute and
+terminal removal notices. Redis failure does not undo the durable decision. Collaboration access
+also rejects active room/session blocks and archived rooms.
+
+Private media-control gRPC requires a matching bearer credential. Set `MAHFEL_API__CONTROL_TOKEN`
+and `MAHFEL_MEDIA__CONTROL_TOKEN` to the same random ASCII secret of at least 32 characters on
+all API replicas and media nodes. The committed default is a local fixture. Keep gRPC private;
+authentication supplements network isolation. Rotate by coordinating the API and media credential
+updates, because the server accepts one credential at a time.
+
+Chat fanout authorizes subscriber IDs in batches of at most 1,000. Browser chat applies sequenced
+message events directly and requests catch-up when a sequence gap appears. Collaboration checkpoint
+writes lock their document and retain its newest three checkpoints without deleting journal events.
+PDF presentation passes the authorized object URL and headers directly to PDF.js and reuses the
+loaded document across page and size changes, avoiding whole-file copies in React state.

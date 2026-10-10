@@ -3291,6 +3291,37 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "description": "Page number, 1-based",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "per_page",
+            "in": "query",
+            "description": "Items per page, 1-100",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "description": "Optional lifecycle status filter",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/SessionStatusDto"
+            }
           }
         ],
         "responses": {
@@ -3299,10 +3330,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/SessionResponse"
-                  }
+                  "$ref": "#/components/schemas/Paginated_SessionResponse"
                 }
               }
             }
@@ -7625,6 +7653,112 @@
                 },
                 "visibility": {
                   "$ref": "#/components/schemas/RoomVisibilityDto"
+                }
+              }
+            }
+          },
+          "pagination": {
+            "$ref": "#/components/schemas/PaginationMeta"
+          }
+        }
+      },
+      "Paginated_SessionResponse": {
+        "type": "object",
+        "required": [
+          "data",
+          "pagination"
+        ],
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "id",
+                "room_id",
+                "status",
+                "title",
+                "title_overridden",
+                "created_at",
+                "updated_at"
+              ],
+              "properties": {
+                "admission": {
+                  "oneOf": [
+                    {
+                      "type": "null"
+                    },
+                    {
+                      "$ref": "#/components/schemas/AdmissionPolicyDto"
+                    }
+                  ]
+                },
+                "auto_record": {
+                  "type": "boolean"
+                },
+                "created_at": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "ended_at": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "date-time"
+                },
+                "id": {
+                  "type": "string"
+                },
+                "room_id": {
+                  "type": "string"
+                },
+                "scheduled_duration_minutes": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "format": "int32",
+                  "minimum": 0
+                },
+                "scheduled_start_at": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "date-time"
+                },
+                "started_at": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "date-time"
+                },
+                "status": {
+                  "$ref": "#/components/schemas/SessionStatusDto"
+                },
+                "title": {
+                  "type": "string",
+                  "description": "Effective display title, using the current room title when no custom title is set."
+                },
+                "title_overridden": {
+                  "type": "boolean"
+                },
+                "updated_at": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "visibility": {
+                  "oneOf": [
+                    {
+                      "type": "null"
+                    },
+                    {
+                      "$ref": "#/components/schemas/SessionVisibilityDto",
+                      "description": "`None` means the session inherits its room's value."
+                    }
+                  ]
                 }
               }
             }

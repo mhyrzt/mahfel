@@ -2152,6 +2152,13 @@
     "schemas": {
       "ChatEventPayload": {
         "properties": {
+          "attachment_ids": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
           "author_id": {
             "type": "string"
           },
