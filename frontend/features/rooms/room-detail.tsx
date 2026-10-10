@@ -24,6 +24,7 @@ type Session = components["schemas"]["SessionResponse"];
 export function RoomDetail({
   room,
   sessions,
+  sessionNavigation,
   role,
   canManageSession,
   actorId,
@@ -31,6 +32,7 @@ export function RoomDetail({
 }: Readonly<{
   room: Room;
   sessions: Session[];
+  sessionNavigation?: ReactNode;
   role: "manager" | "member";
   canManageSession: boolean;
   actorId?: string;
@@ -40,6 +42,7 @@ export function RoomDetail({
     <RoomDetailView
       room={room}
       sessions={sessions}
+      sessionNavigation={sessionNavigation}
       locale={locale}
       canManageSession={canManageSession}
       settings={
@@ -82,6 +85,7 @@ export function RoomDetailView({
   settings,
   fileData,
   chat,
+  sessionNavigation,
 }: Readonly<{
   room: Room;
   sessions: Session[];
@@ -90,6 +94,7 @@ export function RoomDetailView({
   settings?: ReactNode;
   fileData?: Record<string, SessionFileFixture>;
   chat?: ReactNode;
+  sessionNavigation?: ReactNode;
 }>) {
   return (
     <div className="mx-auto max-w-5xl space-y-6 pb-16" data-testid="room-detail">
@@ -105,6 +110,7 @@ export function RoomDetailView({
         fileData={fileData}
         canManageSession={canManageSession}
       />
+      {sessionNavigation}
       {chat ? <ConversationSidebar locale={locale} conversation={chat} /> : null}
     </div>
   );

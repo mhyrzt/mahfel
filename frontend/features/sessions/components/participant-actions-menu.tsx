@@ -37,6 +37,7 @@ export function ParticipantActionsMenu({
     return null;
   }
   const text = messagesFor(locale).sessions;
+  const unmuteLabel = locale === "fa" ? "رفع سکوت" : "Unmute participant";
 
   return (
     <DropdownMenu>
@@ -66,7 +67,7 @@ export function ParticipantActionsMenu({
         {actions.includes("mute") ? (
           <DropdownMenuItem onSelect={() => onAction?.("mute", participant)}>
             <MicOff className="size-4" />
-            {text.muteParticipant}
+            {participant.muted ? unmuteLabel : text.muteParticipant}
           </DropdownMenuItem>
         ) : null}
         {actions.includes("remove") ? (

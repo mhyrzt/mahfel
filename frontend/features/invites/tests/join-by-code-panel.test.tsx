@@ -32,3 +32,10 @@ test("shows an unusable code state without exposing a destination", () => {
   expect(screen.getByText("Invite unavailable")).toBeInTheDocument();
   expect(screen.queryByRole("link", { name: "Open destination" })).not.toBeInTheDocument();
 });
+
+test("an opened invitation prefills its code without assuming admission", () => {
+  render(<JoinByCodePanel locale="en" initialCode="ABC-DEFG-HIJ" />);
+  expect(screen.getByRole("textbox", { name: "Invite code" })).toHaveValue("ABC-DEFG-HIJ");
+  expect(post).not.toHaveBeenCalled();
+  expect(screen.queryByRole("link", { name: "Open destination" })).not.toBeInTheDocument();
+});

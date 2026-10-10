@@ -1,7 +1,13 @@
 import { NextResponse } from "next/server";
 import { getServerAccessToken } from "@/lib/auth/server";
 import { serverApiBaseUrl } from "@/lib/api/config";
-import { isAllowedBackendPath } from "@/lib/api/allowlist";
+import {
+  boundedRequestBody,
+  containedUpstreamUrl,
+  filteredProxyHeaders,
+  MAX_BODY_BYTES,
+  PayloadTooLarge,
+} from "@/lib/api/proxy-boundary";
 
 const REQUEST_HEADERS_TO_DROP = new Set([
   "accept-encoding",
@@ -30,36 +36,6 @@ const RESPONSE_HEADERS_TO_DROP = new Set([
 ]);
 
 const UPSTREAM_TIMEOUT_MS = 10_000;
-const MAX_BODY_BYTES = 2 * 1024 * 1024;
-
-function upstreamUrl(request: Request, path: string[]): URL {
-  const source = new URL(request.url);
-  const encodedPath = path.map((segment) => encodeURIComponent(segment)).join("/");
-  return new URL(`${serverApiBaseUrl}/${encodedPath}${source.search}`);
-}
-
-function upstreamHeaders(request: Request, accessToken: string): Headers {
-  const headers = new Headers();
-  request.headers.forEach((value, name) => {
-    const normalized = name.toLowerCase();
-    if (!REQUEST_HEADERS_TO_DROP.has(normalized) && !normalized.startsWith("sec-fetch-")) {
-      headers.set(name, value);
-    }
-  });
-  headers.set("authorization", `Bearer ${accessToken}`);
-  return headers;
-}
-
-function downstreamHeaders(upstream: Response): Headers {
-  const headers = new Headers();
-  upstream.headers.forEach((value, name) => {
-    if (!RESPONSE_HEADERS_TO_DROP.has(name.toLowerCase())) {
-      headers.set(name, value);
-    }
-  });
-  return headers;
-}
-
 interface Context {
   params: Promise<{ path: string[] }>;
 }
@@ -71,7 +47,8 @@ async function handleBackendRequest(request: Request, context: Context): Promise
   }
   const { path } = await context.params;
   const joinedPath = path.join("/");
-  if (!isAllowedBackendPath(joinedPath)) {
+  const upstream = containedUpstreamUrl(request, path, serverApiBaseUrl);
+  if (!upstream) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
   if (joinedPath === "v1/ws/tickets" && request.method !== "POST") {
@@ -93,21 +70,23 @@ async function handleBackendRequest(request: Request, context: Context): Promise
   const hasBody = request.method !== "GET" && request.method !== "HEAD";
   const timeoutSignal = AbortSignal.timeout(UPSTREAM_TIMEOUT_MS);
   const signal = AbortSignal.any([request.signal, timeoutSignal]);
-  const init: RequestInit & { duplex?: "half" } = {
-    method: request.method,
-    headers: upstreamHeaders(request, accessToken),
-    body: hasBody ? request.body : undefined,
-    cache: "no-store",
-    redirect: "manual",
-    signal,
-  };
-  if (hasBody) {
-    init.duplex = "half";
-  }
   let response: Response;
   try {
-    response = await fetch(upstreamUrl(request, path), init);
+    const body = hasBody ? await boundedRequestBody(request, signal) : undefined;
+    const headers = filteredProxyHeaders(request.headers, REQUEST_HEADERS_TO_DROP);
+    headers.set("authorization", `Bearer ${accessToken}`);
+    response = await fetch(upstream, {
+      method: request.method,
+      headers,
+      body,
+      cache: "no-store",
+      redirect: "manual",
+      signal,
+    });
   } catch (error) {
+    if (error instanceof PayloadTooLarge) {
+      return NextResponse.json({ error: "Payload too large" }, { status: 413 });
+    }
     if (timeoutSignal.aborted) {
       return NextResponse.json({ error: { code: "UPSTREAM_TIMEOUT" } }, { status: 504 });
     }
@@ -119,7 +98,7 @@ async function handleBackendRequest(request: Request, context: Context): Promise
   const downstream = new Response(response.status === 204 ? null : response.body, {
     status: response.status,
     statusText: response.statusText,
-    headers: downstreamHeaders(response),
+    headers: filteredProxyHeaders(response.headers, RESPONSE_HEADERS_TO_DROP),
   });
   return downstream;
 }

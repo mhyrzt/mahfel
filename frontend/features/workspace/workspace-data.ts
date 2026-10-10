@@ -8,7 +8,7 @@ import { ServerApiAuthenticationError } from "@/lib/api/server";
 import type { Room, ScheduledSession } from "./components/workspace-types";
 
 type ApiRoom = components["schemas"]["RoomResponse"];
-type ApiSession = components["schemas"]["SessionResponse"];
+type SessionPage = components["schemas"]["Paginated_SessionResponse"];
 type RoomPage = components["schemas"]["Paginated_RoomResponse"];
 
 const overviewRoomLimit = 12;
@@ -24,10 +24,12 @@ export async function loadWorkspaceOverview(api: AxiosInstance): Promise<{
   const apiRooms: ApiRoom[] = response.data.data;
   const sessionResults = await Promise.allSettled(
     apiRooms.map(async (room) => {
-      const result = await api.get<ApiSession[]>(
-        `/v1/rooms/${encodeURIComponent(room.id)}/sessions`,
-      );
-      return result.data;
+      const path = `/v1/rooms/${encodeURIComponent(room.id)}/sessions`;
+      const [live, scheduled] = await Promise.all([
+        api.get<SessionPage>(path, { params: { status: "live", per_page: 1 } }),
+        api.get<SessionPage>(path, { params: { status: "scheduled", per_page: 100 } }),
+      ]);
+      return [...live.data.data, ...scheduled.data.data];
     }),
   );
   for (const result of sessionResults) {

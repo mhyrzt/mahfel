@@ -56,10 +56,11 @@ interface Redeemed {
 export function JoinByCodePanel({
   status = "entry",
   locale = "en",
-}: Readonly<{ status?: JoinStatus; locale?: Locale }>) {
+  initialCode = "",
+}: Readonly<{ status?: JoinStatus; locale?: Locale; initialCode?: string }>) {
   const text = copy[locale];
   const [current, setCurrent] = useState<JoinStatus>(status);
-  const [code, setCode] = useState("");
+  const [code, setCode] = useState(initialCode);
   const [requestId, setRequestId] = useState<string | null>(null);
   const [destination, setDestination] = useState<string | null>(null);
   const [pending, setPending] = useState(false);

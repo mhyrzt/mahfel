@@ -267,3 +267,65 @@ test("does not notify a session participant about a room-only message", () => {
   });
   expect(screen.queryByText("Room-only note")).not.toBeInTheDocument();
 });
+
+test("server-confirmed microphone mute disables publishing until unmuted", async () => {
+  getRoster.mockResolvedValue({
+    data: [{ id: "part-a111", actor_id: "actor-1", name: "Ada", role: "member" }],
+  });
+  mountSession();
+  deliver({ v: 1, type: "joined", session_id: "session-1", participant_id: "part-a111" });
+  deliver({
+    v: 1,
+    type: "session_roster",
+    session_id: "session-1",
+    version: 1,
+    participant_ids: ["part-a111"],
+  });
+  await waitFor(() => expect(screen.getAllByText("Ada").length).toBeGreaterThan(0));
+  deliver({
+    v: 1,
+    type: "participant_muted",
+    session_id: "session-1",
+    participant_id: "part-a111",
+    actor_id: "actor-1",
+    source: "microphone",
+    kind: "permanent",
+  });
+  expect(screen.queryByRole("button", { name: "Unmute microphone" })).not.toBeInTheDocument();
+  deliver({
+    v: 1,
+    type: "participant_unmuted",
+    session_id: "session-1",
+    participant_id: "part-a111",
+    actor_id: "actor-1",
+    source: "microphone",
+  });
+  expect(screen.getByRole("button", { name: "Unmute microphone" })).toBeEnabled();
+});
+
+test("a waiting manager retains admission controls without media access", async () => {
+  getRoster.mockResolvedValue({
+    data: {
+      entries: [
+        { request_id: "request-1", actor_id: "actor-1", requested_at: new Date().toISOString() },
+      ],
+    },
+  });
+  render(
+    <SessionClient
+      actorId="actor-1"
+      capabilities={{ ...capabilities, canModerate: true }}
+      canAdmit
+      locale="en"
+      sessionId="session-1"
+      roomId="room-1"
+      title="Lobby"
+      files={<div />}
+    />,
+  );
+  deliver({ v: 1, type: "join_waiting", session_id: "session-1", request_id: "request-1" });
+  await waitFor(() =>
+    expect(screen.getByRole("button", { name: "Admit Participant acto" })).toBeInTheDocument(),
+  );
+  expect(screen.queryByRole("button", { name: "Unmute microphone" })).not.toBeInTheDocument();
+});

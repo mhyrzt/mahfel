@@ -35,6 +35,7 @@ export function useRemoteSessionMedia(
   actorId: string | undefined,
   active: boolean,
   locale: Locale,
+  onFailure?: () => void,
 ) {
   const [streams, setStreams] = useState<RemoteMedia>({});
   const [error, setError] = useState<string | null>(null);
@@ -106,8 +107,14 @@ export function useRemoteSessionMedia(
           throw new Error("Session media changed");
         }
         transport.on("connectionstatechange", (state) => {
+          if (generation !== generationRef.current) {
+            return;
+          }
           if (state === "failed" || state === "disconnected") {
             setError(failureText);
+            if (state === "failed") {
+              onFailure?.();
+            }
           }
         });
         deviceRef.current = device;
@@ -123,7 +130,7 @@ export function useRemoteSessionMedia(
         }
       }
     },
-    [failureText, request, roomId],
+    [failureText, onFailure, request, roomId],
   );
 
   const consume = useCallback(

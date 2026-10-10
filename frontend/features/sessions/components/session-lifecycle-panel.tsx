@@ -48,10 +48,12 @@ export function SessionLifecyclePanel({
     } catch (failure) {
       if (action === "start" && axios.isAxiosError(failure) && failure.response?.status === 409) {
         try {
-          const { data } = await browserApiClient.get<Session[]>(
-            `/v1/rooms/${encodeURIComponent(session.room_id)}/sessions`,
-          );
-          const live = data.find((item) => item.status === "live");
+          const { data } = await browserApiClient.get<
+            components["schemas"]["Paginated_SessionResponse"]
+          >(`/v1/rooms/${encodeURIComponent(session.room_id)}/sessions`, {
+            params: { status: "live", per_page: 1 },
+          });
+          const live = data.data.find((item) => item.status === "live");
           if (live) {
             setLiveSessionId(live.id);
             setError(text.liveSessionConflict);

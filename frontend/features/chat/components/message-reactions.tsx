@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { SmilePlus } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -16,12 +16,36 @@ export function MessageReactions({
   roomId,
   messageId,
   locale,
-}: Readonly<{ roomId: string; messageId: string; locale: Locale }>) {
+  revision,
+}: Readonly<{ roomId: string; messageId: string; locale: Locale; revision?: number }>) {
   const text = roomCopy(locale);
   const [open, setOpen] = useState(false);
   const [reactions, setReactions] = useState<Reactions | null>(null);
   const [error, setError] = useState(false);
   const path = `/v1/rooms/${encodeURIComponent(roomId)}/messages/${encodeURIComponent(messageId)}/reaction`;
+
+  useEffect(() => {
+    if (!open) {
+      return undefined;
+    }
+    let cancelled = false;
+    void browserApiClient
+      .get<Reactions>(path)
+      .then(({ data }) => {
+        if (!cancelled) {
+          setReactions(data);
+          setError(false);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setError(true);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [open, path, revision]);
 
   async function refresh() {
     const { data } = await browserApiClient.get<Reactions>(path);
@@ -34,12 +58,6 @@ export function MessageReactions({
       return;
     }
     setOpen(true);
-    try {
-      await refresh();
-      setError(false);
-    } catch {
-      setError(true);
-    }
   }
 
   async function choose(emoji: string) {

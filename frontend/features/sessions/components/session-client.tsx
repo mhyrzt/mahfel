@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useReducer, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useReducer, useRef, useState, type ReactNode } from "react";
 import { useSessionView } from "./use-session-view";
 import { useRouter } from "next/navigation";
 import { MessageCircle, X } from "lucide-react";
@@ -101,14 +101,35 @@ export function SessionClient({
   const handleReactionMessage = reactions.handleMessage;
   const ownHand = interactions.snapshot?.hands.find((hand) => hand.actor_id === actorId);
   const [signalingStatus, setSignalingStatus] = useState<SignalingStatus>("connecting");
-  const media = useSessionMedia(clientRef, roomId, locale);
+  const mediaRecoveriesRef = useRef(0);
+  const reconnectMedia = useCallback(() => {
+    if (mediaRecoveriesRef.current >= 3) {
+      return;
+    }
+    const client = clientRef.current;
+    if (!client) {
+      return;
+    }
+    mediaRecoveriesRef.current += 1;
+    dispatch({
+      type: "connection-unavailable",
+      message: messagesFor(locale).sessions.reconnectingMessage,
+    });
+    client.close();
+    client.connect();
+  }, [locale]);
+  const media = useSessionMedia(clientRef, roomId, locale, state.phase === "live", reconnectMedia);
   const { enabled: mediaEnabled, stop: stopMedia } = media;
+  const ownMuted = state.participants.some(
+    (participant) => participant.actorId === actorId && participant.muted,
+  );
   const remoteMedia = useRemoteSessionMedia(
     clientRef,
     roomId,
     actorId,
     state.phase === "live",
     locale,
+    reconnectMedia,
   );
   const participantsRef = useRef<Participant[]>([]);
   const connection = useSessionConnection(
@@ -154,16 +175,13 @@ export function SessionClient({
   }, [sessionId, state.phase]);
 
   useEffect(() => {
-    if (!personalAccess) {
-      return;
-    }
-    if (!personalAccess.can_publish_audio && mediaEnabled.microphone) {
+    if ((ownMuted || personalAccess?.can_publish_audio === false) && mediaEnabled.microphone) {
       void stopMedia("microphone");
     }
-    if (!personalAccess.can_publish_video && mediaEnabled.camera) {
+    if (personalAccess?.can_publish_video === false && mediaEnabled.camera) {
       void stopMedia("camera");
     }
-    if (!personalAccess.can_share_screen && mediaEnabled.screen) {
+    if (personalAccess?.can_share_screen === false && mediaEnabled.screen) {
       void stopMedia("screen");
     }
   }, [
@@ -172,6 +190,7 @@ export function SessionClient({
     mediaEnabled.screen,
     stopMedia,
     personalAccess,
+    ownMuted,
   ]);
 
   useEffect(() => {
@@ -335,8 +354,32 @@ export function SessionClient({
             ...new Set([...participantsRef.current.map(({ id }) => id), message.participant_id]),
           ]);
           return;
-        case "participant_left":
         case "participant_removed":
+          if (message.actor_id === actorId) {
+            if (message.reason === "session_ended") {
+              dispatch({ type: "session-ended" });
+            } else {
+              dispatch({
+                type: "admission-rejected",
+                message:
+                  locale === "fa"
+                    ? "از این جلسه حذف شده‌اید."
+                    : "You were removed from this session.",
+              });
+            }
+            client.close();
+            return;
+          }
+          rosterRequest += 1;
+          dispatch({
+            type: "participant-removed",
+            participantId:
+              participantsRef.current.find(
+                (participant) => participant.actorId === message.actor_id,
+              )?.id ?? message.participant_id,
+          });
+          return;
+        case "participant_left":
           rosterRequest += 1;
           dispatch({
             type: "participant-removed",
@@ -447,12 +490,24 @@ export function SessionClient({
       return;
     }
     try {
-      clientRef.current?.send({
-        type: "mute_participant",
-        session_id: sessionId,
-        actor_id: participant.actorId,
-        kind: "temporary",
-      });
+      const client = clientRef.current;
+      if (!client) {
+        throw new Error("Session signaling is unavailable");
+      }
+      client.send(
+        participant.muted
+          ? {
+              type: "unmute_participant",
+              session_id: sessionId,
+              actor_id: participant.actorId,
+            }
+          : {
+              type: "mute_participant",
+              session_id: sessionId,
+              actor_id: participant.actorId,
+              kind: "temporary",
+            },
+      );
       setActionError(null);
     } catch {
       setActionError(actionText.moderationFailed);
@@ -581,7 +636,9 @@ export function SessionClient({
           capabilities: {
             ...state.capabilities,
             canPublishAudio:
-              state.capabilities.canPublishAudio && (personalAccess?.can_publish_audio ?? true),
+              state.capabilities.canPublishAudio &&
+              !ownMuted &&
+              (personalAccess?.can_publish_audio ?? true),
             canPublishVideo:
               state.capabilities.canPublishVideo && (personalAccess?.can_publish_video ?? true),
             canShareScreen:

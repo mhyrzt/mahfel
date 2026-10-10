@@ -55,6 +55,7 @@ export function ChatMessageList({
   onCancelEdit,
   onRemove,
   showReactions = false,
+  reactionVersions = {},
 }: Readonly<{
   messages: Message[];
   roomId: string;
@@ -75,6 +76,7 @@ export function ChatMessageList({
   onCancelEdit?: () => void;
   onRemove?: (messageId: string) => void;
   showReactions?: boolean;
+  reactionVersions?: Record<string, number>;
 }>) {
   const text = roomCopy(locale);
   const logRef = useRef<HTMLDivElement>(null);
@@ -186,6 +188,7 @@ export function ChatMessageList({
                           <MessageReactions
                             locale={locale}
                             messageId={message.id}
+                            revision={reactionVersions[message.id]}
                             roomId={roomId}
                           />
                         ) : null}

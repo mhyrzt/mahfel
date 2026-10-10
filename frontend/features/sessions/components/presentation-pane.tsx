@@ -59,7 +59,7 @@ export function PresentationPane({
   const [state, setState] = useState<PresentationState | null>(null);
   const [media, setMedia] = useState<{
     id: string;
-    bytes: Uint8Array;
+    headers: Record<string, string>;
     mime: string;
     url: string;
   } | null>(null);
@@ -125,23 +125,20 @@ export function PresentationPane({
           if (!cancelled) {
             setMedia({
               id: activeId,
-              bytes: new Uint8Array(),
+              headers: {},
               mime: data.file.mime,
               url: data.url,
             });
           }
           return;
         }
-        const response = await fetch(data.url, {
-          headers: Object.fromEntries(data.headers.map((header) => [header.name, header.value])),
-        });
-        if (!response.ok) {
-          throw new Error("file unavailable");
-        }
-        const bytes = new Uint8Array(await response.arrayBuffer());
         if (!cancelled) {
-          const url = URL.createObjectURL(new Blob([bytes], { type: data.file.mime }));
-          setMedia({ id: activeId, bytes, mime: data.file.mime, url });
+          setMedia({
+            id: activeId,
+            headers: Object.fromEntries(data.headers.map((header) => [header.name, header.value])),
+            mime: data.file.mime,
+            url: data.url,
+          });
         }
       } catch {
         if (!cancelled) {
@@ -153,15 +150,6 @@ export function PresentationPane({
       cancelled = true;
     };
   }, [activeId]);
-
-  useEffect(
-    () => () => {
-      if (media) {
-        URL.revokeObjectURL(media.url);
-      }
-    },
-    [media],
-  );
 
   const change = useCallback(
     async (payload: Record<string, unknown>) => {
@@ -255,7 +243,12 @@ export function PresentationPane({
           );
         }
         return media.mime === "application/pdf" ? (
-          <PdfPage bytes={media.bytes} page={page} unavailable={text.pdfUnavailable} />
+          <PdfPage
+            url={media.url}
+            headers={media.headers}
+            page={page}
+            unavailable={text.pdfUnavailable}
+          />
         ) : (
           <Image
             src={media.url}

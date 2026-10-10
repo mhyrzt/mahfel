@@ -33,7 +33,7 @@ test("a conflicting live session is identified and linked when start returns 409
   const conflict = new AxiosError("Conflict");
   Object.assign(conflict, { response: { status: 409 } });
   post.mockRejectedValue(conflict);
-  get.mockResolvedValue({ data: [{ ...session, id: "live-session", status: "live" }] });
+  get.mockResolvedValue({ data: { data: [{ ...session, id: "live-session", status: "live" }] } });
   render(<SessionLifecyclePanel session={session} canManage locale="en" />);
 
   fireEvent.click(screen.getByRole("button", { name: "Start session" }));

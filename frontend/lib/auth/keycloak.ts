@@ -14,9 +14,19 @@ export async function keycloakLogout(request: NextRequest): Promise<NextResponse
   const logoutUrl = new URL(`${AUTH_CONFIG.keycloak.issuer}/protocol/openid-connect/logout`);
   logoutUrl.searchParams.set("client_id", AUTH_CONFIG.keycloak.clientId);
   const callbackUrl = request.nextUrl.searchParams.get("callbackUrl");
-  const postLogoutRedirectUri = callbackUrl?.startsWith("/")
-    ? new URL(callbackUrl, AUTH_CONFIG.nextAuthUrl).toString()
-    : new URL("/login?loggedOut=1", AUTH_CONFIG.nextAuthUrl).toString();
+  const base = new URL(AUTH_CONFIG.nextAuthUrl);
+  let destination = new URL("/login?loggedOut=1", base);
+  if (
+    callbackUrl?.startsWith("/") &&
+    !callbackUrl.startsWith("//") &&
+    !callbackUrl.includes("\\")
+  ) {
+    const candidate = new URL(callbackUrl, base);
+    if (candidate.origin === base.origin) {
+      destination = candidate;
+    }
+  }
+  const postLogoutRedirectUri = destination.toString();
   logoutUrl.searchParams.set("post_logout_redirect_uri", postLogoutRedirectUri);
 
   if (typeof token?.idToken === "string") {

@@ -141,7 +141,12 @@ test("uploads composer attachments against the sent message", async () => {
       created_at: "2026-09-25T00:00:00Z",
     },
   });
-  uploadFile.mockResolvedValue({ id: "file-9" });
+  uploadFile.mockResolvedValue({
+    id: "file-9",
+    file_name: "clip.mp4",
+    mime: "video/mp4",
+    size_bytes: 4,
+  });
   render(<RoomChat roomId="room-1" locale="en" actorId="actor-1" />);
 
   await screen.findByText("No messages yet. Start the conversation.");
@@ -160,4 +165,55 @@ test("uploads composer attachments against the sent message", async () => {
     }),
   );
   expect(post).toHaveBeenCalledWith("/v1/rooms/room-1/messages", { content: "Report" });
+});
+
+function chatEvent(sequence: number, content: string | null, deletedAt?: string) {
+  return {
+    type: "chat_event",
+    event: {
+      room_id: "room-1",
+      sequence,
+      kind: deletedAt ? "deleted" : "edited",
+      message_id: "live-message",
+      author_id: "actor-1",
+      created_at: "2026-10-07T10:00:00Z",
+      content,
+      deleted_at: deletedAt,
+    },
+  };
+}
+
+test("patches ordered realtime messages without reloading history and ignores duplicates", async () => {
+  get.mockResolvedValue({ data: { messages: [], next_cursor: null } });
+  render(<RoomChat roomId="room-1" locale="en" />);
+  await screen.findByText("No messages yet. Start the conversation.");
+  const historyCalls = get.mock.calls.length;
+  act(() => socket.onMessage?.(chatEvent(1, "Realtime creation")));
+  expect(await screen.findByText("Realtime creation")).toBeInTheDocument();
+  act(() => socket.onMessage?.(chatEvent(2, "Realtime edit")));
+  expect(await screen.findByText("Realtime edit")).toBeInTheDocument();
+  act(() => socket.onMessage?.(chatEvent(1, "Stale duplicate")));
+  expect(screen.queryByText("Stale duplicate")).not.toBeInTheDocument();
+  act(() => socket.onMessage?.(chatEvent(3, null, "2026-10-07T10:01:00Z")));
+  expect(await screen.findByText("Message removed")).toBeInTheDocument();
+  expect(get).toHaveBeenCalledTimes(historyCalls);
+});
+
+test("fetches only the changed message attachments without reloading history", async () => {
+  get.mockResolvedValue({ data: { messages: [], next_cursor: null } });
+  render(<RoomChat roomId="room-1" locale="en" />);
+  await screen.findByText("No messages yet. Start the conversation.");
+  const historyCalls = get.mock.calls.filter(([path]) => path.endsWith("/messages")).length;
+  get.mockResolvedValue({
+    data: { files: [{ id: "file-1", file_name: "notes.txt", mime: "text/plain", size_bytes: 10 }] },
+  });
+  const event = chatEvent(1, "Attached document");
+  act(() =>
+    socket.onMessage?.({ ...event, event: { ...event.event, attachment_ids: ["file-1"] } }),
+  );
+  expect(await screen.findByText("notes.txt")).toBeInTheDocument();
+  expect(get).toHaveBeenCalledWith("/v1/files", {
+    params: { context_kind: "chat_message", context_id: "live-message", limit: 4 },
+  });
+  expect(get.mock.calls.filter(([path]) => path.endsWith("/messages"))).toHaveLength(historyCalls);
 });

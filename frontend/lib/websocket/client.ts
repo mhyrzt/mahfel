@@ -24,6 +24,9 @@ export class SignalingClient {
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private reconnectAttempt = 0;
   private stopped = false;
+  private generation = 0;
+  private opening: number | null = null;
+  private authTimer: ReturnType<typeof setTimeout> | null = null;
   private hasConnected = false;
   private pending = new Map<
     string,
@@ -41,7 +44,11 @@ export class SignalingClient {
   ) {}
 
   connect(): void {
-    if (this.socket && this.socket.readyState < WebSocket.CLOSING) {
+    if (
+      this.opening !== null ||
+      this.reconnectTimer ||
+      (this.socket && this.socket.readyState < WebSocket.CLOSING)
+    ) {
       return;
     }
     if (this.stopped) {
@@ -85,6 +92,12 @@ export class SignalingClient {
 
   close(): void {
     this.stopped = true;
+    this.generation += 1;
+    this.opening = null;
+    if (this.authTimer) {
+      clearTimeout(this.authTimer);
+    }
+    this.authTimer = null;
     if (this.reconnectTimer) {
       clearTimeout(this.reconnectTimer);
     }
@@ -96,14 +109,16 @@ export class SignalingClient {
   }
 
   private async open(initial: boolean): Promise<void> {
-    if (this.stopped) {
+    if (this.stopped || this.opening !== null) {
       return;
     }
+    const generation = ++this.generation;
+    this.opening = generation;
     this.onStatus(initial ? "connecting" : "reconnecting");
 
     try {
       const { data } = await browserApiClient.post<WebSocketTicketResponse>("/v1/ws/tickets");
-      if (this.stopped) {
+      if (this.stopped || generation !== this.generation) {
         return;
       }
 
@@ -116,10 +131,17 @@ export class SignalingClient {
         }
       }, AUTH_TIMEOUT_MS);
 
+      this.authTimer = authTimeout;
       socket.onopen = () => {
+        if (generation !== this.generation || this.stopped) {
+          return;
+        }
         socket.send(JSON.stringify({ v: 1, type: "auth", ticket: data.ticket }));
       };
       socket.onmessage = (event: MessageEvent<string>) => {
+        if (generation !== this.generation || this.stopped) {
+          return;
+        }
         const message = decodeServerMessage(event.data);
         if (!message) {
           return;
@@ -154,8 +176,12 @@ export class SignalingClient {
         }
       };
       socket.onclose = (event: CloseEvent) => {
-        this.rejectPending();
         clearTimeout(authTimeout);
+        if (generation !== this.generation) {
+          return;
+        }
+        this.authTimer = null;
+        this.rejectPending();
         if (this.socket === socket) {
           this.socket = null;
         }
@@ -174,10 +200,11 @@ export class SignalingClient {
         this.scheduleReconnect();
       };
     } catch (error) {
-      if (this.stopped) {
+      if (this.stopped || generation !== this.generation) {
         return;
       }
       if (axios.isAxiosError(error) && [401, 403].includes(error.response?.status ?? 0)) {
+        this.stopped = true;
         this.onStatus("unauthorized");
         return;
       }
@@ -185,6 +212,10 @@ export class SignalingClient {
         this.onStatus("unavailable");
       }
       this.scheduleReconnect();
+    } finally {
+      if (this.opening === generation) {
+        this.opening = null;
+      }
     }
   }
 

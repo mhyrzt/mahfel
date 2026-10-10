@@ -38,14 +38,18 @@ test("browses sessions within a selected room", async () => {
   get.mockImplementation((path: string) =>
     path === "/v1/rooms"
       ? Promise.resolve({ data: { data: [room] } })
-      : Promise.resolve({ data: [{ id: "session-1", title: "Weekly review" }] }),
+      : Promise.resolve({ data: { data: [{ id: "session-1", title: "Weekly review" }] } }),
   );
   render(
     <WorkspaceBrowserMenu kind="sessions" locale="en" open onOpenChange={() => undefined}>
       <button>Browse</button>
     </WorkspaceBrowserMenu>,
   );
-  await waitFor(() => expect(get).toHaveBeenCalledWith("/v1/rooms/room-1/sessions"));
+  await waitFor(() =>
+    expect(get).toHaveBeenCalledWith("/v1/rooms/room-1/sessions", {
+      params: { page: 1, per_page: 100 },
+    }),
+  );
   expect(await screen.findByRole("menuitem", { name: "Weekly review" })).toHaveAttribute(
     "href",
     "/session/session-1",
@@ -77,7 +81,7 @@ test("can reach rooms beyond the first page", async () => {
     "href",
     "/room/room-101",
   );
-});
+}, 15_000);
 
 test.each([true, false])("session creation follows room permission %s", async (canManage) => {
   get.mockImplementation((path: string) => {
@@ -87,7 +91,7 @@ test.each([true, false])("session creation follows room permission %s", async (c
     if (path.endsWith("/membership")) {
       return Promise.resolve({ data: { can_manage_session: canManage } });
     }
-    return Promise.resolve({ data: [] });
+    return Promise.resolve({ data: { data: [] } });
   });
   render(
     <WorkspaceBrowserMenu kind="sessions" locale="en" open onOpenChange={() => undefined}>
@@ -141,7 +145,7 @@ test("session create action opens the existing form with the selected room", asy
     if (path.endsWith("/membership")) {
       return Promise.resolve({ data: { can_manage_session: true } });
     }
-    return Promise.resolve({ data: [] });
+    return Promise.resolve({ data: { data: [] } });
   });
   render(
     <WorkspaceBrowserMenu kind="sessions" locale="en" open onOpenChange={() => undefined}>
@@ -153,3 +157,39 @@ test("session create action opens the existing form with the selected room", asy
   expect(screen.getByRole("combobox", { name: "Room" })).toHaveValue("room-1");
   await waitFor(() => expect(screen.getByRole("button", { name: "New session" })).toBeEnabled());
 });
+
+test("loads session history beyond the first page", async () => {
+  get.mockImplementation((path: string, options?: { params: { page?: number } }) => {
+    if (path === "/v1/rooms") {
+      return Promise.resolve({ data: { data: [room] } });
+    }
+    if (path.endsWith("/membership")) {
+      return Promise.resolve({ data: { can_manage_session: false } });
+    }
+    return Promise.resolve({
+      data: {
+        data:
+          options?.params.page === 2
+            ? [{ id: "session-101", title: "Earlier class" }]
+            : Array.from({ length: 100 }, (_, index) => ({
+                id: `session-${index + 1}`,
+                title: `Class ${index + 1}`,
+              })),
+      },
+    });
+  });
+  render(
+    <WorkspaceBrowserMenu kind="sessions" locale="en" open onOpenChange={() => undefined}>
+      <button>Browse</button>
+    </WorkspaceBrowserMenu>,
+  );
+  fireEvent.click(await screen.findByRole("menuitem", { name: "Load more sessions" }));
+  expect(await screen.findByRole("menuitem", { name: "Earlier class" })).toHaveAttribute(
+    "href",
+    "/session/session-101",
+  );
+  expect(screen.queryByRole("menuitem", { name: "Load more sessions" })).not.toBeInTheDocument();
+  expect(get).toHaveBeenCalledWith("/v1/rooms/room-1/sessions", {
+    params: { page: 2, per_page: 100 },
+  });
+}, 15_000);

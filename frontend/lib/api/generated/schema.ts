@@ -1811,6 +1811,32 @@ export interface components {
       }[];
       pagination: components["schemas"]["PaginationMeta"];
     };
+    Paginated_SessionResponse: {
+      data: {
+        admission?: null | components["schemas"]["AdmissionPolicyDto"];
+        auto_record?: boolean;
+        /** Format: date-time */
+        created_at: string;
+        /** Format: date-time */
+        ended_at?: string | null;
+        id: string;
+        room_id: string;
+        /** Format: int32 */
+        scheduled_duration_minutes?: number | null;
+        /** Format: date-time */
+        scheduled_start_at?: string | null;
+        /** Format: date-time */
+        started_at?: string | null;
+        status: components["schemas"]["SessionStatusDto"];
+        /** @description Effective display title, using the current room title when no custom title is set. */
+        title: string;
+        title_overridden: boolean;
+        /** Format: date-time */
+        updated_at: string;
+        visibility?: null | components["schemas"]["SessionVisibilityDto"];
+      }[];
+      pagination: components["schemas"]["PaginationMeta"];
+    };
     PaginationMeta: {
       /** Format: int64 */
       page: number;
@@ -4651,7 +4677,14 @@ export interface operations {
   };
   list_sessions: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Page number, 1-based */
+        page?: number;
+        /** @description Items per page, 1-100 */
+        per_page?: number;
+        /** @description Optional lifecycle status filter */
+        status?: components["schemas"]["SessionStatusDto"];
+      };
       header?: never;
       path: {
         /** @description Room identifier (UUID) */
@@ -4667,7 +4700,7 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["SessionResponse"][];
+          "application/json": components["schemas"]["Paginated_SessionResponse"];
         };
       };
       /** @description Authentication required */

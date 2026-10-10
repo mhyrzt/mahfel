@@ -51,6 +51,7 @@ export interface ChatActivity {
 
 export interface ChatEvent {
   event: {
+    attachment_ids?: string[];
     author_id: string;
     content?: string | null;
     created_at: string;

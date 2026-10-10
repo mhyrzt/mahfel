@@ -36,12 +36,6 @@ export function createSendTransport(
       .catch(errback);
   });
 
-  transport.on("connectionstatechange", (state) => {
-    if (state === "failed") {
-      transport.restartIce({ iceParameters: params.iceParameters as never });
-    }
-  });
-
   return transport;
 }
 
@@ -61,12 +55,6 @@ export function createRecvTransport(
     onConnect(dtlsParameters)
       .then(() => callback())
       .catch(errback);
-  });
-
-  transport.on("connectionstatechange", (state) => {
-    if (state === "failed") {
-      transport.restartIce({ iceParameters: params.iceParameters as never });
-    }
   });
 
   return transport;

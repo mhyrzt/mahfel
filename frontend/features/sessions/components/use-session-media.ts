@@ -17,6 +17,8 @@ export function useSessionMedia(
   clientRef: RefObject<SignalingClient | null>,
   roomId: string,
   locale: Locale,
+  active = true,
+  onFailure?: () => void,
 ) {
   const [enabled, setEnabled] = useState<Record<Source, boolean>>({
     microphone: false,
@@ -28,6 +30,9 @@ export function useSessionMedia(
   const [error, setError] = useState<string | null>(null);
   const transportRef = useRef<RtcTransport | null>(null);
   const transportPromiseRef = useRef<Promise<RtcTransport> | null>(null);
+  const generationRef = useRef(0);
+  const mountedRef = useRef(true);
+  const busyRef = useRef(false);
   const sourcesRef = useRef<Partial<Record<Source, ActiveSource>>>({});
   const failureText = roomCopy(locale).mediaUnavailable;
   const permissionText = messagesFor(locale).account.previewDenied;
@@ -50,6 +55,10 @@ export function useSessionMedia(
     if (transportPromiseRef.current) {
       return transportPromiseRef.current;
     }
+    const generation = generationRef.current;
+    const client = clientRef.current;
+    const isCurrent = () =>
+      mountedRef.current && generation === generationRef.current && client === clientRef.current;
     const pending = (async () => {
       if (!isDeviceSupported()) {
         throw new Error("WebRTC is unsupported");
@@ -58,7 +67,13 @@ export function useSessionMedia(
       if (response.type !== "transport_created" || !response.rtp_capabilities) {
         throw new Error("Media transport parameters are unavailable");
       }
+      if (!isCurrent()) {
+        throw new Error("Media setup cancelled");
+      }
       const device = await createDevice(JSON.parse(response.rtp_capabilities));
+      if (!isCurrent()) {
+        throw new Error("Media setup cancelled");
+      }
       const transport = createSendTransport(
         device,
         {
@@ -68,6 +83,9 @@ export function useSessionMedia(
           dtlsParameters: JSON.parse(response.dtls_parameters),
         },
         async (dtlsParameters) => {
+          if (!isCurrent()) {
+            throw new Error("Media setup cancelled");
+          }
           const connected = await request({
             type: "connect_transport",
             room_id: roomId,
@@ -79,6 +97,9 @@ export function useSessionMedia(
           }
         },
         async (kind, rtpParameters, source) => {
+          if (!isCurrent()) {
+            throw new Error("Media setup cancelled");
+          }
           const produced = await request({
             type: "produce",
             room_id: roomId,
@@ -94,8 +115,14 @@ export function useSessionMedia(
         },
       );
       transport.on("connectionstatechange", (state) => {
+        if (!isCurrent()) {
+          return;
+        }
         if (state === "failed" || state === "disconnected") {
           setError(failureText);
+          if (state === "failed") {
+            onFailure?.();
+          }
         } else if (state === "connected") {
           setError(null);
         }
@@ -107,9 +134,11 @@ export function useSessionMedia(
     try {
       return await pending;
     } finally {
-      transportPromiseRef.current = null;
+      if (transportPromiseRef.current === pending) {
+        transportPromiseRef.current = null;
+      }
     }
-  }, [failureText, request, roomId]);
+  }, [clientRef, failureText, onFailure, request, roomId]);
 
   const stop = useCallback(
     async (source: Source) => {
@@ -133,15 +162,33 @@ export function useSessionMedia(
 
   const toggle = useCallback(
     async (source: Source) => {
-      if (busy) {
+      if (busyRef.current || !mountedRef.current) {
         return;
       }
+      busyRef.current = true;
+      const generation = generationRef.current;
+      const client = clientRef.current;
+      const isCurrent = () =>
+        mountedRef.current && generation === generationRef.current && client === clientRef.current;
       setBusy(true);
       setError(null);
       try {
         if (sourcesRef.current[source]) {
           await stop(source);
           return;
+        }
+        if (source !== "screen" && navigator.permissions?.query) {
+          const permission = await navigator.permissions
+            .query({
+              name: (source === "microphone" ? "microphone" : "camera") as PermissionName,
+            })
+            .catch(() => null);
+          if (permission?.state === "denied") {
+            throw new DOMException("Device permission denied", "NotAllowedError");
+          }
+          if (!isCurrent()) {
+            return;
+          }
         }
         const stream =
           source === "screen"
@@ -150,6 +197,10 @@ export function useSessionMedia(
                 audio: source === "microphone",
                 video: source === "camera",
               });
+        if (!isCurrent()) {
+          stream.getTracks().forEach((item) => item.stop());
+          return;
+        }
         const track =
           source === "microphone" ? stream.getAudioTracks()[0] : stream.getVideoTracks()[0];
         if (!track) {
@@ -158,7 +209,15 @@ export function useSessionMedia(
         }
         try {
           const transport = await ensureTransport();
+          if (!isCurrent()) {
+            throw new Error("Media setup cancelled");
+          }
           const producer = await transport.produce({ track, appData: { source } });
+          if (!isCurrent()) {
+            producer.close();
+            stream.getTracks().forEach((item) => item.stop());
+            return;
+          }
           sourcesRef.current[source] = { producer, stream };
           setEnabled((current) => ({ ...current, [source]: true }));
           if (source !== "microphone") {
@@ -172,28 +231,44 @@ export function useSessionMedia(
           throw error;
         }
       } catch (error) {
+        if (!isCurrent()) {
+          return;
+        }
         setError(
           error instanceof DOMException && error.name === "NotAllowedError"
             ? permissionText
             : failureText,
         );
       } finally {
-        setBusy(false);
+        if (mountedRef.current && generation === generationRef.current) {
+          busyRef.current = false;
+          setBusy(false);
+        }
       }
     },
-    [busy, ensureTransport, failureText, permissionText, stop],
+    [clientRef, ensureTransport, failureText, permissionText, stop],
   );
 
   useEffect(() => {
+    mountedRef.current = active;
     const sources = sourcesRef.current;
     return () => {
+      mountedRef.current = false;
+      generationRef.current += 1;
+      busyRef.current = false;
       Object.values(sources).forEach((active) => {
         active.producer.close();
         active.stream.getTracks().forEach((track) => track.stop());
       });
       transportRef.current?.close();
+      transportRef.current = null;
+      transportPromiseRef.current = null;
+      sourcesRef.current = {};
+      setEnabled({ microphone: false, camera: false, screen: false });
+      setStreams({});
+      setBusy(false);
     };
-  }, []);
+  }, [roomId, active]);
 
   return { enabled, streams, busy, error, toggle, stop, transportRef };
 }

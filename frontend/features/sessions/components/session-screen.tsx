@@ -129,6 +129,16 @@ export function SessionScreen({
           locale={locale}
           onRetry={onRetryJoin}
         />
+        {canAdmit ? (
+          <div className="mx-auto mt-4 w-full max-w-lg">
+            <AdmissionQueue
+              requests={admissionRequests}
+              locale={locale}
+              onAdmit={onAdmit}
+              onReject={onReject}
+            />
+          </div>
+        ) : null}
       </>
     );
   }

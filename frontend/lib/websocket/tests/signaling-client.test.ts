@@ -163,3 +163,46 @@ test("correlates media requests and surfaces server errors", async () => {
   await expect(denied).rejects.toThrow("not permitted");
   client.close();
 });
+
+test("coalesces connects while the ticket request is pending", async () => {
+  vi.stubGlobal("WebSocket", MockWebSocket);
+  let resolveTicket!: (value: { data: { ticket: string } }) => void;
+  postMock.mockImplementation(
+    () =>
+      new Promise((resolve) => {
+        resolveTicket = resolve;
+      }),
+  );
+  const client = new SignalingClient("session-123", vi.fn());
+  client.connect();
+  client.connect();
+  expect(postMock).toHaveBeenCalledTimes(1);
+  resolveTicket({ data: { ticket: "ticket-one" } });
+  await vi.waitFor(() => expect(MockWebSocket.instances).toHaveLength(1));
+  client.close();
+});
+
+test("an old ticket cannot open a socket after close and reconnect", async () => {
+  vi.stubGlobal("WebSocket", MockWebSocket);
+  let resolveOld!: (value: { data: { ticket: string } }) => void;
+  postMock
+    .mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveOld = resolve;
+        }),
+    )
+    .mockResolvedValueOnce({ data: { ticket: "fresh-ticket" } });
+  const client = new SignalingClient("session-123", vi.fn());
+  client.connect();
+  client.close();
+  client.connect();
+  await vi.waitFor(() => expect(MockWebSocket.instances).toHaveLength(1));
+  resolveOld({ data: { ticket: "stale-ticket" } });
+  await Promise.resolve();
+  expect(MockWebSocket.instances).toHaveLength(1);
+  const socket = MockWebSocket.instances[0];
+  socket.open();
+  expect(JSON.parse(socket.sent[0])).toMatchObject({ ticket: "fresh-ticket" });
+  client.close();
+});

@@ -35,6 +35,8 @@ export class MahfelCollaborationProvider implements Provider {
   private socket: WebSocket | null = null;
   private timer: ReturnType<typeof setTimeout> | null = null;
   private stopped = true;
+  private generation = 0;
+  private authTimer: ReturnType<typeof setTimeout> | null = null;
   private attempt = 0;
   private synced = false;
   private serverCanEdit = false;
@@ -81,6 +83,11 @@ export class MahfelCollaborationProvider implements Provider {
 
   disconnect(): void {
     this.stopped = true;
+    this.generation += 1;
+    if (this.authTimer) {
+      clearTimeout(this.authTimer);
+    }
+    this.authTimer = null;
     if (this.timer) {
       clearTimeout(this.timer);
     }
@@ -135,12 +142,16 @@ export class MahfelCollaborationProvider implements Provider {
   };
 
   private async open(): Promise<void> {
+    if (this.stopped) {
+      return;
+    }
+    const generation = ++this.generation;
     this.emit("status", {
       status: this.attempt ? "reconnecting" : ("connecting" satisfies Status),
     });
     try {
       const { data } = await browserApiClient.post<TicketResponse>("/v1/ws/tickets");
-      if (this.stopped) {
+      if (this.stopped || generation !== this.generation) {
         return;
       }
       const url = new URL(
@@ -151,11 +162,28 @@ export class MahfelCollaborationProvider implements Provider {
       const socket = new WebSocket(url);
       socket.binaryType = "arraybuffer";
       this.socket = socket;
-      socket.onopen = () => socket.send(JSON.stringify({ type: "auth", ticket: data.ticket }));
+      const authTimer = setTimeout(() => socket.close(4401, "authentication timeout"), 10_000);
+      this.authTimer = authTimer;
+      socket.onopen = () => {
+        if (generation === this.generation && !this.stopped) {
+          socket.send(JSON.stringify({ type: "auth", ticket: data.ticket }));
+        }
+      };
       socket.onmessage = (message) => {
+        if (generation !== this.generation || this.stopped) {
+          return;
+        }
         if (typeof message.data === "string") {
-          const frame: unknown = JSON.parse(message.data);
+          let frame: unknown;
+          try {
+            frame = JSON.parse(message.data);
+          } catch {
+            socket.close(1002, "invalid collaboration frame");
+            return;
+          }
           if (isReady(frame)) {
+            clearTimeout(authTimer);
+            this.authTimer = null;
             this.attempt = 0;
             if (this.serverCanEdit && !frame.can_edit) {
               window.location.reload();
@@ -199,16 +227,27 @@ export class MahfelCollaborationProvider implements Provider {
           socket.close();
         }
       };
-      socket.onclose = () => {
+      socket.onclose = (event) => {
+        clearTimeout(authTimer);
+        if (generation !== this.generation) {
+          return;
+        }
+        this.authTimer = null;
         if (this.socket === socket) {
           this.socket = null;
+        }
+        if (!this.stopped && event.code === 4401) {
+          this.stopped = true;
+          this.onPermission(false);
+          this.emit("status", { status: "unauthorized" satisfies Status });
+          return;
         }
         if (!this.stopped) {
           this.reconnect();
         }
       };
     } catch (error) {
-      if (this.stopped) {
+      if (this.stopped || generation !== this.generation) {
         return;
       }
       if (axios.isAxiosError(error) && [401, 403].includes(error.response?.status ?? 0)) {

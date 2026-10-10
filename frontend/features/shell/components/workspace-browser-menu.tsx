@@ -1,7 +1,7 @@
 "use client";
 
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
 
 import { Plus } from "lucide-react";
@@ -27,6 +27,7 @@ import type { Locale } from "@/lib/i18n/config";
 
 type Room = components["schemas"]["RoomResponse"];
 type Session = components["schemas"]["SessionResponse"];
+type SessionPage = components["schemas"]["Paginated_SessionResponse"];
 
 export function WorkspaceBrowserMenu({
   kind,
@@ -53,6 +54,10 @@ export function WorkspaceBrowserMenu({
   const [roomPage, setRoomPage] = useState(1);
   const [hasMoreRooms, setHasMoreRooms] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
+  const sessionGeneration = useRef(0);
+  const [sessionPage, setSessionPage] = useState(1);
+  const [hasMoreSessions, setHasMoreSessions] = useState(false);
+  const [loadingMoreSessions, setLoadingMoreSessions] = useState(false);
 
   useEffect(() => {
     if (!open) {
@@ -86,22 +91,29 @@ export function WorkspaceBrowserMenu({
     if (!open || kind !== "sessions" || !selectedRoomId) {
       return undefined;
     }
+    const generation = ++sessionGeneration.current;
     let active = true;
     void browserApiClient
-      .get<Session[]>(`/v1/rooms/${encodeURIComponent(selectedRoomId)}/sessions`)
+      .get<SessionPage>(`/v1/rooms/${encodeURIComponent(selectedRoomId)}/sessions`, {
+        params: { page: 1, per_page: 100 },
+      })
       .then(({ data }) => {
-        if (active) {
-          setSessions(data);
+        if (active && generation === sessionGeneration.current) {
+          setSessions(data.data);
+          setSessionPage(1);
+          setLoadingMoreSessions(false);
+          setHasMoreSessions(data.data.length === 100);
           setError(false);
         }
       })
       .catch(() => {
-        if (active) {
+        if (active && generation === sessionGeneration.current) {
           setError(true);
         }
       });
     return () => {
       active = false;
+      sessionGeneration.current += 1;
     };
   }, [kind, open, selectedRoomId]);
 
@@ -147,6 +159,33 @@ export function WorkspaceBrowserMenu({
       setError(true);
     } finally {
       setLoadingMore(false);
+    }
+  }
+
+  async function loadMoreSessions() {
+    if (loadingMoreSessions || !hasMoreSessions || !selectedRoomId) {
+      return;
+    }
+    const roomId = selectedRoomId;
+    const generation = sessionGeneration.current;
+    setLoadingMoreSessions(true);
+    try {
+      const nextPage = sessionPage + 1;
+      const { data } = await browserApiClient.get<SessionPage>(
+        `/v1/rooms/${encodeURIComponent(roomId)}/sessions`,
+        { params: { page: nextPage, per_page: 100 } },
+      );
+      if (generation !== sessionGeneration.current) {
+        return;
+      }
+      setSessions((current) => [...(current ?? []), ...data.data]);
+      setSessionPage(nextPage);
+      setHasMoreSessions(data.data.length === 100);
+      setError(false);
+    } catch {
+      setError(true);
+    } finally {
+      setLoadingMoreSessions(false);
     }
   }
 
@@ -226,6 +265,7 @@ export function WorkspaceBrowserMenu({
               value={selectedRoomId ?? ""}
               onValueChange={(value) => {
                 setSessions(null);
+                setHasMoreSessions(false);
                 setManageableRoomId(null);
                 setSelectedRoomId(value);
               }}
@@ -273,6 +313,17 @@ export function WorkspaceBrowserMenu({
           <DropdownMenuLabel>{title}</DropdownMenuLabel>
           <DropdownMenuSeparator />
           <div className="max-h-[min(60dvh,24rem)] overflow-y-auto p-1">{content}</div>
+          {kind === "sessions" && hasMoreSessions && !error ? (
+            <DropdownMenuItem
+              disabled={loadingMoreSessions}
+              onSelect={(event) => {
+                event.preventDefault();
+                void loadMoreSessions();
+              }}
+            >
+              {text.loadMoreSessions}
+            </DropdownMenuItem>
+          ) : null}
           {hasMoreRooms && !error ? (
             <DropdownMenuItem
               disabled={loadingMore}

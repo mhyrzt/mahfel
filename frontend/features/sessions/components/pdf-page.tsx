@@ -1,21 +1,23 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import type { RenderTask } from "pdfjs-dist";
+import type { PDFDocumentProxy, RenderTask } from "pdfjs-dist";
 
 import { fitScale } from "./presentation-fit";
 
 const MAX_RENDER_SCALE = 4;
 
 export function PdfPage({
-  bytes,
+  url,
+  headers,
   page,
   unavailable,
-}: Readonly<{ bytes: Uint8Array; page: number; unavailable: string }>) {
+}: Readonly<{ url: string; headers: Record<string, string>; page: number; unavailable: string }>) {
   const container = useRef<HTMLDivElement>(null);
   const canvas = useRef<HTMLCanvasElement>(null);
   const [size, setSize] = useState<{ width: number; height: number } | null>(null);
   const [failed, setFailed] = useState(false);
+  const [document, setDocument] = useState<{ url: string; pdf: PDFDocumentProxy } | null>(null);
 
   useEffect(() => {
     const target = container.current;
@@ -33,37 +35,59 @@ export function PdfPage({
   }, []);
 
   useEffect(() => {
-    if (!size) {
-      return undefined;
-    }
     let cancelled = false;
     let loading: ReturnType<(typeof import("pdfjs-dist"))["getDocument"]> | null = null;
-    let render: RenderTask | null = null;
     void (async () => {
       try {
         const pdfjs = await import("pdfjs-dist");
+        if (cancelled) {
+          return;
+        }
         pdfjs.GlobalWorkerOptions.workerSrc = new URL(
           "pdfjs-dist/build/pdf.worker.min.mjs",
           import.meta.url,
         ).toString();
-        const task = pdfjs.getDocument({ data: bytes.slice() });
-        loading = task;
-        const pdf = await task.promise;
+        loading = pdfjs.getDocument({ url, httpHeaders: headers, withCredentials: false });
+        const pdf = await loading.promise;
+        if (!cancelled) {
+          setDocument({ url, pdf });
+          setFailed(false);
+        }
+      } catch {
+        if (!cancelled) {
+          setFailed(true);
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+      if (loading) {
+        void loading.destroy();
+      }
+    };
+  }, [url, headers]);
+
+  useEffect(() => {
+    if (!size || !document || document.url !== url) {
+      return undefined;
+    }
+    let cancelled = false;
+    let render: RenderTask | null = null;
+    void (async () => {
+      try {
+        const sheet = await document.pdf.getPage(page);
         if (cancelled) {
-          await task.destroy();
           return;
         }
-        const sheet = await pdf.getPage(page);
         const base = sheet.getViewport({ scale: 1 });
-        const dpr = typeof window === "undefined" ? 1 : window.devicePixelRatio || 1;
+        const dpr = window.devicePixelRatio || 1;
         const scale = Math.min(
           fitScale(size.width, size.height, base.width, base.height) * dpr,
           MAX_RENDER_SCALE,
         );
         const viewport = sheet.getViewport({ scale });
         const target = canvas.current;
-        if (!target || cancelled) {
-          await task.destroy();
+        if (!target) {
           return;
         }
         target.width = Math.ceil(viewport.width);
@@ -72,11 +96,13 @@ export function PdfPage({
         target.style.height = `${viewport.height / dpr}px`;
         const context = target.getContext("2d");
         if (!context) {
-          await task.destroy();
-          return;
+          throw new Error("Canvas unavailable");
         }
         render = sheet.render({ canvas: target, canvasContext: context, viewport });
         await render.promise;
+        if (!cancelled) {
+          setFailed(false);
+        }
       } catch {
         if (!cancelled) {
           setFailed(true);
@@ -86,11 +112,8 @@ export function PdfPage({
     return () => {
       cancelled = true;
       render?.cancel();
-      if (loading) {
-        void loading.destroy();
-      }
     };
-  }, [bytes, page, size]);
+  }, [document, page, size, url]);
 
   return (
     <div className="flex size-full items-center justify-center" ref={container}>
