@@ -14,7 +14,9 @@ signs browser URLs against a public endpoint. In local Compose these are `http:/
    `quarantined` to `ready`.
 3. Completion reads at most 50 MiB from S3, checks the exact size, SHA-256 digest, declared and
    stored MIME type, and format markers. It then copies the object from `uploads/<random UUID>`
-   to `files/<same UUID>`, verifies the copy, and publishes the final key in PostgreSQL.
+   to `files/<file UUID>`, verifies the copy, and publishes the final key in
+   PostgreSQL. Each copy explicitly replaces metadata with the source object's Content-Type and
+   other stored metadata: RustFS can otherwise reset the MIME type to `application/octet-stream`.
 4. `GET /v1/files?context_kind=...&context_id=...` lists ready files in one context with
    `limit` and `offset` pagination (up to 100 per request).
    `GET /v1/files/{file_id}/download` returns a one-minute signed GET URL with attachment

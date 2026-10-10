@@ -167,12 +167,15 @@ async fn exercise(settings: S3Settings) -> Result<(), Box<dyn Error>> {
     let stored = storage.read(&key, 50 * 1024 * 1024).await?;
     assert_eq!(stored.bytes, bytes);
     assert_eq!(stored.content_type.as_deref(), Some("application/pdf"));
+    let quarantine_key = format!("quarantine/{}", Uuid::new_v4());
     let final_key = format!("files/{}", Uuid::new_v4());
-    storage.promote(&key, &final_key).await?;
-    assert_eq!(
-        storage.read(&final_key, 50 * 1024 * 1024).await?.bytes,
-        bytes
-    );
+    storage.promote(&key, &quarantine_key).await?;
+    storage.promote(&quarantine_key, &final_key).await?;
+    for promoted_key in [&quarantine_key, &final_key] {
+        let promoted = storage.read(promoted_key, 50 * 1024 * 1024).await?;
+        assert_eq!(promoted.bytes, bytes);
+        assert_eq!(promoted.content_type.as_deref(), Some("application/pdf"));
+    }
 
     let download = storage
         .presign_download(&key, "deck.pdf", Duration::from_secs(60))
@@ -185,6 +188,7 @@ async fn exercise(settings: S3Settings) -> Result<(), Box<dyn Error>> {
     );
     assert_eq!(response.bytes().await?.as_ref(), bytes);
     storage.delete(&key).await?;
+    storage.delete(&quarantine_key).await?;
     storage.delete(&final_key).await?;
     assert!(storage.read(&key, 50 * 1024 * 1024).await.is_err());
     let export_key = format!("recordings/test/exports/{}.mp4", Uuid::new_v4());

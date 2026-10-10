@@ -83,12 +83,40 @@ pub(super) fn promote<'a>(
     to: &'a str,
 ) -> BoxFuture<'a, Result<(), FileStorageError>> {
     Box::pin(async move {
+        let source = storage
+            .internal
+            .head_object()
+            .bucket(&storage.bucket)
+            .key(from)
+            .send()
+            .await
+            .map_err(|_| FileStorageError::Unavailable)?;
+        let expires = source
+            .expires_string
+            .as_deref()
+            .map(|value| {
+                aws_sdk_s3::primitives::DateTime::from_str(
+                    value,
+                    aws_sdk_s3::primitives::DateTimeFormat::HttpDate,
+                )
+            })
+            .transpose()
+            .map_err(|_| FileStorageError::Unavailable)?;
         storage
             .internal
             .copy_object()
             .bucket(&storage.bucket)
             .key(to)
             .copy_source(format!("{}/{from}", storage.bucket))
+            // RustFS does not reliably retain Content-Type with implicit/COPY metadata.
+            .metadata_directive(aws_sdk_s3::types::MetadataDirective::Replace)
+            .set_content_type(source.content_type)
+            .set_cache_control(source.cache_control)
+            .set_content_disposition(source.content_disposition)
+            .set_content_encoding(source.content_encoding)
+            .set_content_language(source.content_language)
+            .set_expires(expires)
+            .set_metadata(source.metadata)
             .send()
             .await
             .map_err(|_| FileStorageError::Unavailable)?;
