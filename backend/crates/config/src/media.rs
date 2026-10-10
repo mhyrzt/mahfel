@@ -3,6 +3,7 @@ use serde::Deserialize;
 #[derive(Clone, Debug, Deserialize)]
 pub struct MediaSettings {
     pub grpc_bind: String,
+    pub control_token: String,
     pub operations_bind: String,
     pub worker_count: usize,
     pub rtc_port_min: u16,

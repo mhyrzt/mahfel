@@ -43,6 +43,13 @@ pub trait RoomStore: Send + Sync {
     /// already a member.
     fn add_member<'a>(&'a self, member: &'a RoomMember) -> BoxFuture<'a, Result<(), StoreError>>;
 
+    /// Update an existing membership, preserving the last manager atomically.
+    /// Returns false if the membership disappeared or the last manager would be demoted.
+    fn update_member<'a>(
+        &'a self,
+        member: &'a RoomMember,
+    ) -> BoxFuture<'a, Result<bool, StoreError>>;
+
     /// Remove a membership, refusing to remove the last manager.
     ///
     /// Returns `true` when a row was removed, `false` when the membership did

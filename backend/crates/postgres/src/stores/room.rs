@@ -304,6 +304,41 @@ impl RoomStore for PostgresRoomStore {
         })
     }
 
+    fn update_member<'a>(
+        &'a self,
+        member: &'a RoomMember,
+    ) -> BoxFuture<'a, Result<bool, StoreError>> {
+        Box::pin(async move {
+            let mut tx = self.pool.begin().await.map_err(sqlx_store_error)?;
+            let room = sqlx::query_scalar::<_, Uuid>(
+                "SELECT id FROM mahfel.rooms WHERE id = $1 FOR UPDATE",
+            )
+            .bind(member.room_id.as_uuid())
+            .fetch_optional(&mut *tx)
+            .await
+            .map_err(sqlx_store_error)?;
+            if room.is_none() {
+                return Ok(false);
+            }
+            let result = sqlx::query(
+                "UPDATE mahfel.room_memberships SET member_role = $3, updated_at = $4 \
+                 WHERE room_id = $1 AND actor_id = $2 \
+                 AND (member_role <> 'manager' OR $3 = 'manager' OR \
+                      (SELECT COUNT(*) FROM mahfel.room_memberships \
+                       WHERE room_id = $1 AND member_role = 'manager') > 1)",
+            )
+            .bind(member.room_id.as_uuid())
+            .bind(member.actor_id.as_uuid())
+            .bind(member.role.as_str())
+            .bind(member.updated_at)
+            .execute(&mut *tx)
+            .await
+            .map_err(sqlx_store_error)?;
+            tx.commit().await.map_err(sqlx_store_error)?;
+            Ok(result.rows_affected() == 1)
+        })
+    }
+
     fn remove_member(
         &self,
         room_id: RoomId,

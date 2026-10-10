@@ -2,10 +2,32 @@ use crate::error::MediaClientError;
 use mahfel_rtc_protocol::media::media_control_service_client::MediaControlServiceClient;
 use mahfel_rtc_protocol::media::{WatchActiveSpeakersRequest, WatchActiveSpeakersResponse};
 use tonic::transport::{Channel, Endpoint};
+use tonic::{
+    Request, Status,
+    metadata::{Ascii, MetadataValue},
+    service::{Interceptor, interceptor::InterceptedService},
+};
+
+#[derive(Clone)]
+pub struct MediaAuthorization(Option<MetadataValue<Ascii>>);
+
+impl Interceptor for MediaAuthorization {
+    fn call(&mut self, mut request: Request<()>) -> Result<Request<()>, Status> {
+        if let Some(value) = &self.0 {
+            request
+                .metadata_mut()
+                .insert("authorization", value.clone());
+        }
+        Ok(request)
+    }
+}
+
+pub type MediaControlClient =
+    MediaControlServiceClient<InterceptedService<Channel, MediaAuthorization>>;
 
 #[derive(Clone)]
 pub struct GrpcMediaGateway {
-    pub(super) client: MediaControlServiceClient<Channel>,
+    pub(super) client: MediaControlClient,
 }
 
 impl GrpcMediaGateway {
@@ -25,8 +47,24 @@ impl GrpcMediaGateway {
 
     pub fn from_channel(channel: Channel) -> Self {
         Self {
-            client: MediaControlServiceClient::new(channel),
+            client: MediaControlServiceClient::with_interceptor(channel, MediaAuthorization(None)),
         }
+    }
+
+    pub fn authenticated(endpoint: String, token: &str) -> Result<Self, MediaClientError> {
+        if token.len() < 32 {
+            return Err(MediaClientError::Credential);
+        }
+        let value = format!("Bearer {token}")
+            .parse()
+            .map_err(|_| MediaClientError::Credential)?;
+        let channel = Endpoint::from_shared(endpoint)?.connect_lazy();
+        Ok(Self {
+            client: MediaControlServiceClient::with_interceptor(
+                channel,
+                MediaAuthorization(Some(value)),
+            ),
+        })
     }
 
     pub fn lazy(endpoint: String) -> Result<Self, MediaClientError> {
@@ -36,7 +74,7 @@ impl GrpcMediaGateway {
     }
 
     #[must_use]
-    pub fn into_inner(self) -> MediaControlServiceClient<Channel> {
+    pub fn into_inner(self) -> MediaControlClient {
         self.client
     }
 

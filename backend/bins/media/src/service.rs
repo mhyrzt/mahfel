@@ -74,7 +74,7 @@ impl mahfel_rtc_protocol::media::media_control_service_server::MediaControlServi
         Ok(Response::new(GetNodeStatsResponse {
             active_workers: saturating_u32(self.media.active_workers()),
             active_rooms: saturating_u64(self.media.room_count().await),
-            participants: 0,
+            participants: saturating_u64(self.media.participant_count().await),
             transports: saturating_u64(self.media.transport_count().await),
             producers: saturating_u64(self.media.producer_count().await),
             consumers: saturating_u64(self.media.consumer_count().await),

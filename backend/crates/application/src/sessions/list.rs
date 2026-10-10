@@ -6,6 +6,9 @@ use mahfel_domain::{ActorId, RoomId, Session};
 pub struct ListSessions {
     pub actor: ActorId,
     pub room_id: RoomId,
+    pub status: Option<mahfel_domain::SessionStatus>,
+    pub limit: u64,
+    pub offset: u64,
 }
 
 /// List a room's sessions, newest first, for a room member.
@@ -25,5 +28,12 @@ where
     {
         return Err(SessionOperationError::NotFound);
     }
-    Ok(sessions.list_for_room(command.room_id).await?)
+    Ok(sessions
+        .list_for_room_page(
+            command.room_id,
+            command.status,
+            command.limit.min(100),
+            command.offset,
+        )
+        .await?)
 }

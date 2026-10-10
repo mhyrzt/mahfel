@@ -152,6 +152,28 @@ impl FileStore for PostgresFileStore {
         })
     }
 
+    fn list_avatars<'a>(
+        &'a self,
+        actors: &'a [ActorId],
+    ) -> BoxFuture<'a, Result<Vec<FileObject>, StoreError>> {
+        Box::pin(async move {
+            let actors: Vec<_> = actors.iter().map(|id| id.as_uuid()).collect();
+            let rows = sqlx::query_as::<_, FileRow>(
+                "SELECT DISTINCT ON (avatar_actor_id) id, object_key, owner_actor_id, room_id, \
+                 session_id, chat_message_id, avatar_actor_id, recording_session_id, status, \
+                 file_name, declared_mime, verified_mime, size_bytes, checksum_sha_256, \
+                 created_at, updated_at FROM mahfel.files \
+                 WHERE avatar_actor_id = ANY($1) AND status = 'ready' \
+                 ORDER BY avatar_actor_id, created_at DESC, id DESC",
+            )
+            .bind(actors)
+            .fetch_all(&self.pool)
+            .await
+            .map_err(sqlx_store_error)?;
+            rows.into_iter().map(TryInto::try_into).collect()
+        })
+    }
+
     fn list_for_messages<'a>(
         &'a self,
         message_ids: &'a [ChatMessageId],
@@ -334,6 +356,24 @@ impl FileStore for PostgresFileStore {
             let result = sqlx::query("UPDATE mahfel.files SET object_key = $2, verified_mime = $3, status = 'ready', updated_at = $4 WHERE id = $1 AND status = 'quarantined'")
                 .bind(id.as_uuid()).bind(key).bind(mime).bind(now)
                 .execute(&mut *tx).await.map_err(sqlx_store_error)?;
+            if let Some(message_id) = chat_message_id {
+                let (channel, sequence): (Uuid, i64) = sqlx::query_as(
+                    "UPDATE mahfel.chat_channels SET event_sequence = event_sequence + 1 \
+                     WHERE id = (SELECT channel_id FROM mahfel.chat_messages WHERE id = $1) \
+                     RETURNING id, event_sequence",
+                )
+                .bind(message_id)
+                .fetch_one(&mut *tx)
+                .await
+                .map_err(sqlx_store_error)?;
+                sqlx::query(
+                    "INSERT INTO mahfel.chat_events (channel_id, event_seq, id, kind, message_id, \
+                     author_actor_id, body, message_created_at, message_edited_at, message_deleted_at, occurred_at, parent_id) \
+                     SELECT $1, $2, gen_random_uuid(), 'edited', id, author_actor_id, body, \
+                     created_at, edited_at, deleted_at, $3, parent_id FROM mahfel.chat_messages WHERE id = $4",
+                ).bind(channel).bind(sequence).bind(now).bind(message_id)
+                    .execute(&mut *tx).await.map_err(sqlx_store_error)?;
+            }
             tx.commit().await.map_err(sqlx_store_error)?;
             Ok(result.rows_affected() == 1)
         })

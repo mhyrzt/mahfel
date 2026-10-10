@@ -12,21 +12,25 @@ pub(super) async fn relay_loop(
     let mut ticks = 0_u64;
     loop {
         poll.tick().await;
-        store
-            .recover_expired()
-            .await
-            .context("recover expired job claims")?;
         let (pending, oldest) = store.pending_stats().await.context("read outbox lag")?;
         metrics.pending.set(pending);
         metrics.oldest.set(oldest.max(0.0));
         for row in store.lease_due(20).await.context("lease outbox")? {
             match publisher.publish(&row.envelope).await {
                 Ok(()) => {
-                    metrics.publishes.with_label_values(&["confirmed"]).inc();
-                    store
+                    if store
                         .mark_published(row.id, row.token)
                         .await
-                        .context("record publish confirm")?;
+                        .context("record publish confirm")?
+                    {
+                        metrics.publishes.with_label_values(&["confirmed"]).inc();
+                    } else {
+                        metrics
+                            .publishes
+                            .with_label_values(&["stale_confirm"])
+                            .inc();
+                        tracing::warn!(outbox_id = %row.id, "publish confirmation lost its outbox lease");
+                    }
                 }
                 Err(error) => {
                     metrics.publishes.with_label_values(&["failed"]).inc();

@@ -18,6 +18,15 @@ pub(super) struct Connection {
     config: WsConfig,
     metrics: WsMetrics,
     owned_transports: Vec<(SessionId, RoomId, String)>,
+    owned_consumers: std::collections::HashSet<(RoomId, String)>,
+    media: Option<ResolvedMedia>,
+}
+
+struct ResolvedMedia {
+    session: SessionId,
+    room: RoomId,
+    expires: std::time::Instant,
+    gateway: std::sync::Arc<mahfel_media_client::GrpcMediaGateway>,
 }
 
 impl Connection {
@@ -28,6 +37,8 @@ impl Connection {
             config,
             metrics,
             owned_transports: Vec::new(),
+            owned_consumers: std::collections::HashSet::new(),
+            media: None,
         }
     }
 
@@ -107,7 +118,54 @@ impl Connection {
             .push((session_id, room_id, transport_id));
     }
 
+    pub(super) async fn media_for(
+        &mut self,
+        state: &crate::http::ws::state::WsState,
+        session: SessionId,
+        room: RoomId,
+    ) -> Result<
+        std::sync::Arc<mahfel_media_client::GrpcMediaGateway>,
+        mahfel_application::placement::PlacementError,
+    > {
+        if let Some(cached) = &self.media
+            && cached.session == session
+            && cached.room == room
+            && cached.expires > std::time::Instant::now()
+        {
+            return Ok(std::sync::Arc::clone(&cached.gateway));
+        }
+        self.media = None;
+        let gateway = state.media_for(session, room).await?;
+        self.media = Some(ResolvedMedia {
+            session,
+            room,
+            expires: std::time::Instant::now() + std::time::Duration::from_secs(2),
+            gateway: std::sync::Arc::clone(&gateway),
+        });
+        Ok(gateway)
+    }
+
+    pub(super) fn owns_transport(&self, room: RoomId, id: &str) -> bool {
+        self.owned_transports
+            .iter()
+            .any(|(_, owned_room, owned_id)| *owned_room == room && owned_id == id)
+    }
+
+    pub(super) fn owns_consumer(&self, room: RoomId, id: &str) -> bool {
+        self.owned_consumers.contains(&(room, id.to_owned()))
+    }
+
+    pub(super) fn own_consumer(&mut self, room: RoomId, id: String) {
+        self.owned_consumers.insert((room, id));
+    }
+
+    pub(super) fn transport_count(&self) -> usize {
+        self.owned_transports.len()
+    }
+
     pub(super) fn take_transports(&mut self) -> Vec<(SessionId, RoomId, String)> {
+        self.media = None;
+        self.owned_consumers.clear();
         std::mem::take(&mut self.owned_transports)
     }
 }

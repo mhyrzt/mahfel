@@ -354,6 +354,57 @@ async fn chat_deletion_drains_outbox_and_cleans_object() -> Result<(), Box<dyn E
     );
     sqlx::query("UPDATE mahfel.job_outbox SET available_at = clock_timestamp() WHERE job_id = $1 AND attempt = 2")
         .bind(recording_job_id).execute(&database).await?;
+    let recovery_store = JobStore::new(database.clone());
+    let envelope = recovery_store
+        .inspect(job_id)
+        .await?
+        .expect("cleanup job")
+        .envelope;
+    assert!(matches!(
+        recovery_store.claim(&envelope).await?,
+        mahfel_postgres::JobClaim::Claimed(_)
+    ));
+    sqlx::query("UPDATE mahfel.background_jobs SET lease_until = clock_timestamp() - INTERVAL '1 second' WHERE id = $1")
+        .bind(job_id).execute(&database).await?;
+    let (_, recovery_health) = mahfel_telemetry::operations("worker-recovery-test", "0")?;
+    let recovery_metrics = JobMetrics::register(&recovery_health.registry())?;
+    let (recovery_shutdown_tx, recovery_shutdown_rx) = watch::channel(false);
+    let recovering_worker = tokio::spawn(run(
+        WorkerSettings {
+            exports: mahfel_config::RecordingExportSettings::default(),
+            operations_bind: "127.0.0.1:0".into(),
+            amqp_url: "amqp://127.0.0.1:1/%2f".into(),
+            concurrency: 4,
+            prefetch: 4,
+            drain_timeout_seconds: 1,
+        },
+        recovery_store.clone(),
+        files.clone(),
+        S3FileStorage::new(s3_settings.clone()),
+        recovery_health,
+        recovery_metrics,
+        recovery_shutdown_rx,
+    ));
+    tokio::time::timeout(Duration::from_secs(5), async {
+        loop {
+            if recovery_store
+                .inspect(job_id)
+                .await
+                .expect("inspect recovering job")
+                .expect("job")
+                .status
+                == "queued"
+            {
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(50)).await;
+        }
+    })
+    .await
+    .context("claim recovery must continue without RabbitMQ")?;
+    recovery_shutdown_tx.send(true)?;
+    tokio::time::timeout(Duration::from_secs(5), recovering_worker).await??;
+
     // RabbitMQ starts after the database commit: the outbox must bridge the outage.
     let broker = GenericImage::new("rabbitmq", "4.2-management-alpine")
         .with_exposed_port(5672.tcp())
@@ -368,6 +419,17 @@ async fn chat_deletion_drains_outbox_and_cleans_object() -> Result<(), Box<dyn E
     let metrics = JobMetrics::register(&health.registry())?;
     let (shutdown_tx, shutdown_rx) = watch::channel(false);
     let store = JobStore::new(database.clone());
+    sqlx::query("CREATE TABLE mahfel.fixture_failed_completion (job_id UUID PRIMARY KEY)")
+        .execute(&database)
+        .await?;
+    sqlx::query("INSERT INTO mahfel.fixture_failed_completion (job_id) VALUES ($1)")
+        .bind(job_id)
+        .execute(&database)
+        .await?;
+    sqlx::query("CREATE FUNCTION mahfel.fail_cleanup_completion() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.status = 'succeeded' AND EXISTS (SELECT 1 FROM mahfel.fixture_failed_completion WHERE job_id = NEW.id) THEN RAISE EXCEPTION 'fixture completion persistence failure'; END IF; RETURN NEW; END $$")
+        .execute(&database).await?;
+    sqlx::query("CREATE TRIGGER fail_cleanup_completion BEFORE UPDATE ON mahfel.background_jobs FOR EACH ROW EXECUTE FUNCTION mahfel.fail_cleanup_completion()")
+        .execute(&database).await?;
     let worker = tokio::spawn(run(
         WorkerSettings {
             exports: mahfel_config::RecordingExportSettings::default(),
@@ -384,6 +446,41 @@ async fn chat_deletion_drains_outbox_and_cleans_object() -> Result<(), Box<dyn E
         metrics,
         shutdown_rx,
     ));
+    tokio::time::timeout(Duration::from_secs(30), async {
+        loop {
+            if files
+                .get(file.id)
+                .await
+                .expect("cleanup metadata lookup")
+                .is_none()
+                && store
+                    .inspect(recording_job_id)
+                    .await
+                    .expect("recording lookup")
+                    .expect("recording job")
+                    .status
+                    == "succeeded"
+            {
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(100)).await;
+        }
+    })
+    .await
+    .context("another delivery must progress after cleanup completion persistence fails")?;
+    assert!(
+        !worker.is_finished(),
+        "one failed delivery must not terminate the consumer"
+    );
+    assert_eq!(
+        store.inspect(job_id).await?.expect("cleanup job").status,
+        "running"
+    );
+    sqlx::query("DROP TRIGGER fail_cleanup_completion ON mahfel.background_jobs")
+        .execute(&database)
+        .await?;
+    sqlx::query("UPDATE mahfel.background_jobs SET lease_until = clock_timestamp() - INTERVAL '1 second' WHERE id = $1")
+        .bind(job_id).execute(&database).await?;
     tokio::time::timeout(Duration::from_secs(30), async {
         loop {
             let status = store

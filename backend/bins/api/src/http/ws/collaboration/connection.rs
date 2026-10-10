@@ -36,6 +36,7 @@ pub(super) async fn run(
     store: Arc<dyn CollaborationStore>,
     fanout: Arc<Fanout>,
     tickets_store: RedisCoordination,
+    config: crate::http::ws::WsConfig,
 ) {
     let principal = match timeout(Duration::from_secs(10), socket.next()).await {
         Ok(Some(Ok(WsMessage::Text(text)))) => {
@@ -119,10 +120,19 @@ pub(super) async fn run(
     let mut last_edit = access.can_edit;
     let mut rate_window = Instant::now();
     let mut rate_count = 0_u32;
+    let mut last_seen = Instant::now();
+    let mut heartbeat = interval(config.heartbeat_interval);
+    heartbeat.set_missed_tick_behavior(MissedTickBehavior::Delay);
+    heartbeat.reset();
 
     loop {
         tokio::select! {
+            _ = heartbeat.tick() => {
+                if last_seen.elapsed() >= config.heartbeat_timeout { return; }
+                if send_frame(&mut socket, WsMessage::Ping(Vec::new().into())).await.is_err() { return; }
+            }
             incoming = socket.next() => {
+                last_seen = Instant::now();
                 match incoming {
                     Some(Ok(WsMessage::Binary(bytes))) => {
                         if rate_window.elapsed() >= Duration::from_secs(1) {
@@ -163,7 +173,7 @@ pub(super) async fn run(
                         }
                     }
                     Some(Ok(WsMessage::Ping(bytes))) => {
-                        if socket.send(WsMessage::Pong(bytes)).await.is_err() { return; }
+                        if send_frame(&mut socket, WsMessage::Pong(bytes)).await.is_err() { return; }
                     }
                     Some(Ok(WsMessage::Pong(_))) => {}
                     Some(Ok(WsMessage::Text(_))) => return,
@@ -173,7 +183,7 @@ pub(super) async fn run(
             notice = awareness.recv() => {
                 match notice {
                     Ok(notice) => {
-                        if socket.send(WsMessage::Binary(notice.payload.into())).await.is_err() { return; }
+                        if send_frame(&mut socket, WsMessage::Binary(notice.payload.into())).await.is_err() { return; }
                     }
                     Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => return,
                     Err(tokio::sync::broadcast::error::RecvError::Closed) => return,
@@ -203,12 +213,17 @@ pub(super) async fn run(
     }
 }
 
-async fn send_binary(socket: &mut WebSocket, message: Message) -> Result<(), axum::Error> {
-    socket
-        .send(WsMessage::Binary(message.encode_v1().into()))
-        .await
+async fn send_frame(socket: &mut WebSocket, frame: WsMessage) -> Result<(), ()> {
+    match timeout(Duration::from_secs(10), socket.send(frame)).await {
+        Ok(Ok(())) => Ok(()),
+        Ok(Err(_)) | Err(_) => Err(()),
+    }
 }
 
-async fn send_json(socket: &mut WebSocket, value: serde_json::Value) -> Result<(), axum::Error> {
-    socket.send(WsMessage::Text(value.to_string().into())).await
+async fn send_binary(socket: &mut WebSocket, message: Message) -> Result<(), ()> {
+    send_frame(socket, WsMessage::Binary(message.encode_v1().into())).await
+}
+
+async fn send_json(socket: &mut WebSocket, value: serde_json::Value) -> Result<(), ()> {
+    send_frame(socket, WsMessage::Text(value.to_string().into())).await
 }

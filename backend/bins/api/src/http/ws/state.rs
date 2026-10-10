@@ -30,6 +30,7 @@ pub struct ParticipationStores {
 #[derive(Clone)]
 pub struct WsState {
     pub registry: ConnectionRegistry,
+    pub(super) moderation_origin: uuid::Uuid,
     pub speakers: SpeakerProjection,
     pub config: WsConfig,
     pub metrics: WsMetrics,
@@ -66,6 +67,7 @@ impl WsState {
         let registry = ConnectionRegistry::new(config.max_connections, metrics.clone());
         Self {
             registry,
+            moderation_origin: uuid::Uuid::new_v4(),
             speakers: SpeakerProjection::default(),
             config,
             metrics,
@@ -118,7 +120,12 @@ impl WsState {
         }
     }
 
-    pub fn with_chat(mut self, chat: Arc<dyn ChatStore>, redis: RedisCoordination) -> Self {
+    pub fn with_chat(
+        mut self,
+        chat: Arc<dyn ChatStore>,
+        files: Arc<dyn mahfel_application::ports::FileStore>,
+        redis: RedisCoordination,
+    ) -> Self {
         self.chat = Some(Arc::clone(&chat));
         let activity: Arc<dyn ChatActivityStore> = Arc::new(redis.clone());
         self.chat_activity = Some(Arc::clone(&activity));
@@ -126,6 +133,7 @@ impl WsState {
         super::chat_fanout::spawn(
             chat,
             activity,
+            files,
             redis,
             self.registry.clone(),
             Arc::clone(&self.chat_wake),
@@ -158,6 +166,7 @@ impl WsState {
     ) -> Self {
         self.session_presence = Some(redis.clone());
         self.session_lifecycle = Some(lifecycle);
+        super::moderation_fanout::spawn(self.clone());
         super::session_fanout::spawn(
             redis,
             self.registry.clone(),
@@ -170,6 +179,14 @@ impl WsState {
     pub fn with_auth_tickets(mut self, redis: RedisCoordination) -> Self {
         self.auth_tickets = Some(redis);
         self
+    }
+
+    pub async fn broadcast_moderation(
+        &self,
+        session: mahfel_domain::SessionId,
+        message: super::ServerMessage,
+    ) {
+        super::moderation_fanout::publish(self, session, message).await;
     }
 
     pub fn wake_session(&self) {

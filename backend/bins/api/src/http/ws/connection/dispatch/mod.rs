@@ -55,12 +55,80 @@ pub(super) async fn handle_text(
                 )
                 .await;
         }
+        let participant = match mahfel_application::sessions::authorize_connection(
+            state.stores.participants.as_ref(),
+            state.stores.sessions.as_ref(),
+            state.stores.rooms.as_ref(),
+            state.stores.blocks.as_ref(),
+            mahfel_application::sessions::SessionConnection {
+                actor: principal.actor_id,
+                participant: handle.participant_id,
+                session: handle.session_id,
+                room: handle.room_id,
+            },
+        )
+        .await
+        {
+            Ok(participant) => participant,
+            Err(_) => {
+                return connection
+                    .send_with_id(
+                        rid,
+                        protocol_error("forbidden", "session media access unavailable"),
+                    )
+                    .await;
+            }
+        };
+        if participant.is_muted()
+            && matches!(&envelope.message,
+            ClientMessage::Produce { kind, source, .. } if kind == "audio" && source.as_deref().is_none_or(|source| source == "microphone"))
+        {
+            return connection
+                .send_with_id(
+                    rid,
+                    protocol_error("forbidden", "microphone is muted by moderation"),
+                )
+                .await;
+        }
+        let owns_resource = match &envelope.message {
+            ClientMessage::ConnectTransport { transport_id, .. }
+            | ClientMessage::Produce { transport_id, .. }
+            | ClientMessage::Consume { transport_id, .. } => {
+                connection.owns_transport(handle.room_id, transport_id)
+            }
+            ClientMessage::PauseConsumer { consumer_id, .. }
+            | ClientMessage::ResumeConsumer { consumer_id, .. } => {
+                connection.owns_consumer(handle.room_id, consumer_id)
+            }
+            _ => true,
+        };
+        if !owns_resource {
+            return connection
+                .send_with_id(
+                    rid,
+                    protocol_error(
+                        "forbidden",
+                        "media resource is not owned by this connection",
+                    ),
+                )
+                .await;
+        }
+        if matches!(envelope.message, ClientMessage::CreateTransport { .. })
+            && connection.transport_count() >= 8
+        {
+            return connection
+                .send_with_id(rid, protocol_error("resource_limit", "too many transports"))
+                .await;
+        }
         Some(handle)
     } else {
         None
     };
     let media = if let Some(handle) = rtc_participation {
-        match state.media_for(handle.session_id, handle.room_id).await {
+        match connection
+            .media_for(state, handle.session_id, handle.room_id)
+            .await
+        {
             Ok(media) => media,
             Err(_) => {
                 return connection
@@ -80,12 +148,13 @@ pub(super) async fn handle_text(
 
     match envelope.message {
         ClientMessage::Echo { text } => connection.send(ServerMessage::Echo { text }).await,
-        ClientMessage::Broadcast { text } => {
-            registry.broadcast(&ServerMessage::Broadcast {
-                from: id.to_string(),
-                text,
-            });
-            Ok(())
+        ClientMessage::Broadcast { .. } => {
+            connection
+                .send_with_id(
+                    rid,
+                    protocol_error("unsupported", "global broadcast is unavailable"),
+                )
+                .await
         }
         ClientMessage::SubscribeChat {
             room_id,

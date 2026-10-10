@@ -17,6 +17,11 @@ pub trait FileStore: Send + Sync {
         limit: u32,
         offset: u64,
     ) -> BoxFuture<'_, Result<Vec<FileObject>, StoreError>>;
+    /// Newest ready avatar for each requested actor, fetched in one operation.
+    fn list_avatars<'a>(
+        &'a self,
+        actors: &'a [ActorId],
+    ) -> BoxFuture<'a, Result<Vec<FileObject>, StoreError>>;
     /// Ready files attached to a set of chat messages, used to render message
     /// attachments inline. The caller must authorize the messages first.
     fn list_for_messages<'a>(

@@ -5,6 +5,7 @@ pub struct ApiSettings {
     pub http_bind: String,
     pub operations_bind: String,
     pub media_grpc_url: String,
+    pub control_token: String,
     /// Bind address for the private media-node heartbeat gRPC service.
     pub media_registry_bind: String,
     /// Root secret used only by the API to verify node-bound credentials.

@@ -271,6 +271,54 @@ async fn verify_migrations_and_stores(
     );
     users.insert(&user).await?;
 
+    assert_eq!(
+        users
+            .get_many(&[user.id, user.id, ActorId::new()])
+            .await?
+            .iter()
+            .map(|profile| profile.id)
+            .collect::<Vec<_>>(),
+        vec![user.id]
+    );
+    assert!(users.get_many(&[]).await?.is_empty());
+    let mut avatar_ids = Vec::new();
+    for index in 0..3 {
+        let avatar = FileObject::pending(
+            user.id,
+            FileContext::Avatar(user.id),
+            format!("avatar-{index}.png"),
+            "image/png".into(),
+            1024,
+            "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=".into(),
+            now + TimeDuration::seconds(index),
+        )?;
+        files.insert(&avatar).await?;
+        if index < 2 {
+            assert!(
+                files
+                    .transition(
+                        avatar.id,
+                        FileStatus::Pending,
+                        FileStatus::Ready,
+                        Some("image/png"),
+                        now + TimeDuration::seconds(index + 3)
+                    )
+                    .await?
+            );
+        }
+        avatar_ids.push(avatar.id);
+    }
+    let avatars = files.list_avatars(&[user.id, ActorId::new()]).await?;
+    assert_eq!(avatars.len(), 1);
+    assert_eq!(
+        avatars[0].id, avatar_ids[1],
+        "newest ready avatar wins; pending uploads stay private"
+    );
+    assert!(files.list_avatars(&[]).await?.is_empty());
+    for id in avatar_ids {
+        files.remove(id).await?;
+    }
+
     verify_identity_lifecycle(&identities, users.clone(), now).await?;
 
     let room = Room::create(
@@ -569,6 +617,14 @@ async fn verify_migrations_and_stores(
     assert!(events[5].message.deleted_at.is_some());
     assert_eq!(events[5].message.content, "");
     assert_eq!(chat.event_head(room.id, user.id).await?, 6);
+    let subscribers = chat
+        .authorized_subscribers(room.id, &[user.id, chat_member.id, outsider.id, user.id])
+        .await?;
+    assert_eq!(subscribers.len(), 2);
+    assert!(subscribers.contains(&user.id));
+    assert!(subscribers.contains(&chat_member.id));
+    assert!(!subscribers.contains(&outsider.id));
+    assert!(chat.authorized_subscribers(room.id, &[]).await?.is_empty());
     assert_eq!(chat.list_events(room.id, user.id, 4, 100).await?.len(), 2);
     assert!(matches!(
         chat.list_events(room.id, outsider.id, 0, 100).await,
@@ -773,6 +829,52 @@ async fn verify_migrations_and_stores(
     );
     assert_eq!(inline[0].id, attachments[0].id);
     assert!(files.list_for_messages(&[]).await?.is_empty());
+    let before_attachment = chat.event_head(room.id, user.id).await?;
+    assert!(
+        files
+            .transition(
+                attachments[1].id,
+                FileStatus::Pending,
+                FileStatus::Quarantined,
+                None,
+                now
+            )
+            .await?
+    );
+    assert!(
+        files
+            .publish(
+                attachments[1].id,
+                "ready/attachment.pdf",
+                "application/pdf",
+                now
+            )
+            .await?
+    );
+    let attachment_events = chat
+        .list_events(room.id, user.id, before_attachment, 100)
+        .await?;
+    assert_eq!(
+        attachment_events.len(),
+        1,
+        "ready attachment commits a durable message snapshot"
+    );
+    assert_eq!(attachment_events[0].message.id, reply.id);
+    assert_eq!(attachment_events[0].message.edited_at, reply.edited_at);
+    assert!(
+        !files
+            .publish(
+                attachments[1].id,
+                "ready/attachment.pdf",
+                "application/pdf",
+                now
+            )
+            .await?
+    );
+    assert_eq!(
+        chat.event_head(room.id, user.id).await?,
+        before_attachment + 1
+    );
     let outsider_file = FileObject::pending(
         outsider.id,
         FileContext::ChatMessage(reply.id),
@@ -971,6 +1073,17 @@ async fn verify_collaboration(
         .insert(&Participant::join(session_id, member.id, now))
         .await?;
     assert!(collaboration.access(session_id, manager).await?.can_manage);
+    let block_id = uuid::Uuid::new_v4();
+    sqlx::query("INSERT INTO mahfel.blocks (id, session_id, actor_id, blocked_by, blocked_at) VALUES ($1, $2, $3, $3, now())")
+        .bind(block_id).bind(session_id.as_uuid()).bind(manager.as_uuid()).execute(pool).await?;
+    let blocked = collaboration.access(session_id, manager).await?;
+    assert!(!blocked.can_read && !blocked.can_manage && !blocked.can_publish_audio);
+    sqlx::query("UPDATE mahfel.blocks SET lifted_at = now(), lifted_by = $2 WHERE id = $1")
+        .bind(block_id)
+        .bind(manager.as_uuid())
+        .execute(pool)
+        .await?;
+    assert!(collaboration.access(session_id, manager).await?.can_manage);
 
     let notes = collaboration
         .document(session_id, CollaborationKind::Notes)
@@ -1163,6 +1276,30 @@ async fn verify_collaboration(
             .expect("checkpoint")
             .through_sequence,
         2
+    );
+
+    for sequence in 3..10 {
+        collaboration
+            .save_checkpoint(notes.id, sequence, &[7, 8], &[9], &[0; 32])
+            .await?;
+    }
+    let retained: Vec<i64> = sqlx::query_scalar("SELECT through_sequence FROM mahfel.collaboration_checkpoints WHERE document_id = $1 ORDER BY through_sequence")
+        .bind(notes.id.as_uuid()).fetch_all(pool).await?;
+    assert_eq!(retained, vec![7, 8, 9]);
+    assert_eq!(
+        collaboration
+            .checkpoint(notes.id)
+            .await?
+            .expect("latest retained checkpoint")
+            .through_sequence,
+        9
+    );
+    assert!(
+        !collaboration
+            .events(session_id, member.id, 0, 100)
+            .await?
+            .is_empty(),
+        "checkpoint pruning preserves the replay journal"
     );
 
     collaboration
@@ -1375,6 +1512,10 @@ async fn verify_job_foundation(pool: &PgPool) -> Result<(), Box<dyn Error>> {
     duplicate.commit().await?;
     let due = jobs.lease_due(10).await?;
     assert_eq!(due.len(), 1, "idempotency key must prevent a second job");
+    assert!(
+        !jobs.mark_published(due[0].id, Uuid::new_v4()).await?,
+        "a stale confirmation cannot publish another lease"
+    );
     assert!(jobs.mark_published(due[0].id, due[0].token).await?);
     let token = match jobs.claim(&due[0].envelope).await? {
         JobClaim::Claimed(token) => token,

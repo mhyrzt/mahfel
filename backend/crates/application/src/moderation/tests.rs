@@ -20,6 +20,19 @@ use std::{
 };
 use time::OffsetDateTime;
 
+fn acting_principal(actor_id: ActorId) -> crate::ports::Principal {
+    crate::ports::Principal {
+        actor_id,
+        kind: mahfel_domain::ActorKind::User,
+        display_name: None,
+        avatar_url: None,
+        email: None,
+        email_verified: false,
+        username: None,
+        roles: Vec::new(),
+    }
+}
+
 #[tokio::test]
 async fn moderator_cannot_target_themself() {
     let f = fixture();
@@ -31,7 +44,7 @@ async fn moderator_cannot_target_themself() {
         &f.memberships,
         &f.media,
         RemoveCommand {
-            actor: f.manager,
+            actor: acting_principal(f.manager),
             session_id: f.session.id,
             subject: f.manager,
         },
@@ -57,7 +70,7 @@ async fn moderator_cannot_target_themself() {
         &f.memberships,
         &f.media,
         BlockCommand {
-            actor: f.manager,
+            actor: acting_principal(f.manager),
             scope: BlockScope::Session(f.session.id),
             subject: f.manager,
             reason: None,
@@ -73,7 +86,7 @@ async fn moderator_cannot_target_themself() {
         &f.blocks,
         &f.memberships,
         BlockCommand {
-            actor: f.manager,
+            actor: acting_principal(f.manager),
             scope: BlockScope::Session(f.session.id),
             subject: f.manager,
             reason: None,
@@ -214,6 +227,34 @@ impl RoomStore for FakeRooms {
         })
     }
 
+    fn update_member<'a>(
+        &'a self,
+        member: &'a RoomMember,
+    ) -> BoxFuture<'a, Result<bool, StoreError>> {
+        Box::pin(async move {
+            let mut members = self.members.lock().expect("lock");
+            let managers = members
+                .iter()
+                .filter(|existing| {
+                    existing.room_id == member.room_id && existing.role == RoomRole::Manager
+                })
+                .count();
+            let Some(existing) = members.iter_mut().find(|existing| {
+                existing.room_id == member.room_id && existing.actor_id == member.actor_id
+            }) else {
+                return Ok(false);
+            };
+            if existing.role == RoomRole::Manager
+                && member.role != RoomRole::Manager
+                && managers <= 1
+            {
+                return Ok(false);
+            }
+            *existing = member.clone();
+            Ok(true)
+        })
+    }
+
     fn remove_member(
         &self,
         room_id: RoomId,
@@ -298,6 +339,24 @@ impl SessionStore for FakeSessions {
             }
             slot.updated_at = session.updated_at;
             Ok(slot.clone())
+        })
+    }
+
+    fn list_for_room_page(
+        &self,
+        room_id: RoomId,
+        status: Option<mahfel_domain::SessionStatus>,
+        limit: u64,
+        offset: u64,
+    ) -> BoxFuture<'_, Result<Vec<Session>, StoreError>> {
+        Box::pin(async move {
+            let sessions = self.list_for_room(room_id).await?;
+            Ok(sessions
+                .into_iter()
+                .filter(|session| status.is_none_or(|status| session.status == status))
+                .skip(usize::try_from(offset).unwrap_or(usize::MAX))
+                .take(usize::try_from(limit.min(100)).expect("bounded limit"))
+                .collect())
         })
     }
 
@@ -700,7 +759,7 @@ fn fixture() -> Fixture {
 
 fn mute_command(actor: ActorId, subject: ActorId, session: Session) -> MuteCommand {
     MuteCommand {
-        actor,
+        actor: acting_principal(actor),
         session_id: session.id,
         subject,
         kind: mahfel_domain::MuteKind::Temporary,
@@ -715,7 +774,7 @@ async fn a_member_cannot_mute_another_participant() {
     f.participants.seed_active(f.session.id, victim);
 
     let mut command = mute_command(f.manager, victim, f.session.clone());
-    command.actor = f.member;
+    command.actor = acting_principal(f.member);
 
     let result = mute(
         &f.participants,
@@ -744,7 +803,7 @@ async fn an_outsider_cannot_mute() {
     f.participants.seed_active(f.session.id, victim);
 
     let mut command = mute_command(f.manager, victim, f.session.clone());
-    command.actor = f.outsider;
+    command.actor = acting_principal(f.outsider);
 
     let result = mute(
         &f.participants,
@@ -1022,7 +1081,7 @@ async fn removing_ends_participation_and_closes_producers() {
         &f.memberships,
         &f.media,
         RemoveCommand {
-            actor: f.manager,
+            actor: acting_principal(f.manager),
             session_id: f.session.id,
             subject: f.member,
         },
@@ -1051,7 +1110,7 @@ async fn removing_does_not_block_a_rejoin() {
         &f.memberships,
         &f.media,
         RemoveCommand {
-            actor: f.manager,
+            actor: acting_principal(f.manager),
             session_id: f.session.id,
             subject: f.member,
         },
@@ -1079,7 +1138,7 @@ async fn a_member_cannot_remove() {
         &f.memberships,
         &f.media,
         RemoveCommand {
-            actor: f.member,
+            actor: acting_principal(f.member),
             session_id: f.session.id,
             subject: f.manager,
         },
@@ -1106,7 +1165,7 @@ async fn blocking_creates_one_durable_block() {
         &f.memberships,
         &f.media,
         BlockCommand {
-            actor: f.manager,
+            actor: acting_principal(f.manager),
             scope: BlockScope::Room(f.room.id),
             subject: f.outsider,
             reason: Some("spam".to_owned()),
@@ -1139,7 +1198,7 @@ async fn reblocking_extends_rather_than_stacking() {
         &f.memberships,
         &f.media,
         BlockCommand {
-            actor: f.manager,
+            actor: acting_principal(f.manager),
             scope: BlockScope::Room(f.room.id),
             subject: f.outsider,
             reason: None,
@@ -1158,7 +1217,7 @@ async fn reblocking_extends_rather_than_stacking() {
         &f.memberships,
         &f.media,
         BlockCommand {
-            actor: f.manager,
+            actor: acting_principal(f.manager),
             scope: BlockScope::Room(f.room.id),
             subject: f.outsider,
             reason: None,
@@ -1192,7 +1251,7 @@ async fn a_room_block_and_a_session_block_are_independent() {
         &f.memberships,
         &f.media,
         BlockCommand {
-            actor: f.manager,
+            actor: acting_principal(f.manager),
             scope: BlockScope::Session(f.session.id),
             subject: f.outsider,
             reason: None,
@@ -1211,7 +1270,7 @@ async fn a_room_block_and_a_session_block_are_independent() {
         &f.memberships,
         &f.media,
         BlockCommand {
-            actor: f.manager,
+            actor: acting_principal(f.manager),
             scope: BlockScope::Room(f.room.id),
             subject: f.outsider,
             reason: None,
@@ -1228,7 +1287,7 @@ async fn a_room_block_and_a_session_block_are_independent() {
         &f.blocks,
         &f.memberships,
         BlockCommand {
-            actor: f.manager,
+            actor: acting_principal(f.manager),
             scope: BlockScope::Room(f.room.id),
             subject: f.outsider,
             reason: None,
@@ -1262,7 +1321,7 @@ async fn a_member_cannot_block() {
         &f.memberships,
         &f.media,
         BlockCommand {
-            actor: f.member,
+            actor: acting_principal(f.member),
             scope: BlockScope::Room(f.room.id),
             subject: f.outsider,
             reason: None,
@@ -1286,7 +1345,7 @@ async fn blocking_from_an_unknown_session_fails() {
         &f.memberships,
         &f.media,
         BlockCommand {
-            actor: f.manager,
+            actor: acting_principal(f.manager),
             scope: BlockScope::Session(SessionId::new()),
             subject: f.outsider,
             reason: None,
@@ -1451,7 +1510,7 @@ async fn blocking_ejects_a_principal_who_is_present() {
         &f.memberships,
         &f.media,
         BlockCommand {
-            actor: f.manager,
+            actor: acting_principal(f.manager),
             scope: BlockScope::Room(f.room.id),
             subject: f.member,
             reason: None,
@@ -1487,7 +1546,7 @@ async fn blocking_an_absent_principal_ejects_nothing() {
         &f.memberships,
         &f.media,
         BlockCommand {
-            actor: f.manager,
+            actor: acting_principal(f.manager),
             scope: BlockScope::Room(f.room.id),
             subject: f.outsider,
             reason: None,
@@ -1500,4 +1559,78 @@ async fn blocking_an_absent_principal_ejects_nothing() {
 
     assert_eq!(outcome.ejected_from, 0);
     assert!(f.media.closed.lock().expect("lock").is_empty());
+}
+
+#[tokio::test]
+async fn verified_global_roles_can_moderate_without_room_membership() {
+    for role in ["admin", "moderator"] {
+        let f = fixture();
+        let victim = ActorId::new();
+        f.participants.seed_active(f.session.id, victim);
+        let mut command = mute_command(f.outsider, victim, f.session.clone());
+        command.actor.roles.push(role.to_owned());
+        mute(
+            &f.participants,
+            &f.sessions,
+            &f.memberships,
+            &f.media,
+            command.clone(),
+            OffsetDateTime::now_utc(),
+        )
+        .await
+        .expect("verified global role can mute");
+        unmute(
+            &f.participants,
+            &f.sessions,
+            &f.memberships,
+            &f.media,
+            command.clone(),
+            OffsetDateTime::now_utc(),
+        )
+        .await
+        .expect("verified global role can unmute");
+        remove_participant(
+            &f.participants,
+            &f.sessions,
+            &f.memberships,
+            &f.media,
+            RemoveCommand {
+                actor: command.actor.clone(),
+                session_id: f.session.id,
+                subject: victim,
+            },
+            OffsetDateTime::now_utc(),
+        )
+        .await
+        .expect("verified global role can remove");
+        let block_command = BlockCommand {
+            actor: command.actor,
+            scope: BlockScope::Room(f.room.id),
+            subject: victim,
+            reason: None,
+            expires_at: None,
+        };
+        block(
+            &f.rooms,
+            &f.sessions,
+            &f.participants,
+            &f.blocks,
+            &f.memberships,
+            &f.media,
+            block_command.clone(),
+            OffsetDateTime::now_utc(),
+        )
+        .await
+        .expect("verified global role can block");
+        unblock(
+            &f.rooms,
+            &f.sessions,
+            &f.blocks,
+            &f.memberships,
+            block_command,
+            OffsetDateTime::now_utc(),
+        )
+        .await
+        .expect("verified global role can unblock");
+    }
 }

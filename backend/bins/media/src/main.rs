@@ -1,3 +1,4 @@
+mod authentication;
 mod handlers;
 mod metrics;
 mod recording;
@@ -24,6 +25,7 @@ async fn main() -> Result<()> {
     let settings = Settings::load().context("load configuration")?;
     init_tracing(&settings.telemetry.log_filter).context("initialize tracing")?;
 
+    let authorization = authentication::MediaAuthorization::new(&settings.media.control_token)?;
     let media = Arc::new(
         MediaRuntime::start(
             settings.media.worker_count,
@@ -90,7 +92,10 @@ async fn main() -> Result<()> {
     ));
     let grpc_task = tokio::spawn(async move {
         Server::builder()
-            .add_service(MediaControlServiceServer::new(service))
+            .add_service(MediaControlServiceServer::with_interceptor(
+                service,
+                authorization,
+            ))
             .serve_with_incoming_shutdown(
                 TcpListenerStream::new(grpc_listener),
                 wait_for_shutdown(grpc_shutdown),

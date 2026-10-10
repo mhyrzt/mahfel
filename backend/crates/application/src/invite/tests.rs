@@ -165,6 +165,34 @@ impl RoomStore for FakeRooms {
         })
     }
 
+    fn update_member<'a>(
+        &'a self,
+        member: &'a RoomMember,
+    ) -> BoxFuture<'a, Result<bool, StoreError>> {
+        Box::pin(async move {
+            let mut members = self.members.lock().expect("lock");
+            let managers = members
+                .iter()
+                .filter(|existing| {
+                    existing.room_id == member.room_id && existing.role == RoomRole::Manager
+                })
+                .count();
+            let Some(existing) = members.iter_mut().find(|existing| {
+                existing.room_id == member.room_id && existing.actor_id == member.actor_id
+            }) else {
+                return Ok(false);
+            };
+            if existing.role == RoomRole::Manager
+                && member.role != RoomRole::Manager
+                && managers <= 1
+            {
+                return Ok(false);
+            }
+            *existing = member.clone();
+            Ok(true)
+        })
+    }
+
     fn remove_member(
         &self,
         room_id: RoomId,
@@ -252,6 +280,24 @@ impl SessionStore for FakeSessions {
             }
             slot.updated_at = session.updated_at;
             Ok(slot.clone())
+        })
+    }
+
+    fn list_for_room_page(
+        &self,
+        room_id: RoomId,
+        status: Option<mahfel_domain::SessionStatus>,
+        limit: u64,
+        offset: u64,
+    ) -> BoxFuture<'_, Result<Vec<Session>, StoreError>> {
+        Box::pin(async move {
+            let sessions = self.list_for_room(room_id).await?;
+            Ok(sessions
+                .into_iter()
+                .filter(|session| status.is_none_or(|status| session.status == status))
+                .skip(usize::try_from(offset).unwrap_or(usize::MAX))
+                .take(usize::try_from(limit.min(100)).expect("bounded limit"))
+                .collect())
         })
     }
 
@@ -345,6 +391,10 @@ impl InviteStore for FakeInvites {
 #[derive(Clone, Default)]
 struct FakeAdmissions {
     requests: Arc<Mutex<Vec<AdmissionRequest>>>,
+    rooms: FakeRooms,
+    sessions: FakeSessions,
+    participants: FakeParticipants,
+    participation: FakeParticipation,
 }
 
 impl FakeAdmissions {
@@ -476,6 +526,112 @@ impl AdmissionStore for FakeAdmissions {
             request.decided_at = Some(decided_at);
             request.decided_by = decided_by;
             Ok(true)
+        })
+    }
+
+    fn approve_pending(
+        &self,
+        id: AdmissionRequestId,
+        actor: ActorId,
+        now: OffsetDateTime,
+    ) -> BoxFuture<
+        '_,
+        Result<Option<crate::admission::AdmissionGrant>, crate::admission::AdmissionOperationError>,
+    > {
+        Box::pin(async move {
+            use crate::admission::{AdmissionGrant, AdmissionOperationError};
+            let mut requests = self.requests.lock().expect("lock");
+            let Some(request) = requests
+                .iter_mut()
+                .find(|request| request.id == id && request.is_pending())
+            else {
+                return Ok(None);
+            };
+            let session = match request.target {
+                AdmissionTarget::Session(id) => {
+                    let session = self
+                        .sessions
+                        .sessions
+                        .lock()
+                        .expect("lock")
+                        .iter()
+                        .find(|session| session.id == id)
+                        .cloned()
+                        .ok_or(AdmissionOperationError::NotFound)?;
+                    if session.status != mahfel_domain::SessionStatus::Live {
+                        return Err(AdmissionOperationError::NotLive);
+                    }
+                    Some(session)
+                }
+                AdmissionTarget::Room(_) => None,
+            };
+            let room_id = match request.target {
+                AdmissionTarget::Room(room_id) => room_id,
+                AdmissionTarget::Session(_) => session.as_ref().expect("session target").room_id,
+            };
+            let manager = {
+                self.rooms
+                    .members
+                    .lock()
+                    .expect("lock")
+                    .iter()
+                    .any(|member| {
+                        member.room_id == room_id
+                            && member.actor_id == actor
+                            && member.role == RoomRole::Manager
+                    })
+            };
+            if !manager {
+                return Err(AdmissionOperationError::Forbidden);
+            }
+            let grant = match request.target {
+                AdmissionTarget::Session(session_id) => {
+                    let mut participants = self.participants.participants.lock().expect("lock");
+                    let participant = if let Some(existing) =
+                        participants.iter().find(|participant| {
+                            participant.session_id == session_id
+                                && participant.actor_id == request.actor_id
+                                && participant.status == mahfel_domain::ParticipantStatus::Active
+                        }) {
+                        existing.clone()
+                    } else {
+                        let participant =
+                            mahfel_domain::Participant::join(session_id, request.actor_id, now);
+                        participants.push(participant.clone());
+                        participant
+                    };
+                    let mut intervals = self.participation.intervals.lock().expect("lock");
+                    if !intervals.iter().any(|interval| {
+                        interval.participant_id == participant.id && interval.is_open()
+                    }) {
+                        intervals.push(mahfel_domain::ParticipationInterval::open(
+                            participant.id,
+                            session_id,
+                            request.actor_id,
+                            now,
+                        ));
+                    }
+                    AdmissionGrant::Participant(participant)
+                }
+                AdmissionTarget::Room(room_id) => {
+                    let mut members = self.rooms.members.lock().expect("lock");
+                    if !members.iter().any(|member| {
+                        member.room_id == room_id && member.actor_id == request.actor_id
+                    }) {
+                        members.push(RoomMember::new(
+                            room_id,
+                            request.actor_id,
+                            RoomRole::Member,
+                            now,
+                        ));
+                    }
+                    AdmissionGrant::Membership { room_id }
+                }
+            };
+            request.status = AdmissionRequestStatus::Admitted;
+            request.decided_by = Some(actor);
+            request.decided_at = Some(now);
+            Ok(Some(grant))
         })
     }
 
@@ -759,11 +915,16 @@ fn fixture() -> Fixture {
     let mut session = Session::schedule(room.id, None, OffsetDateTime::now_utc());
     session.start(OffsetDateTime::now_utc()).expect("start");
     sessions.seed(session.clone());
+    let admissions = FakeAdmissions {
+        rooms: rooms.clone(),
+        sessions: sessions.clone(),
+        ..Default::default()
+    };
     Fixture {
         rooms,
         sessions,
         invites: FakeInvites::default(),
-        admissions: FakeAdmissions::default(),
+        admissions,
         coordination: FakeCoordination::default(),
         owner,
         room,
@@ -975,8 +1136,6 @@ async fn approving_a_room_link_grants_membership_and_never_management() {
         .expect("redeem");
 
     let grant = crate::admission::admit(
-        &FakeParticipants::default(),
-        &FakeParticipation::default(),
         &f.admissions,
         &f.sessions,
         &f.rooms,
@@ -1017,8 +1176,6 @@ async fn approving_a_session_link_grants_no_membership() {
         .expect("redeem");
 
     let grant = crate::admission::admit(
-        &FakeParticipants::default(),
-        &FakeParticipation::default(),
         &f.admissions,
         &f.sessions,
         &f.rooms,
@@ -1054,8 +1211,6 @@ async fn a_room_link_is_approvable_with_no_live_session() {
     assert!(redeemed.is_waiting());
 
     let grant = crate::admission::admit(
-        &FakeParticipants::default(),
-        &FakeParticipation::default(),
         &f.admissions,
         &f.sessions,
         &f.rooms,
@@ -1084,8 +1239,6 @@ async fn a_session_link_approval_still_requires_a_live_session() {
     f.sessions.end(f.session.id);
 
     let result = crate::admission::admit(
-        &FakeParticipants::default(),
-        &FakeParticipation::default(),
         &f.admissions,
         &f.sessions,
         &f.rooms,
@@ -1140,8 +1293,6 @@ async fn a_member_who_cannot_manage_cannot_decide() {
     f.rooms.add_member(f.room.id, member, RoomRole::Member);
 
     let result = crate::admission::admit(
-        &FakeParticipants::default(),
-        &FakeParticipation::default(),
         &f.admissions,
         &f.sessions,
         &f.rooms,

@@ -44,7 +44,7 @@ impl MutedSource {
 #[derive(Debug, Clone)]
 pub struct MuteCommand {
     /// The principal acting. May be the target clearing their own mute.
-    pub actor: ActorId,
+    pub actor: crate::ports::Principal,
     pub session_id: SessionId,
     /// Whose audio is affected.
     pub subject: ActorId,
@@ -88,7 +88,7 @@ where
     S: MembershipStore + ?Sized,
     M: MediaGateway + ?Sized,
 {
-    if command.actor == command.subject {
+    if command.actor.actor_id == command.subject {
         return Err(ModerationError::Forbidden);
     }
     let session = sessions
@@ -99,9 +99,9 @@ where
 
     // Capability first, so an unauthorized caller cannot use the difference
     // between one failure and another to learn who is in the session.
-    crate::policy::require_actor_capability(
+    crate::policy::require_room_capability(
         memberships,
-        command.actor,
+        &command.actor,
         room_id,
         Capability::MuteOthers,
     )
@@ -115,7 +115,7 @@ where
     )
     .await?;
 
-    participant.mute(command.kind, command.actor, now)?;
+    participant.mute(command.kind, command.actor.actor_id, now)?;
     participants.save(&participant).await?;
 
     // Enforcement is best-effort for the outcome: the durable mute is already
@@ -138,7 +138,7 @@ where
             tracing::error!(
                 target: "audit",
                 action = "moderation.mute.enforcement_failed",
-                actor_id = %command.actor,
+                actor_id = %command.actor.actor_id,
                 room_id = %room_id,
                 session_id = %command.session_id,
                 target_actor_id = %command.subject,
@@ -153,7 +153,7 @@ where
     tracing::info!(
         target: "audit",
         action = "moderation.mute",
-        actor_id = %command.actor,
+        actor_id = %command.actor.actor_id,
         room_id = %room_id,
         session_id = %command.session_id,
         target_actor_id = %command.subject,
@@ -206,16 +206,16 @@ where
 
     // A self-unmute is allowed without any capability; clearing someone else's
     // mute requires the same grant that imposed it.
-    let is_self = command.actor == command.subject;
+    let is_self = command.actor.actor_id == command.subject;
     let may_moderate = if is_self {
         // Still resolved, because a moderator clearing someone else's permanent
         // mute is a different case; here it only decides whether a permanent
         // self-unmute would be permitted, which the aggregate then refuses.
         false
     } else {
-        crate::policy::require_actor_capability(
+        crate::policy::require_room_capability(
             memberships,
-            command.actor,
+            &command.actor,
             room_id,
             Capability::MuteOthers,
         )
@@ -249,7 +249,7 @@ where
             tracing::error!(
                 target: "audit",
                 action = "moderation.unmute.enforcement_failed",
-                actor_id = %command.actor,
+                actor_id = %command.actor.actor_id,
                 room_id = %room_id,
                 session_id = %command.session_id,
                 target_actor_id = %command.subject,
@@ -263,7 +263,7 @@ where
     tracing::info!(
         target: "audit",
         action = "moderation.unmute",
-        actor_id = %command.actor,
+        actor_id = %command.actor.actor_id,
         room_id = %room_id,
         session_id = %command.session_id,
         target_actor_id = %command.subject,

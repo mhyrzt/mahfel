@@ -170,52 +170,6 @@ where
     Err(AuthorizationError::Denied)
 }
 
-/// Fail unless an actor holds `capability` in `room_id`.
-///
-/// For use cases that carry an actor id rather than a resolved [`Principal`],
-/// which is the case for moderation: the acting principal is known, but
-/// resolving them again would only re-derive the same membership. The global
-/// grants are therefore empty here, so a caller reaching this helper has only
-/// its room membership to stand on, and a capability that requires a global
-/// role is denied. Moderation capabilities are room-scoped, so that is the
-/// correct reading rather than a limitation.
-///
-/// # Errors
-/// [`AuthorizationError::Denied`] when the capability is not granted, including
-/// when the membership is absent, so a caller cannot distinguish "no
-/// membership" from "membership without the grant".
-pub async fn require_actor_capability<S>(
-    memberships: &S,
-    actor: mahfel_domain::ActorId,
-    room_id: mahfel_domain::RoomId,
-    capability: Capability,
-) -> Result<(), AuthorizationError>
-where
-    S: crate::ports::MembershipStore + ?Sized,
-{
-    let membership = memberships
-        .role_of(room_id, actor)
-        .await
-        .map_err(|_| AuthorizationError::Denied)?;
-    let granted = ServerCapabilityResolver.resolve(
-        &Principal {
-            actor_id: actor,
-            kind: mahfel_domain::ActorKind::User,
-            display_name: None,
-            avatar_url: None,
-            email: None,
-            email_verified: false,
-            username: None,
-            roles: Vec::new(),
-        },
-        CapabilityContext::in_room(membership),
-    );
-    if granted.has(capability) {
-        return Ok(());
-    }
-    Err(AuthorizationError::Denied)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;

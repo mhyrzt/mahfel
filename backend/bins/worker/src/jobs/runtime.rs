@@ -18,6 +18,21 @@ pub async fn run(
     metrics: JobMetrics,
     mut shutdown: watch::Receiver<bool>,
 ) {
+    let recovery_store = store.clone();
+    let mut recovery_shutdown = shutdown.clone();
+    let recovery = tokio::spawn(async move {
+        let mut poll = tokio::time::interval(super::OUTBOX_POLL);
+        loop {
+            tokio::select! {
+                _ = recovery_shutdown.changed() => break,
+                _ = poll.tick() => {
+                    if let Err(error) = recovery_store.recover_expired().await {
+                        tracing::warn!(%error, "expired job claim recovery failed; retrying");
+                    }
+                }
+            }
+        }
+    });
     loop {
         if *shutdown.borrow() {
             break;
@@ -43,7 +58,11 @@ pub async fn run(
             health.set_check("database", false).await;
             tokio::select! {
                 _ = tokio::time::sleep(RECONNECT_DELAY) => {},
-                _ = shutdown.changed() => return,
+                _ = shutdown.changed() => {
+                    recovery.abort();
+                    let _ = recovery.await;
+                    return;
+                },
             }
         }
         health.set_check("database", true).await;
@@ -54,6 +73,8 @@ pub async fn run(
         // The readiness probe tracks the next successful connection below.
         health.set_check("rabbitmq", false).await;
     }
+    recovery.abort();
+    let _ = recovery.await;
 }
 async fn run_connected(
     settings: &WorkerSettings,

@@ -4,16 +4,17 @@ use std::{
     collections::HashMap,
     sync::{
         Arc, Mutex, MutexGuard, PoisonError, Weak,
-        atomic::{AtomicUsize, Ordering},
+        atomic::{AtomicU64, AtomicUsize, Ordering},
     },
 };
-use tokio::sync::{Mutex as AsyncMutex, mpsc};
+use tokio::sync::{Mutex as AsyncMutex, mpsc, watch};
 
 use uuid::Uuid;
 
 mod chat;
 mod fanout;
 mod lifecycle;
+mod moderation;
 mod participation;
 #[cfg(test)]
 mod tests;
@@ -31,6 +32,9 @@ pub enum Outbound {
 #[derive(Clone, Debug)]
 struct Connection {
     sender: mpsc::Sender<Outbound>,
+    close: watch::Sender<bool>,
+    close_message: Option<ServerMessage>,
+    mute_kind: Option<mahfel_domain::MuteKind>,
     actor_id: ActorId,
     chat_subscriptions: HashMap<RoomId, i64>,
     last_typing: HashMap<RoomId, std::time::Instant>,
@@ -56,7 +60,7 @@ struct Inner {
     max_connections: usize,
     reserved: AtomicUsize,
     connections: Mutex<HashMap<Uuid, Connection>>,
-    generations: Mutex<HashMap<(SessionId, ActorId), u64>>,
+    generation: AtomicU64,
     lifecycle_locks: Mutex<HashMap<LifecycleKey, Weak<LifecycleLock>>>,
     metrics: WsMetrics,
 }
@@ -72,7 +76,7 @@ impl ConnectionRegistry {
                 max_connections,
                 reserved: AtomicUsize::new(0),
                 connections: Mutex::new(HashMap::new()),
-                generations: Mutex::new(HashMap::new()),
+                generation: AtomicU64::new(0),
                 lifecycle_locks: Mutex::new(HashMap::new()),
                 metrics,
             }),
@@ -119,10 +123,14 @@ impl ConnectionRegistry {
         actor_id: ActorId,
         sender: mpsc::Sender<Outbound>,
     ) -> RegisteredConnection {
+        let (close, stopped) = watch::channel(false);
         self.lock().insert(
             id,
             Connection {
                 sender,
+                close,
+                close_message: None,
+                mute_kind: None,
                 actor_id,
                 chat_subscriptions: HashMap::new(),
                 last_typing: HashMap::new(),
@@ -137,22 +145,18 @@ impl ConnectionRegistry {
         RegisteredConnection {
             registry: self.clone(),
             id,
+            stopped,
         }
+    }
+
+    pub(crate) fn close_message(&self, id: Uuid) -> Option<ServerMessage> {
+        self.lock()
+            .get(&id)
+            .and_then(|connection| connection.close_message.clone())
     }
 
     fn unregister(&self, id: Uuid) {
         self.lock().remove(&id);
-    }
-
-    fn actor_of(&self, id: Uuid) -> Option<ActorId> {
-        self.lock().get(&id).map(|connection| connection.actor_id)
-    }
-
-    fn generations(&self) -> MutexGuard<'_, HashMap<(SessionId, ActorId), u64>> {
-        self.inner
-            .generations
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner)
     }
 
     fn lock(&self) -> MutexGuard<'_, HashMap<Uuid, Connection>> {
@@ -178,9 +182,14 @@ impl Drop for ConnectionGuard {
 pub struct RegisteredConnection {
     registry: ConnectionRegistry,
     id: Uuid,
+    stopped: watch::Receiver<bool>,
 }
 
 impl RegisteredConnection {
+    pub fn stopped(&self) -> watch::Receiver<bool> {
+        self.stopped.clone()
+    }
+
     #[must_use]
     pub fn id(&self) -> Uuid {
         self.id

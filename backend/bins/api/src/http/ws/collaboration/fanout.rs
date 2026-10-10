@@ -32,6 +32,17 @@ impl Fanout {
             node_id: Uuid::new_v4(),
             channels: Mutex::new(HashMap::new()),
         });
+        let sweeper = Arc::clone(&fanout);
+        let mut sweep_shutdown = shutdown.clone();
+        tokio::spawn(async move {
+            let mut tick = tokio::time::interval(Duration::from_secs(5));
+            loop {
+                tokio::select! {
+                    _ = sweep_shutdown.changed() => return,
+                    _ = tick.tick() => sweeper.prune(),
+                }
+            }
+        });
         let receiver = Arc::clone(&fanout);
         tokio::spawn(async move {
             let channel = receiver.redis.keys().channel("collaboration-awareness");
@@ -82,11 +93,19 @@ impl Fanout {
             .subscribe()
     }
 
+    fn prune(&self) {
+        self.channels
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .retain(|_, sender| sender.receiver_count() > 0);
+    }
+
     fn deliver(&self, notice: AwarenessNotice) {
-        let channels = self
+        let mut channels = self
             .channels
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner);
+        channels.retain(|_, sender| sender.receiver_count() > 0);
         if let Some(sender) = channels.get(&notice.document_id) {
             let _ = sender.send(notice);
         }

@@ -11,12 +11,10 @@
 
 use super::error::AdmissionOperationError;
 use super::request::target_kind;
-use crate::ports::{
-    AdmissionStore, ParticipantStore, ParticipationStore, RoomStore, SessionStore, StoreError,
-};
+use crate::ports::{AdmissionStore, RoomStore, SessionStore};
 use mahfel_domain::{
-    ActorId, AdmissionRequest, AdmissionRequestStatus, AdmissionTarget, Participant,
-    ParticipationInterval, RoomId, RoomMember, RoomRole, SessionStatus,
+    ActorId, AdmissionRequest, AdmissionRequestStatus, AdmissionTarget, Participant, RoomId,
+    SessionStatus,
 };
 use time::OffsetDateTime;
 
@@ -59,18 +57,15 @@ where
 
 /// Approve a waiting principal.
 ///
-/// A session request is created before the request is marked admitted, so a
-/// failure leaves the request pending and retryable rather than reporting a
-/// decision that granted nothing.
+/// The store commits the decision and grant atomically. A failed grant leaves
+/// the request pending; a rejection that wins the race grants nothing.
 ///
 /// # Errors
 /// [`AdmissionOperationError::NotFound`] when the target is missing,
 /// [`AdmissionOperationError::Forbidden`] when the caller does not manage its
 /// room, [`AdmissionOperationError::NotWaiting`] when nothing is pending,
 /// [`AdmissionOperationError::AlreadyDecided`] on a racing decision.
-pub async fn admit<P, Q, A, T, R>(
-    participants: &P,
-    participation: &Q,
+pub async fn admit<A, T, R>(
     admissions: &A,
     sessions: &T,
     rooms: &R,
@@ -78,8 +73,6 @@ pub async fn admit<P, Q, A, T, R>(
     now: OffsetDateTime,
 ) -> Result<AdmissionGrant, AdmissionOperationError>
 where
-    P: ParticipantStore + ?Sized,
-    Q: ParticipationStore + ?Sized,
     A: AdmissionStore + ?Sized,
     T: SessionStore + ?Sized,
     R: RoomStore + ?Sized,
@@ -87,45 +80,19 @@ where
     let request = load_decidable(admissions, command.target, command.subject).await?;
     let room_id = authorize(rooms, sessions, request.target, command.actor).await?;
 
-    let granted = match request.target {
-        AdmissionTarget::Session(session_id) => {
-            let session = sessions
-                .get(session_id)
-                .await?
-                .ok_or(AdmissionOperationError::NotFound)?;
-            if session.status != SessionStatus::Live {
-                return Err(AdmissionOperationError::NotLive);
-            }
-            let participant =
-                ensure_participant(participants, session_id, command.subject, now).await?;
-            open_interval(participation, &participant, now).await?;
-            AdmissionGrant::Participant(participant)
+    if let AdmissionTarget::Session(session_id) = request.target {
+        let session = sessions
+            .get(session_id)
+            .await?
+            .ok_or(AdmissionOperationError::NotFound)?;
+        if session.status != SessionStatus::Live {
+            return Err(AdmissionOperationError::NotLive);
         }
-        AdmissionTarget::Room(room_id) => {
-            // Durable onboarding. The link must never grant management, so the
-            // role is fixed rather than taken from the request.
-            let member = RoomMember::new(room_id, command.subject, RoomRole::Member, now);
-            match rooms.add_member(&member).await {
-                Ok(()) => {}
-                // Already a member: still an approval, and idempotent.
-                Err(StoreError::Conflict(_)) => {}
-                Err(error) => return Err(error.into()),
-            }
-            AdmissionGrant::Membership { room_id }
-        }
-    };
-
-    let decided = admissions
-        .decide_if_pending(
-            request.id,
-            AdmissionRequestStatus::Admitted,
-            Some(command.actor),
-            now,
-        )
-        .await?;
-    if !decided {
-        return Err(AdmissionOperationError::AlreadyDecided);
     }
+    let granted = admissions
+        .approve_pending(request.id, command.actor, now)
+        .await?
+        .ok_or(AdmissionOperationError::AlreadyDecided)?;
 
     tracing::info!(
         target: "audit",
@@ -253,54 +220,4 @@ where
     };
     crate::rooms::require_manager(rooms, room_id, actor).await?;
     Ok(room_id)
-}
-
-/// Resolve the participant for an admitted principal, reusing an existing one.
-///
-/// Reuse matters: a principal who reconnected while waiting must keep one
-/// identity per `(session, actor)` rather than gaining a second.
-async fn ensure_participant<P>(
-    participants: &P,
-    session_id: mahfel_domain::SessionId,
-    actor: ActorId,
-    now: OffsetDateTime,
-) -> Result<Participant, AdmissionOperationError>
-where
-    P: ParticipantStore + ?Sized,
-{
-    if let Some(existing) = participants.get_active(session_id, actor).await? {
-        return Ok(existing);
-    }
-    let participant = Participant::join(session_id, actor, now);
-    match participants.insert(&participant).await {
-        Ok(()) => Ok(participant),
-        Err(StoreError::Conflict(_)) => participants
-            .get_active(session_id, actor)
-            .await?
-            .ok_or(AdmissionOperationError::NotFound),
-        Err(error) => Err(error.into()),
-    }
-}
-
-async fn open_interval<Q>(
-    participation: &Q,
-    participant: &Participant,
-    now: OffsetDateTime,
-) -> Result<(), AdmissionOperationError>
-where
-    Q: ParticipationStore + ?Sized,
-{
-    let interval = ParticipationInterval::open(
-        participant.id,
-        participant.session_id,
-        participant.actor_id,
-        now,
-    );
-    match participation.open_interval(&interval).await {
-        Ok(()) => Ok(()),
-        // An interval already covers this principal; it still records the
-        // connection, so this is not a failure.
-        Err(StoreError::Conflict(_)) => Ok(()),
-        Err(error) => Err(error.into()),
-    }
 }

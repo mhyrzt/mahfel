@@ -14,6 +14,8 @@ const MAX_PER_PAGE: u64 = 100;
 pub enum PaginationError {
     #[error("page must be at least 1")]
     PageTooSmall,
+    #[error("page exceeds the supported offset range")]
+    PageTooLarge,
     #[error("per_page must be between 1 and {max}")]
     PerPageOutOfRange { max: u64 },
 }
@@ -55,12 +57,18 @@ impl PaginationParams {
         if self.per_page == 0 || self.per_page > MAX_PER_PAGE {
             return Err(PaginationError::PerPageOutOfRange { max: MAX_PER_PAGE });
         }
+        if (self.page - 1)
+            .checked_mul(self.per_page)
+            .is_none_or(|offset| offset > i64::MAX as u64)
+        {
+            return Err(PaginationError::PageTooLarge);
+        }
         Ok(self)
     }
 
     #[must_use]
     pub const fn offset(self) -> u64 {
-        (self.page - 1) * self.per_page
+        self.page.saturating_sub(1).saturating_mul(self.per_page)
     }
 
     #[must_use]
@@ -147,6 +155,32 @@ mod tests {
             err,
             PaginationError::PerPageOutOfRange { max: MAX_PER_PAGE }
         );
+    }
+
+    #[test]
+    fn rejects_offsets_outside_postgres_range() {
+        for page in [u64::MAX, (i64::MAX as u64 / 100) + 2] {
+            assert_eq!(
+                PaginationParams {
+                    page,
+                    per_page: 100
+                }
+                .validate()
+                .expect_err("invalid offset"),
+                PaginationError::PageTooLarge
+            );
+        }
+    }
+
+    #[test]
+    fn accepts_largest_supported_offset() {
+        let params = PaginationParams {
+            page: i64::MAX as u64 + 1,
+            per_page: 1,
+        }
+        .validate()
+        .expect("representable offset");
+        assert_eq!(params.offset(), i64::MAX as u64);
     }
 
     #[test]

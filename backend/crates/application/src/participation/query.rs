@@ -4,6 +4,7 @@ use crate::rooms::require_manager;
 use mahfel_domain::{
     ActorId, ParticipantId, ParticipationInterval, SessionId, total_connected_seconds,
 };
+use std::collections::HashMap;
 use time::OffsetDateTime;
 
 /// One participant's contribution to a session, for a summary view.
@@ -58,24 +59,21 @@ where
     // The session end stops the clock for anything still open.
     let closes_at = session.ended_at;
     let mut participants: Vec<ParticipantSummary> = Vec::new();
+    let mut participant_indexes = HashMap::new();
     for interval in &intervals {
-        let entry = match participants
-            .iter_mut()
-            .find(|entry| entry.participant_id == interval.participant_id)
-        {
-            Some(entry) => entry,
-            None => {
+        let index = *participant_indexes
+            .entry(interval.participant_id)
+            .or_insert_with(|| {
+                let index = participants.len();
                 participants.push(ParticipantSummary {
                     participant_id: interval.participant_id,
                     actor_id: interval.actor_id,
                     connected_seconds: 0,
                     corrected_intervals: 0,
                 });
-                participants
-                    .last_mut()
-                    .expect("just pushed a participant summary")
-            }
-        };
+                index
+            });
+        let entry = &mut participants[index];
         if interval.is_superseded() {
             entry.corrected_intervals += 1;
             continue;

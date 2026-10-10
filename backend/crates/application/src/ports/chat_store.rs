@@ -10,6 +10,13 @@ pub type ChatReactionSnapshot = (Vec<(String, i64)>, Option<String>);
 
 /// Persistence for room-scoped chat channels and their durable messages.
 pub trait ChatStore: Send + Sync {
+    /// Current members authorized for fanout; never cache across delivery batches.
+    fn authorized_subscribers<'a>(
+        &'a self,
+        room_id: RoomId,
+        actors: &'a [ActorId],
+    ) -> BoxFuture<'a, Result<Vec<ActorId>, StoreError>>;
+
     /// Private per-actor cursor, checked against current room membership.
     fn read_marker(
         &self,

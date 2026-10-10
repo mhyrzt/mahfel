@@ -85,6 +85,13 @@ impl FileStore for FakeFileStore {
     ) -> BoxFuture<'_, Result<Vec<FileObject>, StoreError>> {
         Box::pin(async { Ok(Vec::new()) })
     }
+    fn list_avatars<'a>(
+        &'a self,
+        _actors: &'a [ActorId],
+    ) -> BoxFuture<'a, Result<Vec<FileObject>, StoreError>> {
+        Box::pin(async { Ok(Vec::new()) })
+    }
+
     fn list_for_messages<'a>(
         &'a self,
         _message_ids: &'a [ChatMessageId],
@@ -162,6 +169,18 @@ impl UserStore for FakeUserStore {
         })
     }
 
+    fn get_many<'a>(&'a self, ids: &'a [ActorId]) -> BoxFuture<'a, Result<Vec<User>, StoreError>> {
+        Box::pin(async move {
+            let mut users = Vec::new();
+            for id in ids {
+                if let Some(user) = self.get(*id).await? {
+                    users.push(user);
+                }
+            }
+            Ok(users)
+        })
+    }
+
     fn insert<'a>(&'a self, _user: &'a User) -> BoxFuture<'a, Result<(), StoreError>> {
         Box::pin(async { Ok(()) })
     }
@@ -219,6 +238,14 @@ impl FileStorage for FakeFileStorage {
 struct FakeChatStore;
 
 impl ChatStore for FakeChatStore {
+    fn authorized_subscribers<'a>(
+        &'a self,
+        _room: RoomId,
+        actors: &'a [ActorId],
+    ) -> BoxFuture<'a, Result<Vec<ActorId>, StoreError>> {
+        Box::pin(async move { Ok(actors.to_vec()) })
+    }
+
     fn read_marker(
         &self,
         _room_id: RoomId,
@@ -539,6 +566,35 @@ impl RoomStore for FakeRoomStore {
         })
     }
 
+    fn update_member<'a>(
+        &'a self,
+        member: &'a RoomMember,
+    ) -> BoxFuture<'a, Result<bool, StoreError>> {
+        Box::pin(async move {
+            let mut inner = self.inner.lock().expect("fake store lock");
+            let members = &mut inner.members;
+            let managers = members
+                .iter()
+                .filter(|existing| {
+                    existing.room_id == member.room_id && existing.role == RoomRole::Manager
+                })
+                .count();
+            let Some(existing) = members.iter_mut().find(|existing| {
+                existing.room_id == member.room_id && existing.actor_id == member.actor_id
+            }) else {
+                return Ok(false);
+            };
+            if existing.role == RoomRole::Manager
+                && member.role != RoomRole::Manager
+                && managers <= 1
+            {
+                return Ok(false);
+            }
+            *existing = member.clone();
+            Ok(true)
+        })
+    }
+
     fn remove_member(
         &self,
         room_id: RoomId,
@@ -687,6 +743,24 @@ impl SessionStore for FakeSessionStore {
             }
             slot.updated_at = session.updated_at;
             Ok(slot.clone())
+        })
+    }
+
+    fn list_for_room_page(
+        &self,
+        room_id: RoomId,
+        status: Option<mahfel_domain::SessionStatus>,
+        limit: u64,
+        offset: u64,
+    ) -> BoxFuture<'_, Result<Vec<Session>, StoreError>> {
+        Box::pin(async move {
+            let sessions = self.list_for_room(room_id).await?;
+            Ok(sessions
+                .into_iter()
+                .filter(|session| status.is_none_or(|status| session.status == status))
+                .skip(usize::try_from(offset).unwrap_or(usize::MAX))
+                .take(usize::try_from(limit.min(100)).expect("bounded limit"))
+                .collect())
         })
     }
 
@@ -1377,6 +1451,10 @@ impl BlockStore for FakeBlockStore {
 #[derive(Clone, Default)]
 struct FakeAdmissionStore {
     requests: Arc<Mutex<Vec<AdmissionRequest>>>,
+    rooms: FakeRoomStore,
+    sessions: FakeSessionStore,
+    participants: FakeParticipantStore,
+    participation: FakeParticipationStore,
 }
 
 impl FakeAdmissionStore {
@@ -1515,6 +1593,112 @@ impl AdmissionStore for FakeAdmissionStore {
             request.decided_at = Some(decided_at);
             request.decided_by = decided_by;
             Ok(true)
+        })
+    }
+
+    fn approve_pending(
+        &self,
+        id: AdmissionRequestId,
+        actor: ActorId,
+        now: OffsetDateTime,
+    ) -> BoxFuture<
+        '_,
+        Result<
+            Option<mahfel_application::admission::AdmissionGrant>,
+            mahfel_application::admission::AdmissionOperationError,
+        >,
+    > {
+        Box::pin(async move {
+            use mahfel_application::admission::{AdmissionGrant, AdmissionOperationError};
+            let mut requests = self.requests.lock().expect("lock");
+            let Some(request) = requests
+                .iter_mut()
+                .find(|request| request.id == id && request.is_pending())
+            else {
+                return Ok(None);
+            };
+            let session = match request.target {
+                AdmissionTarget::Session(id) => {
+                    let session = self
+                        .sessions
+                        .sessions
+                        .lock()
+                        .expect("lock")
+                        .iter()
+                        .find(|session| session.id == id)
+                        .cloned()
+                        .ok_or(AdmissionOperationError::NotFound)?;
+                    if session.status != mahfel_domain::SessionStatus::Live {
+                        return Err(AdmissionOperationError::NotLive);
+                    }
+                    Some(session)
+                }
+                AdmissionTarget::Room(_) => None,
+            };
+            let room_id = match request.target {
+                AdmissionTarget::Room(room_id) => room_id,
+                AdmissionTarget::Session(_) => session.as_ref().expect("session target").room_id,
+            };
+            let manager = {
+                let inner = self.rooms.inner.lock().expect("lock");
+                inner.members.iter().any(|member| {
+                    member.room_id == room_id
+                        && member.actor_id == actor
+                        && member.role == RoomRole::Manager
+                })
+            };
+            if !manager {
+                return Err(AdmissionOperationError::Forbidden);
+            }
+            let grant = match request.target {
+                AdmissionTarget::Session(session_id) => {
+                    let mut participants = self.participants.participants.lock().expect("lock");
+                    let participant = if let Some(existing) =
+                        participants.iter().find(|participant| {
+                            participant.session_id == session_id
+                                && participant.actor_id == request.actor_id
+                                && participant.status == mahfel_domain::ParticipantStatus::Active
+                        }) {
+                        existing.clone()
+                    } else {
+                        let participant =
+                            mahfel_domain::Participant::join(session_id, request.actor_id, now);
+                        participants.push(participant.clone());
+                        participant
+                    };
+                    let mut intervals = self.participation.intervals.lock().expect("lock");
+                    if !intervals.iter().any(|interval| {
+                        interval.participant_id == participant.id && interval.is_open()
+                    }) {
+                        intervals.push(mahfel_domain::ParticipationInterval::open(
+                            participant.id,
+                            session_id,
+                            request.actor_id,
+                            now,
+                        ));
+                    }
+                    AdmissionGrant::Participant(participant)
+                }
+                AdmissionTarget::Room(room_id) => {
+                    let mut inner = self.rooms.inner.lock().expect("lock");
+                    let members = &mut inner.members;
+                    if !members.iter().any(|member| {
+                        member.room_id == room_id && member.actor_id == request.actor_id
+                    }) {
+                        members.push(RoomMember::new(
+                            room_id,
+                            request.actor_id,
+                            RoomRole::Member,
+                            now,
+                        ));
+                    }
+                    AdmissionGrant::Membership { room_id }
+                }
+            };
+            request.status = AdmissionRequestStatus::Admitted;
+            request.decided_by = Some(actor);
+            request.decided_at = Some(now);
+            Ok(Some(grant))
         })
     }
 
@@ -2549,6 +2733,54 @@ async fn manager_can_add_and_remove_a_member() {
 }
 
 #[tokio::test]
+async fn role_changes_persist_and_last_manager_cannot_be_demoted() {
+    let store = FakeRoomStore::default();
+    let room = store.seed_room("Algebra", principal().actor_id, RoomVisibility::InviteOnly);
+    let target = other_principal().actor_id;
+    store.add_raw_member(room.id, target, RoomRole::Member);
+    let app = authenticated_room_app(principal(), store.clone());
+    for (role, expected) in [("manager", RoomRole::Manager), ("member", RoomRole::Member)] {
+        let response = send_json(
+            &app,
+            Method::PATCH,
+            &format!("/v1/rooms/{}/members/{target}", room.id),
+            &format!(r#"{{"user_id":"{target}","role":"{role}"}}"#),
+        )
+        .await;
+        assert_eq!(response.status(), StatusCode::OK);
+        assert_eq!(
+            store
+                .get_member(room.id, target)
+                .await
+                .expect("store")
+                .expect("member")
+                .role,
+            expected
+        );
+    }
+    let response = send_json(
+        &app,
+        Method::PATCH,
+        &format!("/v1/rooms/{}/members/{}", room.id, principal().actor_id),
+        &format!(
+            r#"{{"user_id":"{}","role":"member"}}"#,
+            principal().actor_id
+        ),
+    )
+    .await;
+    assert!(response.status().is_client_error());
+    assert_eq!(
+        store
+            .get_member(room.id, principal().actor_id)
+            .await
+            .expect("store")
+            .expect("owner")
+            .role,
+        RoomRole::Manager
+    );
+}
+
+#[tokio::test]
 async fn manager_can_list_room_members() {
     let store = FakeRoomStore::default();
     let room = store.seed_room("Algebra", principal().actor_id, RoomVisibility::InviteOnly);
@@ -2881,7 +3113,67 @@ async fn manager_can_schedule_start_and_end_a_session() {
     let resp = app.oneshot(req).await.expect("response");
     assert_eq!(resp.status(), StatusCode::OK);
     let json = response_json(resp).await;
-    assert_eq!(json.as_array().map(Vec::len), Some(1));
+    assert_eq!(json["data"].as_array().map(Vec::len), Some(1));
+}
+
+#[tokio::test]
+async fn room_session_history_is_paginated_and_status_filtered() {
+    let rooms = FakeRoomStore::default();
+    let room = rooms.seed_room("History", principal().actor_id, RoomVisibility::InviteOnly);
+    let sessions = FakeSessionStore::default();
+    let now = OffsetDateTime::now_utc();
+    let mut live = Session::schedule(room.id, None, now - time::Duration::days(1));
+    live.start(now).expect("live");
+    sessions.seed(live.clone());
+    for index in 0..25 {
+        sessions.seed(Session::schedule(
+            room.id,
+            None,
+            now + time::Duration::seconds(index),
+        ));
+    }
+    let app = session_app(Some(principal()), rooms, sessions);
+    for (query, length, page) in [
+        ("", 20, 1),
+        ("?page=2", 6, 2),
+        ("?status=live&per_page=1", 1, 1),
+    ] {
+        let response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .uri(format!("/v1/rooms/{}/sessions{query}", room.id))
+                    .body(Body::empty())
+                    .expect("request"),
+            )
+            .await
+            .expect("response");
+        assert_eq!(response.status(), StatusCode::OK);
+        let data = response_json(response).await;
+        assert_eq!(data["data"].as_array().expect("page data").len(), length);
+        assert_eq!(data["pagination"]["page"], page);
+        if query.contains("status=live") {
+            assert_eq!(data["data"][0]["id"], live.id.to_string());
+        }
+    }
+    for query in [
+        "?page=0",
+        "?per_page=101",
+        "?page=18446744073709551615",
+        "?status=unknown",
+    ] {
+        let response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .uri(format!("/v1/rooms/{}/sessions{query}", room.id))
+                    .body(Body::empty())
+                    .expect("request"),
+            )
+            .await
+            .expect("response");
+        assert!(response.status().is_client_error());
+    }
 }
 
 #[tokio::test]
@@ -3656,28 +3948,19 @@ async fn websocket_authenticates_and_echoes() {
 }
 
 #[tokio::test]
-async fn websocket_broadcasts_to_all_clients() {
+async fn websocket_global_broadcast_is_rejected_without_peer_fanout() {
     let harness = serve_ws(Some(principal()), WsConfig::default()).await;
     let mut first = connect(harness.addr).await;
     let mut second = connect(harness.addr).await;
     authenticate(&mut first).await;
     authenticate(&mut second).await;
-
     send(&mut first, r#"{"v":1,"type":"broadcast","text":"ping"}"#).await;
-
-    let from_sender = next(&mut first).await;
-    let from_peer = next(&mut second).await;
+    let denied = next(&mut first).await;
+    assert!(denied.to_text().expect("text").contains("unsupported"));
     assert!(
-        from_sender
-            .to_text()
-            .expect("text")
-            .contains(r#""type":"broadcast""#)
-    );
-    assert!(
-        from_peer
-            .to_text()
-            .expect("text")
-            .contains(r#""text":"ping""#)
+        tokio::time::timeout(Duration::from_millis(100), second.next())
+            .await
+            .is_err()
     );
 }
 
@@ -4346,6 +4629,86 @@ fn participation_fixture() -> (
     session.start(OffsetDateTime::now_utc()).expect("start");
     sessions.seed(session.clone());
     (rooms, sessions, FakeParticipantStore::default(), session)
+}
+
+#[tokio::test]
+async fn websocket_rejects_unjoined_media_sequential_joins_and_foreign_resources() {
+    let (rooms, sessions, participants, session) = participation_fixture();
+    let mut other = Session::schedule(session.room_id, None, OffsetDateTime::now_utc());
+    other
+        .start(OffsetDateTime::now_utc())
+        .expect("start other session");
+    sessions.seed(other.clone());
+    let harness = serve_ws_with(Some(principal()), rooms, sessions, participants.clone()).await;
+    let mut socket = connect(harness.addr).await;
+    authenticate(&mut socket).await;
+    send(
+        &mut socket,
+        &format!(
+            r#"{{"v":1,"id":"unjoined","type":"create_transport","room_id":"{}"}}"#,
+            session.room_id
+        ),
+    )
+    .await;
+    assert!(
+        next(&mut socket)
+            .await
+            .to_text()
+            .expect("text")
+            .contains("not_joined")
+    );
+    send(
+        &mut socket,
+        &format!(r#"{{"v":1,"type":"join","session_id":"{}"}}"#, session.id),
+    )
+    .await;
+    assert!(
+        next(&mut socket)
+            .await
+            .to_text()
+            .expect("text")
+            .contains(r#""type":"joined""#)
+    );
+    for target in [session.id, other.id] {
+        send(
+            &mut socket,
+            &format!(r#"{{"v":1,"type":"join","session_id":"{target}"}}"#),
+        )
+        .await;
+        loop {
+            let message = next(&mut socket).await;
+            if message.to_text().expect("text").contains("already_joined") {
+                break;
+            }
+        }
+    }
+    assert!(
+        participants
+            .get_active(other.id, principal().actor_id)
+            .await
+            .expect("lookup")
+            .is_none()
+    );
+    for message in [
+        format!(
+            r#"{{"v":1,"id":"foreign","type":"connect_transport","room_id":"{}","transport_id":"foreign","dtls_parameters":"{{}}"}}"#,
+            session.room_id
+        ),
+        format!(
+            r#"{{"v":1,"id":"foreign","type":"pause_consumer","room_id":"{}","consumer_id":"foreign"}}"#,
+            session.room_id
+        ),
+    ] {
+        send(&mut socket, &message).await;
+        loop {
+            let message = next(&mut socket).await;
+            let text = message.to_text().expect("text");
+            if text.contains(r#""id":"foreign""#) {
+                assert!(text.contains("forbidden"), "{text}");
+                break;
+            }
+        }
+    }
 }
 
 #[tokio::test]
@@ -5412,7 +5775,13 @@ fn admission_app(
     sessions: FakeSessionStore,
     admissions: FakeAdmissionStore,
 ) -> Router {
-    let realtime = ws_state(principal.clone());
+    let mut admissions = admissions;
+    admissions.rooms = rooms.clone();
+    admissions.sessions = sessions.clone();
+    let mut realtime = ws_state(principal.clone());
+    realtime.stores.participants = Arc::new(admissions.participants.clone());
+    realtime.stores.participation = Arc::new(admissions.participation.clone());
+    realtime.stores.admissions = Arc::new(admissions.clone());
     let (service_auth, service_principals) = service_seams(FakeServicePrincipalStore::default());
     api_router(AppState {
         interactions: None,
@@ -5435,7 +5804,7 @@ fn admission_app(
         rooms: Arc::new(rooms),
         users: Arc::new(FakeUserStore::default()),
         sessions: Arc::new(sessions),
-        participation: Arc::new(FakeParticipationStore::default()),
+        participation: Arc::new(admissions.participation.clone()),
         admissions: Arc::new(admissions),
         invites: Arc::new(FakeInviteStore::default()),
         code_index: Arc::new(FakeCoordination::default()),

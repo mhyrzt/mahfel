@@ -8,4 +8,4 @@ mod room;
 mod transport;
 
 pub use error::MediaClientError;
-pub use gateway::{GrpcMediaGateway, lazy};
+pub use gateway::{GrpcMediaGateway, MediaAuthorization, MediaControlClient, lazy};

@@ -100,6 +100,25 @@ pub(super) async fn create_consumer(
     let paused = consumer.paused();
     let consumer_id = consumer.id().to_string();
 
+    let transport_map = transports.read().await;
+    if !transport_map
+        .get(transport_id)
+        .is_some_and(|entry| entry.room_id == room_id && entry.participant_id == participant_id)
+    {
+        return Err(RtcError::TransportNotFound {
+            transport_id: transport_id.to_owned(),
+        });
+    }
+    let producer_map = producers.read().await;
+    if !producer_map
+        .get(producer_id)
+        .is_some_and(|entry| entry.room_id == room_id)
+        || consumer.closed()
+    {
+        return Err(RtcError::ProducerNotFound {
+            producer_id: producer_id.to_owned(),
+        });
+    }
     consumers.write().await.insert(
         consumer_id.clone(),
         ConsumerEntry {
@@ -130,8 +149,9 @@ pub(super) async fn pause_consumer(
             consumer_id: consumer_id.to_owned(),
         });
     }
-    entry
-        .consumer
+    let consumer = entry.consumer.clone();
+    drop(map);
+    consumer
         .pause()
         .await
         .map_err(|e| RtcError::Consumer(e.to_string()))?;
@@ -154,8 +174,9 @@ pub(super) async fn resume_consumer(
             consumer_id: consumer_id.to_owned(),
         });
     }
-    entry
-        .consumer
+    let consumer = entry.consumer.clone();
+    drop(map);
+    consumer
         .resume()
         .await
         .map_err(|e| RtcError::Consumer(e.to_string()))?;

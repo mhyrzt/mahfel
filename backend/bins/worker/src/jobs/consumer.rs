@@ -1,4 +1,4 @@
-use anyhow::{Context, Result, anyhow};
+use anyhow::{Result, anyhow};
 use mahfel_config::WorkerSettings;
 use mahfel_messaging::JobConsumer;
 use mahfel_postgres::{JobStore, PostgresFileStore};
@@ -22,7 +22,13 @@ pub(super) async fn consume_loop(
         tokio::select! {
             _ = shutdown.changed() => break,
             result = active.join_next(), if !active.is_empty() => {
-                if let Some(result) = result { result.context("job task")??; }
+                if let Some(result) = result {
+                    match result {
+                        Ok(Ok(())) => {},
+                        Ok(Err(error)) => tracing::warn!(%error, "job delivery failed; other deliveries remain active"),
+                        Err(error) => tracing::warn!(%error, "job task failed; claim recovery will permit redelivery"),
+                    }
+                }
             }
             delivery = consumer.next(), if active.len() < settings.concurrency => {
                 let Some(delivery) = delivery else { return Err(anyhow!("consumer stream closed")) };
@@ -35,7 +41,11 @@ pub(super) async fn consume_loop(
     let drained =
         tokio::time::timeout(Duration::from_secs(settings.drain_timeout_seconds), async {
             while let Some(result) = active.join_next().await {
-                result.context("draining job")??;
+                match result {
+                    Ok(Ok(())) => {}
+                    Ok(Err(error)) => tracing::warn!(%error, "job delivery failed while draining"),
+                    Err(error) => tracing::warn!(%error, "job task failed while draining"),
+                }
             }
             Ok::<(), anyhow::Error>(())
         })

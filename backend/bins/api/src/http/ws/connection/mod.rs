@@ -6,6 +6,7 @@
 //! frame dispatch in [`dispatch`].
 
 mod dispatch;
+mod limits;
 mod session;
 mod writer;
 

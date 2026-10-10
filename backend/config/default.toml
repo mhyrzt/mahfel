@@ -1,4 +1,6 @@
 [api]
+# Explicit local fixture; override both API/media tokens outside development.
+control_token = "mahfel-local-only-media-control-token"
 http_bind = "0.0.0.0:8080"
 operations_bind = "0.0.0.0:9101"
 media_grpc_url = "http://mahfel-media:50051"
@@ -58,6 +60,7 @@ secret_key = "mahfel-local-only-secret"
 force_path_style = true
 
 [media]
+control_token = "mahfel-local-only-media-control-token"
 grpc_bind = "0.0.0.0:50051"
 operations_bind = "0.0.0.0:9102"
 worker_count = 4

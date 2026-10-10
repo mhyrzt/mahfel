@@ -1,12 +1,16 @@
-use mahfel_application::ports::{AdmissionStore, RoomStore, SessionStore, StoreError, UserStore};
+use mahfel_application::ports::{
+    AdmissionStore, ParticipantStore, ParticipationStore, RoomStore, SessionStore, StoreError,
+    UserStore,
+};
 use mahfel_domain::{
     ActorId, AdmissionOrigin, AdmissionPolicy, AdmissionRequest, AdmissionRequestStatus,
     AdmissionTarget, DisplayName, Room, RoomMember, RoomRole, RoomTitle, RoomVisibility, Session,
     SessionVisibility, User,
 };
 use mahfel_postgres::{
-    ConnectionSettings, PoolSettings, PostgresAdmissionStore, PostgresRoomStore,
-    PostgresSessionStore, PostgresUserStore, connect, migrate,
+    ConnectionSettings, PoolSettings, PostgresAdmissionStore, PostgresParticipantStore,
+    PostgresParticipationStore, PostgresRoomStore, PostgresSessionStore, PostgresUserStore,
+    connect, migrate,
 };
 use sqlx::PgPool;
 use std::{error::Error, time::Duration};
@@ -150,6 +154,40 @@ async fn verify_admission(pool: &PgPool) -> Result<(), Box<dyn Error>> {
             &RoomMember::new(room.id, manager.id, RoomRole::Manager, base),
         )
         .await?;
+    let mut second_manager = RoomMember::new(room.id, member.id, RoomRole::Member, base);
+    rooms.add_member(&second_manager).await?;
+    second_manager.change_role(RoomRole::Manager, base + time::Duration::seconds(1));
+    assert!(rooms.update_member(&second_manager).await?);
+    assert_eq!(
+        rooms
+            .get_member(room.id, member.id)
+            .await?
+            .expect("updated member")
+            .role,
+        RoomRole::Manager
+    );
+    let mut first_manager = rooms
+        .get_member(room.id, manager.id)
+        .await?
+        .expect("manager");
+    first_manager.change_role(RoomRole::Member, base + time::Duration::seconds(2));
+    second_manager.change_role(RoomRole::Member, base + time::Duration::seconds(2));
+    let (first, second) = tokio::join!(
+        rooms.update_member(&first_manager),
+        rooms.update_member(&second_manager)
+    );
+    assert_ne!(first?, second?, "only one concurrent demotion may succeed");
+    let remaining = rooms
+        .list_members(room.id)
+        .await?
+        .into_iter()
+        .filter(|membership| membership.role == RoomRole::Manager)
+        .count();
+    assert_eq!(
+        remaining, 1,
+        "the last manager is preserved transactionally"
+    );
+
     let stored_room = rooms.get(room.id).await?.expect("stored room");
     assert_eq!(stored_room.admission, AdmissionPolicy::Lobby);
 
@@ -350,6 +388,36 @@ async fn verify_admission(pool: &PgPool) -> Result<(), Box<dyn Error>> {
         1
     );
 
+    let other_room = Room::create(
+        RoomTitle::new("Second classroom".to_owned())?,
+        manager.id,
+        RoomVisibility::Public,
+        base,
+    );
+    rooms
+        .create_with_manager(
+            &other_room,
+            &RoomMember::new(other_room.id, manager.id, RoomRole::Manager, base),
+        )
+        .await?;
+    let other_request = AdmissionRequest::new(
+        AdmissionTarget::Room(other_room.id),
+        member.id,
+        AdmissionOrigin::Join,
+        base,
+    );
+    admissions.insert(&other_request).await?;
+    for request in [&room_request, &other_request] {
+        assert_eq!(admissions.count_pending(request.target).await?, 1);
+        assert_eq!(
+            admissions
+                .get_pending(request.target, member.id)
+                .await?
+                .map(|pending| pending.id),
+            Some(request.id)
+        );
+    }
+
     // A room request is never retired by a session ending.
     let swept_room_scope = admissions
         .expire_pending_for_session(session.id, base + time::Duration::seconds(300))
@@ -360,6 +428,134 @@ async fn verify_admission(pool: &PgPool) -> Result<(), Box<dyn Error>> {
             .count_pending(AdmissionTarget::Room(room.id))
             .await?,
         1
+    );
+
+    let actual_manager = rooms
+        .list_members(room.id)
+        .await?
+        .into_iter()
+        .find(|membership| membership.role == RoomRole::Manager)
+        .expect("manager invariant")
+        .actor_id;
+    session.start(base + time::Duration::seconds(400))?;
+    sessions.save(&session).await?;
+    let participants = PostgresParticipantStore::new(pool.clone());
+    let participation = PostgresParticipationStore::new(pool.clone());
+    for target in [
+        AdmissionTarget::Room(room.id),
+        AdmissionTarget::Session(session.id),
+    ] {
+        for index in 0..12 {
+            let subject = User::create(
+                DisplayName::new(format!("Race participant {index}"))?,
+                mahfel_domain::EmailAddress::new("race@example.test".into())?,
+                mahfel_domain::Username::new(format!("race-{index}"))?,
+                base,
+            );
+            users.insert(&subject).await?;
+            let request = AdmissionRequest::new(target, subject.id, AdmissionOrigin::Join, base);
+            admissions.insert(&request).await?;
+            let (approved, rejected) = tokio::join!(
+                admissions.approve_pending(
+                    request.id,
+                    actual_manager,
+                    base + time::Duration::seconds(401)
+                ),
+                admissions.decide_if_pending(
+                    request.id,
+                    AdmissionRequestStatus::Rejected,
+                    Some(actual_manager),
+                    base + time::Duration::seconds(401)
+                ),
+            );
+            let approved = approved?;
+            let rejected = rejected?;
+            assert_eq!(approved.is_some(), !rejected, "exactly one decision wins");
+            let stored = admissions.get(request.id).await?.expect("request");
+            assert_eq!(
+                stored.status,
+                if rejected {
+                    AdmissionRequestStatus::Rejected
+                } else {
+                    AdmissionRequestStatus::Admitted
+                }
+            );
+            match target {
+                AdmissionTarget::Room(id) => assert_eq!(
+                    rooms.get_member(id, subject.id).await?.is_some(),
+                    !rejected,
+                    "rejecting grants no membership"
+                ),
+                AdmissionTarget::Session(id) => {
+                    let participant = participants.get_active(id, subject.id).await?;
+                    assert_eq!(
+                        participant.is_some(),
+                        !rejected,
+                        "rejecting grants no session access"
+                    );
+                    if let Some(participant) = participant {
+                        assert_eq!(
+                            participation
+                                .list_for_participant(participant.id)
+                                .await?
+                                .len(),
+                            1
+                        );
+                    }
+                }
+            }
+        }
+    }
+    let subject = User::create(
+        DisplayName::new("Rollback participant".into())?,
+        mahfel_domain::EmailAddress::new("rollback@example.test".into())?,
+        mahfel_domain::Username::new("rollback".into())?,
+        base,
+    );
+    users.insert(&subject).await?;
+    let rollback_request = AdmissionRequest::new(
+        AdmissionTarget::Session(session.id),
+        subject.id,
+        AdmissionOrigin::Join,
+        base,
+    );
+    admissions.insert(&rollback_request).await?;
+    sqlx::raw_sql("CREATE FUNCTION mahfel.fail_test_interval() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'injected participation failure'; END $$; CREATE TRIGGER fail_test_interval BEFORE INSERT ON mahfel.participation_intervals FOR EACH ROW EXECUTE FUNCTION mahfel.fail_test_interval();").execute(pool).await?;
+    let failed = admissions
+        .approve_pending(
+            rollback_request.id,
+            actual_manager,
+            base + time::Duration::seconds(402),
+        )
+        .await;
+    assert!(failed.is_err(), "grant failure is surfaced");
+    assert_eq!(
+        admissions
+            .get(rollback_request.id)
+            .await?
+            .expect("request")
+            .status,
+        AdmissionRequestStatus::Pending,
+        "decision rolls back with the failed grant"
+    );
+    assert!(
+        participants
+            .get_active(session.id, subject.id)
+            .await?
+            .is_none(),
+        "no participant survives a failed interval write"
+    );
+    sqlx::raw_sql("DROP TRIGGER fail_test_interval ON mahfel.participation_intervals; DROP FUNCTION mahfel.fail_test_interval();").execute(pool).await?;
+    assert!(
+        admissions
+            .approve_pending(
+                rollback_request.id,
+                actual_manager,
+                base + time::Duration::seconds(403)
+            )
+            .await?
+            .is_some(),
+        "rolled-back approval remains retryable"
     );
 
     let bad_policy = sqlx::query("UPDATE mahfel.rooms SET admission = 'waiting' WHERE id = $1")

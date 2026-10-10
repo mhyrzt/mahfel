@@ -39,10 +39,15 @@ async fn upgrade(
             "collaboration authentication unavailable",
         ));
     };
+    let Some(guard) = state.realtime.registry.try_acquire() else {
+        return Err(ApiError::unavailable(super::AT_CAPACITY));
+    };
+    let config = state.realtime.config.clone();
     Ok(ws
         .max_message_size(1024 * 1024)
         .max_frame_size(1024 * 1024)
-        .on_upgrade(move |socket| {
+        .on_upgrade(move |socket| async move {
+            let _guard = guard;
             connection::run(
                 socket,
                 SessionId::from_uuid(session_id),
@@ -50,6 +55,8 @@ async fn upgrade(
                 store,
                 fanout,
                 tickets,
+                config,
             )
+            .await
         }))
 }

@@ -19,6 +19,8 @@ pub struct ChatEventPayload {
     pub created_at: String,
     pub edited_at: Option<String>,
     pub deleted_at: Option<String>,
+    #[serde(default)]
+    pub attachment_ids: Vec<String>,
 }
 
 #[derive(

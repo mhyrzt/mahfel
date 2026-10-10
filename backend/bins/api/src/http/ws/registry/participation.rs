@@ -21,13 +21,11 @@ impl ConnectionRegistry {
         session_id: SessionId,
         participant_id: ParticipantId,
     ) -> u64 {
-        let generation = {
-            let actor_id = self.actor_of(id).unwrap_or_default();
-            let mut generations = self.generations();
-            let entry = generations.entry((session_id, actor_id)).or_insert(0);
-            *entry = entry.wrapping_add(1);
-            *entry
-        };
+        let generation = self
+            .inner
+            .generation
+            .fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+            .wrapping_add(1);
         if let Some(connection) = self.lock().get_mut(&id) {
             connection.session_id = Some(session_id);
             connection.room_id = Some(room_id);
@@ -35,6 +33,7 @@ impl ConnectionRegistry {
             connection.roster_version = None;
             connection.interaction_version = None;
             connection.generation = generation;
+            connection.mute_kind = None;
         }
         generation
     }
@@ -82,6 +81,13 @@ impl ConnectionRegistry {
             }
         }
         sessions
+    }
+
+    pub fn joined_rooms(&self) -> std::collections::HashSet<RoomId> {
+        self.lock()
+            .values()
+            .filter_map(|connection| connection.room_id)
+            .collect()
     }
 
     #[must_use]

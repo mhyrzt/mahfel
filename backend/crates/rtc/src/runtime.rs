@@ -125,6 +125,18 @@ impl MediaRuntime {
         self.rooms.read().await.len()
     }
 
+    /// Number of distinct room/actor pairs with live WebRTC transports.
+    /// Receive-only actors count; multiple transports for one actor count once.
+    pub async fn participant_count(&self) -> usize {
+        self.transports
+            .read()
+            .await
+            .values()
+            .map(|entry| (entry.room_id, entry.participant_id))
+            .collect::<std::collections::HashSet<_>>()
+            .len()
+    }
+
     pub async fn transport_count(&self) -> usize {
         self.transports.read().await.len()
     }
@@ -358,8 +370,15 @@ impl MediaRuntime {
         room_id: RoomId,
         participant_id: ActorId,
     ) -> Result<usize, RtcError> {
-        super::producer::close_participant(&self.producers, &self.speakers, room_id, participant_id)
-            .await
+        super::producer::close_participant(
+            &self.transports,
+            &self.producers,
+            &self.consumers,
+            &self.speakers,
+            room_id,
+            participant_id,
+        )
+        .await
     }
 
     pub async fn close_participant_source(

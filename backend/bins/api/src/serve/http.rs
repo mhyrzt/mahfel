@@ -64,8 +64,11 @@ pub(super) async fn app(
             stores.service_principals.clone(),
         ));
     let media = Arc::new(
-        GrpcMediaGateway::lazy(settings.api.media_grpc_url.clone())
-            .map_err(|e| anyhow::anyhow!("invalid media grpc url: {e}"))?,
+        GrpcMediaGateway::authenticated(
+            settings.api.media_grpc_url.clone(),
+            &settings.api.control_token,
+        )
+        .map_err(|e| anyhow::anyhow!("invalid media grpc url: {e}"))?,
     );
     let rooms: Arc<dyn mahfel_application::ports::RoomStore> = Arc::new(stores.rooms.clone());
     let users: Arc<dyn mahfel_application::ports::UserStore> = Arc::new(stores.users.clone());
@@ -99,12 +102,10 @@ pub(super) async fn app(
         Arc::new(coordination.store.clone());
     let nodes: Arc<dyn mahfel_application::ports::MediaNodeRegistry> =
         Arc::new(coordination.store.clone());
-    let placement = Arc::new(http::ws::MediaPlacementRouter::new(
-        placements,
-        leases,
-        nodes,
-        Arc::clone(&sessions),
-    ));
+    let placement = Arc::new(
+        http::ws::MediaPlacementRouter::new(placements, leases, nodes, Arc::clone(&sessions))
+            .with_control_token(settings.api.control_token.clone()),
+    );
     let realtime = http::ws::WsState::new(
         Arc::clone(&authentication),
         http::ws::WsConfig::from(&settings.api.ws),
@@ -121,7 +122,11 @@ pub(super) async fn app(
         shutdown.clone(),
     )
     .with_placement(Arc::clone(&placement))
-    .with_chat(Arc::clone(&chat), coordination.store.clone())
+    .with_chat(
+        Arc::clone(&chat),
+        Arc::clone(&files),
+        coordination.store.clone(),
+    )
     .with_collaboration(Arc::clone(&collaboration), coordination.store.clone())
     .with_session_presence(
         coordination.store.clone(),

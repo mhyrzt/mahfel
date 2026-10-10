@@ -58,6 +58,19 @@ pub trait AdmissionStore: Send + Sync {
         decided_at: time::OffsetDateTime,
     ) -> BoxFuture<'_, Result<bool, StoreError>>;
 
+    /// Commit the pending decision and its durable membership/participation grant together.
+    /// Recheck manager authorization and live-session state within the transaction.
+    /// Returns None when a competing decision won; no grant may survive a failure.
+    fn approve_pending(
+        &self,
+        id: AdmissionRequestId,
+        actor: ActorId,
+        now: time::OffsetDateTime,
+    ) -> BoxFuture<
+        '_,
+        Result<Option<crate::admission::AdmissionGrant>, crate::admission::AdmissionOperationError>,
+    >;
+
     /// Retire every pending request in a session because the session ended.
     ///
     /// Room-scoped requests are untouched: they ask to join the room, which

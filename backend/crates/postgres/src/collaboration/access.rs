@@ -21,11 +21,16 @@ SELECT session.status, membership.member_role, \
        COALESCE(grant_row.can_share_screen, true) AS can_share_screen, \
        COALESCE(grant_row.can_present, false) AS can_present \
 FROM mahfel.sessions session \
+JOIN mahfel.rooms room ON room.id = session.room_id AND room.status = 'active' \
 LEFT JOIN mahfel.room_memberships membership \
   ON membership.room_id = session.room_id AND membership.actor_id = $2 \
 LEFT JOIN mahfel.collaboration_edit_grants grant_row \
   ON grant_row.session_id = session.id AND grant_row.actor_id = $2 \
-WHERE session.id = $1";
+WHERE session.id = $1 \
+AND NOT EXISTS (SELECT 1 FROM mahfel.blocks block_row \
+                WHERE block_row.actor_id = $2 AND block_row.lifted_at IS NULL \
+                  AND (block_row.expires_at IS NULL OR block_row.expires_at > now()) \
+                  AND (block_row.room_id = session.room_id OR block_row.session_id = session.id))";
 
 #[derive(sqlx::FromRow)]
 struct AccessRow {

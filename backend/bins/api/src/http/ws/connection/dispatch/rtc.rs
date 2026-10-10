@@ -363,6 +363,7 @@ pub(super) async fn handle_consume(
         .await
     {
         Ok((cid, rtp, paused)) => {
+            c.own_consumer(room, cid.clone());
             send_ok(
                 c,
                 rid,

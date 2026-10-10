@@ -196,6 +196,26 @@ async fn verify_sessions(pool: &PgPool) -> Result<(), Box<dyn Error>> {
     // Listing is scoped to the room and returns newest first.
     let listed = sessions.list_for_room(room.id).await?;
     assert_eq!(listed, vec![second.clone(), first.clone()]);
+    assert_eq!(
+        sessions.list_for_room_page(room.id, None, 1, 0).await?,
+        vec![second.clone()]
+    );
+    assert_eq!(
+        sessions.list_for_room_page(room.id, None, 1, 1).await?,
+        vec![first.clone()]
+    );
+    assert!(
+        sessions
+            .list_for_room_page(room.id, None, 1, 2)
+            .await?
+            .is_empty()
+    );
+    assert!(
+        sessions
+            .list_for_room_page(room.id, Some(SessionStatus::Live), 20, 0)
+            .await?
+            .is_empty()
+    );
     assert!(
         sessions.list_for_room(RoomId::new()).await?.is_empty(),
         "another room has no sessions"
@@ -220,6 +240,12 @@ async fn verify_sessions(pool: &PgPool) -> Result<(), Box<dyn Error>> {
     // Only one session may be live at a time; the losing write conflicts.
     first.start(now + Duration::from_secs(1))?;
     sessions.save(&first).await?;
+    assert_eq!(
+        sessions
+            .list_for_room_page(room.id, Some(SessionStatus::Live), 1, 0)
+            .await?,
+        vec![first.clone()]
+    );
     let mut stale_details = stale_details;
     stale_details.set_details(None, None, None, now + Duration::from_secs(2));
     let after_details = sessions

@@ -214,8 +214,6 @@ pub(crate) async fn admit_principal(
             .map_err(|_| ApiError::unavailable("media placement unavailable"))?;
     }
     let grant = admit(
-        state.realtime.stores.participants.as_ref(),
-        state.participation.as_ref(),
         state.admissions.as_ref(),
         state.sessions.as_ref(),
         state.rooms.as_ref(),

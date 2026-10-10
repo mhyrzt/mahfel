@@ -5,6 +5,7 @@ mod config;
 mod connection;
 mod envelope;
 mod metrics;
+mod moderation_fanout;
 mod placement;
 mod registry;
 mod session_fanout;

@@ -52,6 +52,14 @@ pub(super) async fn create_transport(
         .map_err(|e| RtcError::Transport(e.to_string()))?;
 
     let transport_id = transport.id().to_string();
+    let current_rooms = rooms.read().await;
+    if !current_rooms
+        .get(&room_id)
+        .is_some_and(|entry| entry.router.id() == router.id() && !entry.router.closed())
+        || transport.closed()
+    {
+        return Err(RtcError::RoomNotFound { room_id });
+    }
     transports.write().await.insert(
         transport_id.clone(),
         TransportEntry {
@@ -89,8 +97,9 @@ pub(super) async fn connect_transport(
             transport_id: transport_id.to_owned(),
         });
     }
-    entry
-        .transport
+    let transport = entry.transport.clone();
+    drop(map);
+    transport
         .connect(WebRtcTransportRemoteParameters { dtls_parameters })
         .await
         .map_err(|e| RtcError::Connect(e.to_string()))?;

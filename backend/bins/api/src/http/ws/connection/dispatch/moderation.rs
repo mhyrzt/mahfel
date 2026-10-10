@@ -76,7 +76,7 @@ fn source_name(source: ProducerSource) -> &'static str {
 #[allow(clippy::too_many_arguments)]
 pub(super) async fn handle_mute(
     c: &mut Connection,
-    registry: &ConnectionRegistry,
+    _registry: &ConnectionRegistry,
     rid: Option<String>,
     session_id: &str,
     actor_id: &str,
@@ -124,7 +124,7 @@ pub(super) async fn handle_mute(
         state.stores.rooms.as_ref(),
         state.control_media(),
         MuteCommand {
-            actor: principal.actor_id,
+            actor: principal.clone(),
             session_id,
             subject,
             kind,
@@ -147,23 +147,25 @@ pub(super) async fn handle_mute(
     // The whole roster learns, and the target in particular must stop sending
     // media. Sent by actor id rather than connection, because moderation
     // resolves across every connection the target holds.
-    registry.broadcast_to_session(
-        session_id,
-        &ServerMessage::ParticipantMuted {
-            session_id: session_id.to_string(),
-            participant_id: subject.to_string(),
-            actor_id: subject.to_string(),
-            kind: kind.as_str().to_owned(),
-            source: source_name(outcome.source).to_owned(),
-        },
-    );
+    state
+        .broadcast_moderation(
+            session_id,
+            ServerMessage::ParticipantMuted {
+                session_id: session_id.to_string(),
+                participant_id: subject.to_string(),
+                actor_id: subject.to_string(),
+                kind: kind.as_str().to_owned(),
+                source: source_name(outcome.source).to_owned(),
+            },
+        )
+        .await;
     Ok(())
 }
 
 #[allow(clippy::too_many_arguments)]
 pub(super) async fn handle_unmute(
     c: &mut Connection,
-    registry: &ConnectionRegistry,
+    _registry: &ConnectionRegistry,
     rid: Option<String>,
     session_id: &str,
     actor_id: &str,
@@ -204,7 +206,7 @@ pub(super) async fn handle_unmute(
         state.stores.rooms.as_ref(),
         state.control_media(),
         MuteCommand {
-            actor: principal.actor_id,
+            actor: principal.clone(),
             session_id,
             subject,
             kind: MuteKind::Temporary,
@@ -224,22 +226,24 @@ pub(super) async fn handle_unmute(
         }
     };
 
-    registry.broadcast_to_session(
-        session_id,
-        &ServerMessage::ParticipantUnmuted {
-            session_id: session_id.to_string(),
-            participant_id: subject.to_string(),
-            actor_id: subject.to_string(),
-            source: source_name(outcome.source).to_owned(),
-        },
-    );
+    state
+        .broadcast_moderation(
+            session_id,
+            ServerMessage::ParticipantUnmuted {
+                session_id: session_id.to_string(),
+                participant_id: subject.to_string(),
+                actor_id: subject.to_string(),
+                source: source_name(outcome.source).to_owned(),
+            },
+        )
+        .await;
     Ok(())
 }
 
 #[allow(clippy::too_many_arguments)]
 pub(super) async fn handle_remove(
     c: &mut Connection,
-    registry: &ConnectionRegistry,
+    _registry: &ConnectionRegistry,
     rid: Option<String>,
     session_id: &str,
     actor_id: &str,
@@ -269,7 +273,7 @@ pub(super) async fn handle_remove(
         state.stores.rooms.as_ref(),
         state.control_media(),
         RemoveCommand {
-            actor: principal.actor_id,
+            actor: principal.clone(),
             session_id,
             subject,
         },
@@ -284,22 +288,24 @@ pub(super) async fn handle_remove(
         return Ok(());
     }
 
-    registry.broadcast_to_session(
-        session_id,
-        &ServerMessage::ParticipantRemoved {
-            session_id: session_id.to_string(),
-            participant_id: subject.to_string(),
-            actor_id: subject.to_string(),
-            reason: "removed".to_owned(),
-        },
-    );
+    state
+        .broadcast_moderation(
+            session_id,
+            ServerMessage::ParticipantRemoved {
+                session_id: session_id.to_string(),
+                participant_id: subject.to_string(),
+                actor_id: subject.to_string(),
+                reason: "removed".to_owned(),
+            },
+        )
+        .await;
     Ok(())
 }
 
 #[allow(clippy::too_many_arguments)]
 pub(super) async fn handle_block(
     c: &mut Connection,
-    registry: &ConnectionRegistry,
+    _registry: &ConnectionRegistry,
     rid: Option<String>,
     room_id: Option<String>,
     session_id: Option<String>,
@@ -336,7 +342,7 @@ pub(super) async fn handle_block(
         state.stores.rooms.as_ref(),
         state.control_media(),
         BlockCommand {
-            actor: principal.actor_id,
+            actor: principal.clone(),
             scope,
             subject,
             reason,
@@ -362,9 +368,7 @@ pub(super) async fn handle_block(
         actor_id: subject.to_string(),
     };
     match scope {
-        // A room block concerns the room, so every session in it learns when
-        // those sessions next run; today only the connections live on this
-        // replica are reachable, which is the documented limitation.
+        // Each replica receives the notice, with durable polling as fallback.
         BlockScope::Room(room_id) => {
             let sessions = state
                 .stores
@@ -373,10 +377,12 @@ pub(super) async fn handle_block(
                 .await
                 .unwrap_or_default();
             for session in sessions {
-                registry.broadcast_to_session(session.id, &message);
+                state
+                    .broadcast_moderation(session.id, message.clone())
+                    .await;
             }
         }
-        BlockScope::Session(session_id) => registry.broadcast_to_session(session_id, &message),
+        BlockScope::Session(session_id) => state.broadcast_moderation(session_id, message).await,
     }
     tracing::info!(
         target: "audit",
@@ -393,7 +399,7 @@ pub(super) async fn handle_block(
 #[allow(clippy::too_many_arguments)]
 pub(super) async fn handle_unblock(
     c: &mut Connection,
-    registry: &ConnectionRegistry,
+    _registry: &ConnectionRegistry,
     rid: Option<String>,
     room_id: Option<String>,
     session_id: Option<String>,
@@ -424,7 +430,7 @@ pub(super) async fn handle_unblock(
         state.stores.blocks.as_ref(),
         state.stores.rooms.as_ref(),
         BlockCommand {
-            actor: principal.actor_id,
+            actor: principal.clone(),
             scope,
             subject,
             reason: None,
@@ -455,10 +461,12 @@ pub(super) async fn handle_unblock(
                 .await
                 .unwrap_or_default();
             for session in sessions {
-                registry.broadcast_to_session(session.id, &message);
+                state
+                    .broadcast_moderation(session.id, message.clone())
+                    .await;
             }
         }
-        BlockScope::Session(session_id) => registry.broadcast_to_session(session_id, &message),
+        BlockScope::Session(session_id) => state.broadcast_moderation(session_id, message).await,
     }
     Ok(())
 }

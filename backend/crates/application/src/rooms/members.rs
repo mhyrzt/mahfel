@@ -129,14 +129,9 @@ where
         .cloned()
         .ok_or(RoomOperationError::NotFound)?;
     member.change_role(role, OffsetDateTime::now_utc());
-    rooms
-        .add_member(&member)
-        .await
-        .or_else(|error| match error {
-            // Upsert semantics: adding an existing membership replaces its role.
-            StoreError::Conflict(_) => Ok(()),
-            other => Err(other),
-        })?;
+    if !rooms.update_member(&member).await? {
+        return Err(RoomOperationError::NotFound);
+    }
 
     // A demotion withdraws no media capability, so this is normally a no-op;
     // it is run anyway so the rule holds if a role is ever introduced that

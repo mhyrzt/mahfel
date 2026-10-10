@@ -170,6 +170,34 @@ impl RoomStore for FakeRoomStore {
         })
     }
 
+    fn update_member<'a>(
+        &'a self,
+        member: &'a RoomMember,
+    ) -> BoxFuture<'a, Result<bool, StoreError>> {
+        Box::pin(async move {
+            let mut members = self.members.lock().expect("lock");
+            let managers = members
+                .iter()
+                .filter(|existing| {
+                    existing.room_id == member.room_id && existing.role == RoomRole::Manager
+                })
+                .count();
+            let Some(existing) = members.iter_mut().find(|existing| {
+                existing.room_id == member.room_id && existing.actor_id == member.actor_id
+            }) else {
+                return Ok(false);
+            };
+            if existing.role == RoomRole::Manager
+                && member.role != RoomRole::Manager
+                && managers <= 1
+            {
+                return Ok(false);
+            }
+            *existing = member.clone();
+            Ok(true)
+        })
+    }
+
     fn remove_member(
         &self,
         room_id: RoomId,
@@ -187,6 +215,10 @@ impl RoomStore for FakeRoomStore {
 #[derive(Clone, Default)]
 struct FakeAdmissionStore {
     requests: Arc<Mutex<Vec<AdmissionRequest>>>,
+    rooms: FakeRoomStore,
+    sessions: FakeSessionStore,
+    participants: FakeParticipantStore,
+    participation: FakeParticipationStore,
 }
 
 impl FakeAdmissionStore {
@@ -328,6 +360,112 @@ impl AdmissionStore for FakeAdmissionStore {
         })
     }
 
+    fn approve_pending(
+        &self,
+        id: AdmissionRequestId,
+        actor: ActorId,
+        now: OffsetDateTime,
+    ) -> BoxFuture<
+        '_,
+        Result<Option<crate::admission::AdmissionGrant>, crate::admission::AdmissionOperationError>,
+    > {
+        Box::pin(async move {
+            use crate::admission::{AdmissionGrant, AdmissionOperationError};
+            let mut requests = self.requests.lock().expect("lock");
+            let Some(request) = requests
+                .iter_mut()
+                .find(|request| request.id == id && request.is_pending())
+            else {
+                return Ok(None);
+            };
+            let session = match request.target {
+                AdmissionTarget::Session(id) => {
+                    let session = self
+                        .sessions
+                        .sessions
+                        .lock()
+                        .expect("lock")
+                        .iter()
+                        .find(|session| session.id == id)
+                        .cloned()
+                        .ok_or(AdmissionOperationError::NotFound)?;
+                    if session.status != mahfel_domain::SessionStatus::Live {
+                        return Err(AdmissionOperationError::NotLive);
+                    }
+                    Some(session)
+                }
+                AdmissionTarget::Room(_) => None,
+            };
+            let room_id = match request.target {
+                AdmissionTarget::Room(room_id) => room_id,
+                AdmissionTarget::Session(_) => session.as_ref().expect("session target").room_id,
+            };
+            let manager = {
+                self.rooms
+                    .members
+                    .lock()
+                    .expect("lock")
+                    .iter()
+                    .any(|member| {
+                        member.room_id == room_id
+                            && member.actor_id == actor
+                            && member.role == RoomRole::Manager
+                    })
+            };
+            if !manager {
+                return Err(AdmissionOperationError::Forbidden);
+            }
+            let grant = match request.target {
+                AdmissionTarget::Session(session_id) => {
+                    let mut participants = self.participants.participants.lock().expect("lock");
+                    let participant = if let Some(existing) =
+                        participants.iter().find(|participant| {
+                            participant.session_id == session_id
+                                && participant.actor_id == request.actor_id
+                                && participant.status == mahfel_domain::ParticipantStatus::Active
+                        }) {
+                        existing.clone()
+                    } else {
+                        let participant =
+                            mahfel_domain::Participant::join(session_id, request.actor_id, now);
+                        participants.push(participant.clone());
+                        participant
+                    };
+                    let mut intervals = self.participation.intervals.lock().expect("lock");
+                    if !intervals.iter().any(|interval| {
+                        interval.participant_id == participant.id && interval.is_open()
+                    }) {
+                        intervals.push(mahfel_domain::ParticipationInterval::open(
+                            participant.id,
+                            session_id,
+                            request.actor_id,
+                            now,
+                        ));
+                    }
+                    AdmissionGrant::Participant(participant)
+                }
+                AdmissionTarget::Room(room_id) => {
+                    let mut members = self.rooms.members.lock().expect("lock");
+                    if !members.iter().any(|member| {
+                        member.room_id == room_id && member.actor_id == request.actor_id
+                    }) {
+                        members.push(RoomMember::new(
+                            room_id,
+                            request.actor_id,
+                            RoomRole::Member,
+                            now,
+                        ));
+                    }
+                    AdmissionGrant::Membership { room_id }
+                }
+            };
+            request.status = AdmissionRequestStatus::Admitted;
+            request.decided_by = Some(actor);
+            request.decided_at = Some(now);
+            Ok(Some(grant))
+        })
+    }
+
     fn expire_pending_for_session(
         &self,
         session_id: SessionId,
@@ -440,6 +578,24 @@ impl SessionStore for FakeSessionStore {
             }
             slot.updated_at = session.updated_at;
             Ok(slot.clone())
+        })
+    }
+
+    fn list_for_room_page(
+        &self,
+        room_id: RoomId,
+        status: Option<mahfel_domain::SessionStatus>,
+        limit: u64,
+        offset: u64,
+    ) -> BoxFuture<'_, Result<Vec<Session>, StoreError>> {
+        Box::pin(async move {
+            let sessions = self.list_for_room(room_id).await?;
+            Ok(sessions
+                .into_iter()
+                .filter(|session| status.is_none_or(|status| session.status == status))
+                .skip(usize::try_from(offset).unwrap_or(usize::MAX))
+                .take(usize::try_from(limit.min(100)).expect("bounded limit"))
+                .collect())
         })
     }
 
@@ -1433,6 +1589,9 @@ async fn manager_can_get_and_list_room_sessions() {
         ListSessions {
             actor: owner,
             room_id: room.id,
+            status: None,
+            limit: 20,
+            offset: 0,
         },
     )
     .await
@@ -1469,6 +1628,9 @@ async fn a_member_can_list_room_sessions_but_an_outsider_cannot() {
         ListSessions {
             actor: member,
             room_id: room.id,
+            status: None,
+            limit: 20,
+            offset: 0,
         },
     )
     .await
@@ -1481,6 +1643,9 @@ async fn a_member_can_list_room_sessions_but_an_outsider_cannot() {
         ListSessions {
             actor: actor(),
             room_id: room.id,
+            status: None,
+            limit: 20,
+            offset: 0,
         },
     )
     .await;
@@ -1551,9 +1716,15 @@ async fn lobby_fixture() -> (
 ) {
     let rooms = FakeRoomStore::default();
     let sessions = FakeSessionStore::default();
-    let admissions = FakeAdmissionStore::default();
     let participants = FakeParticipantStore::default();
     let participation = FakeParticipationStore::default();
+    let admissions = FakeAdmissionStore {
+        rooms: rooms.clone(),
+        sessions: sessions.clone(),
+        participants: participants.clone(),
+        participation: participation.clone(),
+        ..Default::default()
+    };
     let owner = actor();
     // Public, so a synthetic actor passes authorization and reaches the lobby.
     // Admission is what these tests vary, not visibility.
@@ -1807,8 +1978,6 @@ async fn admitting_creates_the_participant_and_opens_an_interval() {
     .expect("queued");
 
     let grant = crate::admission::admit(
-        &participants,
-        &participation,
         &admissions,
         &sessions,
         &rooms,
@@ -1935,8 +2104,6 @@ async fn a_member_who_cannot_admit_is_denied() {
     .expect("queued");
 
     let denied = crate::admission::admit(
-        &participants,
-        &participation,
         &admissions,
         &sessions,
         &rooms,
@@ -2124,5 +2291,225 @@ async fn a_blocked_principal_does_not_occupy_a_lobby_slot() {
     assert!(
         admissions.requests.lock().expect("lock").is_empty(),
         "a blocked principal must not reach the lobby"
+    );
+}
+
+#[tokio::test]
+async fn roster_requires_admission_and_hides_blocked_participants() {
+    let (rooms, sessions, admissions, participants, participation, room, session, owner) =
+        lobby_fixture().await;
+    let waiter = actor();
+    let caller = principal(waiter);
+    let blocks = FakeBlockStore::default();
+    join_session(
+        &participants,
+        &participation,
+        &admissions,
+        &sessions,
+        &rooms,
+        &blocks,
+        JoinSession {
+            actor: waiter,
+            session_id: session.id,
+            origin: AdmissionOrigin::Join,
+        },
+    )
+    .await
+    .expect("queued");
+    assert!(
+        matches!(
+            super::get_session_for_roster(
+                &sessions,
+                &rooms,
+                &participants,
+                &blocks,
+                &caller,
+                session.id
+            )
+            .await,
+            Err(SessionOperationError::NotFound)
+        ),
+        "waiting actors cannot enumerate identities"
+    );
+    super::get_session_for_roster(
+        &sessions,
+        &rooms,
+        &participants,
+        &blocks,
+        &principal(owner),
+        session.id,
+    )
+    .await
+    .expect("manager can inspect roster before joining");
+    let participant = Participant::join(session.id, waiter, OffsetDateTime::now_utc());
+    participants
+        .insert(&participant)
+        .await
+        .expect("admitted participant");
+    super::get_session_for_roster(
+        &sessions,
+        &rooms,
+        &participants,
+        &blocks,
+        &caller,
+        session.id,
+    )
+    .await
+    .expect("admitted participant sees roster");
+    for scope in [
+        mahfel_domain::BlockScope::Room(room.id),
+        mahfel_domain::BlockScope::Session(session.id),
+    ] {
+        let blocks = seeded_blocks(scope, waiter);
+        assert!(
+            matches!(
+                super::get_session_for_roster(
+                    &sessions,
+                    &rooms,
+                    &participants,
+                    &blocks,
+                    &caller,
+                    session.id
+                )
+                .await,
+                Err(SessionOperationError::NotFound)
+            ),
+            "blocked actors cannot see identities"
+        );
+    }
+    super::get_session_for_caller(
+        &sessions,
+        &rooms,
+        super::GetSessionForCaller {
+            actor: waiter,
+            session_id: session.id,
+        },
+    )
+    .await
+    .expect("public discovery remains available");
+}
+
+#[tokio::test]
+async fn participation_summary_preserves_order_corrections_and_session_end() {
+    let (rooms, sessions, _participants, participation, room, mut session, owner) = live_fixture();
+    let start = OffsetDateTime::UNIX_EPOCH;
+    session.ended_at = Some(start + time::Duration::seconds(30));
+    sessions.save(&session).await.expect("session end");
+    let first = Participant::join(session.id, owner, start);
+    let second = Participant::join(session.id, actor(), start);
+    let mut corrected = ParticipationInterval::open(first.id, session.id, first.actor_id, start);
+    corrected.superseded_by = Some(IntervalId::new());
+    let mut second_interval = ParticipationInterval::open(
+        second.id,
+        session.id,
+        second.actor_id,
+        start + time::Duration::seconds(10),
+    );
+    second_interval.ended_at = Some(start + time::Duration::seconds(20));
+    let open = ParticipationInterval::open(
+        first.id,
+        session.id,
+        first.actor_id,
+        start + time::Duration::seconds(15),
+    );
+    participation
+        .intervals
+        .lock()
+        .expect("lock")
+        .extend([corrected, second_interval, open]);
+    let summary = crate::participation::session_participation(
+        &participation,
+        &sessions,
+        &rooms,
+        crate::participation::SessionParticipation {
+            actor: owner,
+            session_id: session.id,
+        },
+        start + time::Duration::seconds(100),
+    )
+    .await
+    .expect("summary");
+    assert_eq!(summary.participants.len(), 2);
+    assert_eq!(summary.participants[0].participant_id, first.id);
+    assert_eq!(summary.participants[0].connected_seconds, 15);
+    assert_eq!(summary.participants[0].corrected_intervals, 1);
+    assert_eq!(summary.participants[1].participant_id, second.id);
+    assert_eq!(summary.participants[1].connected_seconds, 10);
+    assert_eq!(summary.session_id, session.id);
+    assert_eq!(session.room_id, room.id);
+}
+
+#[tokio::test]
+async fn connected_media_rechecks_admission_removal_blocks_and_session_end() {
+    let (rooms, sessions, participants, _participation, room, mut session, owner) = live_fixture();
+    let mut participant = Participant::join(session.id, owner, OffsetDateTime::now_utc());
+    let connection = super::SessionConnection {
+        actor: owner,
+        participant: participant.id,
+        session: session.id,
+        room: room.id,
+    };
+    let blocks = FakeBlockStore::default();
+    assert!(
+        super::authorize_connection(&participants, &sessions, &rooms, &blocks, connection)
+            .await
+            .is_err()
+    );
+    participants.insert(&participant).await.expect("admitted");
+    super::authorize_connection(&participants, &sessions, &rooms, &blocks, connection)
+        .await
+        .expect("authorized");
+    for scope in [
+        mahfel_domain::BlockScope::Room(room.id),
+        mahfel_domain::BlockScope::Session(session.id),
+    ] {
+        assert!(
+            super::authorize_connection(
+                &participants,
+                &sessions,
+                &rooms,
+                &seeded_blocks(scope, owner),
+                connection
+            )
+            .await
+            .is_err()
+        );
+    }
+    let wrong = super::SessionConnection {
+        participant: ParticipantId::new(),
+        ..connection
+    };
+    assert!(
+        super::authorize_connection(&participants, &sessions, &rooms, &blocks, wrong)
+            .await
+            .is_err()
+    );
+    participant
+        .remove(OffsetDateTime::now_utc())
+        .expect("remove");
+    participants.save(&participant).await.expect("removed");
+    assert!(
+        super::authorize_connection(&participants, &sessions, &rooms, &blocks, connection)
+            .await
+            .is_err()
+    );
+    let replacement = Participant::join(session.id, owner, OffsetDateTime::now_utc());
+    participants
+        .insert(&replacement)
+        .await
+        .expect("new admission");
+    let connection = super::SessionConnection {
+        participant: replacement.id,
+        ..connection
+    };
+    super::authorize_connection(&participants, &sessions, &rooms, &blocks, connection)
+        .await
+        .expect("readmitted");
+    session.end(OffsetDateTime::now_utc()).expect("end");
+    sessions.save(&session).await.expect("ended");
+    assert!(
+        super::authorize_connection(&participants, &sessions, &rooms, &blocks, connection)
+            .await
+            .is_err()
     );
 }

@@ -282,6 +282,29 @@ impl SessionStore for PostgresSessionStore {
         })
     }
 
+    fn list_for_room_page(
+        &self,
+        room_id: RoomId,
+        status: Option<mahfel_domain::SessionStatus>,
+        limit: u64,
+        offset: u64,
+    ) -> BoxFuture<'_, Result<Vec<Session>, StoreError>> {
+        Box::pin(async move {
+            let rows = sqlx::query_as::<_, SessionRow>(
+                "SELECT id, room_id, status, auto_record, visibility, admission, title, scheduled_start_at, \
+                 scheduled_duration_minutes, started_at, ended_at, created_at, updated_at \
+                 FROM mahfel.sessions WHERE room_id = $1 AND ($2::text IS NULL OR status = $2) \
+                 ORDER BY created_at DESC, id LIMIT $3 OFFSET $4",
+            ).bind(room_id.as_uuid()).bind(status.map(|status| status.as_str()))
+                .bind(i64::try_from(limit.min(100)).map_err(store_error)?)
+                .bind(i64::try_from(offset).map_err(store_error)?)
+                .fetch_all(&self.pool).await.map_err(sqlx_store_error)?;
+            rows.into_iter()
+                .map(|row| Session::try_from(row).map_err(store_error))
+                .collect()
+        })
+    }
+
     fn list_for_room(&self, room_id: RoomId) -> BoxFuture<'_, Result<Vec<Session>, StoreError>> {
         Box::pin(async move {
             let rows = sqlx::query_as::<_, SessionRow>(

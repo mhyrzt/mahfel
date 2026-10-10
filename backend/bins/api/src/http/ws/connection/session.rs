@@ -75,6 +75,7 @@ pub(super) async fn run(
         registry,
         &mut shutdown,
         &mut rx,
+        registration.stopped(),
         id,
         &principal,
         state,
@@ -170,6 +171,7 @@ async fn receive_loop(
     registry: &ConnectionRegistry,
     shutdown: &mut watch::Receiver<bool>,
     rx: &mut mpsc::Receiver<Outbound>,
+    mut stopped: watch::Receiver<bool>,
     id: Uuid,
     principal: &Principal,
     state: &WsState,
@@ -184,9 +186,17 @@ async fn receive_loop(
     lease_heartbeat.reset();
     let heartbeat_timeout = connection.config().heartbeat_timeout;
     let mut last_seen = Instant::now();
+    let mut inbound = super::limits::FrameBudget::new(last_seen);
+    let mut renewals = super::limits::RenewalBudget::default();
 
     loop {
         tokio::select! {
+            biased;
+            _ = stopped.changed() => {
+                if let Some(message) = registry.close_message(id) { connection.send(message).await?; }
+                connection.close(1013, "outbound queue stalled").await;
+                return Err(DisconnectReason::Error);
+            }
             changed = shutdown.changed() => {
                 if changed.is_err() || *shutdown.borrow() {
                     connection.close(CLOSE_GOING_AWAY, "shutdown").await;
@@ -202,9 +212,16 @@ async fn receive_loop(
                 Some(Err(_)) => return Err(DisconnectReason::Error),
                 Some(Ok(Message::Close(_))) => return Err(DisconnectReason::ClientClose),
                 Some(Ok(Message::Ping(_))) | Some(Ok(Message::Pong(_))) => {
+                    if !inbound.allow(Instant::now()) {
+                        connection.close(1008, "frame rate exceeded").await;
+                        return Err(DisconnectReason::ProtocolError);
+                    }
                     last_seen = Instant::now();
                 }
                 Some(Ok(Message::Binary(_))) => {
+                    if !inbound.allow(Instant::now()) {
+                        return Err(DisconnectReason::ProtocolError);
+                    }
                     let error = dispatch::protocol_error(
                         "binary_not_supported",
                         "binary frames are not supported",
@@ -212,6 +229,10 @@ async fn receive_loop(
                     connection.send(error).await?;
                 }
                 Some(Ok(Message::Text(text))) => {
+                    if !inbound.allow(Instant::now()) {
+                        connection.close(1008, "frame rate exceeded").await;
+                        return Err(DisconnectReason::ProtocolError);
+                    }
                     last_seen = Instant::now();
                     connection.record_received();
                     dispatch::handle_text(connection, registry, id, text.as_str(), principal, state)
@@ -230,16 +251,18 @@ async fn receive_loop(
                     match redis.session_presence_renew(
                         handle.session_id, id, handle.participant_id, SESSION_PRESENCE_TTL,
                     ).await {
-                        Ok(true) => {}
+                        Ok(true) => renewals.succeeded(),
                         Ok(false) => {
                             tracing::warn!("session presence lease expired; disconnecting socket");
                             return Err(DisconnectReason::Error);
                         }
                         Err(error) => {
-                            tracing::warn!(%error, "session presence renewal failed");
-                            return Err(DisconnectReason::Error);
+                            tracing::warn!(%error, "session presence renewal failed; retrying within lease window");
+                            if !renewals.failed() { return Err(DisconnectReason::Error); }
                         }
                     }
+                } else {
+                    renewals.succeeded();
                 }
             }
         }

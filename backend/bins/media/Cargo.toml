@@ -24,6 +24,7 @@ mahfel-application = { path = "../../crates/application" }
 mahfel-storage = { path = "../../crates/storage" }
 serde_json.workspace = true
 sha2 = "0.10"
+subtle = "2.6"
 
 [lints]
 workspace = true

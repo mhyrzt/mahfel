@@ -47,6 +47,19 @@ impl UserStore for PostgresUserStore {
         })
     }
 
+    fn get_many<'a>(&'a self, ids: &'a [ActorId]) -> BoxFuture<'a, Result<Vec<User>, StoreError>> {
+        Box::pin(async move {
+            let ids: Vec<_> = ids.iter().map(|id| id.as_uuid()).collect();
+            let rows = sqlx::query_as::<_, UserRow>(
+                "SELECT id, display_name, email, username, status, created_at, updated_at, avatar_url \
+                 FROM mahfel.users WHERE id = ANY($1)",
+            ).bind(ids).fetch_all(&self.pool).await.map_err(store_error)?;
+            rows.into_iter()
+                .map(|row| User::try_from(row).map_err(store_error))
+                .collect()
+        })
+    }
+
     fn insert<'a>(&'a self, user: &'a User) -> BoxFuture<'a, Result<(), StoreError>> {
         Box::pin(async move {
             // A user and its actor row share an id and must be created together so

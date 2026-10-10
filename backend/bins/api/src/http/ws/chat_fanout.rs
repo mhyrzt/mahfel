@@ -2,8 +2,8 @@ use crate::http::ws::{
     envelope::{ChatEventPayload, ServerMessage},
     registry::ConnectionRegistry,
 };
-use mahfel_application::ports::{ChatActivitySnapshot, ChatActivityStore, ChatStore};
-use mahfel_domain::{ActorId, ChatEvent, ChatEventKind, RoomId};
+use mahfel_application::ports::{ChatActivitySnapshot, ChatActivityStore, ChatStore, FileStore};
+use mahfel_domain::{ActorId, ChatEvent, ChatEventKind, FileContext, RoomId};
 use mahfel_redis::RedisCoordination;
 use std::{
     collections::{HashMap, HashSet},
@@ -21,6 +21,7 @@ use uuid::Uuid;
 pub(super) fn spawn(
     chat: Arc<dyn ChatStore>,
     activity: Arc<dyn ChatActivityStore>,
+    files: Arc<dyn FileStore>,
     redis: RedisCoordination,
     registry: ConnectionRegistry,
     wake: Arc<Notify>,
@@ -32,7 +33,7 @@ pub(super) fn spawn(
         listen(redis, listener_wake, listener_shutdown).await;
     });
     tokio::spawn(async move {
-        poll(chat, activity, registry, wake, shutdown).await;
+        poll(chat, activity, files, registry, wake, shutdown).await;
     });
 }
 
@@ -68,6 +69,7 @@ async fn listen(redis: RedisCoordination, wake: Arc<Notify>, mut shutdown: watch
 async fn poll(
     chat: Arc<dyn ChatStore>,
     activity: Arc<dyn ChatActivityStore>,
+    files: Arc<dyn FileStore>,
     registry: ConnectionRegistry,
     wake: Arc<Notify>,
     mut shutdown: watch::Receiver<bool>,
@@ -88,15 +90,24 @@ async fn poll(
         let heartbeat_due = last_heartbeat.elapsed() >= Duration::from_secs(15);
         last_snapshots.retain(|room_id, _| rooms.contains_key(room_id));
         for (room_id, subscribers) in rooms {
-            poll_room(chat.as_ref(), &registry, room_id, &subscribers).await;
+            let Some(allowed) = poll_room(
+                chat.as_ref(),
+                files.as_ref(),
+                &registry,
+                room_id,
+                &subscribers,
+            )
+            .await
+            else {
+                continue;
+            };
             if heartbeat_due {
                 let mut actors = HashSet::new();
                 for &(_, actor_id, _) in &subscribers {
                     if !actors.insert(actor_id) {
                         continue;
                     }
-                    if chat.event_head(room_id, actor_id).await.is_err() {
-                        registry.unsubscribe_chat_actor(room_id, actor_id);
+                    if !allowed.contains(&actor_id) {
                         continue;
                     }
                     if let Err(error) = activity
@@ -131,50 +142,90 @@ async fn poll(
 
 async fn poll_room(
     chat: &dyn ChatStore,
+    files: &dyn FileStore,
     registry: &ConnectionRegistry,
     room_id: RoomId,
     subscribers: &[(Uuid, ActorId, i64)],
-) {
-    let Some(minimum) = subscribers.iter().map(|(_, _, cursor)| *cursor).min() else {
-        return;
-    };
-    let mut events = None;
-    for &(_, actor_id, _) in subscribers {
-        match chat.list_events(room_id, actor_id, minimum, 100).await {
-            Ok(batch) => {
-                events = Some(batch);
-                break;
-            }
-            Err(mahfel_application::ports::StoreError::NotFound(_)) => {
-                registry.unsubscribe_chat_actor(room_id, actor_id);
-            }
+) -> Option<HashSet<ActorId>> {
+    let actors: Vec<_> = subscribers
+        .iter()
+        .map(|(_, actor, _)| *actor)
+        .collect::<HashSet<_>>()
+        .into_iter()
+        .collect();
+    let mut allowed = HashSet::new();
+    for batch in actors.chunks(1000) {
+        match chat.authorized_subscribers(room_id, batch).await {
+            Ok(members) => allowed.extend(members),
             Err(error) => {
-                tracing::warn!(%error, "chat event catch-up failed");
-                return;
+                tracing::warn!(%error, "chat membership batch failed");
+                return None;
             }
         }
     }
-    let Some(events) = events else {
-        return;
+    for actor in &actors {
+        if !allowed.contains(actor) {
+            registry.unsubscribe_chat_actor(room_id, *actor);
+        }
+    }
+    let minimum = subscribers
+        .iter()
+        .filter(|(_, actor, _)| allowed.contains(actor))
+        .map(|(_, _, cursor)| *cursor)
+        .min();
+    let Some(minimum) = minimum else {
+        return Some(allowed);
     };
-    if events.is_empty() {
-        return;
+    let actor = *allowed.iter().next()?;
+    let events = match chat.list_events(room_id, actor, minimum, 100).await {
+        Ok(events) => events,
+        Err(error) => {
+            tracing::warn!(%error, "chat event catch-up failed");
+            return None;
+        }
+    };
+    let ids: Vec<_> = events.iter().map(|event| event.message.id).collect();
+    let ready_files = match files.list_for_messages(&ids).await {
+        Ok(files) => files,
+        Err(error) => {
+            tracing::warn!(%error, "chat attachment batch failed");
+            return None;
+        }
+    };
+    let mut attachments = HashMap::<_, Vec<String>>::new();
+    for file in ready_files {
+        if let FileContext::ChatMessage(id) = file.context {
+            attachments.entry(id).or_default().push(file.id.to_string());
+        }
     }
     for &(id, actor_id, cursor) in subscribers {
-        if events.iter().all(|event| event.sequence <= cursor) {
-            continue;
-        }
-        if chat.event_head(room_id, actor_id).await.is_err() {
-            registry.unsubscribe_chat_actor(room_id, actor_id);
+        if !allowed.contains(&actor_id) {
             continue;
         }
         for event in events.iter().filter(|event| event.sequence > cursor) {
-            registry.send_chat_event(id, room_id, event.sequence, frame(event));
+            let message = match frame(
+                event,
+                attachments
+                    .get(&event.message.id)
+                    .cloned()
+                    .unwrap_or_default(),
+            ) {
+                Ok(message) => message,
+                Err(error) => {
+                    tracing::warn!(%error, "chat event timestamp cannot be encoded");
+                    return None;
+                }
+            };
+            registry.send_chat_event(id, room_id, event.sequence, message);
         }
     }
+    Some(allowed)
 }
 
-fn frame(event: &ChatEvent) -> ServerMessage {
+fn frame(
+    event: &ChatEvent,
+    attachment_ids: Vec<String>,
+) -> Result<ServerMessage, time::error::Format> {
     let kind = match event.kind {
         ChatEventKind::Created => "created",
         ChatEventKind::Edited => "edited",
@@ -182,7 +233,7 @@ fn frame(event: &ChatEvent) -> ServerMessage {
         ChatEventKind::ReactionSet => "reaction_set",
         ChatEventKind::ReactionRemoved => "reaction_removed",
     };
-    ServerMessage::ChatEvent {
+    Ok(ServerMessage::ChatEvent {
         event: Box::new(ChatEventPayload {
             room_id: event.room_id.to_string(),
             sequence: event.sequence,
@@ -199,9 +250,21 @@ fn frame(event: &ChatEvent) -> ServerMessage {
                 .deleted_at
                 .is_none()
                 .then(|| event.message.content.clone()),
-            created_at: event.message.created_at.to_string(),
-            edited_at: event.message.edited_at.map(|time| time.to_string()),
-            deleted_at: event.message.deleted_at.map(|time| time.to_string()),
+            created_at: event
+                .message
+                .created_at
+                .format(&time::format_description::well_known::Rfc3339)?,
+            edited_at: event
+                .message
+                .edited_at
+                .map(|time| time.format(&time::format_description::well_known::Rfc3339))
+                .transpose()?,
+            deleted_at: event
+                .message
+                .deleted_at
+                .map(|time| time.format(&time::format_description::well_known::Rfc3339))
+                .transpose()?,
+            attachment_ids,
         }),
-    }
+    })
 }

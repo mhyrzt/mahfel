@@ -96,24 +96,6 @@ impl ConnectionRegistry {
             .collect();
         self.send_to(&targets, message);
     }
-
-    /// Enqueue a message for every authenticated connection.
-    ///
-    /// Uses `try_send` so a slow consumer cannot block the sender; overflow is
-    /// counted and the stalled connection is closed by its own write timeout.
-    pub fn broadcast(&self, message: &ServerMessage) {
-        let connections = self.lock();
-        for connection in connections.values() {
-            match connection
-                .sender
-                .try_send(Outbound::Message(message.clone()))
-            {
-                Ok(()) => {}
-                Err(mpsc::error::TrySendError::Full(_)) => self.inner.metrics.send_dropped(),
-                Err(mpsc::error::TrySendError::Closed(_)) => {}
-            }
-        }
-    }
 }
 
 impl ConnectionRegistry {

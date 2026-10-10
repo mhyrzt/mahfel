@@ -19,7 +19,7 @@ use time::OffsetDateTime;
 
 #[derive(Debug, Clone)]
 pub struct RemoveCommand {
-    pub actor: ActorId,
+    pub actor: crate::ports::Principal,
     pub session_id: SessionId,
     /// Whose participation ends.
     pub subject: ActorId,
@@ -50,7 +50,7 @@ where
     S: MembershipStore + ?Sized,
     M: MediaGateway + ?Sized,
 {
-    if command.actor == command.subject {
+    if command.actor.actor_id == command.subject {
         return Err(ModerationError::Forbidden);
     }
     let session = sessions
@@ -59,9 +59,9 @@ where
         .ok_or(ModerationError::NotFound)?;
     let room_id = session.room_id;
 
-    crate::policy::require_actor_capability(
+    crate::policy::require_room_capability(
         memberships,
-        command.actor,
+        &command.actor,
         room_id,
         Capability::RemoveParticipant,
     )
@@ -87,7 +87,7 @@ where
         tracing::error!(
             target: "audit",
             action = "moderation.remove.enforcement_failed",
-            actor_id = %command.actor,
+            actor_id = %command.actor.actor_id,
             room_id = %room_id,
             session_id = %command.session_id,
             target_actor_id = %command.subject,
@@ -100,7 +100,7 @@ where
     tracing::info!(
         target: "audit",
         action = "moderation.remove",
-        actor_id = %command.actor,
+        actor_id = %command.actor.actor_id,
         room_id = %room_id,
         session_id = %command.session_id,
         target_actor_id = %command.subject,
@@ -113,7 +113,7 @@ where
 
 #[derive(Debug, Clone)]
 pub struct BlockCommand {
-    pub actor: ActorId,
+    pub actor: crate::ports::Principal,
     pub scope: BlockScope,
     pub subject: ActorId,
     pub reason: Option<String>,
@@ -169,13 +169,13 @@ where
     S: MembershipStore + ?Sized,
     M: MediaGateway + ?Sized,
 {
-    if command.actor == command.subject {
+    if command.actor.actor_id == command.subject {
         return Err(ModerationError::Forbidden);
     }
     let room_id = super::scope::authorize_scope(rooms, sessions, &command.scope).await?;
-    crate::policy::require_actor_capability(
+    crate::policy::require_room_capability(
         memberships,
-        command.actor,
+        &command.actor,
         room_id,
         Capability::RemoveParticipant,
     )
@@ -186,7 +186,7 @@ where
         tracing::info!(
             target: "audit",
             action = "moderation.block.extend",
-            actor_id = %command.actor,
+            actor_id = %command.actor.actor_id,
             room_id = %room_id,
             session_id = ?command.scope.session_id(),
             target_actor_id = %command.subject,
@@ -198,7 +198,7 @@ where
         let block = Block::new(
             command.scope,
             command.subject,
-            command.actor,
+            command.actor.actor_id,
             command.reason,
             command.expires_at,
             now,
@@ -207,7 +207,7 @@ where
         tracing::info!(
             target: "audit",
             action = "moderation.block",
-            actor_id = %command.actor,
+            actor_id = %command.actor.actor_id,
             room_id = %room_id,
             session_id = ?command.scope.session_id(),
             target_actor_id = %command.subject,
@@ -248,7 +248,7 @@ where
         tracing::info!(
             target: "audit",
             action = "moderation.block.eject",
-            actor_id = %command.actor,
+            actor_id = %command.actor.actor_id,
             room_id = %room_id,
             target_actor_id = %command.subject,
             ejected_from,
@@ -281,13 +281,13 @@ where
     B: BlockStore + ?Sized,
     S: MembershipStore + ?Sized,
 {
-    if command.actor == command.subject {
+    if command.actor.actor_id == command.subject {
         return Err(ModerationError::Forbidden);
     }
     let room_id = super::scope::authorize_scope(rooms, sessions, &command.scope).await?;
-    crate::policy::require_actor_capability(
+    crate::policy::require_room_capability(
         memberships,
-        command.actor,
+        &command.actor,
         room_id,
         Capability::RemoveParticipant,
     )
@@ -297,7 +297,7 @@ where
         .get_active(command.scope, command.subject)
         .await?
         .ok_or(ModerationError::AlreadyLifted)?;
-    let lifted = blocks.lift(active.id, command.actor, now).await?;
+    let lifted = blocks.lift(active.id, command.actor.actor_id, now).await?;
     if !lifted {
         return Err(ModerationError::AlreadyLifted);
     }
@@ -305,7 +305,7 @@ where
     tracing::info!(
         target: "audit",
         action = "moderation.unblock",
-        actor_id = %command.actor,
+        actor_id = %command.actor.actor_id,
         room_id = %room_id,
         session_id = ?command.scope.session_id(),
         target_actor_id = %command.subject,

@@ -61,7 +61,14 @@ pub(super) async fn process_delivery(
     };
     match outcome {
         Ok(()) => {
-            if store.succeed(&job, token).await? {
+            let persisted = match store.succeed(&job, token).await {
+                Ok(persisted) => persisted,
+                Err(error) => {
+                    delivery.requeue().await?;
+                    return Err(error.into());
+                }
+            };
+            if persisted {
                 metrics.outcomes.with_label_values(&["succeeded"]).inc();
                 tracing::info!(job_id = %job.job_id, job_type = %job.job_type,
                     generation = job.generation, attempt = job.attempt, "job succeeded");
@@ -75,7 +82,14 @@ pub(super) async fn process_delivery(
                 JobFailure::Retryable(code) => (code, false),
                 JobFailure::Permanent(code) => (code, true),
             };
-            if store.fail(&job, token, code, permanent).await? {
+            let persisted = match store.fail(&job, token, code, permanent).await {
+                Ok(persisted) => persisted,
+                Err(error) => {
+                    delivery.requeue().await?;
+                    return Err(error.into());
+                }
+            };
+            if persisted {
                 if permanent || job.attempt >= MAX_ATTEMPTS {
                     metrics.outcomes.with_label_values(&["dead"]).inc();
                     tracing::warn!(job_id = %job.job_id, job_type = %job.job_type,

@@ -1,4 +1,5 @@
 pub mod cancel;
+mod connection;
 pub mod details;
 pub mod end;
 pub mod error;
@@ -12,6 +13,7 @@ pub mod start;
 pub mod visibility;
 
 pub use cancel::{CancelSession, cancel_session};
+pub use connection::{SessionConnection, authorize_connection};
 pub use details::{UpdateSessionDetails, update_session_details};
 pub use end::{EndSession, end_session};
 pub use error::SessionOperationError;
@@ -21,7 +23,7 @@ pub use leave::{LeaveSession, leave_session};
 pub use list::{ListSessions, list_sessions};
 pub use schedule::{ScheduleSession, schedule_session};
 pub use start::{StartSession, start_session, start_session_with_recording};
-pub use visibility::{GetSessionForCaller, get_session_for_caller};
+pub use visibility::{GetSessionForCaller, get_session_for_caller, get_session_for_roster};
 
 pub(crate) use guard::{require_joinable, require_not_blocked};
 

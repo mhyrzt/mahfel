@@ -39,6 +39,10 @@ async fn two_replica_hubs_apply_one_event_once_and_bound_slow_clients() {
     let (sender_b, mut receiver_b) = mpsc::channel(1);
     let _guard_a = first.register(id_a, actor, sender_a);
     let _guard_b = second.register(id_b, actor, sender_b);
+    let session = SessionId::new();
+    let participant = ParticipantId::new();
+    first.joined(id_a, room, session, participant);
+    let stopped = _guard_a.stopped();
     assert!(first.subscribe_chat(id_a, room, 0));
     assert!(second.subscribe_chat(id_b, room, 0));
     let event = ServerMessage::ChatEvent {
@@ -57,6 +61,7 @@ async fn two_replica_hubs_apply_one_event_once_and_bound_slow_clients() {
             created_at: "2026-01-01T00:00:00Z".to_owned(),
             edited_at: None,
             deleted_at: None,
+            attachment_ids: Vec::new(),
         }),
     };
     first.send_chat_event(id_a, room, 1, event.clone());
@@ -80,6 +85,15 @@ async fn two_replica_hubs_apply_one_event_once_and_bound_slow_clients() {
         first.chat_subscriptions().is_empty(),
         "a full outbound queue disconnects the stalled client"
     );
+    assert!(
+        *stopped.borrow(),
+        "backpressure signals the actual socket to close"
+    );
+    let handle = first
+        .participation(id_a)
+        .expect("cleanup retains participation");
+    assert_eq!(handle.participant_id, participant);
+    assert!(first.left_if_current(id_a, handle));
     assert!(
         !second.chat_subscriptions().is_empty(),
         "the other replica remains live"
@@ -306,4 +320,64 @@ fn a_stale_generation_cannot_detach_a_rejoined_connection() {
             .map(|handle| handle.participant_id),
         Some(participant_id)
     );
+}
+
+#[tokio::test]
+async fn durable_moderation_snapshot_repairs_both_replicas_and_retains_cleanup_handles() {
+    let first = registry();
+    let second = registry();
+    let room = RoomId::new();
+    let session = SessionId::new();
+    let actor = ActorId::new();
+    let now = time::OffsetDateTime::now_utc();
+    let mut participant = mahfel_domain::Participant::join(session, actor, now);
+    let id_a = Uuid::new_v4();
+    let id_b = Uuid::new_v4();
+    let (tx_a, mut rx_a) = mpsc::channel(4);
+    let (tx_b, mut rx_b) = mpsc::channel(4);
+    let guard_a = first.register(id_a, actor, tx_a);
+    let guard_b = second.register(id_b, actor, tx_b);
+    first.joined(id_a, room, session, participant.id);
+    second.joined(id_b, room, session, participant.id);
+    participant
+        .mute(mahfel_domain::MuteKind::Permanent, ActorId::new(), now)
+        .expect("mute");
+    for registry in [&first, &second] {
+        registry.reconcile_moderation(session, &[participant.clone()], true);
+        registry.reconcile_moderation(session, &[participant.clone()], true);
+    }
+    for receiver in [&mut rx_a, &mut rx_b] {
+        assert!(
+            matches!(receiver.try_recv(), Ok(Outbound::Message(ServerMessage::ParticipantMuted { kind, .. })) if kind == "permanent")
+        );
+        assert!(
+            receiver.try_recv().is_err(),
+            "unchanged snapshot is not repeated"
+        );
+    }
+    participant.unmute(true, now).expect("unmute");
+    for registry in [&first, &second] {
+        registry.reconcile_moderation(session, &[participant.clone()], true);
+    }
+    for receiver in [&mut rx_a, &mut rx_b] {
+        assert!(matches!(
+            receiver.try_recv(),
+            Ok(Outbound::Message(ServerMessage::ParticipantUnmuted { .. }))
+        ));
+    }
+    participant.remove(now).expect("removed");
+    for registry in [&first, &second] {
+        registry.reconcile_moderation(session, &[participant.clone()], true);
+    }
+    assert!(*guard_a.stopped().borrow());
+    assert!(*guard_b.stopped().borrow());
+    for (registry, id) in [(&first, id_a), (&second, id_b)] {
+        assert!(
+            matches!(registry.close_message(id), Some(ServerMessage::ParticipantRemoved { participant_id, .. }) if participant_id == participant.id.to_string())
+        );
+        assert!(registry.left_if_current(
+            id,
+            registry.participation(id).expect("cleanup handle retained")
+        ));
+    }
 }

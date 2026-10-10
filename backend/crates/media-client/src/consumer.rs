@@ -12,7 +12,7 @@ impl GrpcMediaGateway {
         rtp_capabilities: String,
     ) -> Result<(String, String, bool), tonic::Status> {
         let res = self
-            .with_retry(|mut client| {
+            .once(|mut client| {
                 let req = ConsumeRequest {
                     room_id: room.to_string(),
                     participant_id: participant_id.to_string(),

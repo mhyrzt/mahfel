@@ -75,8 +75,6 @@ pub(crate) async fn admit_principal(
     ValidatedPath((room_id, actor_id)): ValidatedPath<(Uuid, Uuid)>,
 ) -> Result<StatusCode, ApiError> {
     admit(
-        state.realtime.stores.participants.as_ref(),
-        state.participation.as_ref(),
         state.admissions.as_ref(),
         state.sessions.as_ref(),
         state.rooms.as_ref(),

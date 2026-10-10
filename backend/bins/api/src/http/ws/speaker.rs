@@ -50,7 +50,10 @@ impl SpeakerProjection {
 
     pub fn prune(&self, registry: &ConnectionRegistry) {
         let joined = registry.joined_sessions();
-        self.lock().sessions.retain(|id, _| joined.contains(id));
+        let rooms = registry.joined_rooms();
+        let mut state = self.lock();
+        state.sessions.retain(|id, _| joined.contains(id));
+        state.rooms.retain(|id, _| rooms.contains(id));
     }
 
     fn clear(&self, registry: &ConnectionRegistry) {

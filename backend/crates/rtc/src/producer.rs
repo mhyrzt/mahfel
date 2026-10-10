@@ -100,6 +100,17 @@ pub(super) async fn create_producer(
             return Err(RtcError::Observer(error.to_string()));
         }
     }
+    let transport_map = transports.read().await;
+    if !transport_map
+        .get(transport_id)
+        .is_some_and(|entry| entry.room_id == room_id && entry.participant_id == participant_id)
+        || producer.closed()
+    {
+        speakers.remove_producer(room_id, &producer_id);
+        return Err(RtcError::TransportNotFound {
+            transport_id: transport_id.to_owned(),
+        });
+    }
     producers.write().await.insert(
         producer_id.clone(),
         ProducerEntry {
@@ -138,8 +149,9 @@ pub(super) async fn pause_producer(
             producer_id: producer_id.to_owned(),
         });
     }
-    entry
-        .producer
+    let producer = entry.producer.clone();
+    drop(map);
+    producer
         .pause()
         .await
         .map_err(|e| RtcError::Producer(e.to_string()))?;
@@ -165,13 +177,17 @@ pub(super) async fn resume_producer(
             producer_id: producer_id.to_owned(),
         });
     }
-    entry
-        .producer
+    let producer = entry.producer.clone();
+    let kind = entry.kind;
+    let source = entry.source;
+    let participant_id = entry.participant_id;
+    drop(map);
+    producer
         .resume()
         .await
         .map_err(|e| RtcError::Producer(e.to_string()))?;
-    if entry.kind == MediaKind::Audio && entry.source == ProducerSource::Microphone {
-        speakers.add_producer(room_id, producer_id.to_owned(), entry.participant_id);
+    if !producer.closed() && kind == MediaKind::Audio && source == ProducerSource::Microphone {
+        speakers.add_producer(room_id, producer_id.to_owned(), participant_id);
     }
     Ok(())
 }
@@ -190,15 +206,14 @@ pub(super) async fn pause_participant_source(
     source: ProducerSource,
 ) -> Result<usize, RtcError> {
     let map = producers.read().await;
-    let selected = owned_producer_ids(&map, room_id, participant_id, Some(source));
-
+    let selected: Vec<_> = owned_producer_ids(&map, room_id, participant_id, Some(source))
+        .into_iter()
+        .filter_map(|id| map.get(&id).map(|entry| (id, entry.producer.clone())))
+        .collect();
+    drop(map);
     let mut paused = 0;
-    for producer_id in selected {
-        let Some(entry) = map.get(&producer_id) else {
-            continue;
-        };
-        entry
-            .producer
+    for (producer_id, producer) in selected {
+        producer
             .pause()
             .await
             .map_err(|e| RtcError::Producer(e.to_string()))?;
@@ -217,20 +232,29 @@ pub(super) async fn resume_participant_source(
     source: ProducerSource,
 ) -> Result<usize, RtcError> {
     let map = producers.read().await;
-    let selected = owned_producer_ids(&map, room_id, participant_id, Some(source));
-
+    let selected: Vec<_> = owned_producer_ids(&map, room_id, participant_id, Some(source))
+        .into_iter()
+        .filter_map(|id| {
+            map.get(&id).map(|entry| {
+                (
+                    id,
+                    entry.producer.clone(),
+                    entry.kind,
+                    entry.source,
+                    entry.participant_id,
+                )
+            })
+        })
+        .collect();
+    drop(map);
     let mut resumed = 0;
-    for producer_id in selected {
-        let Some(entry) = map.get(&producer_id) else {
-            continue;
-        };
-        entry
-            .producer
+    for (producer_id, producer, kind, source, actor) in selected {
+        producer
             .resume()
             .await
             .map_err(|e| RtcError::Producer(e.to_string()))?;
-        if entry.kind == MediaKind::Audio && entry.source == ProducerSource::Microphone {
-            speakers.add_producer(room_id, producer_id.clone(), entry.participant_id);
+        if !producer.closed() && kind == MediaKind::Audio && source == ProducerSource::Microphone {
+            speakers.add_producer(room_id, producer_id.clone(), actor);
         }
         resumed += 1;
     }
@@ -249,15 +273,24 @@ pub(super) async fn resume_participant_source(
 /// the producer in the same step, so a concurrent close cannot find it and a
 /// partially closed producer cannot be left behind.
 pub(super) async fn close_participant(
+    transports: &TransportMap,
     producers: &ProducerMap,
+    consumers: &super::consumer::ConsumerMap,
     speakers: &SpeakerHub,
     room_id: RoomId,
     participant_id: ActorId,
 ) -> Result<usize, RtcError> {
+    let mut transport_map = transports.write().await;
+    transport_map
+        .retain(|_, entry| entry.room_id != room_id || entry.participant_id != participant_id);
     let mut map = producers.write().await;
     // Removal ends participation, so every source goes; source targeting is for
     // mute, which is a narrower action.
     let owned = owned_producer_ids(&map, room_id, participant_id, None);
+    consumers.write().await.retain(|_, entry| {
+        entry.room_id != room_id
+            || (entry.participant_id != participant_id && !owned.contains(&entry.producer_id))
+    });
 
     let mut closed = 0;
     for producer_id in owned {

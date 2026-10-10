@@ -37,22 +37,22 @@ impl ConnectionRegistry {
 
     pub fn broadcast_chat_activity(&self, room_id: RoomId, message: ServerMessage) {
         let mut connections = self.lock();
-        connections.retain(|_, connection| {
+        for connection in connections.values_mut() {
             if !connection.chat_subscriptions.contains_key(&room_id) {
-                return true;
+                continue;
             }
-            match connection
+            if let Err(error) = connection
                 .sender
                 .try_send(Outbound::Message(message.clone()))
             {
-                Ok(()) => true,
-                Err(mpsc::error::TrySendError::Full(_)) => {
+                if matches!(error, mpsc::error::TrySendError::Full(_)) {
                     self.inner.metrics.send_dropped();
-                    false
                 }
-                Err(mpsc::error::TrySendError::Closed(_)) => false,
+                connection.chat_subscriptions.clear();
+                connection.last_typing.clear();
+                connection.close.send_replace(true);
             }
-        });
+        }
     }
 
     pub fn subscribe_chat(&self, id: Uuid, room_id: RoomId, after_sequence: i64) -> bool {
@@ -125,10 +125,14 @@ impl ConnectionRegistry {
             Ok(()) => *cursor = sequence,
             Err(mpsc::error::TrySendError::Full(_)) => {
                 self.inner.metrics.send_dropped();
-                connections.remove(&id);
+                connection.chat_subscriptions.clear();
+                connection.last_typing.clear();
+                connection.close.send_replace(true);
             }
             Err(mpsc::error::TrySendError::Closed(_)) => {
-                connections.remove(&id);
+                connection.chat_subscriptions.clear();
+                connection.last_typing.clear();
+                connection.close.send_replace(true);
             }
         }
     }

@@ -52,6 +52,7 @@ services:
       MAHFEL_STORAGE__REGION: ${MAHFEL_S3_REGION:-us-east-1}
       MAHFEL_REDIS__URL: redis://redis:6379
       MAHFEL_API__MEDIA_GRPC_URL: http://mahfel-media:50051
+      MAHFEL_API__CONTROL_TOKEN: ${MAHFEL_MEDIA_CONTROL_TOKEN:-mahfel-local-only-media-control-token}
       MAHFEL_API__ALLOWED_ORIGIN: https://mahfel.localhost
       MAHFEL_TELEMETRY__LOG_FILTER: ${MAHFEL_LOG_FILTER:-info,mahfel=debug,tower_http=info}
     ports:
@@ -118,6 +119,7 @@ services:
       target: media
     restart: unless-stopped
     environment:
+      MAHFEL_MEDIA__CONTROL_TOKEN: ${MAHFEL_MEDIA_CONTROL_TOKEN:-mahfel-local-only-media-control-token}
       MAHFEL_MEDIA__ANNOUNCED_ADDRESS: ${MAHFEL_MEDIA_ANNOUNCED_ADDRESS:-127.0.0.1}
       MAHFEL_MEDIA__RTC_PORT_MIN: ${MAHFEL_MEDIA_RTC_PORT_MIN:-40000}
       MAHFEL_MEDIA__RTC_PORT_MAX: ${MAHFEL_MEDIA_RTC_PORT_MAX:-40003}

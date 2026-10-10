@@ -46,7 +46,7 @@ impl GrpcMediaGateway {
         let kind_str = kind.as_str().to_owned();
 
         let res = self
-            .with_retry(|mut client| {
+            .once(|mut client| {
                 let req = ProduceRequest {
                     room_id: room.to_string(),
                     participant_id: participant_id.to_string(),

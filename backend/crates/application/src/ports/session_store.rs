@@ -71,5 +71,14 @@ pub trait SessionStore: Send + Sync {
     ) -> BoxFuture<'a, Result<Session, StoreError>>;
 
     /// Sessions hosted by a room, newest first.
+    /// Bounded session history, optionally filtered by lifecycle status.
+    fn list_for_room_page(
+        &self,
+        room_id: RoomId,
+        status: Option<mahfel_domain::SessionStatus>,
+        limit: u64,
+        offset: u64,
+    ) -> BoxFuture<'_, Result<Vec<Session>, StoreError>>;
+
     fn list_for_room(&self, room_id: RoomId) -> BoxFuture<'_, Result<Vec<Session>, StoreError>>;
 }

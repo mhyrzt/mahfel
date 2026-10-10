@@ -27,6 +27,27 @@ impl PostgresChatStore {
 }
 
 impl ChatStore for PostgresChatStore {
+    fn authorized_subscribers<'a>(
+        &'a self,
+        room_id: RoomId,
+        actors: &'a [ActorId],
+    ) -> mahfel_application::ports::BoxFuture<'a, Result<Vec<ActorId>, StoreError>> {
+        Box::pin(async move {
+            let ids: Vec<_> = actors.iter().map(|actor| actor.as_uuid()).collect();
+            let rows: Vec<Uuid> = sqlx::query_scalar(
+                "SELECT membership.actor_id FROM mahfel.rooms room \
+                 JOIN mahfel.room_memberships membership ON membership.room_id = room.id \
+                 WHERE room.id = $1 AND room.status = 'active' AND membership.actor_id = ANY($2)",
+            )
+            .bind(room_id.as_uuid())
+            .bind(ids)
+            .fetch_all(&self.pool)
+            .await
+            .map_err(sqlx_store_error)?;
+            Ok(rows.into_iter().map(ActorId::from_uuid).collect())
+        })
+    }
+
     fn read_marker(
         &self,
         room_id: RoomId,

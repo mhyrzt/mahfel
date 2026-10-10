@@ -29,6 +29,7 @@ pub struct MediaPlacementRouter {
     nodes: Arc<dyn MediaNodeRegistry>,
     sessions: Arc<dyn SessionStore>,
     gateways: Mutex<HashMap<String, Arc<GrpcMediaGateway>>>,
+    control_token: Option<String>,
 }
 
 impl MediaPlacementRouter {
@@ -44,7 +45,13 @@ impl MediaPlacementRouter {
             nodes,
             sessions,
             gateways: Mutex::new(HashMap::new()),
+            control_token: None,
         }
+    }
+
+    pub fn with_control_token(mut self, token: String) -> Self {
+        self.control_token = Some(token);
+        self
     }
 
     pub async fn place(
@@ -126,8 +133,13 @@ impl MediaPlacementRouter {
         if let Some(gateway) = gateways.get(&url) {
             return Ok(Arc::clone(gateway));
         }
-        let gateway =
-            Arc::new(GrpcMediaGateway::lazy(url.clone()).map_err(|_| PlacementError::Unavailable)?);
+        let gateway = Arc::new(
+            match &self.control_token {
+                Some(token) => GrpcMediaGateway::authenticated(url.clone(), token),
+                None => GrpcMediaGateway::lazy(url.clone()),
+            }
+            .map_err(|_| PlacementError::Unavailable)?,
+        );
         gateways.insert(url, Arc::clone(&gateway));
         Ok(gateway)
     }

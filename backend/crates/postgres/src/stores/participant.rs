@@ -19,7 +19,7 @@ impl PostgresParticipantStore {
 }
 
 #[derive(FromRow)]
-struct ParticipantRow {
+pub(super) struct ParticipantRow {
     id: Uuid,
     session_id: Uuid,
     actor_id: Uuid,

@@ -86,6 +86,10 @@ impl SpeakerProjection {
             return;
         };
         let room_id = RoomId::from_uuid(room_uuid);
+        if registry.sessions_for_room(room_id).is_empty() {
+            self.lock().rooms.remove(&room_id);
+            return;
+        }
         let actors: Vec<_> = frame
             .actor_ids
             .iter()
