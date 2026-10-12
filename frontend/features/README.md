@@ -23,3 +23,5 @@ download boundary, scoped to a recording context. Keep stable `data-testid` anch
 control, indicator, and artifact list for cross-service E2E tests.
 
 `interactions/` owns session poll and quiz drafting, answering, results, named-voter pages, and the shared raise-hand queue. Session composition owns its panel and the existing signaling connection.
+
+`parto/` owns the procedural AI mascot, its imperative PixiJS renderer, motion primitives, React lifecycle wrapper and Brand/Parto Storybook studies. It is not connected to live AI behavior yet.

@@ -192,13 +192,33 @@ export interface Messages {
     logoutFailed: string;
   };
   home: {
+    brand: string;
+    titleLead: string;
+    titleAccent: string;
+    skipToContent: string;
+    signingIn: string;
+    signInFailed: string;
+    capabilitiesLabel: string;
+    sessionTitle: string;
+    sessionDescription: string;
+    chatTitle: string;
+    chatDescription: string;
+    ideasTitle: string;
+    ideasDescription: string;
+    filesTitle: string;
+    filesDescription: string;
     eyebrow: string;
     title: string;
     description: string;
     signIn: string;
     supportingText: string;
     status: string;
-    footer: string;
+    partoName: string;
+    partoGreeting: string;
+    partoTalking: string;
+    partoReady: string;
+    partoInteract: string;
+    partoUnavailable: string;
   };
   sessions: {
     sessionTitle: string;
@@ -495,6 +515,21 @@ const messages: Record<Locale, Messages> = {
       logoutFailed: "Could not log out. Please try again.",
     },
     home: {
+      brand: "Mahfel",
+      titleLead: "Good conversations",
+      titleAccent: "start here.",
+      skipToContent: "Skip to content",
+      signingIn: "Opening sign-in…",
+      signInFailed: "We couldn’t open sign-in. Please try again.",
+      capabilitiesLabel: "A space to connect and collaborate",
+      sessionTitle: "Meet face to face",
+      sessionDescription: "Video, voice, and screen sharing.",
+      chatTitle: "Keep the conversation",
+      chatDescription: "Room chats that stay with your people.",
+      ideasTitle: "Think together",
+      ideasDescription: "Shared notes and a space to draw.",
+      filesTitle: "Bring it all along",
+      filesDescription: "Files and ideas, right where you meet.",
       eyebrow: "A place to meet",
       title: "Good conversations start here.",
       description:
@@ -502,7 +537,12 @@ const messages: Record<Locale, Messages> = {
       signIn: "Sign in to Mahfel",
       supportingText: "A little more room for the conversations that matter.",
       status: "Ready when you are",
-      footer: "Thoughtfully made for people, in every language.",
+      partoName: "Parto",
+      partoGreeting: "Hi, I’m Parto. A little light for your next great conversation.",
+      partoTalking: "Saying hello",
+      partoReady: "Here for a little company",
+      partoInteract: "Parto. Tap or press Enter for a playful hop",
+      partoUnavailable: "Parto is taking a rest.",
     },
     sessions: {
       sessionTitle: "Session",
@@ -799,14 +839,34 @@ const messages: Record<Locale, Messages> = {
       logoutFailed: "خروج انجام نشد. دوباره تلاش کنید.",
     },
     home: {
+      brand: "محفل",
+      titleLead: "گفت‌وگوهای خوب",
+      titleAccent: "از اینجا شروع می‌شوند.",
+      skipToContent: "رفتن به محتوای اصلی",
+      signingIn: "در حال باز کردن صفحهٔ ورود…",
+      signInFailed: "صفحهٔ ورود باز نشد. دوباره تلاش کنید.",
+      capabilitiesLabel: "فضایی برای دیدار و همکاری",
+      sessionTitle: "روبه‌روی هم، از هر جا",
+      sessionDescription: "تماس تصویری، صوتی و اشتراک صفحه.",
+      chatTitle: "گفت‌وگو ادامه دارد",
+      chatDescription: "پیام‌های شما، کنار آدم‌های اتاق.",
+      ideasTitle: "با هم فکر کنید",
+      ideasDescription: "یادداشت مشترک و فضایی برای طراحی.",
+      filesTitle: "همه‌چیز کنار هم",
+      filesDescription: "فایل‌ها و ایده‌ها، همان‌جا که دیدار می‌کنید.",
       eyebrow: "جایی برای دیدار",
       title: "گفت‌وگوهای خوب از اینجا شروع می‌شوند.",
       description:
-        "دور هم جمع شوید، ایده‌ها را به اشتراک بگذارید و با تمرکز بر آدم‌ها و گفت‌وگوها همکاری کنید.",
+        "محفل، فضایی برای گفت‌وگو، هم‌فکری و خلق ایده‌هاست. دور هم جمع شوید، تصویر و صفحه‌تان را به اشتراک بگذارید و با هم پیش بروید.",
       signIn: "ورود به محفل",
       supportingText: "فضایی بیشتر برای گفت‌وگوهایی که اهمیت دارند.",
       status: "هر وقت آماده‌اید",
-      footer: "با دقت برای آدم‌ها و به هر زبان ساخته شده است.",
+      partoName: "پرتو",
+      partoGreeting: "سلام، من پرتو هستم! یه ذره روشنایی برای گفت‌وگوی بعدی‌تون.",
+      partoTalking: "در حال سلام کردن",
+      partoReady: "اینجام که همراهتون باشم",
+      partoInteract: "پرتو. برای یک پرش کوچک، کلیک کنید یا کلید ورود را بزنید",
+      partoUnavailable: "پرتو داره استراحت می‌کنه.",
     },
     sessions: {
       sessionTitle: "دیدار",

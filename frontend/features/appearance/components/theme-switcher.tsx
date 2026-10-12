@@ -47,7 +47,8 @@ export function ThemeSwitcher({ locale, theme, compact = false }: Readonly<Theme
         <DropdownMenuTrigger asChild>
           <Button
             aria-label={messages.label}
-            className="size-9 shrink-0 rounded-lg border bg-background/75 shadow-none"
+            title={messages.label}
+            className="size-11 shrink-0 rounded-xl border-border/70 bg-transparent shadow-none"
             size="icon"
             variant="outline"
           >

@@ -37,7 +37,8 @@ export function LocaleSwitcher({ locale, compact = false }: Readonly<LocaleSwitc
         <DropdownMenuTrigger asChild>
           <Button
             aria-label={messages.account.language}
-            className="h-9 gap-2 rounded-lg border bg-background/75 px-3 text-xs font-semibold shadow-none"
+            title={messages.account.language}
+            className="h-11 gap-2 rounded-xl border-border/70 bg-transparent px-3.5 text-xs font-semibold shadow-none"
             variant="outline"
           >
             <Languages aria-hidden="true" className="size-4" />

@@ -1141,7 +1141,10 @@ product must remain coherent without AI. Do not place sparkle icons everywhere.
 
 ## 64. Parto
 
-**Future direction.** Parto, Mahfel's AI companion, is not implemented.
+Parto is implemented as a procedural PixiJS mascot with an imperative controller and React wrapper
+under `features/parto`. Storybook includes reference, motion, interaction and avatar studies. The
+landing hero uses a cursor-following Parto and a localized greeting bubble with a simulated speaking
+state and no extra playback controls. This is a brand welcome, not a live AI or voice integration.
 
 When introduced, use Parto for AI chat, summarization, search assistance, session intelligence,
 onboarding/help, and AI-generated actions — not as a generic navigation symbol on every surface.
@@ -1207,3 +1210,19 @@ Persianize the visual language, not the usability model.**
 
 Mahfel should feel like a product built naturally for Persian-speaking users while remaining
 completely understandable and comfortable internationally.
+
+## Landing page composition
+
+The public landing page uses an asymmetric editorial hero with a two-part localized headline, one
+primary sign-in action and a compact row of four collaboration capabilities. The mascot occupies a
+muted illustration field; its greeting bubble and floating character form one composition. Header
+controls stay compact, the brand name is localized, and a keyboard skip link reaches the hero.
+Sign-in shows pending feedback and a localized recoverable error. The mobile layout keeps the
+primary action before the mascot and presents capabilities in two columns. Persian display type
+uses normal letter spacing. The landing presentation has no mascot playback controls.
+
+### Playful Persian minimalism refinement
+
+The landing uses a warm near-white `--landing-background` surface in light mode and the existing dark background in dark/system-dark mode. `--landing-action` preserves white CTA contrast in both themes. A faint, localized radial halo replaces the solid oval behind Parto. The existing Persian headline remains two semantic lines with Persian-specific line height and no letter spacing. Feature highlights stay flat, with stronger headings and readable descriptions. Compact language and theme triggers have 44px touch targets.
+
+The hero enters once through a small opacity/translation animation; reduced motion skips that entrance and all landing transitions. The Parto companion retains its procedural flame and cursor response, but uses curious idle eyes rather than recurring happy hops. The greeting bubble stays connected through its pointer. No new dependencies, navigation, footer slogan, or mascot playback controls are introduced.

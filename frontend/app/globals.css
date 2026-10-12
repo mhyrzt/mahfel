@@ -40,6 +40,8 @@
 :root {
   color-scheme: light;
   --background: #fafafc;
+  --landing-background: #fcfbf9;
+  --landing-action: color-mix(in srgb, var(--primary) 90%, var(--foreground));
   --foreground: #181725;
   --card: #ffffff;
   --card-foreground: #181725;
@@ -198,6 +200,8 @@ main:has([data-session-sidebar]) [data-testid="session-detail"] {
   :root[data-theme="system"] {
     color-scheme: dark;
     --background: #101018;
+    --landing-background: #101018;
+    --landing-action: color-mix(in srgb, var(--primary) 90%, var(--background));
     --foreground: #f4f3f8;
     --card: #181824;
     --card-foreground: #f4f3f8;
@@ -226,6 +230,8 @@ main:has([data-session-sidebar]) [data-testid="session-detail"] {
 :root[data-theme="dark"] {
   color-scheme: dark;
   --background: #101018;
+  --landing-background: #101018;
+  --landing-action: color-mix(in srgb, var(--primary) 90%, var(--background));
   --foreground: #f4f3f8;
   --card: #181824;
   --card-foreground: #f4f3f8;

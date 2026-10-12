@@ -13,3 +13,15 @@ it("starts Keycloak sign-in directly and prevents duplicate clicks", () => {
   expect(signIn).toHaveBeenCalledWith("keycloak", { callbackUrl: "/workspace" });
   expect(button).toBeDisabled();
 });
+
+it("shows a useful failure message and allows retry", async () => {
+  vi.mocked(signIn).mockRejectedValueOnce(new Error("Unavailable"));
+  render(
+    <KeycloakSignInButton pendingLabel="Opening sign-in…" errorMessage="Try again">
+      Sign in
+    </KeycloakSignInButton>,
+  );
+  fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
+  expect(await screen.findByRole("alert")).toHaveTextContent("Try again");
+  expect(screen.getByRole("button", { name: "Sign in" })).toBeEnabled();
+});
