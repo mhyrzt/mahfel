@@ -38,3 +38,9 @@ available outgoing bitrate.
 Prometheus labels must stay bounded. Never label metrics with `user_id`, `room_id`, `producer_id`,
 email address, or other per-entity identifiers. Put those identifiers in structured logs and traces,
 subject to privacy policy, and correlate with trace/request IDs.
+
+## Frontend liveness
+
+`GET /api/health` is the public `mahfel-web` liveness endpoint used by its container healthcheck. It returns HTTP 200 with `status: "ok"`, `service: "mahfel-web"`, the application `version` bundled from `frontend/package.json`, `kind: "liveness"`, a UTC RFC 3339 `timestamp`, integer process `uptimeSeconds`, and `environment` (`NODE_ENV`, or `unknown` when unset). Responses use `Cache-Control: no-store` and execute at request time.
+
+The version identifies the packaged application, not the independently versioned container release tag. Uptime belongs to the responding process and resets on restart; different replicas may have different uptimes. This lightweight probe makes no backend or identity-provider requests and does not establish platform readiness. It exposes no hostnames, credentials, internal URLs, or arbitrary environment variables.
