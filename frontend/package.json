@@ -61,6 +61,7 @@
     "next-auth": "4.24.11",
     "pdfjs-dist": "^6.3.289",
     "perfect-freehand": "1.2.0",
+    "pixi.js": "^8",
     "react": "19.2.0",
     "react-dom": "19.2.0",
     "roughjs": "4.6.4",
