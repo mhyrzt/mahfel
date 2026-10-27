@@ -1,8 +1,12 @@
 # Mahfel
 
-Mahfel is a self-hosted platform for live classrooms and collaboration, built with
-Rust, Next.js, and WebRTC. It brings video, shared whiteboards, collaborative
-notes, file sharing, and recordings into a Farsi-first, RTL interface.
+Mahfel is a self-hosted platform for realtime meetings and collaboration, built
+with Rust, Next.js, and WebRTC. Bring people together with audio and video, shared
+whiteboards, collaborative notes, file sharing, and recordings in a Farsi-first,
+RTL interface.
+
+Use it for team meetings, workshops, community gatherings, or live classes—all
+in a shared workspace on infrastructure you control.
 
 [Getting started](docs/development/getting-started.md) ·
 [Documentation](docs/index.md) ·
@@ -11,9 +15,9 @@ notes, file sharing, and recordings into a Farsi-first, RTL interface.
 
 ## What you can do
 
-- Teach live with audio, video, screen sharing, and classroom moderation.
+- Meet face to face with audio, video, screen sharing, and host moderation.
 - Work together on whiteboards and notes, and present PDFs, images, and video.
-- Share files, invite participants, and review recordings and attendance reports.
+- Share files, invite participants, and revisit sessions through recordings.
 - Host the application and artifact storage on your own infrastructure.
 - Integrate with existing systems through REST APIs and Keycloak-based SSO.
 
@@ -61,7 +65,7 @@ See the [architecture documentation](docs/index.md) and [ADRs](docs/adr/).
 Bug reports, documentation improvements, translations, and focused code changes
 are welcome. [Open an issue](https://github.com/mhyrzt/mahfel/issues) to describe a
 bug or discuss a substantial change before implementation. Include reproduction
-steps and expected behavior for bugs; keep credentials and private classroom data
+steps and expected behavior for bugs; keep credentials and private participant data
 out of reports.
 
 Fork the repository, create a branch, and submit a pull request with a short
