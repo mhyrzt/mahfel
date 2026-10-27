@@ -1,108 +1,90 @@
 # Mahfel
 
-Mahfel brings live classrooms, collaborative whiteboards and notes, file sharing,
-and recordings into one self-hosted platform with a Farsi-first, RTL interface.
-Run it on your own infrastructure and connect it to your LMS through REST APIs
-and SSO.
+Mahfel is a self-hosted platform for live classrooms and collaboration, built with
+Rust, Next.js, and WebRTC. It brings video, shared whiteboards, collaborative
+notes, file sharing, and recordings into a Farsi-first, RTL interface.
 
-## Why Mahfel
+[Getting started](docs/development/getting-started.md) ·
+[Documentation](docs/index.md) ·
+[Report a bug](https://github.com/mhyrzt/mahfel/issues) ·
+[MIT license](LICENSE)
 
-- **Built for teaching:** combine video, screen sharing, PDF/image presentations,
-  shared notes, and whiteboards in the same classroom.
-- **Designed for Farsi-speaking classrooms:** a Farsi-first, RTL interface.
-- **Control your deployment:** self-host the platform and its artifact storage
-  on infrastructure you operate.
-- **Connect your existing systems:** REST integrations and SSO let Mahfel fit
-  alongside your LMS without replacing it.
-- **Keep learning after the session:** recordings, file sharing, and attendance
-  reports support review and follow-up.
+## What you can do
 
-Transcription, AI participants, and AI voice interaction are planned; the
-comparison below distinguishes supported features from future work.
+- Teach live with audio, video, screen sharing, and classroom moderation.
+- Work together on whiteboards and notes, and present PDFs, images, and video.
+- Share files, invite participants, and review recordings and attendance reports.
+- Host the application and artifact storage on your own infrastructure.
+- Integrate with existing systems through REST APIs and Keycloak-based SSO.
 
-## Application components
+Mahfel is under active development. See the [roadmap](docs/development/roadmap.md)
+for planned work; roadmap entries are not promises of available functionality.
 
-Mahfel runs as four application components:
+## Get started
 
-- `mahfel-web` — Next.js browser application
-- `mahfel-api` — Rust control plane
-- `mahfel-media` — Rust mediasoup media plane
-- `mahfel-worker` — Rust background worker
-
-See the [documentation](docs/index.md) for architecture, networking, deployment,
-and the implementation roadmap.
-
-## Feature comparison
-
-How Mahfel compares with common meeting and virtual-classroom products. The Mahfel column reflects
-implemented behavior, or planned features where marked 🕒. Competitor entries are based on public
-product documentation at the time of writing and can change by plan, edition, or version — ❌ means
-"not advertised as a built-in feature" in the sources reviewed, not a definitive absence.
-
-Legend: ✅ supported · ❌ not supported / not advertised · 🕒 planned for Mahfel (not yet implemented)
-
-| Feature                                 | Mahfel | Google Meet | Jitsi Meet | BigBlueButton | Alocom | Skyroom |
-| --------------------------------------- | :----: | :---------: | :--------: | :-----------: | :----: | :-----: |
-| Video meetings                          |   ✅   |     ✅      |     ✅     |      ✅       |   ✅   |   ✅    |
-| Large webinars / broadcasts             |   🕒   |     ✅      |     ✅     |      ❌       |   ✅   |   ✅    |
-| Online classrooms                       |   ✅   |     ✅      |     ✅     |      ✅       |   ✅   |   ✅    |
-| Screen sharing                          |   ✅   |     ✅      |     ✅     |      ✅       |   ✅   |   ✅    |
-| In-meeting chat                         |   ✅   |     ✅      |     ✅     |      ✅       |   ✅   |   ✅    |
-| Collaborative whiteboard                |   ✅   |     ✅      |     ✅     |      ✅       |   ✅   |   ✅    |
-| Collaborative notes                     |   ✅   |     ❌      |     ✅     |      ✅       |   ❌   |   ❌    |
-| File sharing                            |   ✅   |     ✅      |     ✅     |      ✅       |   ✅   |   ✅    |
-| Presentation (PDF / images)             |   ✅   |     ✅      |     ✅     |      ✅       |   ✅   |   ✅    |
-| Video playback in presentation          |   ✅   |     ✅      |     ✅     |      ✅       |   ✅   |   ✅    |
-| Session recording                       |   ✅   |     ✅      |     ✅     |      ✅       |   ✅   |   ✅    |
-| Transcription / captions                |   🕒   |     ✅      |     ❌     |      ❌       |   ✅   |   ❌    |
-| Breakout rooms / groups                 |   🕒   |     ✅      |     ✅     |      ✅       |   ✅   |   ❌    |
-| Polls / quizzes                         |   🕒   |     ✅      |     ✅     |      ✅       |   ✅   |   ❌    |
-| Raise hand                              |   🕒   |     ✅      |     ✅     |      ✅       |   ❌   |   ❌    |
-| Waiting room / lobby admission          |   ✅   |     ✅      |     ✅     |      ✅       |   ❌   |   ❌    |
-| Attendance & participation report       |   ✅   |     ✅      |     ❌     |      ✅       |   ✅   |   ❌    |
-| Invite links / join by code             |   ✅   |     ✅      |     ✅     |      ✅       |   ✅   |   ✅    |
-| Host moderation (mute / remove / block) |   ✅   |     ✅      |     ✅     |      ✅       |   ✅   |   ✅    |
-| SSO (OIDC / SAML)                       |   ✅   |     ✅      |     ✅     |      ✅       |   ❌   |   ❌    |
-| Active speaker view                     |   ✅   |     ✅      |     ✅     |      ✅       |   ❌   |   ❌    |
-| Virtual backgrounds / blur              |   🕒   |     ✅      |     ✅     |      ✅       |   ❌   |   ❌    |
-| Noise suppression                       |   🕒   |     ✅      |     ✅     |      ❌       |   ❌   |   ❌    |
-| End-to-end encryption                   |   🕒   |     ✅      |     ✅     |      ❌       |   ❌   |   ❌    |
-| Phone dial-in (PSTN / SIP)              |   ❌   |     ✅      |     ❌     |      ❌       |   ❌   |   ❌    |
-| Live streaming (RTMP)                   |   🕒   |     ✅      |     ✅     |      ❌       |   ❌   |   ✅    |
-| Native mobile apps                      |   🕒   |     ✅      |     ✅     |      ✅       |   ✅   |   ✅    |
-| Self-hosting / on-premises              |   ✅   |     ❌      |     ✅     |      ✅       |   ✅   |   ✅    |
-| REST API & integrations                 |   ✅   |     ✅      |     ✅     |      ✅       |   ✅   |   ✅    |
-| Farsi-first / RTL interface             |   ✅   |     ❌      |     ❌     |      ❌       |   ✅   |   ✅    |
-| AI participant / assistant              |   🕒   |     ✅      |     ❌     |      ❌       |   ❌   |   ❌    |
-| AI voice interaction                    |   🕒   |     ❌      |     ❌     |      ❌       |   ❌   |   ❌    |
-
-Recording includes original tracks, authorized interactive replay and automatic workspace MP4 exports.
-Managers can delete a recording and its artifacts; see
-[recording operations](docs/deployment/recordings.md) and
-[MP4 export operations](docs/development/recording-export.md).
-
-## Quick start
+Install Docker Engine with Compose v2, Just, and the Bun version pinned in
+`frontend/package.json`. The [setup guide](docs/development/getting-started.md)
+covers the full toolchain, including Rust for host-side backend development.
 
 ```bash
+git clone https://github.com/mhyrzt/mahfel.git
+cd mahfel
 just bootstrap
 just frontend install
 just compose-up
 ```
 
-Open `https://mahfel.localhost`. `just bootstrap` installs the Compose Caddy CA in your host
-trust store and may prompt for `sudo`.
+Open `https://mahfel.localhost`. Bootstrap creates local environment files, starts
+Caddy, and installs its local certificate authority; trusting the certificate may
+prompt for `sudo`. The Compose stack builds the application images and starts the
+supporting services. No private deployment repository is required.
 
-See [getting started](docs/development/getting-started.md) for details. Run `just --list` for all
-development commands.
+The committed credentials and environment examples are for local development.
+Configure your own secrets and networking before deploying to a shared host. See
+[local deployment](docs/deployment/local.md) for configuration details.
 
-## Deployment repository
+## How it fits together
 
-`devops/` is a Git submodule pointing to `hamdars/devops`, which contains Rastploy and shared
-deployment configuration. Initialize the pinned revision after cloning Mahfel:
+| Component | Role | Stack |
+| --- | --- | --- |
+| `mahfel-web` | Browser application | Next.js, React, TypeScript |
+| `mahfel-api` | Application APIs and signaling | Rust |
+| `mahfel-media` | Realtime media | Rust, mediasoup |
+| `mahfel-worker` | Background jobs and recordings | Rust |
+
+PostgreSQL stores durable application state, Redis coordinates ephemeral state,
+RabbitMQ transports jobs, and S3-compatible storage holds artifact bytes.
+See the [architecture documentation](docs/index.md) and [ADRs](docs/adr/).
+
+## Contributing
+
+Bug reports, documentation improvements, translations, and focused code changes
+are welcome. [Open an issue](https://github.com/mhyrzt/mahfel/issues) to describe a
+bug or discuss a substantial change before implementation. Include reproduction
+steps and expected behavior for bugs; keep credentials and private classroom data
+out of reports.
+
+Fork the repository, create a branch, and submit a pull request with a short
+explanation and validation results. Read [AGENTS.md](AGENTS.md) and the applicable
+component instructions for architecture and coding conventions.
+
+Useful local checks:
 
 ```bash
-git submodule update --init devops
+just frontend fmt
+just frontend lint
+just frontend typecheck
+just frontend test
+just backend fmt
+just backend lint
+just backend test
+just docs
 ```
 
-Access to the private `hamdars/devops` repository is required. Application builds do not require
-the submodule, and its files are excluded from Mahfel's Docker build context.
+Run the checks relevant to your change. `just --list` lists root commands; use
+`just frontend` or `just backend` to list component commands. Hosted CI is
+currently disabled while the repository transitions to GitHub.
+
+## License
+
+Mahfel is licensed under the [MIT License](LICENSE).

@@ -1,5 +1,4 @@
 .git
-devops/
 .env
 **/.env.local
 **/.env.*.local

@@ -1,213 +1,33 @@
 # Continuous integration
 
-Mahfel uses GitLab CI with a root workflow, shared image jobs under `ci/`, and component jobs in
-`backend/.gitlab-ci.yml`, `frontend/.gitlab-ci.yml` and `docs/.gitlab-ci.yml`. Validation and build
-jobs are blocking; image security scans are advisory and do not block subsequent stages when they fail.
-The structure follows LMS, using Mahfel's pinned Rust and Bun tools and four runtime images.
-
-## Pipeline triggers and scope
-
-Merge requests and branch pushes validate changed components. A feature branch with an open merge
-request uses the merge request pipeline instead of a duplicate push pipeline. Default
-branch pushes also keep the existing Pages job even when only bookkeeping files change. Schedules and
-branch pipelines started from the GitLab UI validate both components and protobuf. Component version
-tags select the named component, plus shared docs and protobuf checks. Other tags do not create a
-pipeline.
-
-Backend changes, protobuf changes, and the Keycloak realm fixture select backend jobs. Frontend and
-exported API contract changes select frontend jobs. Shared CI changes, the root pipeline, and
-`.dockerignore` select both. Protobuf changes also run Buf formatting and linting. Documentation
-changes run a strict MkDocs validation, including in merge requests. Docs Pages
-publishing remains on the default branch. `docs-check` starts immediately and runs on every default
-branch pipeline. Pages depends only on that job, so a successful docs check allows automatic
-publishing without waiting for application jobs. Pages also performs its own strict build.
-
-| Component | Checks |
-| --- | --- |
-| Backend | Rustfmt, Clippy with warnings denied, SQLFluff, nextest unit/binary tests, Docker-backed integration tests, doctests, three runtime image builds |
-| Frontend | Prettier, ESLint, separate TypeScript validation, Vitest, Next.js production build, Storybook build, web runtime image build |
-| Shared protocol | Buf formatting and lint |
-| Images | Advisory Trivy HIGH/CRITICAL vulnerability checks for API, media, worker, and web |
-
-Security scans retain their vulnerability reports and failing exit codes so findings remain
-visible as job warnings. All four scan jobs use `allow_failure: true`, including release
-pipelines, so findings and scanner failures do not block publishing or deployment. Backend
-production runtimes remain on Debian 12 (`bookworm-slim`).
-
-Backend compile jobs install Python and `python3-pip` alongside the native toolchain because
-`mediasoup-sys` installs its Python build dependencies through `python3 -m pip`.
-The unit-test job also installs the media runtime's GStreamer base/good/bad plugins so
-recording readiness tests can check the required capture codecs.
-Rust compile jobs limit Cargo to two build processes and disable dev/test debug information to
-reduce memory use while compiling the AWS SDK and native media dependencies on the shared runner.
-`MESON_ARGS=-Ddebug=false` also disables mediasoup C++ debug symbols without disabling runtime
-assertions or tests. The same non-secret GitLab project variable applies to retries of older
-release pipelines. Production Docker build settings remain independent.
-
-The `prepare` stage runs `cargo fetch --locked` and `bun install --frozen-lockfile` for the selected
-components before application checks. These jobs populate lockfile/toolchain-keyed dependency
-caches; subsequent jobs pull those caches without uploading competing copies. Installed Rust
-tools use a separate cache, including Cargo's `.crates.toml` and `.crates2.json` installation
-records alongside the binaries so repeated `cargo install` calls recognize existing tools.
-Compiled `backend/target/` outputs are not shared between jobs:
-mediasoup's Meson state contains absolute paths that break when restored into another runner
-workspace. The tools cache uses a new key so older archives containing compiled targets are
-not restored. Bun jobs still install from the frozen
-lockfile into their own workspace using the prepared download cache. Docker builds keep their
-separate BuildKit caches; they do not consume these job caches. System packages remain part of
-each backend compile job's setup. Vitest runs with two workers to bound memory
-and CPU use on shared runners. Trivy caches its databases. Nextest and
-Vitest upload JUnit reports, including on failure. The CI nextest profile allows up to ten minutes
-for slow infrastructure tests and writes `target/nextest/ci/junit.xml`.
-
-The frontend test job uses Node 24.15.0 to execute Vitest and jsdom. It installs the pinned Bun
-1.4.2 binary and still uses Bun for frozen dependency installation. GitHub's Bun release archive
-must be reachable from the runner. Tests get a 15-second timeout for DOM-heavy interactions under
-shared-runner load. The other frontend jobs use the Bun image.
-
-## Docker runner requirements
-
-Docker jobs require a Linux runner with Docker Buildx and access to the host daemon through
-`/var/run/docker.sock`, matching the LMS socket-based runner. Images and the Trivy vulnerability
-database must be reachable from that runner. No Docker-in-Docker service is started by the pipeline.
-
-`backend-integration-test` builds the private `ci-integration` Dockerfile target. It contains the
-native mediasoup toolchain and precompiled integration tests. The job launches that container with
-host networking and the daemon socket, sets `MAHFEL_TESTCONTAINERS=1`, copies its JUnit report back,
-and propagates the test exit code. Host networking is necessary because existing test harnesses
-connect to disposable dependency ports through `127.0.0.1`. Testcontainers starts its own
-PostgreSQL, Redis, RabbitMQ, RustFS, and Keycloak instances; shared databases are not configured.
-The test container and its temporary image are removed when the job exits.
-
-The runner must be restricted to trusted project code because jobs have Docker daemon access.
-Do not enable these Docker jobs on a runner accepting arbitrary untrusted fork contributions.
-
-## Image scanning and publishing
-
-Build jobs produce compressed Docker archives. Separate scan jobs inspect those exact archives and
-upload GitLab container-scanning reports using Trivy's GitLab report template. Any HIGH or CRITICAL
-vulnerability fails the scan job with an allowed-failure warning; it does not fail the pipeline.
-Unfixed vulnerabilities remain included in reports.
-
-Release tags use
-`APP_NAME-vMAJOR.MINOR.PATCH`, where the app is `api`, `media`, `worker`, or `web`. Versions have
-three numeric parts without leading zeroes; prerelease suffixes are not production release triggers.
-Each component versions independently. A tag pipeline selects only that component's runtime image;
-Rust tags still run the shared backend workspace checks. Every release runs `release-verify`, which
-requires the tagged commit to be reachable from the default branch (`main`).
-
-Publishing runs only for pushed, protected component release tags. The publish stage waits for all
-preceding validation and builds to succeed and advisory scans to finish. It loads the same build
-archive rather than rebuilding it. CI strips the app prefix from the Git release tag: `api-v0.1.0` publishes `mahfel-api:v0.1.0`. The image repository identifies the app:
-
-```text
-registry.hamdocker.ir/aiedut/mahfel-api:v0.1.0
-registry.hamdocker.ir/aiedut/mahfel-media:v0.1.0
-registry.hamdocker.ir/aiedut/mahfel-worker:v0.1.0
-registry.hamdocker.ir/aiedut/mahfel-web:v0.1.0
-```
-
-Main pushes, merge requests, other branches, schedules, and UI pipelines validate and scan without
-publishing or deploying. Valid unprotected tags validate but cannot publish or deploy. There is no
-production promotion bypass.
-
-Protect `api-v*`, `media-v*`, `worker-v*`, and `web-v*` in GitLab and restrict who can create them.
-Create an annotated release tag on a chosen main commit after validation:
-
-```bash
-git tag -a api-v0.1.0 <main-commit-sha> -m "Mahfel API v0.1.0"
-git push origin api-v0.1.0
-```
-
-That tag releases API only. Use new version tags for subsequent releases; do not move, delete/reuse,
-or overwrite an existing release. Configure registry tag immutability where available. The Git tag
-records the release's commit SHA; runtime package versions are not rewritten by the pipeline.
-
-Configure these GitLab CI/CD variables before publishing:
-
-| Variable | Value |
-| --- | --- |
-| `CI_REGISTRY_USERNAME` | Registry account allowed to push Mahfel images |
-| `CI_REGISTRY_PASSWORD` | Masked registry password or token, available to protected release tags |
-| `MAHFEL_IMAGE_REGISTRY` | Defaults to `registry.hamdocker.ir` |
-| `MAHFEL_IMAGE_PREFIX` | Defaults to `registry.hamdocker.ir/aiedut/mahfel`; component names are appended with a hyphen |
-| `NEXT_PUBLIC_MAHFEL_API_URL` | Public API URL used by validation builds; defaults to the local fixture URL |
-| `MAHFEL_API_URL_PRODUCTION` | `https://api.mahfel.rastai.ai` for `web-v*` release builds |
-| `RASTPLOY_SERVER` | HTTPS deployment endpoint, for example `https://deploy.rastai.ir` |
-| `RASTPLOY_TOKEN` | Protected, masked token scoped to Mahfel production app targets and deployment create/read permissions |
-
-Protect the release tag patterns so protected credentials are available. Web release builds require
-`MAHFEL_API_URL_PRODUCTION`, so a missing setting cannot publish a web image compiled
-with the local development URL. Other pipelines use `NEXT_PUBLIC_MAHFEL_API_URL`, which defaults to
-the local URL. These are public values, never authentication tokens. The frontend's server-only OIDC configuration belongs
-to runtime deployment secrets rather than CI build arguments.
-
-Temporary Docker image tags and registry login state are removed after jobs; BuildKit keeps its
-build cache. Image archives expire after one day; JUnit and scan reports expire after seven days. Retry an expired
-publish job by rerunning the pipeline so its build archives are available again.
-
-## Deployment boundary
-
-Protected component release pipelines automatically deploy through Rastploy after the publish
-stage succeeds. Each job uses the same protected push/tag rules as its image publisher, strips
-the app prefix (`api-v1.0.1` becomes `v1.0.1`) and deploys only `mahfel-api`, `mahfel-media`,
-`mahfel-worker` or `mahfel-web` in production. Branches, merge requests and unprotected tags do
-not deploy. Deploy jobs are serialized, blocking and not interruptible; they wait for Rastploy's
-terminal deployment result. They have no early `needs` bypass, so the publish stage must finish.
-
-Configure `RASTPLOY_SERVER` as the HTTPS endpoint and `RASTPLOY_TOKEN` as a protected, masked
-bearer token scoped to those four targets in production with deployment create/read permissions.
-CI never receives SSH access, the age private key or runtime secrets. The app jobs do not fetch
-private submodules. The Rastploy daemon reads the independently maintained DevOps repository.
-
-Production manifests, initial shared database/broker provisioning, external Keycloak/S3 settings,
-DNS, TURN certificates and first-deployment ordering are documented in the
-[DevOps Mahfel guide](https://hamgit.ir/hamdars/devops/-/blob/main/services/mahfel/README.md).
-Publish the reviewed DevOps configuration and ciphertext before releasing applications. Web
-releases need `MAHFEL_API_URL_PRODUCTION=https://api.mahfel.rastai.ai`; an old web image built with
-the previous production URL requires a new release. Media deployment requires draining active
-rooms, and image rollback does not reverse database migrations.
+Hosted continuous integration is currently disabled during the move to
+[GitHub](https://github.com/mhyrzt/mahfel). The GitLab pipeline definitions and
+GitLab-specific build, release, and deployment helpers have been removed.
+No GitHub Actions replacement is configured yet.
 
 ## Local validation
 
-Use the existing component recipes for the same checks:
+Run the checks relevant to your change before submitting a pull request:
 
 ```bash
-just backend fmt
-just backend lint
-just backend test
 just frontend fmt
 just frontend lint
 just frontend typecheck
 just frontend test
-just frontend build
-just frontend storybook-build
+just backend fmt
+just backend lint
+just backend test
+just backend build
 just proto fmt-check
 just proto lint
 just docs
+docker compose config
 ```
 
-GitLab's CI Lint validates the assembled pipeline and dependencies. Local YAML parsing cannot prove
-runner image availability, registry access, Docker-backed acceptance, or a successful GitLab run.
+Frontend commands use Bun; backend commands use the pinned Rust toolchain.
+Docker-backed integration tests require a working Docker daemon. See
+[getting started](getting-started.md) for prerequisites and component instructions
+for more focused validation commands.
 
-## Retrying production deployment
-
-After a release image has passed its build and publish jobs, production CD can be
-retried from the protected default branch without rebuilding that image. Run a
-pipeline with `MAHFEL_DEPLOY_ONLY=true` and select the releases to deploy:
-
-- `MAHFEL_REDEPLOY_API_TAG=api-v1.0.2`
-- `MAHFEL_REDEPLOY_MEDIA_TAG=media-v1.0.2`
-- `MAHFEL_REDEPLOY_WORKER_TAG=worker-v1.0.2`
-- `MAHFEL_REDEPLOY_WEB_TAG=web-v1.0.4`
-
-Omit a component variable to leave that component out. This lane accepts manual
-or API pipeline triggers on the protected default branch, runs the deployment
-script checks, and then runs the selected Rastploy jobs. Use only immutable
-release images whose original build and publish jobs succeeded; this lane does
-not build or publish images. It uses the same production token and deployment
-resource group as release CD.
-
-Backend CI uses `https://repo.hmirror.ir/python/simple/` for Python build dependencies, matching
-the existing Devops package mirror. The project-level `PIP_INDEX_URL` variable also supplies this
-setting to retries of releases created before that CI default was added.
+Image publication and production deployment are currently manual. This repository
+does not require the former private `devops` submodule for development or builds.
