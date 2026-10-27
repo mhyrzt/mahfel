@@ -32,6 +32,8 @@ Destroy removes the canvas, ticker, children, mesh and owned textures/gradients.
 
 ## Playful motion
 
+Parto has no mouth in any state. Expressions use only the eyes, body, and hair motion; speaking responds to audio through body motion.
+
 The **Playful** and **Excited** stories demonstrate happy eye arches, restrained ribbon movement, and calm floating. Explicit delight reactions retain anticipation, a little hop, and spring settling. Continuous floating and hair movement stay restrained in every emotion; hops occur only when explicitly activated. Listening settles into quieter motion, thinking curls upward, and sleeping slows the float. Gaze, joy, sleep and audio inputs blend through springs instead of switching shapes immediately.
 
 Set `interactive` to let Parto follow the pointer and react to a tap, Enter or Space with a delight hop and sparse sparkles. Interaction is opt-in; ordinary avatars remain labeled images. Imperative clients can call `play("delight")`, and React can use `sequence="delight"`. Reduced motion suppresses hops, rotation, squash/stretch and delight sparkles. The reference silhouette remains the shape boundary throughout.

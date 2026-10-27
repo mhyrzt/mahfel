@@ -329,21 +329,6 @@ export async function createParto(
         .stroke({ color: 0x26164e, width: 3, cap: "round", join: "round", alpha: squint });
     }
 
-    if (motion.speaking > 0.02) {
-      eyes
-        .ellipse(163, 162, 2.5, 1 + motion.speaking * (1.5 + (Math.sin(phase * 11) + 1) * 1.5))
-        .fill(0x43218b);
-    } else if (motion.joy > 0.5) {
-      eyes
-        .moveTo(159, 160)
-        .quadraticCurveTo(163, 163 + motion.joy * 2, 167, 160)
-        .stroke({
-          color: 0x43218b,
-          width: 1.6,
-          cap: "round",
-          alpha: Math.min(1, (motion.joy - 0.5) * 2),
-        });
-    }
     effects.clear();
     if (active > 0.1 && curl > 0.25 && settings.design !== "minimal") {
       const qx = 213 + Math.sin(phase) * 4;
