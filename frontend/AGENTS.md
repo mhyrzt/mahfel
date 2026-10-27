@@ -347,7 +347,7 @@ Use them only when necessary.
 
 Unused disable directives are errors.
 
-Do not add TODO comments. Track unfinished work through GitLab issues.
+Do not add TODO comments. Track unfinished work through GitHub issues.
 
 ## React
 

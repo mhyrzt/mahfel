@@ -1,13 +1,13 @@
 # Engineering roadmap
 
 This roadmap describes the implementation sequence after bootstrap. Roadmap IDs are stable
-planning identifiers; [GitLab issues](https://hamgit.ir/hamdars/mahfel/-/issues) hold the executable
-work records and [GitLab milestones](https://hamgit.ir/hamdars/mahfel/-/milestones) group delivery.
+planning identifiers; [GitHub issues](https://github.com/mhyrzt/mahfel/issues) hold the executable
+work records and [GitHub milestones](https://github.com/mhyrzt/mahfel/milestones) group delivery.
 Dependencies name roadmap IDs or milestone completion. Capacity and product assumptions must be
 validated rather than treated as promises.
 
 See [issue tracking](issue-tracking.md) for the legacy task-to-issue mapping. This document describes
-scope and sequencing; GitLab owns current task status and validation evidence.
+scope and sequencing; GitHub owns current task status and validation evidence.
 
 ## M0 — Repository and engineering foundation
 

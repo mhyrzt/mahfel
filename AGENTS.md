@@ -28,28 +28,28 @@ For work spanning both trees, read both files and apply each file to its own sco
 
 The more specific scoped instructions take precedence when they intentionally differ from this file.
 
-## GitLab Issues Workflow
+## GitHub Issues Workflow
 
-Use [GitLab issues](https://hamgit.ir/hamdars/mahfel/-/issues) and
-[GitLab milestones](https://hamgit.ir/hamdars/mahfel/-/milestones) for task and project management.
+Use [GitHub issues](https://github.com/mhyrzt/mahfel/issues) and
+[GitHub milestones](https://github.com/mhyrzt/mahfel/milestones) for task and project management.
 
 At the beginning of repository work, search existing issues and read the relevant issue and
 milestone before creating new work. Preserve unrelated issues and milestones.
 
-Use `glab` from this repository or the GitLab API for project `hamdars/mahfel` (ID `48414`) on
-`hamgit.ir`. Read `glab <command> --help` before unfamiliar operations. Prefer structured API
+Use `gh` from this repository or the GitHub API for `mhyrzt/mahfel`.
+Read `gh <command> --help` before unfamiliar operations. Prefer structured API
 request bodies for descriptions so Markdown and newlines remain intact.
 
 Create an issue when work requires planning, decisions, or handoff notes; skip mechanical issue
 creation for trivial work. Record the problem, scope, acceptance criteria, dependencies, and
-validation evidence in the issue. Assign the appropriate milestone and verified GitLab assignees.
+validation evidence in the issue. Assign the appropriate milestone and verified GitHub assignees.
 
 Use `status::To Do`, `status::In Progress`, and `status::Done` labels for task progress. Close done
 issues after relevant validation and update their final summary. Archived issues remain closed
 with `status::Archived`; archival does not imply acceptance criteria were completed.
 
 Legacy task IDs are retained in migrated issue titles and original metadata. See
-`docs/development/issue-tracking.md` for the migration mapping and conventions. GitLab is the
+`docs/development/issue-tracking.md` for the migration mapping and conventions. GitHub is the
 source of task state; do not recreate a local task database.
 
 ## Working Style
@@ -59,7 +59,7 @@ Before changing code:
 1. Understand the requested behavior.
 2. Inspect the smallest relevant implementation area.
 3. Read the applicable architecture or ADR documents when the change touches a documented boundary.
-4. Check the relevant GitLab issue or milestone.
+4. Check the relevant GitHub issue or milestone.
 5. Implement the smallest coherent change that solves the request.
 6. Validate the changed surface.
 7. Report what changed, what was validated, and any remaining risk.
@@ -274,7 +274,7 @@ A task is complete when:
 - relevant tests or checks pass;
 - architecture boundaries remain intact;
 - documentation is updated when required;
-- GitLab issue state and validation notes are finalized according to the GitLab workflow.
+- GitHub issue state and validation notes are finalized according to the GitHub workflow.
 
 In the final response, summarize:
 
